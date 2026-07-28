@@ -17,20 +17,32 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Ensure logs directory exists (loguru will write there)
-os.makedirs("logs", exist_ok=True)
-
-# Configure logging
-logger.configure(
-    handlers=[
-        {
-            "sink": "logs/app.log",
-            "format": os.getenv("LOG_FORMAT", "{time} | {level} | {message}"),
-            "level": os.getenv("LOG_LEVEL", "INFO"),
-            "rotation": "1 day",
-        }
-    ]
-)
+# Vercel's deployment filesystem is read-only outside of /tmp, so file
+# logging has to be skipped there — stdout/stderr is captured as runtime
+# logs by the platform instead.
+if os.getenv("VERCEL"):
+    logger.configure(
+        handlers=[
+            {
+                "sink": lambda msg: print(msg, end=""),
+                "format": os.getenv("LOG_FORMAT", "{time} | {level} | {message}"),
+                "level": os.getenv("LOG_LEVEL", "INFO"),
+            }
+        ]
+    )
+else:
+    # Ensure logs directory exists (loguru will write there)
+    os.makedirs("logs", exist_ok=True)
+    logger.configure(
+        handlers=[
+            {
+                "sink": "logs/app.log",
+                "format": os.getenv("LOG_FORMAT", "{time} | {level} | {message}"),
+                "level": os.getenv("LOG_LEVEL", "INFO"),
+                "rotation": "1 day",
+            }
+        ]
+    )
 
 logger.info("Starting Ayurvedic Meal Planner API startup sequence")
 
