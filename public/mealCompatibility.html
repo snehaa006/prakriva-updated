@@ -653,7 +653,83 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         const API_BASE = 'https://api.foodoscope.com/recipe2-api';
-        const API_TOKEN = 'usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB';
+
+        // FoodOScope API keys. This page is standalone HTML (no bundler), so the
+        // keys are listed here rather than read from .env — add as many as you
+        // have and foodoscopeFetch() rotates to the next one when a key is
+        // rate-limited, expired, or rejected. Keep this list in sync with the
+        // VITE_FOODOSCOPE_API_KEYS entries in the root .env file.
+        const API_TOKENS = [
+            'usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB',
+            // 'second-key-here',
+            // 'third-key-here',
+        ];
+
+        // Index of the key that last worked, plus per-key cooldowns so a
+        // failing key isn't retried on every request.
+        let activeTokenIndex = 0;
+        const tokenCooldownUntil = API_TOKENS.map(() => 0);
+
+        // 401/402/403 = bad or exhausted key, 429 = rate limited, 5xx = upstream
+        // trouble — all worth retrying on a different key.
+        const isTokenFailure = (status) =>
+            status === 401 || status === 402 || status === 403 || status === 429 || status >= 500;
+
+        const tokenCooldownFor = (status) => {
+            if (status === 429) return 60000;
+            if (status === 401 || status === 402 || status === 403) return 15 * 60000;
+            return 30000;
+        };
+
+        /**
+         * fetch() against the FoodOScope API, rotating through API_TOKENS.
+         * Returns the last response so callers can keep checking .ok/.status.
+         */
+        async function foodoscopeFetch(path) {
+            const now = Date.now();
+            const order = API_TOKENS.map((_, i) => (activeTokenIndex + i) % API_TOKENS.length);
+            // Cooling-down keys go last rather than being skipped entirely.
+            const candidates = [
+                ...order.filter(i => tokenCooldownUntil[i] <= now),
+                ...order.filter(i => tokenCooldownUntil[i] > now),
+            ];
+
+            let lastResponse = null;
+            let lastError = null;
+
+            for (const i of candidates) {
+                let response;
+                try {
+                    response = await fetch(`${API_BASE}${path}`, {
+                        headers: {
+                            'Authorization': `Bearer ${API_TOKENS[i]}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                } catch (error) {
+                    lastError = error;
+                    tokenCooldownUntil[i] = Date.now() + tokenCooldownFor(0);
+                    if (activeTokenIndex === i) activeTokenIndex = (i + 1) % API_TOKENS.length;
+                    continue;
+                }
+
+                if (response.ok) {
+                    activeTokenIndex = i;
+                    tokenCooldownUntil[i] = 0;
+                    return response;
+                }
+
+                lastResponse = response;
+                // A bad request or missing recipe fails the same way on every key.
+                if (!isTokenFailure(response.status)) return response;
+
+                tokenCooldownUntil[i] = Date.now() + tokenCooldownFor(response.status);
+                if (activeTokenIndex === i) activeTokenIndex = (i + 1) % API_TOKENS.length;
+            }
+
+            if (lastResponse) return lastResponse;
+            throw lastError || new Error('FoodOScope request failed');
+        }
 
         let selectedFoods = [];
         let currentAnalysis = null;
@@ -1934,9 +2010,8 @@
 
             searchTimeout = setTimeout(async () => {
                 try {
-                    const response = await fetch(
-                        `${API_BASE}/recipe-bytitle/recipeByTitle?title=${encodeURIComponent(query)}`,
-                        { headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' } }
+                    const response = await foodoscopeFetch(
+                        `/recipe-bytitle/recipeByTitle?title=${encodeURIComponent(query)}`
                     );
                     
                     if (response.status === 429) {
@@ -1987,10 +2062,7 @@
             loadingSpinner.style.display = 'block';
 
             try {
-                const response = await fetch(
-                    `${API_BASE}/search-recipe/${recipeId}`,
-                    { headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' } }
-                );
+                const response = await foodoscopeFetch(`/search-recipe/${recipeId}`);
                 
                 if (response.status === 429) {
                     alert('⚠️ Rate limit reached. Please wait a moment before adding more foods.');

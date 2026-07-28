@@ -110,6 +110,8 @@ committed.
 |---|---|---|---|
 | `VITE_SUPABASE_URL` | Frontend | Yes | Supabase project URL. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`) | Frontend | Yes | Supabase anon/publishable key. Safe to expose — protected by RLS. |
+| `VITE_FOODOSCOPE_API_KEYS` | Frontend | No | Comma- (or newline-) separated FoodOScope/RecipeDB keys. The client rotates through them — see "FoodOScope API key rotation" below. Falls back to a bundled key if unset. |
+| `VITE_FOODOSCOPE_API_KEY` / `VITE_FOODOSCOPE_API_KEY_1` … `_20` | Frontend | No | Alternative way to supply the same keys, one per variable. Merged with `VITE_FOODOSCOPE_API_KEYS`; duplicates are dropped. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
@@ -126,6 +128,46 @@ git history, so treat every secret they held as public and rotate it:
 - the `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env`,
 - the Firebase service-account key in `backend/firebase_key.json` — revoke the
   service account in Google Cloud IAM rather than reissuing it.
+
+## FoodOScope API key rotation
+
+Recipe data comes from the FoodOScope (RecipeDB) API, called directly from the
+browser by `src/services/foodoscopeApi.ts`. That service accepts **multiple
+keys** and rotates between them so a single exhausted or throttled key doesn't
+take the recipe features down.
+
+Where to put the keys:
+
+- Root `.env` (and your Vercel frontend project's environment variables) —
+  `VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three`, and/or one key per
+  variable via `VITE_FOODOSCOPE_API_KEY_1` … `VITE_FOODOSCOPE_API_KEY_20`. All
+  forms are merged and de-duplicated. With none set, a bundled fallback key is
+  used and a warning is logged in dev.
+- `public/mealCompatibility.html` — this page is standalone HTML served as-is
+  with no bundler, so its keys live in the `API_TOKENS` array at the top of its
+  `<script>` block. Keep that list in sync with `.env` by hand.
+
+How rotation behaves:
+
+- The key that last succeeded is tried first, so healthy traffic stays on one
+  key instead of cycling.
+- On `401`/`402`/`403` (invalid, exhausted, or suspended key), `429` (rate
+  limited), or any `5xx`, the request is retried on the next key.
+- A failed key is put in cooldown — 60s after a `429`, 15 min after an auth
+  failure, 30s after a server or network error — and skipped while a healthy
+  key is available. If every key is cooling down, they're still tried rather
+  than failing outright.
+- `4xx` responses that aren't key-related (e.g. `400`, `404`) throw
+  immediately, since another key would return the same thing.
+- When all keys fail, the last error is thrown as a `FoodoscopeApiError`
+  carrying the HTTP `status`. `getKeyPoolStatus()` from the same module returns
+  a redacted snapshot of each key's state for debugging.
+
+These keys are **not secrets** — anything in a `VITE_`-prefixed variable ends
+up in the JS bundle and is readable by users. FoodOScope keys are per-app quota
+tokens, which is why they're allowed in the frontend; genuine secrets still
+belong in `backend/.env`. If a key must stay private, proxy the calls through
+the Flask backend instead.
 
 ## Deployment (Vercel)
 
