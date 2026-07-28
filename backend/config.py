@@ -24,8 +24,13 @@ class Settings:
 
         # Supabase. The service-role key bypasses RLS, so it must never be
         # exposed to the browser — server-side only.
-        self.SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-        self.SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        # Falls back to the VITE_-prefixed frontend vars when the
+        # backend-only ones aren't set. Note this means Supabase calls run
+        # as the anon role (subject to RLS) rather than the privileged
+        # service role, since VITE_SUPABASE_ANON_KEY is the only one safe
+        # to expose to the browser in the first place.
+        self.SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL", "")
+        self.SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY", "")
 
         # Database settings
         self.GENERATED_PLANS_TABLE = os.getenv("GENERATED_PLANS_TABLE", "generated_plans")
