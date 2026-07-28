@@ -1,0 +1,2439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FemNourish - Food Compatibility Intelligence Engine</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 50%, #16001e 100%);
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(10, 14, 39, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+            padding: 1rem 2rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(to right, #22d3ee, #a78bfa, #22d3ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 0.875rem;
+            color: #22d3ee;
+            margin-top: 0.25rem;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            gap: 1.5rem;
+            padding: 6rem 2rem 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+
+        .food-panel {
+            background: rgba(10, 20, 40, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            height: fit-content;
+            max-height: calc(100vh - 8rem);
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #22d3ee;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 0.5rem;
+            color: #fff;
+            font-size: 0.875rem;
+        }
+
+        .search-box input::placeholder {
+            color: rgba(34, 211, 238, 0.5);
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #22d3ee;
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+        }
+
+        .loading-spinner {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(34, 211, 238, 0.3);
+            border-top-color: #22d3ee;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+
+        .search-results {
+            max-height: 250px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+
+        .result-item {
+            background: rgba(34, 211, 238, 0.05);
+            border: 1px solid rgba(34, 211, 238, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .result-item:hover {
+            background: rgba(34, 211, 238, 0.15);
+            border-color: #22d3ee;
+            transform: translateX(5px);
+        }
+
+        .result-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .result-meta {
+            font-size: 0.75rem;
+            color: #22d3ee;
+        }
+
+        .selected-foods {
+            margin-top: 1rem;
+        }
+
+        .selected-foods h3 {
+            font-size: 0.875rem;
+            color: #22d3ee;
+            margin-bottom: 0.75rem;
+        }
+
+        .food-card {
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(167, 139, 250, 0.15));
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .food-card-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .food-card-meta {
+            font-size: 0.75rem;
+            color: #22d3ee;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .food-card-ingredients {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(34, 211, 238, 0.2);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        .ingredient-tag {
+            background: rgba(34, 211, 238, 0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.625rem;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(239, 68, 68, 0.8);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .food-card:hover .remove-btn {
+            opacity: 1;
+        }
+
+        .remove-btn:hover {
+            background: #dc2626;
+        }
+
+        .viz-panel {
+            position: relative;
+            background: radial-gradient(circle at center, #0a1628 0%, #000000 100%);
+            border: 2px solid rgba(34, 211, 238, 0.4);
+            border-radius: 1rem;
+            overflow: hidden;
+            min-height: 850px;
+            box-shadow: 0 0 60px rgba(34, 211, 238, 0.2), inset 0 0 60px rgba(34, 211, 238, 0.05);
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            min-height: 850px;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(34, 211, 238, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.75rem;
+            color: #22d3ee;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .organ-label {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.98);
+            border: 2px solid #22d3ee;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            max-width: 320px;
+            max-height: 80vh;
+            overflow-y: auto;
+            pointer-events: none;
+            z-index: 10000;
+            display: none;
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.5);
+        }
+
+        .organ-label.visible {
+            display: block;
+        }
+
+        .label-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            color: #22d3ee;
+            letter-spacing: 1px;
+        }
+
+        .label-effect {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+        }
+
+        .label-effect:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .effect-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .effect-icon {
+            font-size: 1.5rem;
+        }
+
+        .effect-title {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .effect-title.positive {
+            color: #4ade80;
+        }
+
+        .effect-title.negative {
+            color: #f87171;
+        }
+
+        .effect-desc {
+            font-size: 0.9rem;
+            color: #e5e7eb;
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .effect-mechanism {
+            font-size: 0.8rem;
+            color: #22d3ee;
+            font-style: italic;
+            padding-left: 1rem;
+            border-left: 2px solid #22d3ee;
+        }
+
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: rgba(34, 211, 238, 0.6);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .analysis-panel {
+            background: rgba(10, 20, 40, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            height: fit-content;
+            max-height: calc(100vh - 8rem);
+            overflow-y: auto;
+        }
+
+        .score-card {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .score-value {
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+            color: #22d3ee;
+        }
+
+        .score-status {
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            color: #22d3ee;
+        }
+
+        .score-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(34, 211, 238, 0.2);
+            border-radius: 1rem;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .score-fill {
+            height: 100%;
+            border-radius: 1rem;
+            transition: width 0.5s ease;
+            background: #22d3ee;
+        }
+
+        .score-message {
+            font-size: 0.75rem;
+            color: #22d3ee;
+        }
+
+        .analysis-section {
+            margin-top: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: #22d3ee;
+        }
+
+        .rule-card {
+            border-left: 4px solid;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border-radius: 0.25rem;
+        }
+
+        .rule-card.positive {
+            background: rgba(74, 222, 128, 0.1);
+            border-color: #4ade80;
+        }
+
+        .rule-card.negative {
+            background: rgba(248, 113, 113, 0.1);
+            border-color: #f87171;
+        }
+
+        .rule-card.warning {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: #fbbf24;
+        }
+
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .rule-organ {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .rule-type {
+            font-size: 0.625rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .rule-type.ayurvedic {
+            background: rgba(167, 139, 250, 0.3);
+            color: #d8b4fe;
+        }
+
+        .rule-type.scientific {
+            background: rgba(34, 211, 238, 0.3);
+            color: #22d3ee;
+        }
+
+        .rule-description {
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .rule-mechanism {
+            font-size: 0.75rem;
+            color: #22d3ee;
+        }
+
+        .data-breakdown {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(34, 211, 238, 0.05);
+            border-radius: 0.5rem;
+            border: 1px solid rgba(34, 211, 238, 0.2);
+        }
+
+        .data-breakdown-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #22d3ee;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(34, 211, 238, 0.1);
+        }
+
+        .data-item:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: #d8b4fe;
+        }
+
+        .data-value {
+            color: #22d3ee;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .data-value.highlight {
+            color: #10b981;
+            font-weight: 700;
+        }
+
+        .data-value.warning {
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .data-source {
+            font-size: 0.65rem;
+            color: rgba(34, 211, 238, 0.6);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        .ingredient-list {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(34, 211, 238, 0.2);
+        }
+
+        .ingredient-chip {
+            display: inline-block;
+            background: rgba(167, 139, 250, 0.2);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.65rem;
+            margin: 0.2rem;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+        }
+
+        .disclaimer {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: #fef3c7;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(34, 211, 238, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(34, 211, 238, 0.7);
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .viz-panel {
+                min-height: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>FemNourish</h1>
+        <p>Food Compatibility Intelligence Engine</p>
+    </div>
+
+    <div class="container">
+        <div class="food-panel">
+            <div class="panel-title">
+                <span>🍽️</span>
+                <span>Add Foods</span>
+            </div>
+
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search foods (e.g., burger, pasta, salad)..."
+                    autocomplete="off"
+                >
+                <div id="loadingSpinner" class="loading-spinner" style="display: none;"></div>
+            </div>
+
+            <div id="searchResults" class="search-results"></div>
+
+            <div class="selected-foods">
+                <h3>Selected Foods (<span id="foodCount">0</span>/5)</h3>
+                <button id="demoButton" style="width: 100%; padding: 0.75rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, #22d3ee, #a78bfa); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
+                    🎬 Load Demo Foods
+                </button>
+                <button id="calculateButton" style="width: 100%; padding: 0.75rem; margin-bottom: 1rem; background: linear-gradient(135deg, #10b981, #22d3ee); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem; display: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                    🧬 Calculate Compatibility
+                </button>
+                <div id="selectedFoods"></div>
+            </div>
+        </div>
+
+        <div class="viz-panel">
+            <div id="canvas-container"></div>
+            <div class="controls-hint">🖱️ Click and drag to rotate • Scroll to zoom • Right-click to pan</div>
+            <div id="organLabel" class="organ-label"></div>
+            <div id="emptyState" class="empty-state">
+                <div class="empty-state-icon">🧬</div>
+                <div>Add foods to analyze their effects on your body</div>
+            </div>
+        </div>
+
+        <div class="analysis-panel">
+            <div id="analysisContent">
+                <div class="score-card">
+                    <div class="score-value" id="scoreValue">--</div>
+                    <div class="score-status" id="scoreStatus">Add foods to analyze compatibility</div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="scoreFill" style="width: 0%"></div>
+                    </div>
+                    <div class="score-message" id="scoreMessage"></div>
+                </div>
+
+                <div class="analysis-section" id="rulesSection" style="display: none;">
+                    <div class="section-title">Detailed Analysis</div>
+                    <div id="rulesList"></div>
+                </div>
+
+                <div class="disclaimer">
+                    <strong>⚠️ Disclaimer:</strong> This analysis is based on Ayurvedic principles and nutritional interaction patterns. It is not medical advice. Consult a healthcare professional for personalized dietary guidance.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const API_BASE = 'https://api.foodoscope.com/recipe2-api';
+        const API_TOKEN = 'usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB';
+
+        let selectedFoods = [];
+        let currentAnalysis = null;
+        let scene, camera, renderer, controls, organs = {}, foodMeshes = [], bodyGroup;
+        let hoveredOrgan = null;
+
+        const RULES = [
+            // === AYURVEDIC VIRUDDHA AHARA RULES ===
+            
+            // 1. Milk + Sour/Acidic (Samyoga Viruddha - combination incompatibility)
+            {
+                id: 'milk_citrus',
+                type: 'ayurvedic',
+                category: 'Samyoga Viruddha',
+                check: (foods) => {
+                    const hasMilk = foods.some(f => f.ingredients?.some(i => 
+                        ['milk', 'cream', 'yogurt', 'cheese', 'paneer', 'dairy'].some(m => 
+                            i.ingredient?.toLowerCase().includes(m))
+                    ));
+                    const hasCitrus = foods.some(f => f.ingredients?.some(i => 
+                        ['lemon', 'lime', 'orange', 'citrus', 'vinegar', 'tamarind', 'tomato'].some(c => 
+                            i.ingredient?.toLowerCase().includes(c))
+                    ));
+                    return hasMilk && hasCitrus;
+                },
+                effect: {
+                    organ: 'stomach',
+                    type: 'negative',
+                    intensity: 0.85,
+                    description: 'Milk with sour foods causes curdling and digestive toxins (ama)',
+                    mechanism: 'Acid denatures milk proteins causing incomplete digestion and fermentation'
+                }
+            },
+            
+            // 2. Milk + Salt (Samyoga Viruddha)
+            {
+                id: 'milk_salt',
+                type: 'ayurvedic',
+                category: 'Samyoga Viruddha',
+                check: (foods) => {
+                    const hasMilk = foods.some(f => f.ingredients?.some(i => 
+                        ['milk', 'dairy'].some(m => i.ingredient?.toLowerCase().includes(m))
+                    ));
+                    const highSodium = foods.some(f => parseFloat(f['Sodium, Na (mg)']) > 400);
+                    return hasMilk && highSodium;
+                },
+                effect: {
+                    organ: 'heart',
+                    type: 'negative',
+                    intensity: 0.6,
+                    description: 'Milk with excess salt disrupts mineral balance',
+                    mechanism: 'Creates electrolyte imbalance affecting cardiovascular function'
+                }
+            },
+            
+            // 3. Honey + Heat (Samskara Viruddha - processing incompatibility)
+            {
+                id: 'honey_heat',
+                type: 'ayurvedic',
+                category: 'Samskara Viruddha',
+                check: (foods) => {
+                    const hasHoney = foods.some(f => f.ingredients?.some(i => 
+                        i.ingredient?.toLowerCase().includes('honey')
+                    ));
+                    const hasCookingProcess = foods.some(f => 
+                        f.Processes?.toLowerCase().includes('heat') || 
+                        f.Processes?.toLowerCase().includes('cook') ||
+                        f.Processes?.toLowerCase().includes('bake')
+                    );
+                    return hasHoney && hasCookingProcess;
+                },
+                effect: {
+                    organ: 'liver',
+                    type: 'negative',
+                    intensity: 0.75,
+                    description: 'Heated honey produces toxic compounds (ama)',
+                    mechanism: 'Heat destroys enzymes and creates hydroxymethylfurfural (HMF)'
+                }
+            },
+            
+            // 4. Fish + Milk (Veerya Viruddha - potency incompatibility)
+            {
+                id: 'fish_milk',
+                type: 'ayurvedic',
+                category: 'Veerya Viruddha',
+                check: (foods) => {
+                    const hasFish = foods.some(f => 
+                        f.Region?.toLowerCase().includes('sea') ||
+                        f.ingredients?.some(i => 
+                            ['fish', 'salmon', 'tuna', 'cod', 'seafood'].some(s => 
+                                i.ingredient?.toLowerCase().includes(s))
+                        )
+                    );
+                    const hasMilk = foods.some(f => f.ingredients?.some(i => 
+                        ['milk', 'dairy'].some(m => i.ingredient?.toLowerCase().includes(m))
+                    ));
+                    return hasFish && hasMilk;
+                },
+                effect: {
+                    organ: 'stomach',
+                    type: 'negative',
+                    intensity: 0.8,
+                    description: 'Fish and milk have opposite properties causing skin disorders',
+                    mechanism: 'Conflicting post-digestive effects (vipaka) create toxins'
+                }
+            },
+            
+            // 5. Fruit after meal (Kala Viruddha - timing incompatibility)
+            {
+                id: 'heavy_then_fruit',
+                type: 'ayurvedic',
+                category: 'Kala Viruddha',
+                check: (foods) => {
+                    const hasHeavyFood = foods.some(f => 
+                        parseFloat(f['Total lipid (fat) (g)']) > 30 ||
+                        parseFloat(f['Protein (g)']) > 35
+                    );
+                    const hasFruit = foods.some(f => 
+                        f.ingredients?.some(i => 
+                            ['banana', 'apple', 'mango', 'orange', 'berry', 'fruit'].some(fr => 
+                                i.ingredient?.toLowerCase().includes(fr))
+                        )
+                    );
+                    return hasHeavyFood && hasFruit;
+                },
+                effect: {
+                    organ: 'stomach',
+                    type: 'negative',
+                    intensity: 0.65,
+                    description: 'Fruit ferments when combined with slow-digesting heavy foods',
+                    mechanism: 'Rapid fruit digestion blocked by slower protein/fat digestion'
+                }
+            },
+            
+            // 6. Excessive Protein + Carbs (Matra Viruddha - quantity incompatibility)
+            {
+                id: 'heavy_protein_carb',
+                type: 'ayurvedic',
+                category: 'Matra Viruddha',
+                check: (foods) => {
+                    const totalProtein = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Protein (g)']) || 0), 0
+                    );
+                    const totalCarbs = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Carbohydrate, by difference (g)']) || 0), 0
+                    );
+                    return totalProtein > 50 && totalCarbs > 100;
+                },
+                effect: {
+                    organ: 'stomach',
+                    type: 'negative',
+                    intensity: 0.7,
+                    description: 'Excessive combined load overwhelms digestive capacity',
+                    mechanism: 'Competing enzymatic pathways create incomplete digestion'
+                }
+            },
+            
+            // === SCIENTIFIC SYNERGIES ===
+            
+            // 7. Iron + Vitamin C (Bioavailability enhancement)
+            {
+                id: 'iron_vitamin_c',
+                type: 'scientific',
+                category: 'Absorption Synergy',
+                check: (foods) => {
+                    const hasIron = foods.some(f => parseFloat(f['Iron, Fe (mg)']) > 2);
+                    const hasVitC = foods.some(f => 
+                        parseFloat(f['Vitamin C, total ascorbic acid (mg)']) > 15
+                    );
+                    return hasIron && hasVitC;
+                },
+                effect: {
+                    organ: 'intestines',
+                    type: 'positive',
+                    intensity: 0.85,
+                    description: 'Iron absorption enhanced 3-5x by vitamin C',
+                    mechanism: 'Ascorbic acid converts non-heme iron to absorbable ferrous form'
+                }
+            },
+            
+            // 8. Turmeric + Black Pepper (Bioavailability enhancement)
+            {
+                id: 'turmeric_pepper',
+                type: 'scientific',
+                category: 'Bioavailability Synergy',
+                check: (foods) => {
+                    const hasTurmeric = foods.some(f => f.ingredients?.some(i => 
+                        i.ingredient?.toLowerCase().includes('turmeric')
+                    ));
+                    const hasPepper = foods.some(f => f.ingredients?.some(i => 
+                        ['pepper', 'piperine'].some(p => i.ingredient?.toLowerCase().includes(p))
+                    ));
+                    return hasTurmeric && hasPepper;
+                },
+                effect: {
+                    organ: 'intestines',
+                    type: 'positive',
+                    intensity: 0.95,
+                    description: 'Curcumin bioavailability increased by 2000%',
+                    mechanism: 'Piperine inhibits glucuronidation of curcumin in liver'
+                }
+            },
+            
+            // 9. High Fiber (Gut health)
+            {
+                id: 'high_fiber',
+                type: 'scientific',
+                category: 'Digestive Health',
+                check: (foods) => {
+                    const totalFiber = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Fiber, total dietary (g)']) || 0), 0
+                    );
+                    return totalFiber > 15;
+                },
+                effect: {
+                    organ: 'intestines',
+                    type: 'positive',
+                    intensity: 0.75,
+                    description: 'Excellent fiber content promotes gut microbiome health',
+                    mechanism: 'Dietary fiber feeds beneficial bacteria and improves motility'
+                }
+            },
+            
+            // 10. Fat + Fat-soluble vitamins (A, D, E, K)
+            {
+                id: 'fat_vitamin_absorption',
+                type: 'scientific',
+                category: 'Absorption Synergy',
+                check: (foods) => {
+                    const hasFat = foods.some(f => parseFloat(f['Total lipid (fat) (g)']) > 8);
+                    const hasFatSolVit = foods.some(f => 
+                        parseFloat(f['Vitamin A, RAE (g)']) > 100 ||
+                        parseFloat(f['Vitamin E (alpha-tocopherol) (mg)']) > 2 ||
+                        parseFloat(f['Vitamin D (IU)']) > 50
+                    );
+                    return hasFat && hasFatSolVit;
+                },
+                effect: {
+                    organ: 'intestines',
+                    type: 'positive',
+                    intensity: 0.8,
+                    description: 'Dietary fat enhances absorption of fat-soluble vitamins',
+                    mechanism: 'Lipids required for micellar incorporation and lymphatic transport'
+                }
+            },
+            
+            // 11. Antioxidant synergy (Vitamin C + E)
+            {
+                id: 'antioxidant_synergy',
+                type: 'scientific',
+                category: 'Antioxidant Network',
+                check: (foods) => {
+                    const hasVitC = foods.some(f => 
+                        parseFloat(f['Vitamin C, total ascorbic acid (mg)']) > 20
+                    );
+                    const hasVitE = foods.some(f => 
+                        parseFloat(f['Vitamin E (alpha-tocopherol) (mg)']) > 2
+                    );
+                    return hasVitC && hasVitE;
+                },
+                effect: {
+                    organ: 'heart',
+                    type: 'positive',
+                    intensity: 0.8,
+                    description: 'Vitamin C regenerates vitamin E for enhanced protection',
+                    mechanism: 'Ascorbate reduces tocopheroxyl radical back to active vitamin E'
+                }
+            },
+            
+            // 12. Excessive saturated fat
+            {
+                id: 'high_saturated_fat',
+                type: 'scientific',
+                category: 'Metabolic Stress',
+                check: (foods) => {
+                    const totalSatFat = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Fatty acids, total saturated (g)']) || 0), 0
+                    );
+                    return totalSatFat > 20;
+                },
+                effect: {
+                    organ: 'liver',
+                    type: 'negative',
+                    intensity: 0.7,
+                    description: 'High saturated fat increases metabolic burden',
+                    mechanism: 'Excessive saturated fatty acids stress hepatic lipid metabolism'
+                }
+            },
+            
+            // 13. High sodium
+            {
+                id: 'high_sodium',
+                type: 'scientific',
+                category: 'Cardiovascular Risk',
+                check: (foods) => {
+                    const totalSodium = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Sodium, Na (mg)']) || 0), 0
+                    );
+                    return totalSodium > 1500;
+                },
+                effect: {
+                    organ: 'heart',
+                    type: 'negative',
+                    intensity: 0.65,
+                    description: 'Excessive sodium increases blood pressure risk',
+                    mechanism: 'High salt intake promotes fluid retention and vascular strain'
+                }
+            },
+            
+            // 14. Calcium + Magnesium balance
+            {
+                id: 'calcium_magnesium',
+                type: 'scientific',
+                category: 'Mineral Balance',
+                check: (foods) => {
+                    const totalCalcium = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Calcium, Ca (mg)']) || 0), 0
+                    );
+                    const totalMagnesium = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Magnesium, Mg (mg)']) || 0), 0
+                    );
+                    return totalCalcium > 300 && totalMagnesium > 100;
+                },
+                effect: {
+                    organ: 'heart',
+                    type: 'positive',
+                    intensity: 0.7,
+                    description: 'Balanced calcium and magnesium support cardiovascular health',
+                    mechanism: 'Synergistic minerals regulate muscle contraction and nerve function'
+                }
+            },
+            
+            // 15. Probiotic + Prebiotic foods
+            {
+                id: 'prebiotic_probiotic',
+                type: 'scientific',
+                category: 'Gut Microbiome',
+                check: (foods) => {
+                    const hasProbiotic = foods.some(f => f.ingredients?.some(i => 
+                        ['yogurt', 'kefir', 'kimchi', 'sauerkraut', 'miso'].some(p => 
+                            i.ingredient?.toLowerCase().includes(p))
+                    ));
+                    const totalFiber = foods.reduce((sum, f) => 
+                        sum + (parseFloat(f['Fiber, total dietary (g)']) || 0), 0
+                    );
+                    return hasProbiotic && totalFiber > 8;
+                },
+                effect: {
+                    organ: 'intestines',
+                    type: 'positive',
+                    intensity: 0.85,
+                    description: 'Probiotics + prebiotics optimize gut bacterial balance',
+                    mechanism: 'Fiber feeds beneficial bacteria introduced by fermented foods'
+                }
+            }
+        ];
+
+        function analyzeCompatibility(foods) {
+            const effects = [];
+            const triggeredRules = [];
+
+            RULES.forEach(rule => {
+                try {
+                    if (rule.check(foods)) {
+                        // Collect detailed data for this rule
+                        const ruleData = collectRuleData(rule, foods);
+                        triggeredRules.push({
+                            ...rule,
+                            detailedData: ruleData
+                        });
+                        effects.push(rule.effect);
+                    }
+                } catch (error) {
+                    console.warn(`Rule ${rule.id} failed:`, error);
+                }
+            });
+
+            const organEffects = {};
+            effects.forEach(effect => {
+                if (!organEffects[effect.organ]) {
+                    organEffects[effect.organ] = { positive: 0, negative: 0, effects: [] };
+                }
+                if (effect.type === 'positive') {
+                    organEffects[effect.organ].positive += effect.intensity;
+                } else {
+                    organEffects[effect.organ].negative += effect.intensity;
+                }
+                organEffects[effect.organ].effects.push(effect);
+            });
+
+            const totalPositive = effects.filter(e => e.type === 'positive').reduce((sum, e) => sum + e.intensity, 0);
+            const totalNegative = effects.filter(e => e.type === 'negative').reduce((sum, e) => sum + e.intensity, 0);
+            const score = Math.max(0, Math.min(100, 100 + (totalPositive * 20) - (totalNegative * 30)));
+
+            return {
+                score,
+                organEffects,
+                triggeredRules,
+                summary: getSummary(score, triggeredRules)
+            };
+        }
+
+        function collectRuleData(rule, foods) {
+            const data = {
+                foods: [],
+                totals: {},
+                ingredients: [],
+                apiSource: 'FoodOscope Recipe2 API'
+            };
+
+            switch(rule.id) {
+                case 'milk_citrus':
+                case 'milk_salt':
+                case 'fish_milk':
+                    foods.forEach(f => {
+                        const milkIngredients = f.ingredients?.filter(i => 
+                            ['milk', 'cream', 'yogurt', 'cheese', 'paneer', 'dairy'].some(m => 
+                                i.ingredient?.toLowerCase().includes(m))
+                        ) || [];
+                        const acidicIngredients = f.ingredients?.filter(i => 
+                            ['lemon', 'lime', 'orange', 'citrus', 'vinegar', 'tamarind', 'tomato'].some(c => 
+                                i.ingredient?.toLowerCase().includes(c))
+                        ) || [];
+                        
+                        if (milkIngredients.length > 0 || acidicIngredients.length > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                milkIngredients: milkIngredients.map(i => i.ingredient),
+                                acidicIngredients: acidicIngredients.map(i => i.ingredient),
+                                sodium: f['Sodium, Na (mg)']
+                            });
+                        }
+                    });
+                    break;
+
+                case 'honey_heat':
+                    foods.forEach(f => {
+                        const honeyIngredients = f.ingredients?.filter(i => 
+                            i.ingredient?.toLowerCase().includes('honey')
+                        ) || [];
+                        
+                        if (honeyIngredients.length > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                honeyIngredients: honeyIngredients.map(i => i.ingredient),
+                                cookingProcesses: f.Processes?.split('||').filter(p => 
+                                    ['heat', 'cook', 'bake', 'boil', 'fry'].includes(p.toLowerCase())
+                                )
+                            });
+                        }
+                    });
+                    break;
+
+                case 'iron_vitamin_c':
+                    let totalIron = 0;
+                    let totalVitC = 0;
+                    foods.forEach(f => {
+                        const iron = parseFloat(f['Iron, Fe (mg)']) || 0;
+                        const vitC = parseFloat(f['Vitamin C, total ascorbic acid (mg)']) || 0;
+                        if (iron > 0 || vitC > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                iron: iron.toFixed(2),
+                                vitaminC: vitC.toFixed(2)
+                            });
+                            totalIron += iron;
+                            totalVitC += vitC;
+                        }
+                    });
+                    data.totals = { iron: totalIron.toFixed(2), vitaminC: totalVitC.toFixed(2) };
+                    break;
+
+                case 'turmeric_pepper':
+                    foods.forEach(f => {
+                        const turmericIng = f.ingredients?.filter(i => 
+                            i.ingredient?.toLowerCase().includes('turmeric')
+                        ) || [];
+                        const pepperIng = f.ingredients?.filter(i => 
+                            ['pepper', 'piperine'].some(p => i.ingredient?.toLowerCase().includes(p))
+                        ) || [];
+                        
+                        if (turmericIng.length > 0 || pepperIng.length > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                turmeric: turmericIng.map(i => i.ingredient),
+                                pepper: pepperIng.map(i => i.ingredient)
+                            });
+                        }
+                    });
+                    break;
+
+                case 'high_fiber':
+                    let totalFiber = 0;
+                    foods.forEach(f => {
+                        const fiber = parseFloat(f['Fiber, total dietary (g)']) || 0;
+                        if (fiber > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                fiber: fiber.toFixed(2)
+                            });
+                            totalFiber += fiber;
+                        }
+                    });
+                    data.totals = { fiber: totalFiber.toFixed(2) };
+                    break;
+
+                case 'heavy_protein_carb':
+                    let totalProtein = 0;
+                    let totalCarbs = 0;
+                    foods.forEach(f => {
+                        const protein = parseFloat(f['Protein (g)']) || 0;
+                        const carbs = parseFloat(f['Carbohydrate, by difference (g)']) || 0;
+                        data.foods.push({
+                            name: f.Recipe_title,
+                            protein: protein.toFixed(2),
+                            carbs: carbs.toFixed(2)
+                        });
+                        totalProtein += protein;
+                        totalCarbs += carbs;
+                    });
+                    data.totals = { protein: totalProtein.toFixed(2), carbs: totalCarbs.toFixed(2) };
+                    break;
+
+                case 'fat_vitamin_absorption':
+                    let totalFat = 0;
+                    foods.forEach(f => {
+                        const fat = parseFloat(f['Total lipid (fat) (g)']) || 0;
+                        const vitA = parseFloat(f['Vitamin A, RAE (g)']) || 0;
+                        const vitE = parseFloat(f['Vitamin E (alpha-tocopherol) (mg)']) || 0;
+                        const vitD = parseFloat(f['Vitamin D (IU)']) || 0;
+                        
+                        if (fat > 0 || vitA > 0 || vitE > 0 || vitD > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                fat: fat.toFixed(2),
+                                vitaminA: vitA.toFixed(2),
+                                vitaminE: vitE.toFixed(2),
+                                vitaminD: vitD.toFixed(2)
+                            });
+                            totalFat += fat;
+                        }
+                    });
+                    data.totals = { fat: totalFat.toFixed(2) };
+                    break;
+
+                case 'antioxidant_synergy':
+                    let totVitC = 0;
+                    let totVitE = 0;
+                    foods.forEach(f => {
+                        const vitC = parseFloat(f['Vitamin C, total ascorbic acid (mg)']) || 0;
+                        const vitE = parseFloat(f['Vitamin E (alpha-tocopherol) (mg)']) || 0;
+                        if (vitC > 0 || vitE > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                vitaminC: vitC.toFixed(2),
+                                vitaminE: vitE.toFixed(2)
+                            });
+                            totVitC += vitC;
+                            totVitE += vitE;
+                        }
+                    });
+                    data.totals = { vitaminC: totVitC.toFixed(2), vitaminE: totVitE.toFixed(2) };
+                    break;
+
+                case 'high_saturated_fat':
+                    let totalSatFat = 0;
+                    foods.forEach(f => {
+                        const satFat = parseFloat(f['Fatty acids, total saturated (g)']) || 0;
+                        if (satFat > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                saturatedFat: satFat.toFixed(2)
+                            });
+                            totalSatFat += satFat;
+                        }
+                    });
+                    data.totals = { saturatedFat: totalSatFat.toFixed(2) };
+                    break;
+
+                case 'high_sodium':
+                    let totalSodium = 0;
+                    foods.forEach(f => {
+                        const sodium = parseFloat(f['Sodium, Na (mg)']) || 0;
+                        if (sodium > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                sodium: sodium.toFixed(2)
+                            });
+                            totalSodium += sodium;
+                        }
+                    });
+                    data.totals = { sodium: totalSodium.toFixed(2) };
+                    break;
+
+                case 'calcium_magnesium':
+                    let totalCalcium = 0;
+                    let totalMagnesium = 0;
+                    foods.forEach(f => {
+                        const calcium = parseFloat(f['Calcium, Ca (mg)']) || 0;
+                        const magnesium = parseFloat(f['Magnesium, Mg (mg)']) || 0;
+                        if (calcium > 0 || magnesium > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                calcium: calcium.toFixed(2),
+                                magnesium: magnesium.toFixed(2)
+                            });
+                            totalCalcium += calcium;
+                            totalMagnesium += magnesium;
+                        }
+                    });
+                    data.totals = { calcium: totalCalcium.toFixed(2), magnesium: totalMagnesium.toFixed(2) };
+                    break;
+
+                case 'prebiotic_probiotic':
+                    let totFiber = 0;
+                    foods.forEach(f => {
+                        const probioticIng = f.ingredients?.filter(i => 
+                            ['yogurt', 'kefir', 'kimchi', 'sauerkraut', 'miso'].some(p => 
+                                i.ingredient?.toLowerCase().includes(p))
+                        ) || [];
+                        const fiber = parseFloat(f['Fiber, total dietary (g)']) || 0;
+                        
+                        if (probioticIng.length > 0 || fiber > 0) {
+                            data.foods.push({
+                                name: f.Recipe_title,
+                                probiotics: probioticIng.map(i => i.ingredient),
+                                fiber: fiber.toFixed(2)
+                            });
+                            totFiber += fiber;
+                        }
+                    });
+                    data.totals = { fiber: totFiber.toFixed(2) };
+                    break;
+
+                default:
+                    // Generic collection
+                    foods.forEach(f => {
+                        data.foods.push({
+                            name: f.Recipe_title,
+                            region: f.Region
+                        });
+                    });
+            }
+
+            return data;
+        }
+
+        function getSummary(score, rules) {
+            const positiveCount = rules.filter(r => r.effect.type === 'positive').length;
+            const negativeCount = rules.filter(r => r.effect.type === 'negative').length;
+
+            if (score >= 80) return { status: 'Highly Compatible', color: '#10b981', message: `${positiveCount} beneficial synergies` };
+            else if (score >= 60) return { status: 'Mostly Compatible', color: '#84cc16', message: `${positiveCount} synergies, ${negativeCount} cautions` };
+            else if (score >= 40) return { status: 'Use with Caution', color: '#f59e0b', message: `${negativeCount} conflicts detected` };
+            else return { status: 'Not Recommended', color: '#ef4444', message: 'Multiple incompatibilities' };
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 8, 15);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.2, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls for manual rotation
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 2;
+            controls.maxDistance = 8;
+            controls.maxPolarAngle = Math.PI / 1.5;
+            controls.target.set(0, 1, 0);
+
+            // Lighting setup for medical visualization
+            const ambientLight = new THREE.AmbientLight(0x4a90e2, 0.3);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0x22d3ee, 1.2);
+            keyLight.position.set(5, 8, 5);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            scene.add(keyLight);
+
+            const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.6);
+            fillLight.position.set(-5, 3, -3);
+            scene.add(fillLight);
+
+            const rimLight = new THREE.DirectionalLight(0xa78bfa, 0.8);
+            rimLight.position.set(0, 2, -5);
+            scene.add(rimLight);
+
+            const bottomLight = new THREE.PointLight(0x22d3ee, 0.5, 20);
+            bottomLight.position.set(0, -2, 0);
+            scene.add(bottomLight);
+
+            createDetailedFemaleBody();
+            setupInteraction();
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        function createDetailedFemaleBody() {
+            bodyGroup = new THREE.Group();
+
+            // Semi-transparent body mesh material (like x-ray effect)
+            const bodyMat = new THREE.MeshPhongMaterial({
+                color: 0x22d3ee,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide,
+                shininess: 30
+            });
+
+            // Wireframe overlay for structure
+            const wireMat = new THREE.MeshBasicMaterial({
+                color: 0x22d3ee,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.3
+            });
+
+            // HEAD
+            const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
+            const head = new THREE.Mesh(headGeo, bodyMat.clone());
+            head.scale.set(0.9, 1.1, 0.95);
+            head.position.y = 1.82;
+            bodyGroup.add(head);
+
+            const headWire = new THREE.Mesh(headGeo, wireMat.clone());
+            headWire.scale.copy(head.scale);
+            headWire.position.copy(head.position);
+            bodyGroup.add(headWire);
+
+            // NECK
+            const neckGeo = new THREE.CylinderGeometry(0.08, 0.09, 0.2, 16);
+            const neck = new THREE.Mesh(neckGeo, bodyMat.clone());
+            neck.position.y = 1.62;
+            bodyGroup.add(neck);
+
+            // SHOULDERS - wider for female anatomy
+            const shoulderGeo = new THREE.SphereGeometry(0.12, 16, 16);
+            const leftShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
+            leftShoulder.position.set(-0.24, 1.5, 0);
+            leftShoulder.scale.set(1.2, 0.8, 0.8);
+            bodyGroup.add(leftShoulder);
+
+            const rightShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
+            rightShoulder.position.set(0.24, 1.5, 0);
+            rightShoulder.scale.set(1.2, 0.8, 0.8);
+            bodyGroup.add(rightShoulder);
+
+            // CHEST & TORSO - anatomically accurate female shape
+            const torsoPoints = [];
+            for (let i = 0; i <= 32; i++) {
+                const t = i / 32;
+                const y = t * 0.95;
+                
+                // Create natural hourglass shape
+                let radius;
+                if (t < 0.25) { // Upper chest
+                    radius = 0.18 + t * 0.1;
+                } else if (t < 0.45) { // Bust
+                    radius = 0.23 - (t - 0.25) * 0.4;
+                } else if (t < 0.7) { // Waist
+                    radius = 0.15 + Math.sin((t - 0.45) * Math.PI * 2) * 0.01;
+                } else { // Hips
+                    radius = 0.15 + (t - 0.7) * 0.4;
+                }
+                
+                torsoPoints.push(new THREE.Vector2(radius, y));
+            }
+            
+            const torsoGeo = new THREE.LatheGeometry(torsoPoints, 32);
+            const torso = new THREE.Mesh(torsoGeo, bodyMat.clone());
+            torso.position.y = 0.57;
+            bodyGroup.add(torso);
+
+            const torsoWire = new THREE.Mesh(torsoGeo, wireMat.clone());
+            torsoWire.position.copy(torso.position);
+            bodyGroup.add(torsoWire);
+
+            // PELVIS/HIPS - wider for female anatomy
+            const pelvisPoints = [];
+            for (let i = 0; i <= 16; i++) {
+                const t = i / 16;
+                const y = t * 0.35;
+                const radius = 0.27 - t * 0.08;
+                pelvisPoints.push(new THREE.Vector2(radius, y));
+            }
+            const pelvisGeo = new THREE.LatheGeometry(pelvisPoints, 32);
+            const pelvis = new THREE.Mesh(pelvisGeo, bodyMat.clone());
+            pelvis.position.y = 0.22;
+            bodyGroup.add(pelvis);
+
+            // ARMS - slender and anatomically correct
+            function createArm(side) {
+                const armGroup = new THREE.Group();
+                
+                // Upper arm
+                const upperArmGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.38, 12);
+                const upperArm = new THREE.Mesh(upperArmGeo, bodyMat.clone());
+                upperArm.position.y = -0.21;
+                upperArm.rotation.z = side * 0.2;
+                armGroup.add(upperArm);
+
+                // Elbow joint
+                const elbowGeo = new THREE.SphereGeometry(0.042, 12, 12);
+                const elbow = new THREE.Mesh(elbowGeo, bodyMat.clone());
+                elbow.position.y = -0.42;
+                elbow.position.x = side * 0.038;
+                armGroup.add(elbow);
+
+                // Forearm
+                const forearmGeo = new THREE.CylinderGeometry(0.038, 0.032, 0.35, 12);
+                const forearm = new THREE.Mesh(forearmGeo, bodyMat.clone());
+                forearm.position.y = -0.62;
+                forearm.position.x = side * 0.076;
+                forearm.rotation.z = side * 0.15;
+                armGroup.add(forearm);
+
+                // Hand
+                const handGeo = new THREE.BoxGeometry(0.08, 0.12, 0.04);
+                const hand = new THREE.Mesh(handGeo, bodyMat.clone());
+                hand.position.y = -0.84;
+                hand.position.x = side * 0.12;
+                armGroup.add(hand);
+
+                armGroup.position.set(side * 0.24, 1.5, 0);
+                return armGroup;
+            }
+
+            bodyGroup.add(createArm(-1));
+            bodyGroup.add(createArm(1));
+
+            // LEGS - longer and anatomically correct
+            function createLeg(side) {
+                const legGroup = new THREE.Group();
+
+                // Thigh
+                const thighPoints = [];
+                for (let i = 0; i <= 20; i++) {
+                    const t = i / 20;
+                    const y = -t * 0.52;
+                    const radius = 0.08 - t * 0.02;
+                    thighPoints.push(new THREE.Vector2(radius, y));
+                }
+                const thighGeo = new THREE.LatheGeometry(thighPoints, 16);
+                const thigh = new THREE.Mesh(thighGeo, bodyMat.clone());
+                legGroup.add(thigh);
+
+                // Knee
+                const kneeGeo = new THREE.SphereGeometry(0.055, 12, 12);
+                const knee = new THREE.Mesh(kneeGeo, bodyMat.clone());
+                knee.position.y = -0.53;
+                legGroup.add(knee);
+
+                // Calf
+                const calfPoints = [];
+                for (let i = 0; i <= 20; i++) {
+                    const t = i / 20;
+                    const y = -t * 0.5;
+                    const radius = 0.055 - t * 0.018 + (t > 0.2 && t < 0.5 ? 0.008 : 0);
+                    calfPoints.push(new THREE.Vector2(radius, y));
+                }
+                const calfGeo = new THREE.LatheGeometry(calfPoints, 16);
+                const calf = new THREE.Mesh(calfGeo, bodyMat.clone());
+                calf.position.y = -0.53;
+                legGroup.add(calf);
+
+                // Ankle
+                const ankleGeo = new THREE.CylinderGeometry(0.035, 0.038, 0.1, 12);
+                const ankle = new THREE.Mesh(ankleGeo, bodyMat.clone());
+                ankle.position.y = -1.08;
+                legGroup.add(ankle);
+
+                // Foot
+                const footGeo = new THREE.BoxGeometry(0.09, 0.06, 0.2);
+                const foot = new THREE.Mesh(footGeo, bodyMat.clone());
+                foot.position.set(0, -1.16, 0.06);
+                legGroup.add(foot);
+
+                legGroup.position.set(side * 0.11, 0.57, 0);
+                return legGroup;
+            }
+
+            bodyGroup.add(createLeg(-1));
+            bodyGroup.add(createLeg(1));
+
+            // INTERNAL ORGANS - glowing and interactive
+            
+            // BRAIN
+            const brainGeo = new THREE.SphereGeometry(0.15, 32, 32);
+            brainGeo.scale(0.9, 1, 0.95);
+            const brainMat = new THREE.MeshPhongMaterial({
+                color: 0xff1493,
+                transparent: true,
+                opacity: 0.85,
+                emissive: 0xff1493,
+                emissiveIntensity: 0.4,
+                shininess: 100
+            });
+            const brain = new THREE.Mesh(brainGeo, brainMat);
+            brain.position.y = 1.82;
+            brain.userData = { organ: 'brain' };
+            bodyGroup.add(brain);
+            organs.brain = brain;
+
+            // Add glow sphere for brain
+            const brainGlowGeo = new THREE.SphereGeometry(0.18, 16, 16);
+            const brainGlow = new THREE.Mesh(brainGlowGeo, new THREE.MeshBasicMaterial({
+                color: 0xff1493,
+                transparent: true,
+                opacity: 0.15
+            }));
+            brainGlow.scale.copy(brain.scale);
+            brainGlow.position.copy(brain.position);
+            bodyGroup.add(brainGlow);
+
+            // LUNGS (two separate organs)
+            const lungGeo = new THREE.SphereGeometry(0.12, 24, 24);
+            lungGeo.scale(0.7, 1.3, 0.6);
+            
+            const lungMat = new THREE.MeshPhongMaterial({
+                color: 0x60a5fa,
+                transparent: true,
+                opacity: 0.8,
+                emissive: 0x3b82f6,
+                emissiveIntensity: 0.35
+            });
+            
+            const leftLung = new THREE.Mesh(lungGeo, lungMat.clone());
+            leftLung.position.set(-0.12, 1.25, 0.02);
+            leftLung.userData = { organ: 'lungs' };
+            bodyGroup.add(leftLung);
+            
+            const rightLung = new THREE.Mesh(lungGeo, lungMat.clone());
+            rightLung.position.set(0.12, 1.25, 0.02);
+            rightLung.userData = { organ: 'lungs' };
+            bodyGroup.add(rightLung);
+            
+            organs.lungs = leftLung; // Use one for hit detection
+
+            // HEART
+            const heartGeo = new THREE.SphereGeometry(0.1, 24, 24);
+            heartGeo.scale(0.9, 1.2, 0.8);
+            const heartMat = new THREE.MeshPhongMaterial({
+                color: 0xef4444,
+                transparent: true,
+                opacity: 0.85,
+                emissive: 0xdc2626,
+                emissiveIntensity: 0.5
+            });
+            const heart = new THREE.Mesh(heartGeo, heartMat);
+            heart.position.set(0.02, 1.2, 0.08);
+            heart.userData = { organ: 'heart' };
+            bodyGroup.add(heart);
+            organs.heart = heart;
+
+            // LIVER
+            const liverGeo = new THREE.BoxGeometry(0.18, 0.14, 0.12);
+            const liverMat = new THREE.MeshPhongMaterial({
+                color: 0x92400e,
+                transparent: true,
+                opacity: 0.8,
+                emissive: 0x78350f,
+                emissiveIntensity: 0.3
+            });
+            const liver = new THREE.Mesh(liverGeo, liverMat);
+            liver.position.set(0.11, 1.0, 0.05);
+            liver.rotation.y = 0.2;
+            liver.userData = { organ: 'liver' };
+            bodyGroup.add(liver);
+            organs.liver = liver;
+
+            // STOMACH
+            const stomachGeo = new THREE.SphereGeometry(0.12, 24, 24);
+            stomachGeo.scale(1.1, 0.95, 0.85);
+            const stomachMat = new THREE.MeshPhongMaterial({
+                color: 0xfbbf24,
+                transparent: true,
+                opacity: 0.85,
+                emissive: 0xf59e0b,
+                emissiveIntensity: 0.4
+            });
+            const stomach = new THREE.Mesh(stomachGeo, stomachMat);
+            stomach.position.set(-0.06, 0.95, 0.08);
+            stomach.userData = { organ: 'stomach' };
+            bodyGroup.add(stomach);
+            organs.stomach = stomach;
+
+            // INTESTINES - realistic curved tube
+            const intestineCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-0.08, 0.78, 0.06),
+                new THREE.Vector3(0.1, 0.7, 0.09),
+                new THREE.Vector3(-0.07, 0.62, 0.07),
+                new THREE.Vector3(0.09, 0.54, 0.08),
+                new THREE.Vector3(-0.06, 0.46, 0.06),
+                new THREE.Vector3(0.07, 0.38, 0.07)
+            ]);
+            const intestineGeo = new THREE.TubeGeometry(intestineCurve, 80, 0.035, 12, false);
+            const intestineMat = new THREE.MeshPhongMaterial({
+                color: 0xfb923c,
+                transparent: true,
+                opacity: 0.8,
+                emissive: 0xf97316,
+                emissiveIntensity: 0.3
+            });
+            const intestines = new THREE.Mesh(intestineGeo, intestineMat);
+            intestines.userData = { organ: 'intestines' };
+            bodyGroup.add(intestines);
+            organs.intestines = intestines;
+
+            // Add subtle anatomical grid lines
+            const gridHelper = new THREE.GridHelper(4, 20, 0x22d3ee, 0x22d3ee);
+            gridHelper.material.transparent = true;
+            gridHelper.material.opacity = 0.05;
+            gridHelper.position.y = 0;
+            bodyGroup.add(gridHelper);
+
+            scene.add(bodyGroup);
+        }
+
+        function createFoodMesh(foodName, index) {
+            const foodIcons = ['🍔', '🍕', '🥗', '🍜', '🍇', '🥑', '🍊', '🥦'];
+            const colors = [0xfbbf24, 0xf97316, 0x10b981, 0x3b82f6, 0xa78bfa];
+            const color = colors[index % colors.length];
+            const emoji = foodIcons[index % foodIcons.length];
+
+            const group = new THREE.Group();
+
+            // Main sphere
+            const mainGeo = new THREE.SphereGeometry(0.15, 24, 24);
+            const mainMat = new THREE.MeshPhongMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.6,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 80
+            });
+            const main = new THREE.Mesh(mainGeo, mainMat);
+            group.add(main);
+
+            // Glow effect
+            const glowGeo = new THREE.SphereGeometry(0.22, 16, 16);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.2
+            });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            group.add(glow);
+
+            // Create canvas for emoji
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, 64, 64);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(0.25, 0.25, 1);
+            group.add(sprite);
+
+            const angle = (index / 5) * Math.PI * 2;
+            const radius = 2.2;
+            group.position.set(
+                Math.cos(angle) * radius,
+                1.2,
+                Math.sin(angle) * radius
+            );
+
+            group.userData = { foodIndex: index, foodName: foodName };
+            return group;
+        }
+
+        function updateFoodVisuals() {
+            foodMeshes.forEach(mesh => scene.remove(mesh));
+            foodMeshes = [];
+            selectedFoods.forEach((food, index) => {
+                const foodMesh = createFoodMesh(food.Recipe_title, index);
+                scene.add(foodMesh);
+                foodMeshes.push(foodMesh);
+            });
+        }
+
+        function setupInteraction() {
+            const container = document.getElementById('canvas-container');
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            container.addEventListener('mousemove', (event) => {
+                const rect = container.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const organMeshes = Object.values(organs);
+                const intersects = raycaster.intersectObjects(organMeshes);
+
+                if (intersects.length > 0) {
+                    const organ = intersects[0].object.userData.organ;
+                    hoveredOrgan = organ;
+                    updateLabel(organ, event.clientX, event.clientY);
+                } else {
+                    hoveredOrgan = null;
+                    hideLabel();
+                }
+            });
+
+            container.addEventListener('mouseleave', () => {
+                hoveredOrgan = null;
+                hideLabel();
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            controls.update();
+
+            // Gentle pulsing animation for organs
+            const time = Date.now() * 0.001;
+            Object.values(organs).forEach((organ, i) => {
+                const pulse = Math.sin(time * 2 + i) * 0.03;
+                organ.scale.setScalar(1 + pulse);
+            });
+
+            // Orbit animation for food items
+            foodMeshes.forEach((food, i) => {
+                food.rotation.y += 0.02;
+                const angle = (i / 5) * Math.PI * 2 + time * 0.15;
+                const radius = 2.2;
+                food.position.x = Math.cos(angle) * radius;
+                food.position.z = Math.sin(angle) * radius;
+                food.position.y = 1.2 + Math.sin(time * 2 + i) * 0.15;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function updateOrganColors(organEffects) {
+            const neutralColors = {
+                brain: 0xff1493,
+                heart: 0xef4444,
+                liver: 0x92400e,
+                stomach: 0xfbbf24,
+                intestines: 0xfb923c,
+                lungs: 0x60a5fa
+            };
+
+            Object.entries(organs).forEach(([name, mesh]) => {
+                const effect = organEffects?.[name];
+                
+                if (effect) {
+                    const netEffect = effect.positive - effect.negative;
+                    
+                    if (netEffect > 0) {
+                        mesh.material.color.setHex(0x10b981);
+                        mesh.material.emissive.setHex(0x059669);
+                        mesh.material.emissiveIntensity = 0.6 + (netEffect * 0.4);
+                    } else if (netEffect < 0) {
+                        mesh.material.color.setHex(0xef4444);
+                        mesh.material.emissive.setHex(0xdc2626);
+                        mesh.material.emissiveIntensity = 0.6 + (Math.abs(netEffect) * 0.4);
+                    }
+                } else {
+                    mesh.material.color.setHex(neutralColors[name]);
+                    mesh.material.emissiveIntensity = 0.35;
+                }
+            });
+        }
+
+        function updateLabel(organ, x, y) {
+            if (!currentAnalysis || !currentAnalysis.organEffects[organ]) {
+                hideLabel();
+                return;
+            }
+
+            const label = document.getElementById('organLabel');
+            const effects = currentAnalysis.organEffects[organ].effects;
+
+            let html = `<div class="label-title">${organ}</div>`;
+            
+            effects.forEach(effect => {
+                const className = effect.type === 'positive' ? 'positive' : 'negative';
+                const icon = effect.type === 'positive' ? '✅' : '⚠️';
+                
+                html += `
+                    <div class="label-effect">
+                        <div class="effect-header">
+                            <span class="effect-icon">${icon}</span>
+                            <span class="effect-title ${className}">
+                                ${effect.type === 'positive' ? 'BENEFICIAL' : 'CAUTION'}
+                            </span>
+                        </div>
+                        <div class="effect-desc">${effect.description}</div>
+                        <div class="effect-mechanism">${effect.mechanism}</div>
+                    </div>
+                `;
+            });
+
+            label.innerHTML = html;
+            label.classList.add('visible');
+            
+            // Smart positioning to keep within viewport
+            const labelWidth = 320;
+            const labelHeight = label.offsetHeight;
+            const padding = 20;
+            
+            let leftPos = x + 15;
+            let topPos = y - labelHeight / 2;
+            
+            // Keep within right edge
+            if (leftPos + labelWidth + padding > window.innerWidth) {
+                leftPos = x - labelWidth - 15;
+            }
+            
+            // Keep within left edge
+            if (leftPos < padding) {
+                leftPos = padding;
+            }
+            
+            // Keep within top edge
+            if (topPos < padding) {
+                topPos = padding;
+            }
+            
+            // Keep within bottom edge
+            if (topPos + labelHeight + padding > window.innerHeight) {
+                topPos = window.innerHeight - labelHeight - padding;
+            }
+            
+            label.style.left = leftPos + 'px';
+            label.style.top = topPos + 'px';
+        }
+
+        function hideLabel() {
+            document.getElementById('organLabel').classList.remove('visible');
+        }
+
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+
+            if (!query) {
+                searchResults.innerHTML = '';
+                return;
+            }
+
+            loadingSpinner.style.display = 'block';
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(
+                        `${API_BASE}/recipe-bytitle/recipeByTitle?title=${encodeURIComponent(query)}`,
+                        { headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' } }
+                    );
+                    
+                    if (response.status === 429) {
+                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">⚠️ Rate limit reached. Please wait a moment...</div>';
+                        loadingSpinner.style.display = 'none';
+                        return;
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    displaySearchResults(data.success ? data.data.slice(0, 8) : []);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    if (error.message.includes('429')) {
+                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">⚠️ Too many requests. Please wait...</div>';
+                    } else {
+                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #f87171;">❌ Search failed. Try again.</div>';
+                    }
+                } finally {
+                    loadingSpinner.style.display = 'none';
+                }
+            }, 1000); // Increased from 500ms to 1000ms to reduce API calls
+        });
+
+        function displaySearchResults(results) {
+            if (!results || results.length === 0) {
+                searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: rgba(255,255,255,0.4);">No results</div>';
+                return;
+            }
+
+            searchResults.innerHTML = results.map(food => `
+                <div class="result-item" onclick="addFood('${food.Recipe_id}')">
+                    <div class="result-title">${food.Recipe_title}</div>
+                    <div class="result-meta">${food.Region} • ${food.Calories} cal</div>
+                </div>
+            `).join('');
+        }
+
+        async function addFood(recipeId) {
+            if (selectedFoods.length >= 5) {
+                alert('Maximum 5 foods');
+                return;
+            }
+
+            loadingSpinner.style.display = 'block';
+
+            try {
+                const response = await fetch(
+                    `${API_BASE}/search-recipe/${recipeId}`,
+                    { headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' } }
+                );
+                
+                if (response.status === 429) {
+                    alert('⚠️ Rate limit reached. Please wait a moment before adding more foods.');
+                    loadingSpinner.style.display = 'none';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.recipe) {
+                    selectedFoods.push({ ...data.recipe, ingredients: data.ingredients || [] });
+                    updateSelectedFoods();
+                    updateFoodVisuals();
+                    searchInput.value = '';
+                    searchResults.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                if (error.message.includes('429')) {
+                    alert('⚠️ Too many requests. Please wait a moment.');
+                } else {
+                    alert('❌ Failed to add food. Please try again.');
+                }
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+
+        function removeFood(index) {
+            selectedFoods.splice(index, 1);
+            updateSelectedFoods();
+            updateFoodVisuals();
+            // Clear analysis when foods change
+            currentAnalysis = null;
+            resetAnalysisDisplay();
+        }
+
+        function resetAnalysisDisplay() {
+            document.getElementById('emptyState').style.display = selectedFoods.length === 0 ? 'block' : 'none';
+            document.getElementById('scoreValue').textContent = '--';
+            document.getElementById('scoreStatus').textContent = selectedFoods.length > 0 ? 'Click Calculate to analyze' : 'Add foods to analyze';
+            document.getElementById('scoreFill').style.width = '0%';
+            document.getElementById('scoreMessage').textContent = '';
+            document.getElementById('rulesSection').style.display = 'none';
+            updateOrganColors(null);
+        }
+
+        function updateSelectedFoods() {
+            document.getElementById('foodCount').textContent = selectedFoods.length;
+            const container = document.getElementById('selectedFoods');
+            const calculateBtn = document.getElementById('calculateButton');
+            
+            if (selectedFoods.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.4); font-size: 0.875rem;">Search and add foods</div>';
+                calculateBtn.style.display = 'none';
+                return;
+            }
+
+            // Show calculate button when foods are added
+            calculateBtn.style.display = 'block';
+
+            container.innerHTML = selectedFoods.map((food, index) => `
+                <div class="food-card">
+                    <button class="remove-btn" onclick="removeFood(${index})">×</button>
+                    <div class="food-card-title">${food.Recipe_title}</div>
+                    <div class="food-card-meta">
+                        <span>🔥 ${food.Calories} cal</span>
+                        <span>⏱️ ${food.total_time} min</span>
+                    </div>
+                    <div class="food-card-ingredients">
+                        ${food.ingredients.slice(0, 3).map(ing => 
+                            `<span class="ingredient-tag">${ing.ingredient}</span>`
+                        ).join('')}
+                        ${food.ingredients.length > 3 ? `<span class="ingredient-tag">+${food.ingredients.length - 3} more</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function performAnalysis() {
+            const emptyState = document.getElementById('emptyState');
+            
+            if (selectedFoods.length === 0) {
+                currentAnalysis = null;
+                updateOrganColors(null);
+                emptyState.style.display = 'block';
+                document.getElementById('scoreValue').textContent = '--';
+                document.getElementById('scoreStatus').textContent = 'Add foods to analyze';
+                document.getElementById('scoreFill').style.width = '0%';
+                document.getElementById('scoreMessage').textContent = '';
+                document.getElementById('rulesSection').style.display = 'none';
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('scoreValue').textContent = '...';
+            document.getElementById('scoreStatus').textContent = 'Analyzing compatibility...';
+
+            // Simulate brief processing time for effect
+            setTimeout(() => {
+                emptyState.style.display = 'none';
+                currentAnalysis = analyzeCompatibility(selectedFoods);
+                
+                document.getElementById('scoreValue').textContent = Math.round(currentAnalysis.score);
+                document.getElementById('scoreValue').style.color = currentAnalysis.summary.color;
+                document.getElementById('scoreStatus').textContent = currentAnalysis.summary.status;
+                document.getElementById('scoreFill').style.width = currentAnalysis.score + '%';
+                document.getElementById('scoreFill').style.backgroundColor = currentAnalysis.summary.color;
+                document.getElementById('scoreMessage').textContent = currentAnalysis.summary.message;
+
+                updateOrganColors(currentAnalysis.organEffects);
+
+                const rulesSection = document.getElementById('rulesSection');
+                const rulesList = document.getElementById('rulesList');
+                
+                if (currentAnalysis.triggeredRules.length > 0) {
+                    rulesSection.style.display = 'block';
+                    rulesList.innerHTML = currentAnalysis.triggeredRules.map(rule => {
+                        const severity = rule.effect.type === 'positive' ? 'positive' : 
+                                       rule.effect.intensity > 0.7 ? 'negative' : 'warning';
+                        
+                        // Build detailed data breakdown
+                        let dataBreakdownHTML = '';
+                        if (rule.detailedData) {
+                            dataBreakdownHTML = '<div class="data-breakdown">';
+                            dataBreakdownHTML += '<div class="data-breakdown-title">📊 Data Analysis</div>';
+                            
+                            // Show totals if available
+                            if (rule.detailedData.totals && Object.keys(rule.detailedData.totals).length > 0) {
+                                dataBreakdownHTML += '<div style="margin-bottom: 0.5rem;">';
+                                Object.entries(rule.detailedData.totals).forEach(([key, value]) => {
+                                    const isHighlight = rule.effect.type === 'positive';
+                                    const isWarning = rule.effect.type === 'negative';
+                                    dataBreakdownHTML += `
+                                        <div class="data-item">
+                                            <span class="data-label">Total ${key}:</span>
+                                            <span class="data-value ${isHighlight ? 'highlight' : isWarning ? 'warning' : ''}">${value} ${getUnit(key)}</span>
+                                        </div>
+                                    `;
+                                });
+                                dataBreakdownHTML += '</div>';
+                            }
+                            
+                            // Show per-food breakdown
+                            if (rule.detailedData.foods && rule.detailedData.foods.length > 0) {
+                                dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #a78bfa; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
+                                rule.detailedData.foods.forEach(food => {
+                                    dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
+                                    dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #22d3ee; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                    
+                                    // Display relevant nutrient data
+                                    Object.entries(food).forEach(([key, value]) => {
+                                        if (key !== 'name' && value !== undefined && value !== null && value !== '0.00') {
+                                            if (Array.isArray(value) && value.length > 0) {
+                                                dataBreakdownHTML += `<div class="ingredient-list">`;
+                                                dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #d8b4fe;">${formatKey(key)}:</span> `;
+                                                value.forEach(ing => {
+                                                    dataBreakdownHTML += `<span class="ingredient-chip">${ing}</span>`;
+                                                });
+                                                dataBreakdownHTML += `</div>`;
+                                            } else if (!Array.isArray(value)) {
+                                                dataBreakdownHTML += `
+                                                    <div class="data-item" style="font-size: 0.7rem;">
+                                                        <span class="data-label">${formatKey(key)}:</span>
+                                                        <span class="data-value">${value} ${getUnit(key)}</span>
+                                                    </div>
+                                                `;
+                                            }
+                                        }
+                                    });
+                                    dataBreakdownHTML += `</div>`;
+                                });
+                            }
+                            
+                            dataBreakdownHTML += `<div class="data-source">📡 Source: ${rule.detailedData.apiSource}</div>`;
+                            dataBreakdownHTML += '</div>';
+                        }
+                        
+                        return `
+                            <div class="rule-card ${severity}">
+                                <div class="rule-header">
+                                    <div class="rule-organ">${rule.effect.organ}</div>
+                                    <div class="rule-type ${rule.type}">${rule.type}</div>
+                                </div>
+                                <div style="font-size: 0.7rem; color: #22d3ee; margin-bottom: 0.5rem; font-weight: 600;">
+                                    ${rule.category || 'Food Interaction'}
+                                </div>
+                                <div class="rule-description">${rule.effect.description}</div>
+                                <div class="rule-mechanism">${rule.effect.mechanism}</div>
+                                ${dataBreakdownHTML}
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    rulesSection.style.display = 'none';
+                }
+            }, 500);
+        }
+
+        function analyzeAndUpdate() {
+            const emptyState = document.getElementById('emptyState');
+            
+            if (selectedFoods.length === 0) {
+                currentAnalysis = null;
+                updateOrganColors(null);
+                emptyState.style.display = 'block';
+                document.getElementById('scoreValue').textContent = '--';
+                document.getElementById('scoreStatus').textContent = 'Add foods to analyze';
+                document.getElementById('scoreFill').style.width = '0%';
+                document.getElementById('scoreMessage').textContent = '';
+                document.getElementById('rulesSection').style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            currentAnalysis = analyzeCompatibility(selectedFoods);
+            
+            document.getElementById('scoreValue').textContent = Math.round(currentAnalysis.score);
+            document.getElementById('scoreValue').style.color = currentAnalysis.summary.color;
+            document.getElementById('scoreStatus').textContent = currentAnalysis.summary.status;
+            document.getElementById('scoreFill').style.width = currentAnalysis.score + '%';
+            document.getElementById('scoreFill').style.backgroundColor = currentAnalysis.summary.color;
+            document.getElementById('scoreMessage').textContent = currentAnalysis.summary.message;
+
+            updateOrganColors(currentAnalysis.organEffects);
+
+            const rulesSection = document.getElementById('rulesSection');
+            const rulesList = document.getElementById('rulesList');
+            
+            if (currentAnalysis.triggeredRules.length > 0) {
+                rulesSection.style.display = 'block';
+                rulesList.innerHTML = currentAnalysis.triggeredRules.map(rule => {
+                    const severity = rule.effect.type === 'positive' ? 'positive' : 
+                                   rule.effect.intensity > 0.7 ? 'negative' : 'warning';
+                    
+                    // Build detailed data breakdown
+                    let dataBreakdownHTML = '';
+                    if (rule.detailedData) {
+                        dataBreakdownHTML = '<div class="data-breakdown">';
+                        dataBreakdownHTML += '<div class="data-breakdown-title">📊 Data Analysis</div>';
+                        
+                        // Show totals if available
+                        if (rule.detailedData.totals && Object.keys(rule.detailedData.totals).length > 0) {
+                            dataBreakdownHTML += '<div style="margin-bottom: 0.5rem;">';
+                            Object.entries(rule.detailedData.totals).forEach(([key, value]) => {
+                                const isHighlight = rule.effect.type === 'positive';
+                                const isWarning = rule.effect.type === 'negative';
+                                dataBreakdownHTML += `
+                                    <div class="data-item">
+                                        <span class="data-label">Total ${key}:</span>
+                                        <span class="data-value ${isHighlight ? 'highlight' : isWarning ? 'warning' : ''}">${value} ${getUnit(key)}</span>
+                                    </div>
+                                `;
+                            });
+                            dataBreakdownHTML += '</div>';
+                        }
+                        
+                        // Show per-food breakdown
+                        if (rule.detailedData.foods && rule.detailedData.foods.length > 0) {
+                            dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #a78bfa; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
+                            rule.detailedData.foods.forEach(food => {
+                                dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
+                                dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #22d3ee; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                
+                                // Display relevant nutrient data
+                                Object.entries(food).forEach(([key, value]) => {
+                                    if (key !== 'name' && value !== undefined && value !== null && value !== '0.00') {
+                                        if (Array.isArray(value) && value.length > 0) {
+                                            dataBreakdownHTML += `<div class="ingredient-list">`;
+                                            dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #d8b4fe;">${formatKey(key)}:</span> `;
+                                            value.forEach(ing => {
+                                                dataBreakdownHTML += `<span class="ingredient-chip">${ing}</span>`;
+                                            });
+                                            dataBreakdownHTML += `</div>`;
+                                        } else if (!Array.isArray(value)) {
+                                            dataBreakdownHTML += `
+                                                <div class="data-item" style="font-size: 0.7rem;">
+                                                    <span class="data-label">${formatKey(key)}:</span>
+                                                    <span class="data-value">${value} ${getUnit(key)}</span>
+                                                </div>
+                                            `;
+                                        }
+                                    }
+                                });
+                                dataBreakdownHTML += `</div>`;
+                            });
+                        }
+                        
+                        dataBreakdownHTML += `<div class="data-source">📡 Source: ${rule.detailedData.apiSource}</div>`;
+                        dataBreakdownHTML += '</div>';
+                    }
+                    
+                    return `
+                        <div class="rule-card ${severity}">
+                            <div class="rule-header">
+                                <div class="rule-organ">${rule.effect.organ}</div>
+                                <div class="rule-type ${rule.type}">${rule.type}</div>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #22d3ee; margin-bottom: 0.5rem; font-weight: 600;">
+                                ${rule.category || 'Food Interaction'}
+                            </div>
+                            <div class="rule-description">${rule.effect.description}</div>
+                            <div class="rule-mechanism">${rule.effect.mechanism}</div>
+                            ${dataBreakdownHTML}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                rulesSection.style.display = 'none';
+            }
+        }
+
+        function formatKey(key) {
+            const keyMap = {
+                'iron': 'Iron',
+                'vitaminC': 'Vitamin C',
+                'vitaminE': 'Vitamin E',
+                'vitaminA': 'Vitamin A',
+                'vitaminD': 'Vitamin D',
+                'fiber': 'Fiber',
+                'protein': 'Protein',
+                'carbs': 'Carbohydrates',
+                'fat': 'Fat',
+                'saturatedFat': 'Saturated Fat',
+                'sodium': 'Sodium',
+                'calcium': 'Calcium',
+                'magnesium': 'Magnesium',
+                'milkIngredients': 'Dairy Ingredients',
+                'acidicIngredients': 'Acidic Ingredients',
+                'honeyIngredients': 'Honey',
+                'cookingProcesses': 'Heat Processing',
+                'turmeric': 'Turmeric',
+                'pepper': 'Black Pepper',
+                'probiotics': 'Probiotic Ingredients'
+            };
+            return keyMap[key] || key;
+        }
+
+        function getUnit(key) {
+            const units = {
+                'iron': 'mg',
+                'vitaminC': 'mg',
+                'vitaminE': 'mg',
+                'vitaminA': 'μg',
+                'vitaminD': 'IU',
+                'fiber': 'g',
+                'protein': 'g',
+                'carbs': 'g',
+                'fat': 'g',
+                'saturatedFat': 'g',
+                'sodium': 'mg',
+                'calcium': 'mg',
+                'magnesium': 'mg'
+            };
+            return units[key] || '';
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            init3D();
+            updateSelectedFoods();
+            resetAnalysisDisplay();
+            
+            // Demo button handler
+            document.getElementById('demoButton').addEventListener('click', loadDemoFoods);
+            
+            // Calculate button handler
+            document.getElementById('calculateButton').addEventListener('click', () => {
+                performAnalysis();
+            });
+        });
+
+        function loadDemoFoods() {
+            // Sample foods with realistic data for testing
+            selectedFoods = [
+                {
+                    Recipe_id: 'demo1',
+                    Recipe_title: 'Spinach Salad with Orange',
+                    Region: 'Mediterranean',
+                    Calories: '180',
+                    total_time: '15',
+                    'Iron, Fe (mg)': '3.5',
+                    'Vitamin C, total ascorbic acid (mg)': '65',
+                    'Fiber, total dietary (g)': '4.2',
+                    'Total lipid (fat) (g)': '8',
+                    'Protein (g)': '5',
+                    'Carbohydrate, by difference (g)': '22',
+                    ingredients: [
+                        { ingredient: 'Spinach' },
+                        { ingredient: 'Orange' },
+                        { ingredient: 'Olive oil' }
+                    ]
+                },
+                {
+                    Recipe_id: 'demo2',
+                    Recipe_title: 'Turmeric Rice with Black Pepper',
+                    Region: 'Indian',
+                    Calories: '320',
+                    total_time: '25',
+                    'Iron, Fe (mg)': '1.2',
+                    'Vitamin C, total ascorbic acid (mg)': '2',
+                    'Fiber, total dietary (g)': '3.8',
+                    'Total lipid (fat) (g)': '6',
+                    'Protein (g)': '8',
+                    'Carbohydrate, by difference (g)': '58',
+                    ingredients: [
+                        { ingredient: 'Rice' },
+                        { ingredient: 'Turmeric' },
+                        { ingredient: 'Black pepper' },
+                        { ingredient: 'Cumin' }
+                    ]
+                },
+                {
+                    Recipe_id: 'demo3',
+                    Recipe_title: 'Grilled Salmon with Broccoli',
+                    Region: 'American',
+                    Calories: '420',
+                    total_time: '30',
+                    'Iron, Fe (mg)': '2.8',
+                    'Vitamin C, total ascorbic acid (mg)': '89',
+                    'Fiber, total dietary (g)': '5.6',
+                    'Total lipid (fat) (g)': '22',
+                    'Protein (g)': '45',
+                    'Carbohydrate, by difference (g)': '12',
+                    'Vitamin E (alpha-tocopherol) (mg)': '3.5',
+                    ingredients: [
+                        { ingredient: 'Salmon' },
+                        { ingredient: 'Broccoli' },
+                        { ingredient: 'Lemon' },
+                        { ingredient: 'Garlic' }
+                    ]
+                }
+            ];
+            
+            updateSelectedFoods();
+            updateFoodVisuals();
+            
+            // Hide demo button after loading
+            document.getElementById('demoButton').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
