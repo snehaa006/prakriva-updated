@@ -2,12 +2,117 @@
 // FoodOScope API service - all endpoints for the recipe database
 
 const BASE_URL = "https://api.foodoscope.com/recipe2-api";
-const AUTH_TOKEN = "Bearer usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB";
 
-const headers: HeadersInit = {
-  "Content-Type": "application/json",
-  Authorization: AUTH_TOKEN,
-};
+// --- API keys ---
+//
+// FoodOScope is called straight from the browser, so these keys ship in the
+// bundle and are visible to anyone using the app — they are per-app quota
+// tokens, not secrets. Supply several and the client rotates to the next one
+// whenever a key is rate-limited, expired, or rejected.
+//
+// Set them in the root `.env` (see `.env.example`) as either:
+//   VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three   (comma/newline list)
+//   VITE_FOODOSCOPE_API_KEY=key-one                       (single key)
+//   VITE_FOODOSCOPE_API_KEY_1=... VITE_FOODOSCOPE_API_KEY_2=...  (numbered)
+// All three forms are merged, in that order, and duplicates are dropped.
+
+/** Used only when no key is configured in the environment. */
+const FALLBACK_KEYS = ["usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB"];
+
+/** How many `VITE_FOODOSCOPE_API_KEY_<n>` slots are read. */
+const MAX_NUMBERED_KEYS = 20;
+
+function collectKeys(): string[] {
+  const env = import.meta.env as unknown as Record<string, string | undefined>;
+  const raw: string[] = [
+    ...(env.VITE_FOODOSCOPE_API_KEYS ?? "").split(/[,\n]/),
+    env.VITE_FOODOSCOPE_API_KEY ?? "",
+  ];
+  for (let i = 1; i <= MAX_NUMBERED_KEYS; i++) {
+    raw.push(env[`VITE_FOODOSCOPE_API_KEY_${i}`] ?? "");
+  }
+
+  const keys = [...new Set(raw.map((key) => key.trim()).filter(Boolean))];
+  if (keys.length === 0) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        "[foodoscope] No VITE_FOODOSCOPE_API_KEY* set — using the bundled fallback key. " +
+          "Add your keys to .env to enable rotation."
+      );
+    }
+    return FALLBACK_KEYS;
+  }
+  return keys;
+}
+
+interface KeyEntry {
+  key: string;
+  /** Epoch ms until which this key is skipped when a healthier one exists. */
+  cooldownUntil: number;
+}
+
+const keyPool: KeyEntry[] = collectKeys().map((key) => ({ key, cooldownUntil: 0 }));
+
+/** The key that last succeeded — tried first so we don't cycle needlessly. */
+let activeIndex = 0;
+
+/** Statuses that mean "this key is the problem" — worth retrying on another. */
+function isKeyFailure(status: number): boolean {
+  return (
+    status === 401 || // invalid / revoked key
+    status === 402 || // quota exhausted
+    status === 403 || // forbidden / suspended key
+    status === 429 || // rate limited
+    status >= 500 // upstream hiccup; another key may hit a healthier node
+  );
+}
+
+/** How long to park a key after a failure, based on why it failed. */
+function cooldownFor(status: number): number {
+  if (status === 429) return 60_000;
+  if (status === 401 || status === 402 || status === 403) return 15 * 60_000;
+  return 30_000; // 5xx or network error
+}
+
+function penalize(index: number, status: number) {
+  keyPool[index].cooldownUntil = Date.now() + cooldownFor(status);
+  // Move on so the next request doesn't start on the key that just failed.
+  if (activeIndex === index) activeIndex = (index + 1) % keyPool.length;
+}
+
+/**
+ * Keys to try for one request, in order: the active key first, then the rest
+ * in round-robin order. Keys still cooling down go last rather than being
+ * dropped, so a request can still succeed when every key is cooling.
+ */
+function candidateOrder(): number[] {
+  const now = Date.now();
+  const order = keyPool.map((_, i) => (activeIndex + i) % keyPool.length);
+  return [
+    ...order.filter((i) => keyPool[i].cooldownUntil <= now),
+    ...order.filter((i) => keyPool[i].cooldownUntil > now),
+  ];
+}
+
+export class FoodoscopeApiError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "FoodoscopeApiError";
+  }
+}
+
+/** Snapshot of the key pool — handy when debugging quota problems. */
+export function getKeyPoolStatus() {
+  const now = Date.now();
+  return keyPool.map((entry, i) => ({
+    index: i,
+    // Never surface a whole key, even though it ships in the bundle.
+    keyPreview: `${entry.key.slice(0, 6)}…${entry.key.slice(-4)}`,
+    active: i === activeIndex,
+    coolingDown: entry.cooldownUntil > now,
+    cooldownRemainingMs: Math.max(0, entry.cooldownUntil - now),
+  }));
+}
 
 // --- Types ---
 
@@ -153,11 +258,45 @@ export interface RecipeOfDay {
 // --- Helper ---
 
 async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  let lastError: Error = new FoodoscopeApiError("No FoodOScope API key configured");
+
+  for (const index of candidateOrder()) {
+    const { key } = keyPool[index];
+    let res: Response;
+
+    try {
+      res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+      });
+    } catch (err) {
+      // Network/CORS failure. Not the key's fault as such, but there's
+      // nothing else to vary, so cool it off and try the next one.
+      lastError = err instanceof Error ? err : new Error(String(err));
+      penalize(index, 0);
+      continue;
+    }
+
+    if (res.ok) {
+      activeIndex = index;
+      keyPool[index].cooldownUntil = 0;
+      return res.json();
+    }
+
+    const error = new FoodoscopeApiError(
+      `API error: ${res.status} ${res.statusText}`,
+      res.status
+    );
+    // A bad request or missing recipe fails identically on every key.
+    if (!isKeyFailure(res.status)) throw error;
+
+    penalize(index, res.status);
+    lastError = error;
   }
-  return res.json();
+
+  throw lastError;
 }
 
 // --- Endpoint 1: Get Recipes Info (paginated browse) ---
