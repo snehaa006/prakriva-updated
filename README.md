@@ -136,16 +136,28 @@ browser by `src/services/foodoscopeApi.ts`. That service accepts **multiple
 keys** and rotates between them so a single exhausted or throttled key doesn't
 take the recipe features down.
 
-Where to put the keys:
+Where to put the keys — the first two are merged at runtime, so either or both
+will do:
 
-- Root `.env` (and your Vercel frontend project's environment variables) —
-  `VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three`, and/or one key per
-  variable via `VITE_FOODOSCOPE_API_KEY_1` … `VITE_FOODOSCOPE_API_KEY_20`. All
-  forms are merged and de-duplicated. With none set, a bundled fallback key is
-  used and a warning is logged in dev.
+- **Supabase** — insert a row per key into `public.foodoscope_api_keys`
+  (`api_key`, optional `label`, `priority`, `is_active`). The frontend loads
+  them on first use and re-checks every 5 minutes, so **a key added here works
+  without a redeploy** and can be retired by flipping `is_active` to `false`.
+  The table is readable by signed-in users only; it has no write policy, so
+  keys are managed from the dashboard or the service role.
+- **Vercel / `.env`** — `VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three` in
+  the root `.env` locally, or in the frontend Vercel project's environment
+  variables. One key per variable also works via `VITE_FOODOSCOPE_API_KEY_1` …
+  `VITE_FOODOSCOPE_API_KEY_20`. All forms are merged and de-duplicated. These
+  are baked in at build time (so changes need a redeploy) but they work for
+  signed-out visitors, which the Supabase-backed keys don't. With none set, a
+  bundled fallback key is used and a warning is logged in dev.
 - `public/mealCompatibility.html` — this page is standalone HTML served as-is
-  with no bundler, so its keys live in the `API_TOKENS` array at the top of its
-  `<script>` block. Keep that list in sync with `.env` by hand.
+  with no bundler and no Supabase client, so its keys live in the `API_TOKENS`
+  array at the top of its `<script>` block. Keep that list in sync by hand.
+
+If real keys arrive from Supabase while the pool holds only the bundled
+fallback, they replace it rather than queueing behind it.
 
 How rotation behaves:
 
@@ -161,13 +173,14 @@ How rotation behaves:
   immediately, since another key would return the same thing.
 - When all keys fail, the last error is thrown as a `FoodoscopeApiError`
   carrying the HTTP `status`. `getKeyPoolStatus()` from the same module returns
-  a redacted snapshot of each key's state for debugging.
+  a redacted snapshot of each key's state (including whether it came from the
+  env or Supabase) for debugging.
 
-These keys are **not secrets** — anything in a `VITE_`-prefixed variable ends
-up in the JS bundle and is readable by users. FoodOScope keys are per-app quota
-tokens, which is why they're allowed in the frontend; genuine secrets still
-belong in `backend/.env`. If a key must stay private, proxy the calls through
-the Flask backend instead.
+These keys are **not secrets** — a `VITE_`-prefixed variable ends up in the JS
+bundle, and a Supabase row readable by signed-in users is readable by every
+signed-in user. FoodOScope keys are per-app quota tokens, which is why they're
+allowed in the frontend; genuine secrets still belong in `backend/.env`. If a
+key must stay private, proxy the calls through the Flask backend instead.
 
 ## Deployment (Vercel)
 
