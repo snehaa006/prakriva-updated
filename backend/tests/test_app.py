@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import create_app
+from app import app as flask_app
 from models import UserProfile, GenderEnum, ActivityLevelEnum, GoalEnum, DoshaEnum
 from config import settings
 from exceptions import ValidationError, ModelError, DatabaseError
@@ -20,11 +20,16 @@ from exceptions import ValidationError, ModelError, DatabaseError
 
 @pytest.fixture
 def app():
-    """Create test app"""
-    test_app = create_app()
-    test_app.config['TESTING'] = True
-    test_app.config['WTF_CSRF_ENABLED'] = False
-    return test_app
+    """The configured application under test.
+
+    Import the module-level `app`, not a fresh `create_app()`. The factory
+    only builds a bare Flask object — every route is attached by decorator to
+    the `app = create_app()` singleton at import time, so a second factory
+    call yields an app with no routes and every request 404s.
+    """
+    flask_app.config['TESTING'] = True
+    flask_app.config['WTF_CSRF_ENABLED'] = False
+    return flask_app
 
 
 @pytest.fixture
@@ -564,15 +569,7 @@ class TestUtils:
         )
 
 
-# Conftest for pytest configuration
-def pytest_configure(config):
-    """Pytest configuration"""
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "performance: marks tests as performance tests"
-    )
+# Marker registration lives in conftest.py, where pytest actually picks it up.
 
 
 # Run tests with coverage

@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,285 +9,93 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Leaf, Upload, Shield, Star, Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Leaf, Loader2 } from "lucide-react";
+import AccountFields, { type AccountFormData } from "./AccountFields";
+import DoctorSignupSteps from "./DoctorSignupSteps";
+import {
+  emptyVerificationData,
+  verifyLicense,
+  type DoctorVerificationData,
+  type VerificationResult,
+} from "@/lib/licenseVerification";
+import {
+  EmailAlreadyRegisteredError,
+  describeAuthError,
+  getUserRole,
+  resolveDashboardPath,
+  signInUser,
+  signUpUser,
+  type AuthRole,
+} from "@/services/authService";
 
-// Patient codes (P001, P002, ...) are issued by a Postgres sequence backing
-// patients.patient_code, so there is no counter document to read-modify-write
-// and no chance of two signups racing onto the same id.
+const TOTAL_DOCTOR_STEPS = 4;
+const STEP_LABELS = ["Basic Info", "License", "Expertise", "Practice"];
 
-// Helper function to determine user role, with retry logic.
-// The role lives in public.profiles, written by the on_auth_user_created
-// trigger, so one lookup answers it regardless of which role signed up.
-const getUserRole = async (uid: string, maxRetries = 3): Promise<{ role: string | null; hasCompletedQuestionnaire?: boolean }> => {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      console.log(`🔍 Checking user role for UID: ${uid} (Attempt ${attempt + 1}/${maxRetries})`);
+const emptyFormData = (): AccountFormData => ({
+  name: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+});
 
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", uid)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (profile?.role === "doctor") {
-        console.log("👨‍⚕️ User is a doctor");
-        return { role: "doctor" };
-      }
-
-      if (profile?.role === "patient") {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("questionnaire_completed")
-          .eq("id", uid)
-          .maybeSingle();
-
-        console.log("👤 User is a patient, questionnaire completed:", patient?.questionnaire_completed);
-        return {
-          role: "patient",
-          hasCompletedQuestionnaire: patient?.questionnaire_completed || false
-        };
-      }
-
-      // If no row found yet, wait before retrying
-      if (attempt < maxRetries - 1) {
-        console.log(`❓ User role not found, retrying in ${(attempt + 1) * 1000}ms...`);
-        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
-      }
-
-    } catch (error) {
-      console.error(`❌ Error fetching user role (attempt ${attempt + 1}):`, error);
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
-      }
-    }
-  }
-
-  console.log("❓ Could not determine user role after all attempts");
-  return { role: null };
-};
-
-// Helper function to navigate based on user role and context
-const navigateUserToDashboard = (
-  navigate: any, 
-  role: string, 
-  hasCompletedQuestionnaire?: boolean, 
-  isNewSignup = false
-) => {
-  console.log("🧭 Navigating user:", { role, hasCompletedQuestionnaire, isNewSignup });
-  
-  if (role === "doctor") {
-    navigate("/doctor/dashboard", { replace: true });
-  } else if (role === "patient") {
-    if (isNewSignup) {
-      navigate("/patient/questionnaire", { replace: true });
-    } else if (!hasCompletedQuestionnaire) {
-      navigate("/patient/questionnaire", { replace: true });
-    } else {
-      navigate("/patient/dashboard", { replace: true });
-    }
-  } else {
-    navigate("/", { replace: true });
-  }
-};
-
-interface VerificationResult {
-  isValid: boolean;
-  doctorName?: string;
-  registrationDate?: string;
-  status?: 'active' | 'suspended' | 'expired';
-  council?: string;
-  error?: string;
-}
-
-interface VerificationData {
-  licenseNumber: string;
-  medicalCouncil: string;
-  graduationYear: string;
-  medicalDegree: string;
-  ayurvedicCertification: string;
-  ayurvedicSpecialization: string[];
-  traditionalTraining: string;
-  clinicName: string;
-  clinicAddress: string;
-  yearsOfExperience: string;
-  consultationFee: string;
-  languages: string[];
-  specialConditions: string[];
-  consultationModes: string[];
-  licenseVerified: boolean;
-  verificationDetails?: VerificationResult;
-}
-
-// LICENSE VERIFICATION FUNCTIONS
-const validateLicenseFormat = (licenseNumber: string, council: string): boolean => {
-  const patterns = {
-    'mci': /^[A-Z]{2}\d{8}$/,
-    'nmc': /^NMC\/\d{10}$/,
-    'state-council': /^[A-Z]{2}\/\d{6,8}$/,
-    'ayush': /^AYU\/[A-Z]{2}\/\d{6}$/,
-  };
-  
-  const pattern = patterns[council as keyof typeof patterns];
-  return pattern ? pattern.test(licenseNumber) : false;
-};
-
-const verifyLicenseWithAPI = async (
-  licenseNumber: string, 
-  council: string
-): Promise<VerificationResult> => {
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  if (!validateLicenseFormat(licenseNumber, council)) {
-    return {
-      isValid: false,
-      error: 'Invalid license number format for selected council'
-    };
-  }
-  
-  const mockDatabase: Record<string, VerificationResult> = {
-    'MH12345678': {
-      isValid: true,
-      doctorName: 'Dr. Rajesh Kumar',
-      registrationDate: '2020-03-15',
-      status: 'active',
-      council: 'Maharashtra Medical Council'
-    },
-    'KA87654321': {
-      isValid: true,
-      doctorName: 'Dr. Priya Sharma',
-      registrationDate: '2018-07-22',
-      status: 'active',
-      council: 'Karnataka Medical Council'
-    },
-    'TN98765432': {
-      isValid: true,
-      doctorName: 'Dr. Meera Nair',
-      registrationDate: '2017-05-20',
-      status: 'active',
-      council: 'Tamil Nadu Medical Council'
-    },
-    'GJ11223344': {
-      isValid: true,
-      doctorName: 'Dr. Arjun Patel',
-      registrationDate: '2021-01-12',
-      status: 'active',
-      council: 'Gujarat Medical Council'
-    },
-    'UP55667788': {
-      isValid: true,
-      doctorName: 'Dr. Sita Gupta',
-      registrationDate: '2016-11-08',
-      status: 'active',
-      council: 'Uttar Pradesh Medical Council'
-    },
-    'RJ99887766': {
-      isValid: true,
-      doctorName: 'Dr. Vikram Singh',
-      registrationDate: '2019-08-25',
-      status: 'active',
-      council: 'Rajasthan Medical Council'
-    },
-    'AYU/KA/789012': {
-      isValid: true,
-      doctorName: 'Dr. Lakshmi Rao',
-      registrationDate: '2020-04-18',
-      status: 'active',
-      council: 'AYUSH Ministry - Karnataka'
-    },
-    'NMC/2022001234': {
-      isValid: true,
-      doctorName: 'Dr. Rohit Joshi',
-      registrationDate: '2022-02-14',
-      status: 'active',
-      council: 'National Medical Commission'
-    }
-  };
-  
-  const result = mockDatabase[licenseNumber];
-  
-  if (result) {
-    return result;
-  }
-  
-  return {
-    isValid: false,
-    error: 'License number not found in our database. Please verify the number or contact support.'
-  };
-};
-
+/**
+ * Combined sign-in / sign-up screen for both roles, mounted at `/auth/:role`.
+ *
+ * Patients get a single form. Doctors get a four-step wizard that collects
+ * credentials, license verification, Ayurvedic expertise and practice details.
+ * The auth calls themselves live in `@/services/authService`, and the license
+ * rules in `@/lib/licenseVerification`.
+ */
 const Login = () => {
-  const { role } = useParams<{ role: "doctor" | "patient" }>();
+  const { role } = useParams<{ role: AuthRole }>();
   const navigate = useNavigate();
-  const isSubmitting = useRef(false); // Prevent multiple submissions
+  // Guards against a double submit landing two signup requests.
+  const isSubmitting = useRef(false);
 
   const [isSignup, setIsSignup] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  
-  // License verification states
+
   const [isVerifyingLicense, setIsVerifyingLicense] = useState(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
-  const [showVerificationResult, setShowVerificationResult] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
 
-  const [verificationData, setVerificationData] = useState<VerificationData>({
-    licenseNumber: "",
-    medicalCouncil: "",
-    graduationYear: "",
-    medicalDegree: "",
-    ayurvedicCertification: "",
-    ayurvedicSpecialization: [],
-    traditionalTraining: "",
-    clinicName: "",
-    clinicAddress: "",
-    yearsOfExperience: "",
-    consultationFee: "",
-    languages: [],
-    specialConditions: [],
-    consultationModes: [],
-    licenseVerified: false,
-  });
+  const [formData, setFormData] = useState<AccountFormData>(emptyFormData);
+  const [verificationData, setVerificationData] =
+    useState<DoctorVerificationData>(emptyVerificationData);
 
-  // REMOVED THE AUTO-NAVIGATION useEffect TO FIX MULTIPLE TAB ISSUES
-  // Navigation now only happens after explicit login/signup actions
+  const isDoctorSignup = isSignup && role === "doctor";
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleVerificationChange = (field: keyof VerificationData, value: any) => {
-    setVerificationData((prev) => ({ ...prev, [field]: value }));
-    
-    if (field === 'licenseNumber' || field === 'medicalCouncil') {
+  const handleVerificationChange = (field: keyof DoctorVerificationData, value: unknown) => {
+    setVerificationData((prev) => {
+      const next = { ...prev, [field]: value };
+      // Editing either half of the license identity invalidates the last check.
+      if (field === "licenseNumber" || field === "medicalCouncil") {
+        next.licenseVerified = false;
+        next.verificationDetails = undefined;
+      }
+      return next;
+    });
+
+    if (field === "licenseNumber" || field === "medicalCouncil") {
       setVerificationResult(null);
-      setShowVerificationResult(false);
-      setVerificationData(prev => ({ ...prev, licenseVerified: false }));
     }
   };
 
-  const handleArrayFieldChange = (field: keyof VerificationData, value: string, checked: boolean) => {
+  const handleArrayFieldChange = (
+    field: keyof DoctorVerificationData,
+    value: string,
+    checked: boolean
+  ) => {
     setVerificationData((prev) => {
-      const currentArray = prev[field] as string[];
-      if (checked) {
-        return { ...prev, [field]: [...currentArray, value] };
-      } else {
-        return { ...prev, [field]: currentArray.filter(item => item !== value) };
-      }
+      const current = prev[field] as string[];
+      return {
+        ...prev,
+        [field]: checked ? [...current, value] : current.filter((item) => item !== value),
+      };
     });
   };
 
@@ -300,789 +106,181 @@ const Login = () => {
     }
 
     setIsVerifyingLicense(true);
-    setShowVerificationResult(false);
-    
+    setVerificationResult(null);
+
     try {
-      const result = await verifyLicenseWithAPI(
-        verificationData.licenseNumber, 
+      const result = await verifyLicense(
+        verificationData.licenseNumber,
         verificationData.medicalCouncil
       );
-      
+
       setVerificationResult(result);
-      setShowVerificationResult(true);
-      
-      setVerificationData(prev => ({
+      setVerificationData((prev) => ({
         ...prev,
         licenseVerified: result.isValid,
-        verificationDetails: result
+        verificationDetails: result,
       }));
-      
+
       if (result.isValid) {
         toast.success("License verified successfully!");
+        // Prefill the name from the registry only if the doctor left it blank.
         if (result.doctorName && !formData.name) {
-          setFormData(prev => ({ ...prev, name: result.doctorName || "" }));
+          setFormData((prev) => ({ ...prev, name: result.doctorName || "" }));
         }
       } else {
         toast.error(result.error || "License verification failed");
       }
-      
-    } catch (error) {
-      const errorResult = {
+    } catch {
+      setVerificationResult({
         isValid: false,
-        error: 'Verification service temporarily unavailable. Please try again.'
-      };
-      
-      setVerificationResult(errorResult);
-      setShowVerificationResult(true);
+        error: "Verification service temporarily unavailable. Please try again.",
+      });
       toast.error("Verification failed. Please try again.");
     } finally {
       setIsVerifyingLicense(false);
     }
   };
 
-  const getVerificationIcon = (result: VerificationResult) => {
-    if (result.isValid) return <CheckCircle className="w-4 h-4 text-green-500" />;
-    return <XCircle className="w-4 h-4 text-red-500" />;
-  };
-
-  const getVerificationColor = (result: VerificationResult) => {
-    if (result.isValid) return 'border-green-200 bg-green-50';
-    return 'border-red-200 bg-red-50';
-  };
-
-  const validateStep1 = () => {
-    if (!formData.name || !formData.email || !formData.password) {
-      toast.error("Please fill in all required fields");
-      return false;
+  /** Validate the current wizard step, reporting the first missing field. */
+  const validateStep = (step: number): boolean => {
+    if (step === 1) {
+      if (!formData.name || !formData.email || !formData.password) {
+        toast.error("Please fill in all required fields");
+        return false;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        toast.error("Passwords don't match");
+        return false;
+      }
+      return true;
     }
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords don't match");
-      return false;
-    }
-    return true;
-  };
 
-  const validateStep2 = () => {
-    const required = ['licenseNumber', 'medicalCouncil', 'graduationYear', 'medicalDegree'];
-    for (const field of required) {
-      if (!verificationData[field as keyof VerificationData]) {
-        toast.error(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+    const requiredByStep: Record<number, (keyof DoctorVerificationData)[]> = {
+      2: ["licenseNumber", "medicalCouncil", "graduationYear", "medicalDegree"],
+      3: ["yearsOfExperience"],
+      4: ["clinicName"],
+    };
+
+    for (const field of requiredByStep[step] ?? []) {
+      if (!verificationData[field]) {
+        toast.error(`Please fill in ${field.replace(/([A-Z])/g, " $1").toLowerCase()}`);
         return false;
       }
     }
-    
-    if (role === 'doctor' && !verificationData.licenseVerified) {
+
+    if (step === 2 && !verificationData.licenseVerified) {
       toast.error("Please verify your medical license before proceeding");
       return false;
     }
-    
+
     return true;
-  };
-
-  const validateStep3 = () => {
-    const required = ['yearsOfExperience'];
-    for (const field of required) {
-      if (!verificationData[field as keyof VerificationData]) {
-        toast.error(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const validateStep4 = () => {
-    const required = ['clinicName'];
-    for (const field of required) {
-      if (!verificationData[field as keyof VerificationData]) {
-        toast.error(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const calculateVerificationScore = () => {
-    let score = 0;
-    
-    if (verificationData.licenseVerified) score += 50;
-    else if (verificationData.licenseNumber) score += 10;
-    
-    if (verificationData.medicalDegree) score += 10;
-    if (verificationData.graduationYear) score += 5;
-    if (parseInt(verificationData.yearsOfExperience) > 5) score += 5;
-    
-    if (verificationData.ayurvedicCertification) score += 8;
-    if (verificationData.traditionalTraining) score += 4;
-    if (verificationData.ayurvedicSpecialization.length > 0) score += 3;
-    
-    if (verificationData.clinicName) score += 5;
-    if (verificationData.specialConditions.length > 0) score += 3;
-    if (verificationData.languages.length > 1) score += 2;
-    
-    if (verificationData.consultationModes.length > 0) score += 3;
-    if (verificationData.consultationFee) score += 2;
-    
-    return Math.min(score, 100);
-  };
-
-  const getVerificationBadge = (score: number, licenseVerified: boolean) => {
-    if (licenseVerified && score >= 85) {
-      return { text: "Verified Ayurvedic Expert", color: "bg-green-600", icon: Shield };
-    }
-    if (licenseVerified && score >= 70) {
-      return { text: "Verified Doctor", color: "bg-blue-600", icon: Star };
-    }
-    if (licenseVerified) {
-      return { text: "License Verified", color: "bg-green-500", icon: CheckCircle };
-    }
-    if (score >= 50) {
-      return { text: "Pending Verification", color: "bg-yellow-600", icon: AlertTriangle };
-    }
-    return { text: "Verification Required", color: "bg-red-600", icon: XCircle };
   };
 
   const handleNext = () => {
-    if (role !== "doctor") return;
-    
-    if (currentStep === 1 && validateStep1()) {
-      setCurrentStep(2);
-    } else if (currentStep === 2 && validateStep2()) {
-      setCurrentStep(3);
-    } else if (currentStep === 3 && validateStep3()) {
-      setCurrentStep(4);
+    if (validateStep(currentStep)) {
+      setCurrentStep((step) => Math.min(step + 1, TOTAL_DOCTOR_STEPS));
     }
   };
 
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+  const handleBack = () => setCurrentStep((step) => Math.max(step - 1, 1));
+
+  const resetForm = () => {
+    setCurrentStep(1);
+    setFormData(emptyFormData());
+    setVerificationData(emptyVerificationData());
+    setVerificationResult(null);
+  };
+
+  const handleSignup = async () => {
+    const result = await signUpUser({
+      role: role!,
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      verification: role === "doctor" ? verificationData : undefined,
+    });
+
+    if (!result.hasSession) {
+      // Email confirmation is on, so there is no session to route with.
+      toast.success("Account created! Check your email to confirm your address, then sign in.");
+      setIsSignup(false);
+      resetForm();
+      return;
     }
+
+    if (role === "doctor") {
+      toast.success(
+        verificationData.licenseVerified
+          ? "Verified doctor account created successfully!"
+          : "Account created! Please complete license verification to accept patients."
+      );
+    } else {
+      toast.success(
+        result.patientCode
+          ? `Patient account created successfully! Your Patient ID: ${result.patientCode}`
+          : "Patient account created successfully!"
+      );
+    }
+
+    navigate(resolveDashboardPath(role!, undefined, true), { replace: true });
+  };
+
+  const handleSignin = async () => {
+    const userId = await signInUser(formData.email, formData.password);
+    toast.success("Welcome back!");
+
+    // Route by the role on the account, not the role in the URL — the same
+    // credentials land in the same place whichever door they signed in through.
+    const { role: userRole, hasCompletedQuestionnaire } = await getUserRole(userId!);
+
+    if (!userRole) {
+      toast.error("Could not determine account type. Please contact support.");
+      navigate("/", { replace: true });
+      return;
+    }
+
+    navigate(resolveDashboardPath(userRole, hasCompletedQuestionnaire), { replace: true });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  
-    // Prevent multiple submissions
+
     if (isSubmitting.current) return;
     isSubmitting.current = true;
 
-    // Final validation for step 4
-    if (isSignup && role === "doctor" && currentStep === 4 && !validateStep4()) {
+    if (isDoctorSignup && !validateStep(TOTAL_DOCTOR_STEPS)) {
       isSubmitting.current = false;
       return;
     }
-  
+
     if (isSignup && formData.password !== formData.confirmPassword) {
       toast.error("Passwords don't match");
       isSubmitting.current = false;
       return;
     }
-  
+
     setIsLoading(true);
-    console.log("🚀 Starting authentication:", { isSignup, role });
-  
+
     try {
       if (isSignup) {
-        console.log("📝 Creating new user account");
-
-        // The role and (for doctors) the full verification payload travel as
-        // user metadata. The on_auth_user_created trigger reads them and
-        // writes public.profiles plus the matching doctors/patients row, so
-        // the profile exists even when email confirmation delays the session.
-        const verificationScore = role === "doctor" ? calculateVerificationScore() : 0;
-        const badge = role === "doctor"
-          ? getVerificationBadge(verificationScore, verificationData.licenseVerified)
-          : null;
-
-        const metadata: Record<string, unknown> = {
-          role,
-          name: formData.name,
-        };
-
-        if (role === "doctor") {
-          Object.assign(metadata, {
-            verificationScore,
-            verificationBadge: badge?.text,
-            licenseVerified: verificationData.licenseVerified,
-            licenseVerificationDetails: verificationData.verificationDetails ? {
-              verifiedName: verificationData.verificationDetails.doctorName,
-              registrationDate: verificationData.verificationDetails.registrationDate,
-              councilStatus: verificationData.verificationDetails.status,
-              verifyingCouncil: verificationData.verificationDetails.council,
-              verificationMethod: 'api_verification'
-            } : null,
-            licenseNumber: verificationData.licenseNumber,
-            medicalCouncil: verificationData.medicalCouncil,
-            graduationYear: parseInt(verificationData.graduationYear) || 0,
-            medicalDegree: verificationData.medicalDegree,
-            ayurvedicCertification: verificationData.ayurvedicCertification,
-            ayurvedicSpecialization: verificationData.ayurvedicSpecialization,
-            traditionalTraining: verificationData.traditionalTraining,
-            clinicName: verificationData.clinicName,
-            clinicAddress: verificationData.clinicAddress,
-            yearsOfExperience: parseInt(verificationData.yearsOfExperience) || 0,
-            consultationFee: verificationData.consultationFee,
-            languages: verificationData.languages,
-            specialConditions: verificationData.specialConditions,
-            consultationModes: verificationData.consultationModes,
-          });
-        }
-
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: { data: metadata },
-        });
-
-        if (signUpError) {
-          const msg = signUpError.message.toLowerCase();
-          if (msg.includes("already registered") || msg.includes("already been registered")) {
-            toast.error("An account with this email already exists. Please sign in instead or use a different email.");
-            setIsSignup(false);
-            isSubmitting.current = false;
-            return;
-          }
-          throw signUpError;
-        }
-
-        const newUser = signUpData.user;
-        console.log("✅ Supabase user created:", newUser?.id);
-
-        if (!signUpData.session) {
-          // Email confirmation is enabled: there is no session to route with.
-          toast.success("Account created! Check your email to confirm your address, then sign in.");
-          setIsSignup(false);
-          isSubmitting.current = false;
-          setIsLoading(false);
-          return;
-        }
-
-        if (role === "doctor") {
-          toast.success(verificationData.licenseVerified ?
-            "Verified doctor account created successfully!" :
-            "Account created! Please complete license verification to accept patients."
-          );
-        } else if (role === "patient" && newUser) {
-          // patient_code is assigned by the sequence default; read it back.
-          const { data: patientRow } = await supabase
-            .from("patients")
-            .select("patient_code")
-            .eq("id", newUser.id)
-            .maybeSingle();
-
-          toast.success(
-            patientRow?.patient_code
-              ? `Patient account created successfully! Your Patient ID: ${patientRow.patient_code}`
-              : "Patient account created successfully!"
-          );
-        }
-
-        // Navigate based on role for NEW SIGNUP ONLY
-        navigateUserToDashboard(navigate, role!, undefined, true);
-
+        await handleSignup();
       } else {
-        // Sign in existing user
-        console.log("🔑 Signing in existing user");
-        const { data: signInData, error: signInError } =
-          await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          });
-
-        if (signInError) throw signInError;
-
-        const signedInUser = signInData.user;
-        console.log("✅ User signed in successfully:", signedInUser?.id);
-
-        toast.success("Welcome back!");
-
-        // For EXISTING users signing in, determine their role and route accordingly
-        console.log("🔍 Determining user role for existing user...");
-
-        const { role: userRole, hasCompletedQuestionnaire } = await getUserRole(signedInUser!.id);
-
-        if (userRole) {
-          console.log("🎯 User role determined:", userRole);
-          navigateUserToDashboard(navigate, userRole, hasCompletedQuestionnaire, false);
-        } else {
-          console.log("❓ Could not determine user role, redirecting to home");
-          navigate("/", { replace: true });
-          toast.error("Could not determine account type. Please contact support.");
-        }
+        await handleSignin();
       }
-
     } catch (error) {
-      console.error("❌ Authentication error:", error);
-      
-      let errorMessage = "An unexpected error occurred";
-      
-      // Supabase reports auth failures as messages rather than Firebase-style
-      // error codes, so match on the message text.
-      if (error instanceof Error) {
-        const msg = error.message.toLowerCase();
-
-        if (msg.includes("invalid login credentials")) {
-          errorMessage = "Invalid credentials. Please check your email and password.";
-        } else if (msg.includes("already registered") || msg.includes("already been registered")) {
-          errorMessage = "An account with this email already exists. Please sign in instead.";
-          setIsSignup(false);
-        } else if (msg.includes("password should be") || msg.includes("password is too short")) {
-          errorMessage = "Password should be at least 6 characters long.";
-        } else if (msg.includes("invalid email") || msg.includes("unable to validate email")) {
-          errorMessage = "Please enter a valid email address.";
-        } else if (msg.includes("email not confirmed")) {
-          errorMessage = "Please confirm your email address before signing in.";
-        } else if (msg.includes("failed to fetch") || msg.includes("network")) {
-          errorMessage = "Network error. Please check your connection and try again.";
-        } else if (msg.includes("rate limit") || msg.includes("too many")) {
-          errorMessage = "Too many failed attempts. Please try again later.";
-        } else if (msg.includes("banned") || msg.includes("disabled")) {
-          errorMessage = "This account has been disabled. Please contact support.";
-        } else {
-          errorMessage = error.message;
-        }
+      if (error instanceof EmailAlreadyRegisteredError) {
+        setIsSignup(false);
       }
-
-
-      toast.error(errorMessage);
+      toast.error(describeAuthError(error));
     } finally {
       setIsLoading(false);
       isSubmitting.current = false;
     }
   };
 
-  const getLicenseFormatHint = (council: string) => {
-    const hints = {
-      'mci': 'Format: AA12345678 (State code + 8 digits)',
-      'nmc': 'Format: NMC/1234567890',
-      'state-council': 'Format: AA/123456 (State code/6-8 digits)',
-      'ayush': 'Format: AYU/AA/123456 (AYU/State/6 digits)'
-    };
-    return hints[council as keyof typeof hints] || 'Select council to see format';
-  };
-
-  const TestDoctorIds = () => (
-    <Alert className="mb-4 border-blue-200 bg-blue-50">
-      <AlertTriangle className="w-4 h-4" />
-      <AlertDescription>
-        <div className="text-sm">
-          <p className="font-medium text-blue-700 mb-2">Test Doctor License Numbers:</p>
-          <div className="grid grid-cols-1 gap-1 text-blue-600 text-xs">
-            <div><code>MH12345678</code> - Dr. Rajesh Kumar (MCI)</div>
-            <div><code>TN98765432</code> - Dr. Meera Nair (State Council)</div>
-            <div><code>GJ11223344</code> - Dr. Arjun Patel (State Council)</div>
-            <div><code>UP55667788</code> - Dr. Sita Gupta (State Council)</div>
-            <div><code>RJ99887766</code> - Dr. Vikram Singh (State Council)</div>
-            <div><code>AYU/KA/789012</code> - Dr. Lakshmi Rao (AYUSH)</div>
-            <div><code>NMC/2022001234</code> - Dr. Rohit Joshi (NMC)</div>
-          </div>
-        </div>
-      </AlertDescription>
-    </Alert>
-  );
-
-  const renderDoctorSignupStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Basic Information</h3>
-              <p className="text-sm text-gray-600">Let's start with your basic details</p>
-            </div>
-            
-            <div>
-              <Label htmlFor="name">Full Name *</Label>
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                placeholder="Dr. John Doe"
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                placeholder="john.doe@example.com"
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your password"
-                disabled={isLoading}
-                minLength={6}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirmPassword">Confirm Password *</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                required
-                placeholder="Confirm your password"
-                disabled={isLoading}
-                minLength={6}
-              />
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold flex items-center justify-center gap-2">
-                <Shield className="w-5 h-5" />
-                License Verification
-              </h3>
-              <p className="text-sm text-gray-600">Verify your medical credentials</p>
-            </div>
-            
-            <TestDoctorIds />
-            
-            <div>
-              <Label htmlFor="medicalCouncil">Medical Council *</Label>
-              <Select 
-                value={verificationData.medicalCouncil}
-                onValueChange={(value) => handleVerificationChange('medicalCouncil', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your medical council" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mci">Medical Council of India (MCI)</SelectItem>
-                  <SelectItem value="nmc">National Medical Commission (NMC)</SelectItem>
-                  <SelectItem value="state-council">State Medical Council</SelectItem>
-                  <SelectItem value="ayush">AYUSH Ministry</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="licenseNumber">Medical License Number *</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="licenseNumber"
-                  value={verificationData.licenseNumber}
-                  onChange={(e) => handleVerificationChange('licenseNumber', e.target.value.toUpperCase())}
-                  placeholder="e.g., MH12345678"
-                  required
-                  disabled={isVerifyingLicense}
-                />
-                <Button
-                  type="button"
-                  onClick={handleVerifyLicense}
-                  disabled={!verificationData.licenseNumber || !verificationData.medicalCouncil || isVerifyingLicense}
-                  className="whitespace-nowrap"
-                >
-                  {isVerifyingLicense ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-4 h-4 mr-2" />
-                      Verify
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {getLicenseFormatHint(verificationData.medicalCouncil)}
-              </p>
-            </div>
-
-            {showVerificationResult && verificationResult && (
-              <Alert className={getVerificationColor(verificationResult)}>
-                <div className="flex items-start gap-2">
-                  {getVerificationIcon(verificationResult)}
-                  <div className="flex-1">
-                    <AlertDescription>
-                      {verificationResult.isValid ? (
-                        <div>
-                          <p className="font-medium text-green-700">✅ License Verified Successfully</p>
-                          <div className="mt-2 text-sm text-green-600">
-                            <p><strong>Doctor:</strong> {verificationResult.doctorName}</p>
-                            <p><strong>Registration:</strong> {verificationResult.registrationDate}</p>
-                            <p><strong>Status:</strong> {verificationResult.status?.toUpperCase()}</p>
-                            <p><strong>Council:</strong> {verificationResult.council}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="font-medium text-red-700">❌ License Verification Failed</p>
-                          <p className="text-sm text-red-600 mt-1">{verificationResult.error}</p>
-                        </div>
-                      )}
-                    </AlertDescription>
-                  </div>
-                </div>
-              </Alert>
-            )}
-            
-            <div>
-              <Label htmlFor="medicalDegree">Medical Degree *</Label>
-              <Select 
-                value={verificationData.medicalDegree}
-                onValueChange={(value) => handleVerificationChange('medicalDegree', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your degree" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mbbs">MBBS</SelectItem>
-                  <SelectItem value="bams">BAMS (Bachelor of Ayurvedic Medicine)</SelectItem>
-                  <SelectItem value="md">MD</SelectItem>
-                  <SelectItem value="ms">MS</SelectItem>
-                  <SelectItem value="bums">BUMS</SelectItem>
-                  <SelectItem value="bhms">BHMS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="graduationYear">Graduation Year *</Label>
-              <Input
-                id="graduationYear"
-                type="number"
-                min="1980"
-                max="2024"
-                value={verificationData.graduationYear}
-                onChange={(e) => handleVerificationChange('graduationYear', e.target.value)}
-                placeholder="2020"
-                required
-              />
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold flex items-center justify-center gap-2">
-                <Leaf className="w-5 h-5" />
-                Ayurvedic Expertise
-              </h3>
-              <p className="text-sm text-gray-600">Tell us about your Ayurvedic specialization</p>
-            </div>
-            
-            <div>
-              <Label htmlFor="ayurvedicCertification">Ayurvedic Certification</Label>
-              <Input
-                id="ayurvedicCertification"
-                value={verificationData.ayurvedicCertification}
-                onChange={(e) => handleVerificationChange('ayurvedicCertification', e.target.value)}
-                placeholder="Certificate in Ayurvedic Nutrition"
-              />
-            </div>
-            
-            <div>
-              <Label>Specialization Areas</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {[
-                  "Nutrition Therapy", "Panchakarma", "Herbal Medicine", 
-                  "Lifestyle Counseling", "Digestive Health", "Women's Health", 
-                  "Stress Management", "Weight Management", "Detoxification",
-                  "Immunity Building", "Mental Wellness", "Skin & Hair Care"
-                ].map((spec) => (
-                  <div key={spec} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={spec}
-                      checked={verificationData.ayurvedicSpecialization.includes(spec)}
-                      onCheckedChange={(checked) => handleArrayFieldChange('ayurvedicSpecialization', spec, checked as boolean)}
-                    />
-                    <Label htmlFor={spec} className="text-sm">{spec}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="traditionalTraining">Traditional Training Background</Label>
-              <Textarea
-                id="traditionalTraining"
-                value={verificationData.traditionalTraining}
-                onChange={(e) => handleVerificationChange('traditionalTraining', e.target.value)}
-                placeholder="Describe your traditional Ayurvedic training, mentors, institutions..."
-                rows={3}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="yearsOfExperience">Years of Experience *</Label>
-              <Input
-                id="yearsOfExperience"
-                type="number"
-                min="0"
-                max="50"
-                value={verificationData.yearsOfExperience}
-                onChange={(e) => handleVerificationChange('yearsOfExperience', e.target.value)}
-                placeholder="5"
-                required
-              />
-            </div>
-          </div>
-        );
-
-      case 4:
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Practice Details</h3>
-              <p className="text-sm text-gray-600">Complete your professional profile</p>
-            </div>
-            
-            <div>
-              <Label htmlFor="clinicName">Clinic/Practice Name *</Label>
-              <Input
-                id="clinicName"
-                value={verificationData.clinicName}
-                onChange={(e) => handleVerificationChange('clinicName', e.target.value)}
-                placeholder="Ayurvedic Wellness Center"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="clinicAddress">Clinic Address</Label>
-              <Textarea
-                id="clinicAddress"
-                value={verificationData.clinicAddress}
-                onChange={(e) => handleVerificationChange('clinicAddress', e.target.value)}
-                placeholder="Complete address of your practice"
-                rows={2}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="consultationFee">Consultation Fee (₹)</Label>
-              <Input
-                id="consultationFee"
-                type="number"
-                min="0"
-                value={verificationData.consultationFee}
-                onChange={(e) => handleVerificationChange('consultationFee', e.target.value)}
-                placeholder="500"
-              />
-            </div>
-            
-            <div>
-              <Label>Languages Spoken</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {[
-                  "English", "Hindi", "Marathi", "Tamil", 
-                  "Telugu", "Gujarati", "Bengali", "Punjabi",
-                  "Malayalam", "Kannada", "Urdu", "Sanskrit"
-                ].map((language) => (
-                  <div key={language} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={language}
-                      checked={verificationData.languages.includes(language)}
-                      onCheckedChange={(checked) => handleArrayFieldChange('languages', language, checked as boolean)}
-                    />
-                    <Label htmlFor={language} className="text-sm">{language}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div>
-              <Label>Special Conditions Treated</Label>
-              <div className="grid grid-cols-1 gap-2 mt-2">
-                {[
-                  "Diabetes Management", "Hypertension", "Arthritis", 
-                  "PCOD/PCOS", "Obesity", "Digestive Disorders",
-                  "Anxiety & Stress", "Insomnia", "Skin Conditions",
-                  "Respiratory Issues", "Menstrual Disorders", "Joint Pain"
-                ].map((condition) => (
-                  <div key={condition} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={condition}
-                      checked={verificationData.specialConditions.includes(condition)}
-                      onCheckedChange={(checked) => handleArrayFieldChange('specialConditions', condition, checked as boolean)}
-                    />
-                    <Label htmlFor={condition} className="text-sm">{condition}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div>
-              <Label>Consultation Modes Available</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {[
-                  "In-person", "Video Call", "Phone Call", "Chat Consultation"
-                ].map((mode) => (
-                  <div key={mode} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={mode}
-                      checked={verificationData.consultationModes.includes(mode)}
-                      onCheckedChange={(checked) => handleArrayFieldChange('consultationModes', mode, checked as boolean)}
-                    />
-                    <Label htmlFor={mode} className="text-sm">{mode}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-              <h4 className="font-medium mb-3">Profile Verification Status</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Verification Score:</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${calculateVerificationScore()}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">{calculateVerificationScore()}%</span>
-                  </div>
-                </div>
-                
-                {(() => {
-                  const badge = getVerificationBadge(calculateVerificationScore(), verificationData.licenseVerified);
-                  return (
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${badge.color} text-white`}>
-                        <badge.icon className="w-3 h-3 mr-1" />
-                        {badge.text}
-                      </Badge>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  const toggleMode = () => {
+    setIsSignup((prev) => !prev);
+    resetForm();
   };
 
   return (
@@ -1091,179 +289,109 @@ const Login = () => {
         <CardHeader className="text-center">
           <div className="flex items-center justify-center mb-2">
             <Leaf className="w-8 h-8 text-green-600 mr-2" />
-            <CardTitle className="text-2xl font-bold text-gray-800">
-              Ayurvedic Health
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-800">Ayurvedic Health</CardTitle>
           </div>
           <CardDescription>
             {isSignup ? "Create your account" : "Sign in to your account"} as a{" "}
             <span className="font-semibold capitalize text-green-600">{role}</span>
-            {role === "doctor" && isSignup && (
-              <div className="mt-2 text-xs text-gray-500">
-                Step {currentStep} of 4
-              </div>
+            {/* A block element here would be invalid — CardDescription is a <p>. */}
+            {isDoctorSignup && (
+              <span className="mt-2 block text-xs text-gray-500">
+                Step {currentStep} of {TOTAL_DOCTOR_STEPS}
+              </span>
             )}
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {role === "doctor" && isSignup && (
+            {isDoctorSignup && (
               <div className="mb-6">
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                  <span>Basic Info</span>
-                  <span>License</span>
-                  <span>Expertise</span>
-                  <span>Practice</span>
+                  {STEP_LABELS.map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(currentStep / 4) * 100}%` }}
+                    style={{ width: `${(currentStep / TOTAL_DOCTOR_STEPS) * 100}%` }}
                   />
                 </div>
               </div>
             )}
 
-            {(!isSignup || role === "patient") && (
-              <div className="space-y-4">
-                {isSignup && (
-                  <div>
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      type="text"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="Enter your full name"
-                      disabled={isLoading}
-                    />
-                  </div>
-                )}
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Enter your email"
-                    disabled={isLoading}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Enter your password"
-                    disabled={isLoading}
-                    minLength={6}
-                  />
-                </div>
-                {isSignup && (
-                  <div>
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="Confirm your password"
-                      disabled={isLoading}
-                      minLength={6}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+            {isDoctorSignup ? (
+              <>
+                <DoctorSignupSteps
+                  step={currentStep}
+                  formData={formData}
+                  onFormChange={handleInputChange}
+                  verificationData={verificationData}
+                  onVerificationChange={handleVerificationChange}
+                  onArrayFieldChange={handleArrayFieldChange}
+                  onVerifyLicense={handleVerifyLicense}
+                  isVerifyingLicense={isVerifyingLicense}
+                  verificationResult={verificationResult}
+                  isLoading={isLoading}
+                />
 
-            {isSignup && role === "doctor" && renderDoctorSignupStep()}
-
-            {isSignup && role === "doctor" && (
-              <div className="flex justify-between pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={currentStep === 1 || isLoading}
-                >
-                  Back
-                </Button>
-                
-                {currentStep < 4 ? (
+                <div className="flex justify-between pt-4">
                   <Button
                     type="button"
-                    onClick={handleNext}
-                    disabled={isLoading}
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={currentStep === 1 || isLoading}
                   >
-                    Next
+                    Back
                   </Button>
-                ) : (
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Account...
-                      </>
-                    ) : (
-                      "Create Account"
-                    )}
-                  </Button>
-                )}
-              </div>
-            )}
 
-            {(!isSignup || role === "patient") && (
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isSignup ? "Creating Account..." : "Signing In..."}
-                  </>
-                ) : (
-                  isSignup ? "Create Account" : "Sign In"
-                )}
-              </Button>
+                  {currentStep < TOTAL_DOCTOR_STEPS ? (
+                    <Button type="button" onClick={handleNext} disabled={isLoading}>
+                      Next
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Account"
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <AccountFields
+                  values={formData}
+                  onChange={handleInputChange}
+                  isSignup={isSignup}
+                  disabled={isLoading}
+                />
+
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {isSignup ? "Creating Account..." : "Signing In..."}
+                    </>
+                  ) : isSignup ? (
+                    "Create Account"
+                  ) : (
+                    "Sign In"
+                  )}
+                </Button>
+              </>
             )}
 
             <div className="text-center pt-4">
               <button
                 type="button"
-                onClick={() => {
-                  setIsSignup(!isSignup);
-                  setCurrentStep(1);
-                  setFormData({ name: "", email: "", password: "", confirmPassword: "" });
-                  setVerificationData({
-                    licenseNumber: "",
-                    medicalCouncil: "",
-                    graduationYear: "",
-                    medicalDegree: "",
-                    ayurvedicCertification: "",
-                    ayurvedicSpecialization: [],
-                    traditionalTraining: "",
-                    clinicName: "",
-                    clinicAddress: "",
-                    yearsOfExperience: "",
-                    consultationFee: "",
-                    languages: [],
-                    specialConditions: [],
-                    consultationModes: [],
-                    licenseVerified: false,
-                  });
-                  setVerificationResult(null);
-                  setShowVerificationResult(false);
-                }}
+                onClick={toggleMode}
                 className="text-sm text-green-600 hover:text-green-700 underline"
                 disabled={isLoading}
               >

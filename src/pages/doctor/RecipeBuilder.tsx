@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 // Import the Ayurnutrigenomics generator
-import AyurnutrigenomicsDietGenerator, { formatDietPlanForDisplay } from './ayurnutrigenomics-generator';
+import AyurnutrigenomicsDietGenerator, { formatDietPlanForDisplay } from '@/services/ayurnutrigenomicsGenerator';
 
 const mealSlots = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const weekDays = [
