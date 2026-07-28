@@ -21,6 +21,7 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | `generated_plans`       | `generated_plans` (backend)                 |
 | `doctor_edits`          | `doctor_edits` (backend)                    |
 | `user_feedback`         | `user_feedback` (backend)                   |
+| `foodoscope_api_keys`   | — (new; FoodOScope keys the frontend rotates through) |
 
 Notes on the shape:
 
@@ -56,6 +57,12 @@ policies are the access control:
   policies at all**, so the publishable key can never reach them. The Python
   backend uses the service-role key, which bypasses RLS by design. The
   "RLS Enabled No Policy" advisor notice on those three tables is expected.
+- `foodoscope_api_keys` is `select`-able by `authenticated` where `is_active`,
+  with no write policy: keys are added and retired from the dashboard (or the
+  service role), never from the browser. These are FoodOScope quota tokens
+  rather than secrets — any signed-in user can read them, which is the same
+  exposure as baking them into the bundle. Nothing that must stay private
+  belongs in this table.
 - `current_role_is` and `doctor_treats` are `SECURITY DEFINER` and must stay
   executable by `authenticated`, because RLS policy expressions are evaluated as
   the querying role. `EXECUTE` is revoked from `anon`.
@@ -87,4 +94,4 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `enable_rls_policies`, `handle_new_user_trigger`, `harden_functions`,
 `appointments_and_meal_tracking`, `consultation_response_message`,
 `patient_self_service_diet_plans`, `notification_patient_columns`,
-`diet_plan_authorship`, `diet_plan_builder_payloads`.
+`diet_plan_authorship`, `diet_plan_builder_payloads`, `foodoscope_api_keys`.
