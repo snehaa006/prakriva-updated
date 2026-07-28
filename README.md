@@ -110,8 +110,6 @@ committed.
 |---|---|---|---|
 | `VITE_SUPABASE_URL` | Frontend | Yes | Supabase project URL. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`) | Frontend | Yes | Supabase anon/publishable key. Safe to expose — protected by RLS. |
-| `VITE_FOODOSCOPE_API_KEYS` | Frontend | No | Comma- (or newline-) separated FoodOScope/RecipeDB keys. The client rotates through them — see "FoodOScope API key rotation" below. Falls back to a bundled key if unset. |
-| `VITE_FOODOSCOPE_API_KEY` / `VITE_FOODOSCOPE_API_KEY_1` … `_20` | Frontend | No | Alternative way to supply the same keys, one per variable. Merged with `VITE_FOODOSCOPE_API_KEYS`; duplicates are dropped. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
@@ -136,28 +134,27 @@ browser by `src/services/foodoscopeApi.ts`. That service accepts **multiple
 keys** and rotates between them so a single exhausted or throttled key doesn't
 take the recipe features down.
 
-Where to put the keys — the first two are merged at runtime, so either or both
-will do:
+**Keys go in Supabase — nowhere else.** Insert one row per key into
+`public.foodoscope_api_keys`:
 
-- **Supabase** — insert a row per key into `public.foodoscope_api_keys`
-  (`api_key`, optional `label`, `priority`, `is_active`). The frontend loads
-  them on first use and re-checks every 5 minutes, so **a key added here works
-  without a redeploy** and can be retired by flipping `is_active` to `false`.
-  The table is readable by signed-in users only; it has no write policy, so
-  keys are managed from the dashboard or the service role.
-- **Vercel / `.env`** — `VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three` in
-  the root `.env` locally, or in the frontend Vercel project's environment
-  variables. One key per variable also works via `VITE_FOODOSCOPE_API_KEY_1` …
-  `VITE_FOODOSCOPE_API_KEY_20`. All forms are merged and de-duplicated. These
-  are baked in at build time (so changes need a redeploy) but they work for
-  signed-out visitors, which the Supabase-backed keys don't. With none set, a
-  bundled fallback key is used and a warning is logged in dev.
-- `public/mealCompatibility.html` — this page is standalone HTML served as-is
-  with no bundler and no Supabase client, so its keys live in the `API_TOKENS`
-  array at the top of its `<script>` block. Keep that list in sync by hand.
+| Column | |
+|---|---|
+| `api_key` | the key itself — the only field you have to fill in |
+| `label` | optional note, e.g. "backup 2" |
+| `is_active` | defaults to `true`; set `false` to retire a key without deleting it |
+| `priority` | defaults to `100`; lower is tried first |
 
-If real keys arrive from Supabase while the pool holds only the bundled
-fallback, they replace it rather than queueing behind it.
+The frontend loads the table on first use and re-checks every 5 minutes, so a
+key added there **takes effect without a redeploy**. The table is readable by
+signed-in users only, which is all that's needed — every screen that calls
+FoodOScope sits behind `ProtectedRoute`. There is no write policy, so keys can
+only be added from the Supabase dashboard or the service role, never from the
+browser. No environment variable configures these keys.
+
+`src/services/foodoscopeApi.ts` also holds a single `EMERGENCY_KEY` constant.
+That is **not** a place to add keys — it is the last resort that keeps recipes
+loading if Supabase is unreachable, and real keys from the table replace it as
+soon as they load.
 
 How rotation behaves:
 
@@ -173,14 +170,17 @@ How rotation behaves:
   immediately, since another key would return the same thing.
 - When all keys fail, the last error is thrown as a `FoodoscopeApiError`
   carrying the HTTP `status`. `getKeyPoolStatus()` from the same module returns
-  a redacted snapshot of each key's state (including whether it came from the
-  env or Supabase) for debugging.
+  a redacted snapshot of each key's state for debugging.
 
-These keys are **not secrets** — a `VITE_`-prefixed variable ends up in the JS
-bundle, and a Supabase row readable by signed-in users is readable by every
-signed-in user. FoodOScope keys are per-app quota tokens, which is why they're
-allowed in the frontend; genuine secrets still belong in `backend/.env`. If a
-key must stay private, proxy the calls through the Flask backend instead.
+These keys are **not secrets** — a row readable by signed-in users is readable
+by every signed-in user, and the keys reach the browser either way. FoodOScope
+keys are per-app quota tokens, which is why this is fine; genuine secrets still
+belong in `backend/.env`. If a key must stay private, proxy the calls through
+the Flask backend instead.
+
+One exception, unchanged from before: `public/mealCompatibility.html` is a
+standalone static page with no bundler and no Supabase client, so it keeps its
+own `API_TOKENS` array. It is not part of the rotation described above.
 
 ## Deployment (Vercel)
 

@@ -654,11 +654,11 @@
     <script>
         const API_BASE = 'https://api.foodoscope.com/recipe2-api';
 
-        // FoodOScope API keys. This page is standalone HTML (no bundler), so the
-        // keys are listed here rather than read from .env — add as many as you
-        // have and foodoscopeFetch() rotates to the next one when a key is
-        // rate-limited, expired, or rejected. Keep this list in sync with the
-        // VITE_FOODOSCOPE_API_KEYS entries in the root .env file.
+        // FoodOScope API keys. This page is standalone HTML with no bundler and
+        // no Supabase client, so it cannot read the foodoscope_api_keys table
+        // the React app rotates through — its keys are listed here instead. Add
+        // as many as you have and foodoscopeFetch() rotates to the next one when
+        // a key is rate-limited, expired, or rejected.
         const API_TOKENS = [
             'usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB',
             // 'second-key-here',

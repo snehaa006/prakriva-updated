@@ -5,79 +5,38 @@ const BASE_URL = "https://api.foodoscope.com/recipe2-api";
 
 // --- API keys ---
 //
+// Keys live in ONE place: the `foodoscope_api_keys` table in Supabase. Add a
+// row per key there (dashboard → Table Editor) and it takes effect without a
+// redeploy — the pool is loaded on first request and re-checked every few
+// minutes. Retire a key by setting `is_active` to false.
+//
 // FoodOScope is called straight from the browser, so these keys are visible to
-// anyone using the app — they are per-app quota tokens, not secrets. Supply
-// several and the client rotates to the next one whenever a key is
+// anyone signed in — they are per-app quota tokens, not secrets. With several
+// in the table, the client rotates to the next one whenever a key is
 // rate-limited, expired, or rejected.
 //
-// Keys come from two places, and both can be used at once:
-//
-// 1. Build-time env vars (root `.env` locally, project env vars on Vercel):
-//      VITE_FOODOSCOPE_API_KEYS=key-one,key-two,key-three  (comma/newline list)
-//      VITE_FOODOSCOPE_API_KEY=key-one                      (single key)
-//      VITE_FOODOSCOPE_API_KEY_1=... VITE_FOODOSCOPE_API_KEY_2=... (numbered)
-//    All three forms are merged, in that order, and duplicates are dropped.
-//    Changing these needs a rebuild/redeploy, but they work signed-out.
-//
-// 2. The `foodoscope_api_keys` table in Supabase, loaded on first use and
-//    refreshed periodically. Rows are readable by signed-in users only, so
-//    adding a key there takes effect without a redeploy.
+// EMERGENCY_KEY below is not a place to add keys. It is the last resort that
+// keeps recipes loading if Supabase is unreachable, and it is the same key
+// this file has always shipped with.
 
-/** Used only when no key is configured in the environment. */
-const FALLBACK_KEYS = ["usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB"];
-
-/** How many `VITE_FOODOSCOPE_API_KEY_<n>` slots are read. */
-const MAX_NUMBERED_KEYS = 20;
-
-function collectKeys(): string[] {
-  const env = import.meta.env as unknown as Record<string, string | undefined>;
-  const raw: string[] = [
-    ...(env.VITE_FOODOSCOPE_API_KEYS ?? "").split(/[,\n]/),
-    env.VITE_FOODOSCOPE_API_KEY ?? "",
-  ];
-  for (let i = 1; i <= MAX_NUMBERED_KEYS; i++) {
-    raw.push(env[`VITE_FOODOSCOPE_API_KEY_${i}`] ?? "");
-  }
-
-  const keys = [...new Set(raw.map((key) => key.trim()).filter(Boolean))];
-  if (keys.length === 0) {
-    if (import.meta.env.DEV) {
-      console.warn(
-        "[foodoscope] No VITE_FOODOSCOPE_API_KEY* set — using the bundled fallback key. " +
-          "Add your keys to .env to enable rotation."
-      );
-    }
-    return FALLBACK_KEYS;
-  }
-  return keys;
-}
+const EMERGENCY_KEY = "usYgoaB4a9Xv-rrs6WPz9a9dfUktdm3yOe4FNoZWOH4n-qyB";
 
 interface KeyEntry {
   key: string;
   /** Epoch ms until which this key is skipped when a healthier one exists. */
   cooldownUntil: number;
-  source: "env" | "supabase";
+  source: "supabase" | "emergency";
 }
 
-const envKeys = collectKeys();
-const keyPool: KeyEntry[] = envKeys.map((key) => ({
-  key,
-  cooldownUntil: 0,
-  source: "env" as const,
-}));
+const keyPool: KeyEntry[] = [
+  { key: EMERGENCY_KEY, cooldownUntil: 0, source: "emergency" },
+];
 
 /** The key that last succeeded — tried first so we don't cycle needlessly. */
 let activeIndex = 0;
 
-/** True while the pool holds nothing but the hardcoded fallback. */
-let poolIsFallbackOnly = envKeys === FALLBACK_KEYS;
-
-// --- Supabase-backed keys ---
-//
-// Keys stored in `public.foodoscope_api_keys` are picked up at runtime, so a
-// new key can be added from the Supabase dashboard without a redeploy. The
-// table is readable by signed-in users only; when signed out (or offline) this
-// is a no-op and the env keys carry the request.
+/** True until real keys have been loaded out of Supabase. */
+let poolIsEmergencyOnly = true;
 
 const REMOTE_REFRESH_MS = 5 * 60_000;
 let remoteLoad: Promise<void> | null = null;
@@ -90,12 +49,12 @@ function mergeKeys(keys: string[]) {
     .filter((key) => key && !keyPool.some((entry) => entry.key === key));
   if (fresh.length === 0) return;
 
-  if (poolIsFallbackOnly) {
-    // The bundled key is a last resort — real keys replace it outright rather
-    // than sitting behind it and burning a failed request on every rotation.
+  if (poolIsEmergencyOnly) {
+    // The emergency key is a last resort — real keys replace it outright
+    // rather than sitting in front and burning a request on every rotation.
     keyPool.length = 0;
     activeIndex = 0;
-    poolIsFallbackOnly = false;
+    poolIsEmergencyOnly = false;
   }
   keyPool.push(
     ...fresh.map((key) => ({ key, cooldownUntil: 0, source: "supabase" as const }))
@@ -121,7 +80,8 @@ async function ensureRemoteKeys(): Promise<void> {
       if (error || !data) return;
       mergeKeys(data.map((row: { api_key: string }) => row.api_key));
     } catch {
-      // Signed out, offline, or the table isn't there — env keys still work.
+      // Signed out, offline, or the table is missing — the emergency key
+      // keeps recipes loading until Supabase answers again.
     }
   })();
 
