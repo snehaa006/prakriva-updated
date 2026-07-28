@@ -1,35 +1,55 @@
-# FastAPI and Server
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+# Runtime dependencies.
+#
+# Pins are chosen so that `uv lock` resolves on Python 3.12 (Vercel's default)
+# and every package has a prebuilt manylinux_2_28 cp312 wheel, so nothing has
+# to be built from source during the Vercel build.
+#
+# Dev/test-only tooling lives in requirements-dev.txt so it is not shipped in
+# the deployed function bundle.
+
+# Web framework — app.py builds a Flask app via create_app()
+flask==3.1.2
+flask-cors==6.0.1
+flask-limiter==3.12.0
+flask-caching==2.3.1
+werkzeug==3.1.3
+
+# WSGI server used by run.py
+waitress==3.0.2
+
+# ASGI stack used by api_generate.py
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
 
 # Firebase
-firebase-admin==6.2.0
+firebase-admin==7.1.0
 
 # Environment and Configuration
-python-dotenv==1.0.0
+python-dotenv==1.1.1
 
 # Logging
-loguru==0.7.2
+loguru==0.7.3
 
-# Data Processing (if needed by your planner)
-pandas==2.1.3
-numpy==1.24.3
+# Data Processing
+# Keep numpy >=2.0 in step with pandas: pandas 2.x on Python 3.12 requires
+# numpy>=1.26, and the pinned scikit-learn below was built against numpy 2.x.
+pandas==2.3.2
+numpy==2.3.3
 
-# ML Libraries (if used by your planner)
-scikit-learn==1.3.0
-joblib==1.3.2
+# ML libraries — dosha_estimator.py / train_dosha_model.py
+# scikit-learn MUST stay at 1.7.2: dosha_model.pkl was pickled with 1.7.2 and
+# loading it under a different minor version raises InconsistentVersionWarning
+# and risks silently wrong predictions. Retrain the model before bumping this.
+scikit-learn==1.7.2
+joblib==1.5.2
 
-# OpenAI (if used in your planner)
-openai==1.3.0
+# OpenAI
+openai==1.108.1
 
-# HTTP Requests (if needed)
-httpx==0.25.0
-requests==2.31.0
+# HTTP Requests
+httpx==0.28.1
+requests==2.32.5
 
 # Validation
-pydantic==2.5.0
-
-# Development Dependencies (optional)
-pytest==7.4.3
-pytest-asyncio==0.21.1
+pydantic==2.11.9
