@@ -1,13 +1,6 @@
 {
-  "framework": null,
-  "builds": [
-    { "src": "backend/app.py", "use": "@vercel/python" },
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
-  ],
-  "routes": [
-    { "src": "^/(health|generate|analytics)$", "dest": "backend/app.py" },
-    { "src": "^/(plan|user|dosha|calories|test|debug|datasets)(/.*)?$", "dest": "backend/app.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

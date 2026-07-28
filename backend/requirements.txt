@@ -1,8 +1,10 @@
 # Runtime dependencies.
 #
-# Pins are chosen so that `uv lock` resolves on Python 3.12 (Vercel's default)
-# and every package has a prebuilt manylinux_2_28 cp312 wheel, so nothing has
-# to be built from source during the Vercel build.
+# Pins are chosen so that `uv lock` resolves on Python 3.12 (pinned via the
+# repo-root pyproject.toml's requires-python, since Vercel's own default has
+# since moved past what numpy/pandas ship prebuilt cp3xx wheels for) and every
+# package has a prebuilt manylinux_2_28 cp312 wheel, so nothing has to be
+# built from source during the Vercel build.
 #
 # Dev/test-only tooling lives in requirements-dev.txt so it is not shipped in
 # the deployed function bundle.
@@ -47,4 +49,8 @@ httpx==0.28.1
 requests==2.32.5
 
 # Validation
-pydantic==2.11.9
+# Pinned to a release recent enough to ship a prebuilt cp314 wheel for
+# pydantic-core, so Vercel's build never has to compile it from source via
+# Rust/PyO3 (older pins fail there once the build image bumps its default
+# Python past what that PyO3 release supports).
+pydantic==2.13.4
