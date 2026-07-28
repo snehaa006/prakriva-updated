@@ -10,8 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Activity, Droplet, Target, MapPin, Sun, Apple, HeartPulse, Thermometer, Moon, IdCard, Copy, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 interface AssessmentData {
   // Personal Information
@@ -98,16 +97,34 @@ export default function Profile() {
         setLoading(true);
         console.log("Fetching patient data for user:", user.id);
         
-        const patientDocRef = doc(db, "patients", user.id);
-        const patientDoc = await getDoc(patientDocRef);
+        const { data: row, error } = await supabase
+          .from("patients")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
 
-        if (patientDoc.exists()) {
-          const data = patientDoc.data() as PatientData;
+        if (error) throw error;
+
+        if (row) {
+          const data: PatientData = {
+            patientId: row.patient_code,
+            name: row.name,
+            email: row.email,
+            uid: row.id,
+            role: "patient",
+            questionnaireCompleted: row.questionnaire_completed,
+            createdAt: row.created_at,
+            profileCompleted: row.profile_completed,
+            registrationDate: row.registration_date,
+            status: row.status,
+            assessmentData: row.assessment_data ?? undefined,
+            updatedAt: row.updated_at,
+          };
           console.log("Patient data fetched:", data);
-          
+
           // Set the complete patient data
           setPatientData(data);
-          
+
           // Extract assessment data if it exists
           const assessment = data.assessmentData as AssessmentData;
           if (assessment) {
@@ -143,17 +160,19 @@ export default function Profile() {
     if (!user?.id || !assessmentData || !patientData) return;
 
     try {
-      const patientDocRef = doc(db, "patients", user.id);
-      
-      // Update both assessment data and patient info
-      const updateData = {
-        ...patientData,
-        assessmentData: assessmentData,
-        updatedAt: new Date().toISOString(),
-        profileCompleted: true, // Mark profile as completed when saved
-      };
+      // Update both assessment data and patient info. Only columns that
+      // actually exist on public.patients are written — patient_code, id and
+      // the timestamps are managed by the database.
+      const { error } = await supabase
+        .from("patients")
+        .update({
+          name: assessmentData.name ?? patientData.name,
+          assessment_data: assessmentData,
+          profile_completed: true, // Mark profile as completed when saved
+        })
+        .eq("id", user.id);
 
-      await updateDoc(patientDocRef, updateData);
+      if (error) throw error;
 
       // Update user context if name changed
       if (user.name !== assessmentData.name) {
@@ -164,7 +183,13 @@ export default function Profile() {
       }
       
       // Update local state
-      setPatientData(prev => prev ? { ...prev, ...updateData } : null);
+      setPatientData(prev => prev ? {
+        ...prev,
+        name: assessmentData.name ?? prev.name,
+        assessmentData,
+        profileCompleted: true,
+        updatedAt: new Date().toISOString(),
+      } : null);
       setOriginalData(assessmentData);
       setIsEditing(false);
       

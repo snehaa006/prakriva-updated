@@ -53,21 +53,20 @@ class ProductionRunner:
         
         required_env_vars = [
             'OPENAI_API_KEY',
-            'FIREBASE_KEY_PATH'
+            'SUPABASE_URL',
+            'SUPABASE_SERVICE_ROLE_KEY'
         ]
-        
+
         missing_vars = []
         for var in required_env_vars:
             if not os.getenv(var):
                 missing_vars.append(var)
-        
+
         if missing_vars:
             raise EnvironmentError(f"Missing required environment variables: {missing_vars}")
-        
-        # Validate Firebase key file exists
-        if not os.path.exists(settings.FIREBASE_KEY_PATH):
-            raise FileNotFoundError(f"Firebase key file not found: {settings.FIREBASE_KEY_PATH}")
-        
+
+        settings.validate_supabase()
+
         logger.success("Environment validation passed")
     
     def validate_datasets(self):

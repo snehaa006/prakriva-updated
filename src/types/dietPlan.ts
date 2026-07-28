@@ -1,5 +1,4 @@
 // src/types/dietPlan.ts
-import { Timestamp } from 'firebase/firestore';
 
 // Food item interface from your context
 export interface Food {
@@ -58,15 +57,16 @@ export interface MealPlans {
   Monthly: MonthlyMeals;
 }
 
-// Firebase document structure for saved diet plans
+// Row shape for saved diet plans (public.diet_plans).
+// Postgres timestamptz arrives over the wire as an ISO 8601 string.
 export interface SavedDietPlan {
   id: string;
   patientName: string;
   planDuration: string;
   planType: string;
   meals: MealPlans;
-  createdAt: Timestamp;
-  lastModified: Timestamp;
+  createdAt: string;
+  lastModified: string;
   activeFilter: "Daily" | "Weekly" | "Monthly";
   totalMeals: number;
 }
@@ -114,8 +114,8 @@ export interface NutritionSummary {
   Carbs: number;
 }
 
-// Firebase error handling
-export interface FirebaseError {
+// Supabase/PostgREST error shape
+export interface DatabaseError {
   code: string;
   message: string;
 }

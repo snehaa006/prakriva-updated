@@ -35,15 +35,7 @@ import {
   Filter
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  doc, 
-  getDoc
-} from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 
 interface Patient {
   id: string;
@@ -113,40 +105,47 @@ const Patients: React.FC = () => {
   const [copiedPatientId, setCopiedPatientId] = useState<string | null>(null);
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      console.error('No authenticated user');
-      setIsLoading(false);
-      return;
-    }
-
-    console.log('Fetching accepted patients for doctor:', currentUser.uid);
+    let cancelled = false;
 
     const fetchAcceptedPatients = async () => {
-      try {
-        const requestsRef = collection(db, 'consultationRequests');
-        const q = query(
-          requestsRef, 
-          where('doctorId', '==', currentUser.uid),
-          where('status', '==', 'accepted')
-        );
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData.user;
+      if (!currentUser) {
+        console.error('No authenticated user');
+        setIsLoading(false);
+        return;
+      }
 
-        const snapshot = await getDocs(q);
-        console.log('Received accepted requests, documents:', snapshot.size);
-        
-        const patientsData: Patient[] = [];
-        
-        // Process each accepted request and fetch additional patient data
-        for (const docSnapshot of snapshot.docs) {
-          const data = docSnapshot.data();
-          console.log('Accepted request document:', docSnapshot.id, data);
-          
-          // Fetch additional patient data from patients collection
-          let enhancedPatientProfile = data.fullPatientProfile || {
-            name: data.patientName || 'Unknown Patient',
+      console.log('Fetching accepted patients for doctor:', currentUser.id);
+
+      try {
+        // One round trip: the accepted requests plus the joined patient row,
+        // instead of a per-request follow-up read.
+        const { data: requests, error } = await supabase
+          .from('consultation_requests')
+          .select(`
+            id, patient_id, patient_name, patient_email, patient_phone,
+            request_type, requested_at, status_updated_at,
+            doctor_id, doctor_name, doctor_email, full_patient_profile,
+            patients (
+              patient_code, name, assessment_data, registration_date,
+              created_at, profile_completed, status
+            )
+          `)
+          .eq('doctor_id', currentUser.id)
+          .eq('status', 'accepted');
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        console.log('Received accepted requests, documents:', requests?.length ?? 0);
+
+        const patientsData: Patient[] = (requests ?? []).map((data: any) => {
+          let enhancedPatientProfile = data.full_patient_profile || {
+            name: data.patient_name || 'Unknown Patient',
             age: undefined,
             gender: undefined,
-            phoneNumber: data.patientPhone,
+            phoneNumber: data.patient_phone,
             address: undefined,
             medicalHistory: [],
             allergies: [],
@@ -155,51 +154,38 @@ const Patients: React.FC = () => {
             emergencyContact: undefined
           };
 
-          // Try to fetch complete patient data from patients collection
-          try {
-            if (data.patientId) {
-              const patientDocRef = doc(db, 'patients', data.patientId);
-              const patientDoc = await getDoc(patientDocRef);
-              
-              if (patientDoc.exists()) {
-                const patientData = patientDoc.data();
-                console.log('Enhanced patient data found:', patientData);
-                
-                // Merge the existing profile with fetched patient data
-                enhancedPatientProfile = {
-                  ...enhancedPatientProfile,
-                  patientId: patientData.patientId || data.patientId,
-                  name: patientData.name || enhancedPatientProfile.name,
-                  assessmentData: patientData.assessmentData || enhancedPatientProfile.assessmentData,
-                  registrationDate: patientData.registrationDate || patientData.createdAt,
-                  profileCompleted: patientData.profileCompleted,
-                  status: patientData.status || 'active',
-                  ...(patientData.assessmentData && {
-                    gender: patientData.assessmentData.gender || enhancedPatientProfile.gender,
-                    phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessmentData.phoneNumber,
-                    address: patientData.assessmentData.location || enhancedPatientProfile.address,
-                  })
-                };
-              }
-            }
-          } catch (patientFetchError) {
-            console.warn('Could not fetch enhanced patient data:', patientFetchError);
+          const patientData = data.patients;
+          if (patientData) {
+            enhancedPatientProfile = {
+              ...enhancedPatientProfile,
+              patientId: patientData.patient_code || data.patient_id,
+              name: patientData.name || enhancedPatientProfile.name,
+              assessmentData: patientData.assessment_data || enhancedPatientProfile.assessmentData,
+              registrationDate: patientData.registration_date || patientData.created_at,
+              profileCompleted: patientData.profile_completed,
+              status: patientData.status || 'active',
+              ...(patientData.assessment_data && {
+                gender: patientData.assessment_data.gender || enhancedPatientProfile.gender,
+                phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessment_data.phoneNumber,
+                address: patientData.assessment_data.location || enhancedPatientProfile.address,
+              })
+            };
           }
-          
-          patientsData.push({
-            id: docSnapshot.id,
-            patientId: data.patientId || '',
-            patientName: data.patientName || 'Unknown Patient',
-            patientEmail: data.patientEmail || '',
-            patientPhone: data.patientPhone,
-            requestType: data.requestType || 'consultation',
-            acceptedAt: data.respondedAt || data.requestedAt || new Date().toISOString(),
-            doctorId: data.doctorId || '',
-            doctorName: data.doctorName || '',
-            doctorEmail: data.doctorEmail || '',
+
+          return {
+            id: data.id,
+            patientId: data.patient_id || '',
+            patientName: data.patient_name || 'Unknown Patient',
+            patientEmail: data.patient_email || '',
+            patientPhone: data.patient_phone,
+            requestType: data.request_type || 'consultation',
+            acceptedAt: data.status_updated_at || data.requested_at || new Date().toISOString(),
+            doctorId: data.doctor_id || '',
+            doctorName: data.doctor_name || '',
+            doctorEmail: data.doctor_email || '',
             fullPatientProfile: enhancedPatientProfile
-          });
-        }
+          };
+        });
 
         // Remove duplicates based on patientId
         const uniquePatients = patientsData.filter((patient, index, self) => 
@@ -210,6 +196,7 @@ const Patients: React.FC = () => {
         setPatients(uniquePatients);
         setIsLoading(false);
       } catch (error) {
+        if (cancelled) return;
         console.error('Error fetching accepted patients:', error);
         toast({
           title: 'Error',
@@ -224,8 +211,11 @@ const Patients: React.FC = () => {
 
     // Set up periodic refresh every 60 seconds
     const interval = setInterval(fetchAcceptedPatients, 60000);
-    
-    return () => clearInterval(interval);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [toast]);
 
   useEffect(() => {

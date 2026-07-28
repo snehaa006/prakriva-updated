@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { auth, db } from "@/lib/firebase";
-import {
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  orderBy,
-  onSnapshot,
-  updateDoc,
-  addDoc,
-  deleteDoc,
-  Timestamp,
-  limit as fbLimit,
-} from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -169,28 +153,36 @@ const DoctorDashboard = () => {
 
   // ── Load doctor data ──
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setDoctorId(user.uid);
-        try {
-          const snap = await getDoc(doc(db, "doctors", user.uid));
-          if (snap.exists()) {
-            const d = snap.data();
-            setDoctorData({
-              name: d.name || "Dr. Unknown",
-              specialization: d.ayurvedicSpecialization?.join(", ") || d.specialization || "Practitioner",
-              initials: getInitials(d.name || "Dr Unknown"),
-              loading: false,
-            });
-          } else {
-            setDoctorData({ name: "Doctor", specialization: "Practitioner", initials: "DR", loading: false });
-          }
-        } catch {
+    const loadDoctor = async (userId: string | undefined) => {
+      if (!userId) return;
+      setDoctorId(userId);
+      try {
+        const { data: d, error } = await supabase
+          .from("doctors")
+          .select("name, ayurvedic_specialization")
+          .eq("id", userId)
+          .maybeSingle();
+        if (error) throw error;
+        if (d) {
+          setDoctorData({
+            name: d.name || "Dr. Unknown",
+            specialization: d.ayurvedic_specialization?.join(", ") || "Practitioner",
+            initials: getInitials(d.name || "Dr Unknown"),
+            loading: false,
+          });
+        } else {
           setDoctorData({ name: "Doctor", specialization: "Practitioner", initials: "DR", loading: false });
         }
+      } catch {
+        setDoctorData({ name: "Doctor", specialization: "Practitioner", initials: "DR", loading: false });
       }
+    };
+
+    supabase.auth.getSession().then(({ data }) => { void loadDoctor(data.session?.user?.id); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      void loadDoctor(session?.user?.id);
     });
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   // ── Load appointments from Firebase ──
@@ -200,16 +192,25 @@ const DoctorDashboard = () => {
 
     const loadAppointments = async () => {
       try {
-        const q = query(
-          collection(db, "doctors", doctorId, "appointments"),
-          orderBy("date", "asc")
-        );
-        const snap = await getDocs(q);
-        const appts: AppointmentData[] = [];
-        snap.forEach(d => {
-          appts.push({ id: d.id, ...d.data() } as AppointmentData);
-        });
-        setAppointments(appts);
+        const { data, error } = await supabase
+          .from("appointments")
+          .select("*")
+          .eq("doctor_id", doctorId)
+          .order("date", { ascending: true });
+        if (error) throw error;
+        setAppointments((data ?? []).map((d: any) => ({
+          id: d.id,
+          patientId: d.patient_id,
+          patientName: d.patient_name,
+          date: d.date,
+          time: d.time,
+          type: d.type,
+          mode: d.mode,
+          duration: d.duration,
+          notes: d.notes,
+          status: d.status,
+          createdAt: d.created_at,
+        })));
       } catch {
         // Collection may not exist yet
         setAppointments([]);
@@ -225,26 +226,41 @@ const DoctorDashboard = () => {
     if (!doctorId) return;
     setLoadingNotifs(true);
 
-    // Listen to doctor's notifications subcollection
-    const q = query(
-      collection(db, "doctors", doctorId, "notifications"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const notifs: NotificationData[] = [];
-      snap.forEach(d => {
-        notifs.push({ id: d.id, ...d.data() } as NotificationData);
-      });
-      setNotifications(notifs);
-      setLoadingNotifs(false);
-    }, () => {
-      // Collection may not exist yet
-      setNotifications([]);
-      setLoadingNotifs(false);
+    const mapNotif = (d: any): NotificationData => ({
+      id: d.id,
+      type: d.type,
+      message: d.message,
+      read: d.read,
+      createdAt: d.created_at,
+      patientId: d.patient_id ?? undefined,
+      patientName: d.patient_name ?? undefined,
+      requestId: d.request_id ?? undefined,
     });
 
-    return () => unsubscribe();
+    const loadNotifs = async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", doctorId)
+        .order("created_at", { ascending: false });
+
+      setNotifications(error ? [] : (data ?? []).map(mapNotif));
+      setLoadingNotifs(false);
+    };
+
+    void loadNotifs();
+
+    // Firestore's onSnapshot becomes a Postgres changefeed on this doctor's rows.
+    const channel = supabase
+      .channel(`notifications:${doctorId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${doctorId}` },
+        () => { void loadNotifs(); }
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
   }, [doctorId]);
 
   // ── Load consultation requests ──
@@ -252,17 +268,24 @@ const DoctorDashboard = () => {
     if (!doctorId) return;
     const loadRequests = async () => {
       try {
-        const q = query(
-          collection(db, "consultationRequests"),
-          where("doctorId", "==", doctorId),
-          orderBy("requestedAt", "desc")
-        );
-        const snap = await getDocs(q);
-        const reqs: ConsultRequest[] = [];
-        snap.forEach(d => {
-          reqs.push({ id: d.id, ...d.data() } as ConsultRequest);
-        });
-        setRequests(reqs);
+        const { data, error } = await supabase
+          .from("consultation_requests")
+          .select("*")
+          .eq("doctor_id", doctorId)
+          .order("requested_at", { ascending: false });
+        if (error) throw error;
+        setRequests((data ?? []).map((d: any) => ({
+          id: d.id,
+          patientId: d.patient_id,
+          patientName: d.patient_name,
+          patientEmail: d.patient_email,
+          requestType: d.request_type,
+          urgency: d.urgency,
+          message: d.message,
+          status: d.status,
+          requestedAt: d.requested_at,
+          preferredConsultationMode: d.preferred_consultation_mode,
+        })));
       } catch {
         // Use app context requests as fallback
         setRequests(appRequests.map(r => ({
@@ -287,16 +310,18 @@ const DoctorDashboard = () => {
     const loadProgress = async () => {
       try {
         // Get all patients assigned to this doctor via consultation requests
-        const reqSnap = await getDocs(
-          query(collection(db, "consultationRequests"), where("doctorId", "==", doctorId))
-        );
+        const { data: reqRows, error: reqError } = await supabase
+          .from("consultation_requests")
+          .select("patient_id, patient_name")
+          .eq("doctor_id", doctorId);
+        if (reqError) throw reqError;
+
         const patientIds = new Set<string>();
         const patientNames: Record<string, string> = {};
-        reqSnap.forEach(d => {
-          const data = d.data();
-          if (data.patientId) {
-            patientIds.add(data.patientId);
-            patientNames[data.patientId] = data.patientName || "Unknown";
+        (reqRows ?? []).forEach((data: any) => {
+          if (data.patient_id) {
+            patientIds.add(data.patient_id);
+            patientNames[data.patient_id] = data.patient_name || "Unknown";
           }
         });
 
@@ -306,31 +331,41 @@ const DoctorDashboard = () => {
         const today = new Date().toISOString().split("T")[0];
         const progressData: PatientProgress[] = [];
 
-        for (const pid of Array.from(patientIds).slice(0, 20)) {
-          try {
-            const trackSnap = await getDoc(doc(db, "patients", pid, "mealTracking", today));
-            if (trackSnap.exists()) {
-              const t = trackSnap.data();
-              progressData.push({
-                patientId: pid,
-                patientName: patientNames[pid] || "Unknown",
-                eatenCount: t.eatenCount || 0,
-                totalMeals: t.totalMeals || 0,
-                completionPct: t.totalMeals > 0 ? Math.round((t.eatenCount / t.totalMeals) * 100) : 0,
-                lastTracked: today,
-              });
-            } else {
-              progressData.push({
-                patientId: pid,
-                patientName: patientNames[pid] || "Unknown",
-                eatenCount: 0,
-                totalMeals: 0,
-                completionPct: 0,
-                lastTracked: "No data",
-              });
-            }
-          } catch {
-            // Skip this patient
+        const ids = Array.from(patientIds).slice(0, 20);
+
+        // One query for everyone's tracking, rather than a read per patient.
+        const { data: trackRows } = ids.length
+          ? await supabase
+              .from("meal_tracking")
+              .select("patient_id, eaten_count, total_meals")
+              .eq("date", today)
+              .in("patient_id", ids)
+          : { data: [] as any[] };
+
+        const byPatient = new Map<string, any>(
+          (trackRows ?? []).map((t: any) => [t.patient_id, t])
+        );
+
+        for (const pid of ids) {
+          const t = byPatient.get(pid);
+          if (t) {
+            progressData.push({
+              patientId: pid,
+              patientName: patientNames[pid] || "Unknown",
+              eatenCount: t.eaten_count || 0,
+              totalMeals: t.total_meals || 0,
+              completionPct: t.total_meals > 0 ? Math.round((t.eaten_count / t.total_meals) * 100) : 0,
+              lastTracked: today,
+            });
+          } else {
+            progressData.push({
+              patientId: pid,
+              patientName: patientNames[pid] || "Unknown",
+              eatenCount: 0,
+              totalMeals: 0,
+              completionPct: 0,
+              lastTracked: "No data",
+            });
           }
         }
 
@@ -346,7 +381,12 @@ const DoctorDashboard = () => {
   const markNotifRead = useCallback(async (notifId: string) => {
     if (!doctorId) return;
     try {
-      await updateDoc(doc(db, "doctors", doctorId, "notifications", notifId), { read: true, readAt: Timestamp.now() });
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true, read_at: new Date().toISOString() })
+        .eq("id", notifId)
+        .eq("user_id", doctorId);
+      if (error) throw error;
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
     } catch {
       // Just update locally
@@ -357,35 +397,43 @@ const DoctorDashboard = () => {
   // ── Clear all notifications ──
   const clearAllNotifs = useCallback(() => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    // Batch update in Firebase
+    // One update for every unread row, instead of a write per notification.
     if (doctorId) {
-      notifications.filter(n => !n.read).forEach(n => {
-        updateDoc(doc(db, "doctors", doctorId, "notifications", n.id), { read: true }).catch(() => {});
-      });
+      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+      if (unreadIds.length) {
+        void supabase
+          .from("notifications")
+          .update({ read: true, read_at: new Date().toISOString() })
+          .eq("user_id", doctorId)
+          .in("id", unreadIds)
+          .then(({ error }) => { if (error) console.error(error); });
+      }
     }
   }, [doctorId, notifications]);
 
   // ── Update request status ──
   const updateRequestStatus = useCallback(async (reqId: string, status: "accepted" | "rejected") => {
     try {
-      await updateDoc(doc(db, "consultationRequests", reqId), {
-        status,
-        statusUpdatedAt: Timestamp.now(),
-      });
+      const { error } = await supabase
+        .from("consultation_requests")
+        .update({ status, status_updated_at: new Date().toISOString(), patient_notified: false })
+        .eq("id", reqId);
+      if (error) throw error;
+
       setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status } : r));
 
       // Create notification for doctor
       if (doctorId) {
         const req = requests.find(r => r.id === reqId);
-        await addDoc(collection(db, "doctors", doctorId, "notifications"), {
+        await supabase.from("notifications").insert({
+          user_id: doctorId,
           type: "consultation_request",
           message: `You ${status} ${req?.patientName || "a patient"}'s consultation request.`,
           read: false,
-          createdAt: Timestamp.now(),
-          patientId: req?.patientId,
-          patientName: req?.patientName,
-          requestId: reqId,
-        }).catch(() => {});
+          patient_id: req?.patientId,
+          patient_name: req?.patientName,
+          request_id: reqId,
+        });
       }
 
       toast.success(`Request ${status}`);

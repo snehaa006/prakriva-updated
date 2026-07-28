@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 import {
@@ -195,13 +194,18 @@ const AyurvedicHealthAssessment: React.FC = () => {
     setIsSubmitting(true);
   
     try {
-      const patientDocRef = doc(db, "patients", user.id);
-      await updateDoc(patientDocRef, {
-        questionnaireCompleted: true,
-        assessmentData: formData,
-        assessmentCompletedAt: new Date().toISOString(),
-      });
-  
+      const { error } = await supabase
+        .from("patients")
+        .update({
+          questionnaire_completed: true,
+          assessment_data: formData,
+          assessment_completed_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+
       // Update context state
       setQuestionnaireCompleted(true);
       

@@ -1,0 +1,11 @@
+# Development/test-only dependencies.
+#
+# Install with:  pip install -r requirements-dev.txt
+#
+# Kept separate from requirements.txt so pytest and friends are not installed
+# into the deployed Vercel function bundle.
+
+-r requirements.txt
+
+pytest==8.3.4
+pytest-asyncio==0.25.2
