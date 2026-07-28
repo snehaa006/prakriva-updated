@@ -85,16 +85,20 @@ class Settings:
 # Global settings instance
 settings = Settings()
 
-# Configure logging
+# Configure logging.
+# Vercel's deployment filesystem is read-only outside of /tmp, so file
+# logging would crash the function at import time — skip it there and rely
+# on stdout, which Vercel captures as runtime logs.
 logger.remove()
-logger.add(
-    "logs/app.log",
-    level=settings.LOG_LEVEL,
-    format=settings.LOG_FORMAT,
-    rotation="1 day",
-    retention="30 days",
-    compression="zip"
-)
+if not os.getenv("VERCEL"):
+    logger.add(
+        "logs/app.log",
+        level=settings.LOG_LEVEL,
+        format=settings.LOG_FORMAT,
+        rotation="1 day",
+        retention="30 days",
+        compression="zip"
+    )
 logger.add(
     lambda msg: print(msg, end=""),
     level=settings.LOG_LEVEL,
