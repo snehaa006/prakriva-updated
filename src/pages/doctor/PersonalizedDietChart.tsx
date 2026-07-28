@@ -70,17 +70,7 @@ import {
   CircleDot,
   Stethoscope,
 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import {
-  query,
-  collection,
-  where,
-  getDocs,
-  getDoc,
-  doc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import {
   generateDietChart,
@@ -308,46 +298,45 @@ const PersonalizedDietChart: React.FC = () => {
 
   // --- Fetch patient list ---
   const fetchPatients = useCallback(async () => {
-    const currentUser = auth.currentUser;
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUser = authData.user;
     if (!currentUser) return;
 
     setIsLoadingPatients(true);
     try {
-      const consultationQuery = query(
-        collection(db, "consultationRequests"),
-        where("doctorId", "==", currentUser.uid),
-        where("status", "==", "accepted")
-      );
-      const snap = await getDocs(consultationQuery);
-      const patients: PatientListItem[] = [];
+      // Joined select: accepted requests plus each patient row in one trip.
+      const { data: rows, error } = await supabase
+        .from("consultation_requests")
+        .select(`
+          patient_id, patient_name, full_patient_profile,
+          patients ( patient_code, name, assessment_data )
+        `)
+        .eq("doctor_id", currentUser.id)
+        .eq("status", "accepted");
 
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data();
-        let profile = data.fullPatientProfile || { name: data.patientName || "Unknown" };
+      if (error) throw error;
 
-        if (data.patientId) {
-          try {
-            const patientDoc = await getDoc(doc(db, "patients", data.patientId));
-            if (patientDoc.exists()) {
-              const pd = patientDoc.data();
-              profile = {
-                ...profile,
-                patientId: pd.patientId || data.patientId,
-                name: pd.name || profile.name,
-                assessmentData: pd.assessmentData || profile.assessmentData,
-                ...(pd.assessmentData && { gender: pd.assessmentData.gender || profile.gender }),
-              };
-            }
-          } catch { /* continue */ }
+      const patients: PatientListItem[] = (rows ?? []).map((data: any) => {
+        let profile = data.full_patient_profile || { name: data.patient_name || "Unknown" };
+
+        const pd = data.patients;
+        if (pd) {
+          profile = {
+            ...profile,
+            patientId: pd.patient_code || data.patient_id,
+            name: pd.name || profile.name,
+            assessmentData: pd.assessment_data || profile.assessmentData,
+            ...(pd.assessment_data && { gender: pd.assessment_data.gender || profile.gender }),
+          };
         }
 
-        patients.push({
-          firebaseId: data.patientId,
-          customPatientId: profile.patientId || data.patientId,
-          patientName: data.patientName || profile.name || "Unknown",
+        return {
+          firebaseId: data.patient_id,
+          customPatientId: profile.patientId || data.patient_id,
+          patientName: data.patient_name || profile.name || "Unknown",
           fullPatientProfile: profile,
-        });
-      }
+        };
+      });
 
       setPatientList(patients);
     } catch (err) {
@@ -517,26 +506,9 @@ const PersonalizedDietChart: React.FC = () => {
     if (!dietChart || !patientId) return;
     setIsSaving(true);
     try {
-      const planId = crypto.randomUUID();
-      const planData = {
-        patientName: dietChart.patientName,
-        patientId,
-        planDuration: `${numDays} days`,
-        planType: "personalized-diet-chart",
-        status,
-        createdBy: auth.currentUser?.uid || "",
-        createdAt: serverTimestamp(),
-        lastModified: serverTimestamp(),
-        source: "personalized-diet-chart",
-        primaryDosha: dietChart.primaryDosha,
-        doshaScores: dietChart.doshaScores,
-        lifeStage: dietChart.lifeStage,
-        lifeStageLabel: dietChart.lifeStageLabel,
-        nutritionalTargets: dietChart.nutritionalTargets,
-        doshaRecommendations: dietChart.doshaRecommendations,
-        medicalNotes: dietChart.medicalNotes,
-        excludedIngredients: dietChart.excludedIngredients,
-        days: dietChart.days.map((day) => ({
+      const { data: authData } = await supabase.auth.getUser();
+
+      const days = dietChart.days.map((day) => ({
           dayNumber: day.dayNumber,
           dayLabel: day.dayLabel,
           totalCalories: day.totalCalories,
@@ -560,11 +532,39 @@ const PersonalizedDietChart: React.FC = () => {
             isVegan: meal.recipe.vegan || "0",
             isVegetarian: meal.recipe.lacto_vegetarian || "0",
           })),
-        })),
-        generatedAt: dietChart.generatedAt,
+      }));
+
+      const planData = {
+        patient_id: patientId,
+        patient_name: dietChart.patientName,
+        plan_duration: `${numDays} days`,
+        plan_type: "personalized-diet-chart",
+        status,
+        created_by: authData.user?.id ?? null,
+        source: "personalized-diet-chart",
+        primary_dosha: dietChart.primaryDosha,
+        dosha_scores: dietChart.doshaScores,
+        life_stage: dietChart.lifeStage,
+        life_stage_label: dietChart.lifeStageLabel,
+        nutritional_targets: dietChart.nutritionalTargets,
+        dosha_recommendations: dietChart.doshaRecommendations,
+        medical_notes: dietChart.medicalNotes,
+        excluded_ingredients: dietChart.excludedIngredients,
+        generated_at: dietChart.generatedAt,
+        total_meals: days.reduce((n, d) => n + d.meals.length, 0),
+        // The day-by-day plan is the plan body, so it lives in meals.days —
+        // which is where DietChart and PatientDashboard already look for it.
+        meals: { days },
       };
-      await setDoc(doc(db, `patients/${patientId}/dietPlans/${planId}`), planData);
-      setSavedPlanId(planId);
+
+      const { data: inserted, error } = await supabase
+        .from("diet_plans")
+        .insert(planData)
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      setSavedPlanId(inserted.id);
       setSavedStatus(status);
       toast.success(status === "final" ? "Diet chart approved and saved." : "Draft saved. You can edit it in Recipe Builder.");
     } catch (err) {

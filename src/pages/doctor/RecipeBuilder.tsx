@@ -15,11 +15,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Save, Plus, Sparkles, Leaf, Target, Clock, User, Heart, FileEdit, AlertCircle, Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { getIdToken } from "firebase/auth";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { getDoc, doc, setDoc, serverTimestamp, query, collection, where, getDocs } from "firebase/firestore";
-import { addDoc } from "firebase/firestore";
 
 // Import the Ayurnutrigenomics generator
 import AyurnutrigenomicsDietGenerator, { formatDietPlanForDisplay } from './ayurnutrigenomics-generator';
@@ -76,17 +73,36 @@ const RecipeBuilder = () => {
     const loadDraft = async () => {
       setIsLoadingDraft(true);
       try {
-        const planDoc = await getDoc(
-          doc(db, `patients/${editPatientId}/dietPlans/${editPlanId}`)
-        );
+        const { data: row, error } = await supabase
+          .from("diet_plans")
+          .select("*")
+          .eq("id", editPlanId)
+          .eq("patient_id", editPatientId)
+          .maybeSingle();
 
-        if (!planDoc.exists()) {
+        if (error || !row) {
           toast.error("Draft plan not found.");
           setIsLoadingDraft(false);
           return;
         }
 
-        const planData = planDoc.data();
+        // The day-by-day body lives in meals.days.
+        const planData: any = {
+          patientId: row.patient_id,
+          patientName: row.patient_name,
+          planDuration: row.plan_duration,
+          primaryDosha: row.primary_dosha,
+          doshaScores: row.dosha_scores,
+          lifeStage: row.life_stage,
+          lifeStageLabel: row.life_stage_label,
+          nutritionalTargets: row.nutritional_targets,
+          doshaRecommendations: row.dosha_recommendations,
+          medicalNotes: row.medical_notes,
+          excludedIngredients: row.excluded_ingredients,
+          source: row.source,
+          generatedAt: row.generated_at,
+          days: (row.meals as any)?.days,
+        };
 
         // Populate form fields
         setPatientId(planData.patientId || editPatientId);
@@ -121,7 +137,7 @@ const RecipeBuilder = () => {
           newWeekly[day] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
         });
 
-        const allFoodsForDaily: Record<string, unknown[]> = {
+        const allFoodsForDaily: { Breakfast: any[]; Lunch: any[]; Dinner: any[]; Snack: any[] } = {
           Breakfast: [],
           Lunch: [],
           Dinner: [],
@@ -230,86 +246,65 @@ const RecipeBuilder = () => {
     console.log("🔍 STARTING: Fetch patient profile for ID:", patientId);
     
     try {
-      const currentUser = auth.currentUser;
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData.user;
       if (!currentUser) {
         console.log("❌ No authenticated user");
         return null;
       }
 
-      // Get accepted consultation requests (same as Patients.tsx)
+      // Get accepted consultation requests, joined with the patient row so
+      // the custom P001-style code comes back in the same trip.
       console.log("🔍 Fetching accepted consultation requests...");
-      
-      const consultationQuery = query(
-        collection(db, "consultationRequests"),
-        where("doctorId", "==", currentUser.uid),
-        where("status", "==", "accepted")
-      );
-      
-      const consultationSnapshot = await getDocs(consultationQuery);
-      console.log("📊 Total accepted consultation requests:", consultationSnapshot.size);
-      
-      // Process each consultation request like Patients.tsx does
-      const patientsData = [];
-      
-      for (const docSnapshot of consultationSnapshot.docs) {
-        const data = docSnapshot.data();
-        console.log("📋 Processing consultation request:", docSnapshot.id);
-        
-        // Start with basic profile from consultation request
-        let enhancedPatientProfile = data.fullPatientProfile || {
-          name: data.patientName || 'Unknown Patient',
-          patientId: null // Will be populated from patients collection
+
+      const { data: rows, error } = await supabase
+        .from("consultation_requests")
+        .select(`
+          patient_id, patient_name, full_patient_profile,
+          patients (
+            patient_code, name, assessment_data,
+            registration_date, created_at, profile_completed, status
+          )
+        `)
+        .eq("doctor_id", currentUser.id)
+        .eq("status", "accepted");
+
+      if (error) throw error;
+      console.log("📊 Total accepted consultation requests:", rows?.length ?? 0);
+
+      const patientsData = (rows ?? []).map((data: any) => {
+        let enhancedPatientProfile = data.full_patient_profile || {
+          name: data.patient_name || 'Unknown Patient',
+          patientId: null
         };
 
-        // Try to fetch complete patient data from patients collection (same as Patients.tsx)
-        try {
-          if (data.patientId) {
-            console.log("🔍 Fetching enhanced patient data from patients collection for:", data.patientId);
-            
-            const patientDocRef = doc(db, 'patients', data.patientId);
-            const patientDoc = await getDoc(patientDocRef);
-            
-            if (patientDoc.exists()) {
-              const patientData = patientDoc.data();
-              console.log("✅ Enhanced patient data found:", {
-                patientId: patientData.patientId,
-                name: patientData.name,
-                hasAssessmentData: !!patientData.assessmentData
-              });
-              
-              // Merge exactly like Patients.tsx does (lines 122-139)
-              enhancedPatientProfile = {
-                ...enhancedPatientProfile,
-                patientId: patientData.patientId || data.patientId, // This is where custom P001, P012 IDs come from!
-                name: patientData.name || enhancedPatientProfile.name,
-                assessmentData: patientData.assessmentData || enhancedPatientProfile.assessmentData,
-                registrationDate: patientData.registrationDate || patientData.createdAt,
-                profileCompleted: patientData.profileCompleted,
-                status: patientData.status || 'active',
-                ...(patientData.assessmentData && {
-                  gender: patientData.assessmentData.gender || enhancedPatientProfile.gender,
-                  phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessmentData.phoneNumber,
-                  address: patientData.assessmentData.location || enhancedPatientProfile.address,
-                })
-              };
-              
-              console.log("📋 Enhanced profile patientId:", enhancedPatientProfile.patientId);
-            } else {
-              console.log("❌ No enhanced patient document found for Firebase UID:", data.patientId);
-            }
-          }
-        } catch (patientFetchError) {
-          console.warn('Could not fetch enhanced patient data:', patientFetchError);
+        const patientData = data.patients;
+        if (patientData) {
+          enhancedPatientProfile = {
+            ...enhancedPatientProfile,
+            // This is where custom P001, P012 IDs come from
+            patientId: patientData.patient_code || data.patient_id,
+            name: patientData.name || enhancedPatientProfile.name,
+            assessmentData: patientData.assessment_data || enhancedPatientProfile.assessmentData,
+            registrationDate: patientData.registration_date || patientData.created_at,
+            profileCompleted: patientData.profile_completed,
+            status: patientData.status || 'active',
+            ...(patientData.assessment_data && {
+              gender: patientData.assessment_data.gender || enhancedPatientProfile.gender,
+              phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessment_data.phoneNumber,
+              address: patientData.assessment_data.location || enhancedPatientProfile.address,
+            })
+          };
         }
-        
-        patientsData.push({
-          firebaseId: data.patientId,
+
+        return {
+          firebaseId: data.patient_id,
           customPatientId: enhancedPatientProfile.patientId,
-          patientName: data.patientName,
+          patientName: data.patient_name,
           fullPatientProfile: enhancedPatientProfile
-        });
-      }
-      
+        };
+      });
+
       // Now search for the patient using the custom patient ID
       console.log("📋 Available patients with custom IDs:");
       patientsData.forEach(patient => {
@@ -491,7 +486,9 @@ const RecipeBuilder = () => {
     try {
       setLoading(true);
 
-      if (!auth.currentUser) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (!session) {
         toast.error("Please log in first");
         return;
       }
@@ -505,7 +502,7 @@ const RecipeBuilder = () => {
         return;
       }
 
-      const token = await getIdToken(auth.currentUser, true);
+      const token = session.access_token;
       const requestPayload = {
         user_profile: profile,
         days: parseInt(planDuration.split(' ')[0]),
@@ -514,7 +511,7 @@ const RecipeBuilder = () => {
 
       console.log("📤 Sending AI plan payload:", requestPayload);
 
-      const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
       const response = await fetch(`${apiUrl}/generateMealPlan`, {
         method: "POST",
         headers: {
@@ -564,27 +561,23 @@ const RecipeBuilder = () => {
     try {
       setSaving(true);
 
-      const planId = crypto.randomUUID();
+      const { data: authData } = await supabase.auth.getUser();
 
       const dietPlanData = {
-        patientName,
-        patientId: patientId.trim(),
-        planDuration,
-        planType: planType === "ayur" ? "ayurnutrigenomics" : "ai-generated",
+        patient_id: patientId.trim(),
+        patient_name: patientName,
+        plan_duration: planDuration,
+        plan_type: planType === "ayur" ? "ayurnutrigenomics" : "ai-generated",
         status,
-        createdBy: auth.currentUser?.uid,
-        createdAt: serverTimestamp(),
-        lastModified: serverTimestamp(),
+        created_by: authData.user?.id ?? null,
         source: planType === "ayur" ? "ayurnutrigenomics" : "ai",
-        planData: planToSave,
-        patientProfile: patientProfile,
-        activeFilter,
+        plan_data: planToSave,
+        patient_profile: patientProfile,
+        active_filter: activeFilter,
       };
 
-      await setDoc(
-        doc(db, `patients/${patientId.trim()}/dietPlans/${planId}`),
-        dietPlanData
-      );
+      const { error } = await supabase.from("diet_plans").insert(dietPlanData);
+      if (error) throw error;
 
       toast.success(`${planType === "ayur" ? "Ayurnutrigenomics" : "AI"} plan saved successfully! (${status})`);
 
@@ -635,16 +628,16 @@ const RecipeBuilder = () => {
     setSaving(true);
     try {
       const dietPlanData: Record<string, unknown> = {
-        patientName,
-        patientId: patientId.trim(),
-        planDuration,
-        planType: editingDraftId ? "personalized-diet-chart" : "manual",
+        patient_id: patientId.trim(),
+        patient_name: patientName,
+        plan_duration: planDuration,
+        plan_type: editingDraftId ? "personalized-diet-chart" : "manual",
         meals: mealPlans,
-        lastModified: serverTimestamp(),
-        activeFilter,
+        last_modified: new Date().toISOString(),
+        active_filter: activeFilter,
         source: editingDraftId ? "personalized-diet-chart-edited" : "manual",
         status: "final",
-        totalMeals:
+        total_meals:
           Object.values(mealPlans.Daily).flat().length +
           Object.values(mealPlans.Weekly)
             .flatMap((dayMeals) => Object.values(dayMeals))
@@ -653,32 +646,34 @@ const RecipeBuilder = () => {
 
       // Preserve metadata from personalized diet chart draft
       if (editingDraftId && editingDraftMeta) {
-        dietPlanData.primaryDosha = editingDraftMeta.primaryDosha;
-        dietPlanData.doshaScores = editingDraftMeta.doshaScores;
-        dietPlanData.lifeStage = editingDraftMeta.lifeStage;
-        dietPlanData.lifeStageLabel = editingDraftMeta.lifeStageLabel;
-        dietPlanData.nutritionalTargets = editingDraftMeta.nutritionalTargets;
-        dietPlanData.doshaRecommendations = editingDraftMeta.doshaRecommendations;
-        dietPlanData.medicalNotes = editingDraftMeta.medicalNotes;
-        dietPlanData.excludedIngredients = editingDraftMeta.excludedIngredients;
-        dietPlanData.originalGeneratedAt = editingDraftMeta.generatedAt;
+        dietPlanData.primary_dosha = editingDraftMeta.primaryDosha;
+        dietPlanData.dosha_scores = editingDraftMeta.doshaScores;
+        dietPlanData.life_stage = editingDraftMeta.lifeStage;
+        dietPlanData.life_stage_label = editingDraftMeta.lifeStageLabel;
+        dietPlanData.nutritional_targets = editingDraftMeta.nutritionalTargets;
+        dietPlanData.dosha_recommendations = editingDraftMeta.doshaRecommendations;
+        dietPlanData.medical_notes = editingDraftMeta.medicalNotes;
+        dietPlanData.excluded_ingredients = editingDraftMeta.excludedIngredients;
+        dietPlanData.original_generated_at = editingDraftMeta.generatedAt;
       }
 
       if (editingDraftId) {
         // Update existing draft in-place
-        await setDoc(
-          doc(db, `patients/${patientId.trim()}/dietPlans/${editingDraftId}`),
-          dietPlanData,
-          { merge: true }
-        );
+        const { error } = await supabase
+          .from("diet_plans")
+          .update(dietPlanData)
+          .eq("id", editingDraftId)
+          .eq("patient_id", patientId.trim());
+        if (error) throw error;
         toast.success("Personalized diet plan updated and approved!");
       } else {
-        dietPlanData.createdAt = serverTimestamp();
-        const docRef = await addDoc(
-          collection(db, "patients", patientId.trim(), "dietPlans"),
-          dietPlanData
-        );
-        toast.success(`Manual diet plan saved successfully! ID: ${docRef.id}`);
+        const { data: inserted, error } = await supabase
+          .from("diet_plans")
+          .insert(dietPlanData)
+          .select("id")
+          .single();
+        if (error) throw error;
+        toast.success(`Manual diet plan saved successfully! ID: ${inserted.id}`);
       }
     } catch (error) {
       console.error("Error saving diet plan:", error);

@@ -38,18 +38,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
-import {
-  collection,
-  query,
-  orderBy,
-  getDocs,
-  doc,
-  getDoc,
-  setDoc,
-  addDoc,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import {
   getRecipesByCalories,
   getRecipesByDiet,
@@ -88,7 +77,7 @@ interface DietPlanDoc {
   planType: string;
   meals: any;
   days?: any[];
-  createdAt: any;
+  createdAt: string;
   totalMeals: number;
   activeFilter?: string;
   source?: string;
@@ -300,13 +289,17 @@ const PatientDashboard = () => {
     const loadProfile = async () => {
       setLoadingProfile(true);
       try {
-        const snap = await getDoc(doc(db, "patients", user.id));
-        if (snap.exists()) {
-          const d = snap.data();
-          const assessment = d.assessmentData || {};
+        const { data: d, error } = await supabase
+          .from("patients")
+          .select("name, allergies, assessment_data")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (error) throw error;
+        if (d) {
+          const assessment = (d.assessment_data as any) || {};
           setProfile({
             name: d.name || user.name || "Patient",
-            lifeStage: assessment.lifeStage || d.lifeStage || "not_applicable",
+            lifeStage: assessment.lifeStage || "not_applicable",
             pregnancyTrimester: assessment.pregnancyTrimester,
             dietaryPreferences: assessment.dietaryPreferences,
             allergies: assessment.allergies || d.allergies || [],
@@ -330,15 +323,24 @@ const PatientDashboard = () => {
     if (!user?.id) return;
     const loadPlans = async () => {
       try {
-        const q = query(
-          collection(db, "patients", user.id, "dietPlans"),
-          orderBy("createdAt", "desc")
-        );
-        const snap = await getDocs(q);
-        const plans: DietPlanDoc[] = [];
-        snap.forEach((d) => {
-          plans.push({ id: d.id, ...d.data() } as DietPlanDoc);
-        });
+        const { data, error } = await supabase
+          .from("diet_plans")
+          .select("*")
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        const plans: DietPlanDoc[] = (data ?? []).map((row: any) => ({
+          id: row.id,
+          patientName: row.patient_name,
+          planDuration: row.plan_duration,
+          planType: row.plan_type,
+          meals: row.meals,
+          days: row.meals?.days,
+          createdAt: row.created_at,
+          totalMeals: row.total_meals,
+          activeFilter: row.active_filter,
+          source: row.source,
+        }));
         setAllPlans(plans);
         if (plans.length > 0) {
           setActivePlan(plans[0]);
@@ -476,18 +478,22 @@ const PatientDashboard = () => {
       localStorage.setItem(`${TRACKING_STORAGE_KEY}_${today}`, JSON.stringify(statuses));
       localStorage.setItem(`${TRACKING_STORAGE_KEY}_cal_${today}`, String(caloriesConsumed));
 
-      // Also persist to Firebase (fire-and-forget)
+      // Also persist to Supabase (fire-and-forget). The unique index on
+      // (patient_id, date) gives us the same one-row-per-day behaviour the
+      // Firestore document id of {date} did.
       if (user?.id) {
-        const trackingRef = doc(db, "patients", user.id, "mealTracking", today);
-        setDoc(trackingRef, {
-          date: today,
-          statuses,
-          caloriesConsumed,
-          totalMeals: updated.length,
-          eatenCount: updated.filter(m => m.status === "eaten").length,
-          skippedCount: updated.filter(m => m.status === "skipped").length,
-          updatedAt: Timestamp.now(),
-        }, { merge: true }).catch(console.error);
+        void supabase
+          .from("meal_tracking")
+          .upsert({
+            patient_id: user.id,
+            date: today,
+            statuses,
+            calories_consumed: caloriesConsumed,
+            total_meals: updated.length,
+            eaten_count: updated.filter(m => m.status === "eaten").length,
+            skipped_count: updated.filter(m => m.status === "skipped").length,
+          }, { onConflict: "patient_id,date" })
+          .then(({ error }) => { if (error) console.error(error); });
       }
 
       return updated;
@@ -611,19 +617,19 @@ const PatientDashboard = () => {
     }
   }, [filters]);
 
-  // ── Save generated plan to Firebase ──
+  // ── Save generated plan to Supabase ──
   const saveGeneratedPlan = useCallback(async () => {
     if (!user?.id || generatedMeals.length === 0) return;
     setSavingPlan(true);
     try {
       const planData = {
-        patientName: profile?.name || user.name || "Patient",
-        planDuration: "Daily",
-        planType: "self-created",
+        patient_id: user.id,
+        patient_name: profile?.name || user.name || "Patient",
+        plan_duration: "Daily",
+        plan_type: "self-created",
         source: "patient-self-service",
-        activeFilter: "Daily",
-        totalMeals: generatedMeals.length,
-        createdAt: Timestamp.now(),
+        active_filter: "Daily",
+        total_meals: generatedMeals.length,
         filters: { ...filters },
         meals: {
           Daily: {
@@ -651,8 +657,24 @@ const PatientDashboard = () => {
         },
       };
 
-      const ref = await addDoc(collection(db, "patients", user.id, "dietPlans"), planData);
-      const newPlan = { id: ref.id, ...planData } as unknown as DietPlanDoc;
+      const { data: inserted, error } = await supabase
+        .from("diet_plans")
+        .insert(planData)
+        .select("id, created_at")
+        .single();
+      if (error) throw error;
+
+      const newPlan: DietPlanDoc = {
+        id: inserted.id,
+        patientName: planData.patient_name,
+        planDuration: planData.plan_duration,
+        planType: planData.plan_type,
+        meals: planData.meals,
+        createdAt: inserted.created_at,
+        totalMeals: planData.total_meals,
+        activeFilter: planData.active_filter,
+        source: planData.source,
+      };
       setAllPlans(prev => [newPlan, ...prev]);
       setActivePlan(newPlan);
       setActiveTab("today");
@@ -1104,7 +1126,7 @@ const PatientDashboard = () => {
           ) : (
             allPlans.map(plan => {
               const isActive = activePlan?.id === plan.id;
-              const createdDate = plan.createdAt?.toDate?.() || new Date(plan.createdAt);
+              const createdDate = new Date(plan.createdAt);
               return (
                 <Card key={plan.id} className={`transition-all ${isActive ? "border-emerald-300 ring-1 ring-emerald-200" : ""}`}>
                   <CardContent className="py-4">
