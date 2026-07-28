@@ -1,13 +1,16 @@
 {
-  "framework": null,
-  "builds": [
-    { "src": "backend/app.py", "use": "@vercel/python" },
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
-  ],
-  "routes": [
-    { "src": "^/(health|generate|analytics)$", "dest": "backend/app.py" },
-    { "src": "^/(plan|user|dosha|calories|test|debug|datasets)(/.*)?$", "dest": "backend/app.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/generate", "destination": "/api/index" },
+    { "source": "/analytics", "destination": "/api/index" },
+    { "source": "/datasets/:path*", "destination": "/api/index" },
+    { "source": "/plan/:path*", "destination": "/api/index" },
+    { "source": "/user/:path*", "destination": "/api/index" },
+    { "source": "/dosha/:path*", "destination": "/api/index" },
+    { "source": "/calories/:path*", "destination": "/api/index" },
+    { "source": "/test/:path*", "destination": "/api/index" },
+    { "source": "/debug/:path*", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -29,11 +29,17 @@ personalized diet plan.
   access (`dataset_loader.py`, `db.py`). Config comes from `config.py` and
   `backend/.env`.
 - `supabase/` — SQL migrations for the Supabase project.
-- `vercel.json` — routes backend endpoints (`/health`, `/generate`,
-  `/plan/*`, `/user/*`, `/dosha/*`, `/calories/*`, `/analytics`,
-  `/datasets/*`, `/test/*`, `/debug/*`) to the Python function; everything
-  else is served as the static frontend build (SPA fallback to
-  `index.html`).
+- `api/index.py` — Vercel Python function entrypoint. Points `sys.path` at
+  `backend/` and re-exports `app` from `backend/app.py`, so the same Flask
+  app used for local development is what Vercel deploys.
+- `vercel.json` — frontend built via the Vite framework preset; rewrites
+  route backend endpoints (`/health`, `/generate`, `/plan/*`, `/user/*`,
+  `/dosha/*`, `/calories/*`, `/analytics`, `/datasets/*`, `/test/*`,
+  `/debug/*`) to `/api/index`, and everything else falls back to
+  `index.html` for client-side routing.
+- `requirements.txt` (repo root) — a one-line `-r backend/requirements.txt`
+  so Vercel's Python builder (which looks for `requirements.txt` at the
+  project root) picks up the real dependency list.
 
 ## Getting started
 
@@ -69,10 +75,11 @@ Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env`
 ## Deployment (Vercel)
 
 This repo deploys as **one Vercel project** with the project's Root Directory
-set to the repo root (not `backend/`). `vercel.json` builds the frontend via
-`@vercel/static-build` (output `dist/`) and the backend via `@vercel/python`
-(`backend/app.py`), and routes backend paths to the Python function while
-everything else falls through to the static frontend.
+set to the repo root (not `backend/`). `vercel.json` sets the framework to
+Vite (builds the frontend to `dist/`) and rewrites backend paths to
+`api/index.py`, a Python function that re-exports the Flask app from
+`backend/app.py`. `requirements.txt` at the repo root includes
+`backend/requirements.txt` so Vercel's Python builder finds the dependencies.
 
 Set the environment variables above in the Vercel project settings, then
 redeploy.

@@ -9,9 +9,15 @@ from loguru import logger
 # Load environment variables from .env file
 load_dotenv()
 
+# Default data/model paths are resolved relative to this file, not the
+# process's cwd - Vercel's Python function may run with a different working
+# directory than the one this module lives in.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 class Settings:
     """Application settings with validation"""
-    
+
     def __init__(self):
         # Flask settings
         self.FLASK_ENV = os.getenv("FLASK_ENV", "development")
@@ -38,14 +44,14 @@ class Settings:
 
         # ML Model settings
         # The pickle lives next to this module, not in a models/ subdirectory.
-        self.MODEL_PATH = os.getenv("MODEL_PATH", "dosha_model.pkl")
+        self.MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(BASE_DIR, "dosha_model.pkl"))
         self.MODEL_VERSION = os.getenv("MODEL_VERSION", "1.0.0")
-        
+
         # Dataset paths
-        self.FOOD_DATASET_PATH = os.getenv("FOOD_DATASET_PATH", "data/food_dataset.csv")
-        self.DOSHA_DATASET_PATH = os.getenv("DOSHA_DATASET_PATH", "data/dosha_dataset.csv")
-        self.PATIENT_DATASET_PATH = os.getenv("PATIENT_DATASET_PATH", "data/patient_dataset.csv")
-        self.LIFESTYLE_DATASET_PATH = os.getenv("LIFESTYLE_DATASET_PATH", "data/lifestyle_dataset.csv")
+        self.FOOD_DATASET_PATH = os.getenv("FOOD_DATASET_PATH", os.path.join(BASE_DIR, "data/food_dataset.csv"))
+        self.DOSHA_DATASET_PATH = os.getenv("DOSHA_DATASET_PATH", os.path.join(BASE_DIR, "data/dosha_dataset.csv"))
+        self.PATIENT_DATASET_PATH = os.getenv("PATIENT_DATASET_PATH", os.path.join(BASE_DIR, "data/patient_dataset.csv"))
+        self.LIFESTYLE_DATASET_PATH = os.getenv("LIFESTYLE_DATASET_PATH", os.path.join(BASE_DIR, "data/lifestyle_dataset.csv"))
         
         # LLM settings
         self.DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4")
