@@ -21,14 +21,19 @@ class Settings:
         
         # API Keys
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-        self.FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "firebase_key.json")
-        
+
+        # Supabase. The service-role key bypasses RLS, so it must never be
+        # exposed to the browser — server-side only.
+        self.SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+        self.SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
         # Database settings
-        self.GENERATED_PLANS_COL = os.getenv("GENERATED_PLANS_COL", "generated_plans")
-        self.DOCTOR_EDITS_COL = os.getenv("DOCTOR_EDITS_COL", "doctor_edits")
-        
+        self.GENERATED_PLANS_TABLE = os.getenv("GENERATED_PLANS_TABLE", "generated_plans")
+        self.DOCTOR_EDITS_TABLE = os.getenv("DOCTOR_EDITS_TABLE", "doctor_edits")
+
         # ML Model settings
-        self.MODEL_PATH = os.getenv("MODEL_PATH", "models/dosha_model.pkl")
+        # The pickle lives next to this module, not in a models/ subdirectory.
+        self.MODEL_PATH = os.getenv("MODEL_PATH", "dosha_model.pkl")
         self.MODEL_VERSION = os.getenv("MODEL_VERSION", "1.0.0")
         
         # Dataset paths
@@ -62,17 +67,19 @@ class Settings:
         if not self.OPENAI_API_KEY.startswith("sk-"):
             raise ValueError("Invalid OpenAI API key format")
     
-    def validate_firebase_path(self):
-        """Validate Firebase key path"""
-        if not self.FIREBASE_KEY_PATH:
-            raise ValueError("FIREBASE_KEY_PATH environment variable is required")
-        if not os.path.exists(self.FIREBASE_KEY_PATH):
-            raise ValueError(f"Firebase key file not found: {self.FIREBASE_KEY_PATH}")
-    
+    def validate_supabase(self):
+        """Validate Supabase connection settings"""
+        if not self.SUPABASE_URL:
+            raise ValueError("SUPABASE_URL environment variable is required")
+        if not self.SUPABASE_URL.startswith("https://"):
+            raise ValueError("SUPABASE_URL must be an https:// URL")
+        if not self.SUPABASE_SERVICE_ROLE_KEY:
+            raise ValueError("SUPABASE_SERVICE_ROLE_KEY environment variable is required")
+
     def validate_all(self):
         """Validate all critical settings"""
         self.validate_openai_key()
-        self.validate_firebase_path()
+        self.validate_supabase()
 
 
 # Global settings instance

@@ -9,8 +9,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import firebase_admin
-from firebase_admin import credentials, auth as firebase_auth
+from supabase import Client, create_client
 from loguru import logger
 import uvicorn
 from dotenv import load_dotenv
@@ -192,26 +191,32 @@ def load_food_dataset():
 load_food_dataset()
 
 
-# --- Firebase Admin init ---
-def initialize_firebase():
-    try:
-        if not firebase_admin._apps:
-            firebase_key_path = os.getenv("FIREBASE_KEY_PATH", "firebase_key.json")
-            if not os.path.exists(firebase_key_path):
-                logger.error(f"Firebase key file not found at {firebase_key_path}")
-                raise FileNotFoundError(f"Firebase key file not found: {firebase_key_path}")
-            cred = credentials.Certificate(firebase_key_path)
-            firebase_admin.initialize_app(cred)
-            logger.info("Firebase Admin SDK initialized successfully")
-        else:
-            logger.info("Firebase Admin SDK already initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+# --- Supabase init ---
+# The service-role key bypasses RLS and is only ever used server-side, to read
+# the caller's role out of public.profiles after their token checks out.
+_supabase: Optional[Client] = None
+
+
+def initialize_supabase() -> Client:
+    global _supabase
+    if _supabase is not None:
+        logger.info("Supabase client already initialized")
+        return _supabase
+
+    url = os.getenv("SUPABASE_URL", "")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+    if not url or not service_key:
+        logger.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set")
         # fail early so dev knows about it
-        raise
+        raise RuntimeError("Supabase credentials are not configured")
+
+    _supabase = create_client(url, service_key)
+    logger.info("Supabase client initialized successfully")
+    return _supabase
 
 
-initialize_firebase()
+initialize_supabase()
 
 
 # --- Pydantic Models for API ---
@@ -238,49 +243,66 @@ class HealthResponse(BaseModel):
 # --- Authentication dependency ---
 def verify_doctor(authorization: str = Header(...)):
     """
-    Verify the Firebase ID token and ensure user has role 'doctor'.
-    This function is defensive because firebase_admin exceptions may differ by version.
+    Verify the Supabase access token and ensure the user has role 'doctor'.
+
+    Supabase JWTs do not carry the application role, so the token is validated
+    against the Auth API and the role is then read from public.profiles.
     """
+    if not authorization or not authorization.startswith("Bearer "):
+        logger.error("Invalid authorization header format")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization header format. Expected 'Bearer <token>'",
+        )
+
+    token = authorization.split("Bearer ")[1].strip()
+    if not token:
+        logger.error("Authorization Bearer token empty")
+        raise HTTPException(status_code=401, detail="Token is empty")
+
+    client = initialize_supabase()
+
     try:
-        if not authorization or not authorization.startswith("Bearer "):
-            logger.error("Invalid authorization header format")
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid authorization header format. Expected 'Bearer <token>'",
-            )
-
-        token = authorization.split("Bearer ")[1].strip()
-        if not token:
-            logger.error("Authorization Bearer token empty")
-            raise HTTPException(status_code=401, detail="Token is empty")
-
-        logger.info("Verifying Firebase ID token")
-        decoded = firebase_auth.verify_id_token(token)
-
-        # roles may be stored at top-level or under custom_claims depending on your set-up
-        user_role = decoded.get("role")
-        if not user_role:
-            user_role = decoded.get("custom_claims", {}).get("role")
-
-        logger.info(f"Token verified for uid={decoded.get('uid')}, role={user_role}")
-
-        if user_role != "doctor":
-            logger.warning(f"User {decoded.get('uid')} attempted access without doctor role")
-            raise HTTPException(status_code=403, detail="Only doctors can generate meal plans")
-
-        return decoded
-
+        logger.info("Verifying Supabase access token")
+        user_response = client.auth.get_user(token)
     except Exception as e:
-        # defensive mapping of common firebase messages to HTTP errors
         msg = str(e).lower()
         if "expired" in msg:
-            logger.error("Expired Firebase token")
+            logger.error("Expired Supabase token")
             raise HTTPException(status_code=401, detail="Token has expired")
-        if "invalid" in msg or "decode" in msg:
-            logger.error("Invalid Firebase token")
-            raise HTTPException(status_code=401, detail="Invalid ID token")
         logger.error(f"Authentication error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid access token")
+
+    user = getattr(user_response, "user", None)
+    if user is None or not getattr(user, "id", None):
+        logger.error("Supabase returned no user for the supplied token")
+        raise HTTPException(status_code=401, detail="Invalid access token")
+
+    user_id = user.id
+
+    try:
+        profile = (client.table("profiles")
+                   .select("role")
+                   .eq("id", user_id)
+                   .limit(1)
+                   .execute())
+    except Exception as e:
+        logger.error(f"Failed to look up profile for {user_id}: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
+
+    user_role = profile.data[0]["role"] if profile.data else None
+    logger.info(f"Token verified for uid={user_id}, role={user_role}")
+
+    if user_role != "doctor":
+        logger.warning(f"User {user_id} attempted access without doctor role")
+        raise HTTPException(status_code=403, detail="Only doctors can generate meal plans")
+
+    return {
+        "uid": user_id,
+        "sub": user_id,
+        "email": getattr(user, "email", None),
+        "role": user_role,
+    }
 
 
 # --- Helpers to safely map profile dict into your UserProfile object ---
@@ -525,7 +547,7 @@ async def get_config(user=Depends(verify_doctor)):
         "environment": os.getenv("FLASK_ENV"),
         "food_dataset_loaded": FOOD_DATASET is not None,
         "food_dataset_size": len(FOOD_DATASET) if FOOD_DATASET is not None else 0,
-        "firebase_key_exists": os.path.exists(os.getenv("FIREBASE_KEY_PATH", "")),
+        "supabase_configured": bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY")),
         "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
         "default_model": os.getenv("DEFAULT_MODEL", "gpt-4"),
         "available_columns": list(FOOD_DATASET.columns) if FOOD_DATASET is not None else [],
