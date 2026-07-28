@@ -776,7 +776,3 @@ if __name__ == "__main__":
         logger.error(f"Failed to start application: {e}")
         logger.error(traceback.format_exc())
         sys.exit(1)
-
-        
-    from api_generate import router as generate_router
-    app.include_router(generate_router)
