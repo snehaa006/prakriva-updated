@@ -12,6 +12,8 @@ personalized diet plan.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, and plan storage.
 - **Supabase**: Postgres database + auth, using row-level security.
+- **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
+  (backend).
 - **Deployment**: the frontend and backend deploy as **two separate Vercel
   projects**. The frontend project (Root Directory = repo root, Vite
   framework preset) serves the static build. A backend Vercel project, if
@@ -25,13 +27,28 @@ personalized diet plan.
   (`src/pages/patient`, `src/pages/doctor`) behind `PatientLayout` /
   `DoctorLayout`. App-wide state lives in `src/context` (`AppContext`,
   `FoodContext`). Data access to Supabase and other APIs lives in
-  `src/services` and `src/lib`.
+  `src/services` and `src/lib`. Shared TypeScript types live in `src/types/`.
+- `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
+  `/auth/:role`, split by layer:
+  - `Login.tsx` — form state and orchestration for both roles.
+  - `AccountFields.tsx` — the name/email/password fields, shared by the
+    patient form and step 1 of the doctor wizard.
+  - `DoctorSignupSteps.tsx` — the four-step doctor wizard (account, license,
+    expertise, practice), with its option lists in `doctorProfileOptions.ts`.
+  - Auth calls live in `src/services/authService.ts`; license formats,
+    the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
+- `src/test/` — Vitest setup (`setup.ts`) and the Supabase client mock
+  (`supabaseMock.ts`) shared across frontend tests. Tests themselves sit in
+  `__tests__/` folders next to the code they cover.
 - `backend/` — Flask API (`app.py`) providing dosha estimation
   (`dosha_estimator.py`, `dosha_model.pkl`), calorie calculation
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
   access (`dataset_loader.py`, `db.py`). Config comes from `config.py` and
-  `backend/.env`.
+  `backend/.env` (see `backend/.env.example`).
 - `supabase/` — SQL migrations for the Supabase project.
+- `public/` — static assets served as-is, including the standalone
+  `mealCompatibility.html` visualisation (reachable at
+  `/mealCompatibility.html`; it is not a React route).
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
 
@@ -45,17 +62,49 @@ Frontend (run from repo root):
 - `npm run build:dev` — development-mode build
 - `npm run lint` — ESLint
 - `npm run preview` — preview a production build
+- `npm run test` — run the Vitest suite once
+- `npm run test:watch` — re-run tests on change
+- `npm run test:coverage` — run with a V8 coverage report into `coverage/`
+
+npm is the supported package manager; `package-lock.json` is the lockfile of
+record.
 
 Backend (run from `/backend`):
 
-- `pip install -r requirements.txt`
+- `pip install -r requirements.txt` (add `-r requirements-dev.txt` for pytest)
 - `python run.py` or `python app.py` — start the Flask API
-- Tests live in `backend/tests`
+- `python -m pytest tests/` — run the backend suite. `backend/tests/conftest.py`
+  supplies placeholder Supabase credentials, so this needs no `.env` and makes
+  no network calls.
+
+## Testing
+
+Frontend tests run under Vitest in a jsdom environment, configured in
+`vitest.config.ts` (kept separate from `vite.config.ts` so the dev/build
+config stays free of test concerns). `src/test/setup.ts` loads the
+jest-dom matchers and shims the browser APIs Radix UI relies on
+(`ResizeObserver`, `matchMedia`, pointer capture), which jsdom does not
+implement.
+
+Coverage is focused on authentication, since that is the gate on both roles:
+
+- `src/lib/__tests__/licenseVerification.test.ts` — license number formats per
+  medical council, the registry lookup, profile scoring and badge tiers.
+- `src/services/__tests__/authService.test.ts` — signup metadata for each role,
+  role lookup with retries, post-auth routing, and Supabase error mapping.
+- `src/pages/auth/__tests__/Login.test.tsx` — the rendered screen for both
+  roles: patient sign-in and sign-up, doctor sign-in, and the full four-step
+  doctor sign-up wizard including license verification.
+
+Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
+real auth and license logic runs in tests; no test touches a live project.
 
 ## Environment variables
 
-Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env`
-(backend) and fill in real values.
+Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env.example`
+to `backend/.env` (backend), then fill in real values. Both `.env` files are
+gitignored and must stay that way — only the `.env.example` templates are
+committed.
 
 | Variable | Where | Required | Notes |
 |---|---|---|---|
@@ -67,6 +116,18 @@ Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env`
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
+
+### Credentials previously committed to this repo
+
+`backend/.env` and `backend/firebase_key.json` were tracked in git and are now
+removed (the Firebase key outright — nothing has used Firebase since the move
+to Supabase). Removing them from the working tree does **not** scrub them from
+git history, so treat every secret they held as public and rotate it:
+
+- the `OPENAI_API_KEY` in `backend/.env`,
+- the `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env`,
+- the Firebase service-account key in `backend/firebase_key.json` — revoke the
+  service account in Google Cloud IAM rather than reissuing it.
 
 ## FoodOScope API key rotation
 
@@ -82,7 +143,7 @@ Where to put the keys:
   variable via `VITE_FOODOSCOPE_API_KEY_1` … `VITE_FOODOSCOPE_API_KEY_20`. All
   forms are merged and de-duplicated. With none set, a bundled fallback key is
   used and a warning is logged in dev.
-- `src/pages/patient/mealCompatibility.html` — this page is standalone HTML
+- `public/mealCompatibility.html` — this page is standalone HTML served as-is
   with no bundler, so its keys live in the `API_TOKENS` array at the top of its
   `<script>` block. Keep that list in sync with `.env` by hand.
 

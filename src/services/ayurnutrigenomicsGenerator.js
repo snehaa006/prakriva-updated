@@ -1,4 +1,4 @@
-// ayurnutrigenomics-generator.js
+// ayurnutrigenomicsGenerator.js
 // Rule-based diet plan generation using Ayurvedic principles and patient assessment data
 
 class AyurnutrigenomicsDietGenerator {
