@@ -12,9 +12,12 @@ personalized diet plan.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, and plan storage.
 - **Supabase**: Postgres database + auth, using row-level security.
-- **Deployment**: a single Vercel project serves the built frontend as static
-  assets and the Flask backend as a Python serverless function on the same
-  domain (see `vercel.json`).
+- **Deployment**: the frontend and backend deploy as **two separate Vercel
+  projects**. The frontend project (Root Directory = repo root, Vite
+  framework preset) serves the static build. A backend Vercel project, if
+  used, would need Root Directory = `backend/` and its own Flask/Python
+  framework preset — see "Deployment (Vercel)" below for why they aren't
+  combined into one project.
 
 ## Project structure
 
@@ -29,17 +32,8 @@ personalized diet plan.
   access (`dataset_loader.py`, `db.py`). Config comes from `config.py` and
   `backend/.env`.
 - `supabase/` — SQL migrations for the Supabase project.
-- `api/index.py` — Vercel Python function entrypoint. Points `sys.path` at
-  `backend/` and re-exports `app` from `backend/app.py`, so the same Flask
-  app used for local development is what Vercel deploys.
-- `vercel.json` — frontend built via the Vite framework preset; rewrites
-  route backend endpoints (`/health`, `/generate`, `/plan/*`, `/user/*`,
-  `/dosha/*`, `/calories/*`, `/analytics`, `/datasets/*`, `/test/*`,
-  `/debug/*`) to `/api/index`, and everything else falls back to
-  `index.html` for client-side routing.
-- `requirements.txt` (repo root) — a one-line `-r backend/requirements.txt`
-  so Vercel's Python builder (which looks for `requirements.txt` at the
-  project root) picks up the real dependency list.
+- `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
+  with a catch-all rewrite to `index.html` for client-side routing.
 
 ## Getting started
 
@@ -74,12 +68,19 @@ Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env`
 
 ## Deployment (Vercel)
 
-This repo deploys as **one Vercel project** with the project's Root Directory
-set to the repo root (not `backend/`). `vercel.json` sets the framework to
-Vite (builds the frontend to `dist/`) and rewrites backend paths to
-`api/index.py`, a Python function that re-exports the Flask app from
-`backend/app.py`. `requirements.txt` at the repo root includes
-`backend/requirements.txt` so Vercel's Python builder finds the dependencies.
+The frontend deploys as its own Vercel project: Root Directory = repo root,
+Framework Preset = Vite. Set the frontend environment variables above in that
+project's settings, then redeploy.
 
-Set the environment variables above in the Vercel project settings, then
-redeploy.
+The backend is **not** combined into the same Vercel project as the
+frontend. This was tried (routing backend paths to a Python function under
+`/api` alongside the Vite frontend) and hit a platform-level wall: that build
+path ignores both of Vercel's documented ways to pin the Python version
+(`.python-version` and `pyproject.toml`'s `requires-python`), and numpy has no
+prebuilt wheel at all for the Python version Vercel defaults to there, so the
+build fails trying to compile numpy/pandas from source. The backend-only
+build path (Root Directory = `backend/`, Flask framework preset) does not
+have this problem and is known to work — deploy the backend as a separate
+Vercel project using that layout if you need it live. Nothing in the current
+frontend calls the backend in production, so this only matters once a
+feature needs it.

@@ -1,4 +1,0 @@
-# Vercel's Python builder looks for requirements.txt at the project root.
-# The real dependency list lives in backend/requirements.txt (used directly
-# for local backend development); this just includes it.
--r backend/requirements.txt

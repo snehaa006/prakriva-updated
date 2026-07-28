@@ -1,16 +1,6 @@
 {
   "framework": "vite",
   "rewrites": [
-    { "source": "/health", "destination": "/api/index" },
-    { "source": "/generate", "destination": "/api/index" },
-    { "source": "/analytics", "destination": "/api/index" },
-    { "source": "/datasets/:path*", "destination": "/api/index" },
-    { "source": "/plan/:path*", "destination": "/api/index" },
-    { "source": "/user/:path*", "destination": "/api/index" },
-    { "source": "/dosha/:path*", "destination": "/api/index" },
-    { "source": "/calories/:path*", "destination": "/api/index" },
-    { "source": "/test/:path*", "destination": "/api/index" },
-    { "source": "/debug/:path*", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
