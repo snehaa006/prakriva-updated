@@ -28,9 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
-// Firebase imports
-import { collection, query, orderBy, getDocs, doc, addDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 type Meal = {
   id: string;
@@ -59,7 +57,7 @@ type SavedDietPlan = {
   planDuration: string;
   planType: string;
   meals: any;
-  createdAt: Timestamp;
+  createdAt: string;
   totalMeals: number;
   activeFilter?: string;
 };
@@ -200,20 +198,24 @@ const MealLogging = () => {
 
     setLoadingPlans(true);
     try {
-      const q = query(
-        collection(db, "patients", patientId, "dietPlans"),
-        orderBy("createdAt", "desc")
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const plans: SavedDietPlan[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        plans.push({
-          id: doc.id,
-          ...doc.data(),
-        } as SavedDietPlan);
-      });
+      const { data, error } = await supabase
+        .from("diet_plans")
+        .select("id, patient_name, plan_duration, plan_type, meals, total_meals, active_filter, created_at")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const plans: SavedDietPlan[] = (data ?? []).map((row) => ({
+        id: row.id,
+        patientName: row.patient_name,
+        planDuration: row.plan_duration,
+        planType: row.plan_type,
+        meals: row.meals,
+        totalMeals: row.total_meals,
+        activeFilter: row.active_filter,
+        createdAt: row.created_at,
+      }));
 
       setSavedPlans(plans);
       
@@ -247,7 +249,7 @@ const MealLogging = () => {
     const meals = convertDietPlanToMeals(dataToConvert, plan.activeFilter);
     setTodaysMeals(meals);
 
-    const dateStr = plan.createdAt?.toDate ? plan.createdAt.toDate().toLocaleDateString() : "recent";
+    const dateStr = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString() : "recent";
     toast.success(`Loaded diet plan from ${dateStr}`);
   };
 
@@ -272,20 +274,21 @@ const MealLogging = () => {
 
     try {
       const feedbackData = {
-        patientId,
-        patientName,
-        mealId: selectedMeal,
-        mealName: todaysMeals.find(m => m.id === selectedMeal)?.name || "Unknown",
-        digestionRating: digestionRating[0],
-        moodRating: moodRating[0],
-        energyRating: energyRating[0],
+        patient_id: patientId,
+        patient_name: patientName,
+        meal_id: selectedMeal,
+        meal_name: todaysMeals.find(m => m.id === selectedMeal)?.name || "Unknown",
+        digestion_rating: digestionRating[0],
+        mood_rating: moodRating[0],
+        energy_rating: energyRating[0],
         notes: feedbackNotes,
-        createdAt: Timestamp.now(),
         date: new Date().toISOString().split('T')[0] // YYYY-MM-DD format
       };
 
-      await addDoc(collection(db, "patients", patientId, "mealFeedback"), feedbackData);
-      
+      const { error } = await supabase.from("meal_feedback").insert(feedbackData);
+      if (error) throw error;
+
+
       toast.success("Feedback saved successfully!");
       
       // Reset feedback form
@@ -435,7 +438,7 @@ const MealLogging = () => {
                     className="gap-1"
                   >
                     <Calendar className="w-3 h-3" />
-                    {plan.createdAt.toDate().toLocaleDateString()} • {plan.planType}
+                    {new Date(plan.createdAt).toLocaleDateString()} • {plan.planType}
                   </Button>
                 ))}
               </div>
@@ -451,7 +454,7 @@ const MealLogging = () => {
               </div>
               <p className="text-sm text-blue-600 mt-1">
                 {selectedPlan.patientName} • {selectedPlan.planDuration} • {selectedPlan.planType.replace('-', ' ')} 
-                • Created: {selectedPlan.createdAt.toDate().toLocaleDateString()}
+                • Created: {new Date(selectedPlan.createdAt).toLocaleDateString()}
               </p>
             </div>
           )}

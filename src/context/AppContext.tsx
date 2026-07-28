@@ -5,18 +5,7 @@ import React, {
   ReactNode,
   useEffect,
 } from "react";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  Timestamp,
-} from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 
 /* ----------------------------- Type Definitions ----------------------------- */
 
@@ -208,89 +197,105 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   >([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const clearSession = () => {
+      setUser(null);
+      setDoctor(null);
+      setConsultationRequests([]);
+      setQuestionnaireCompleted(null);
+    };
+
+    const loadSession = async (authUser: { id: string; email?: string } | null) => {
       setIsLoading(true);
 
-      if (firebaseUser) {
-        try {
-          // Patient Check
-          const patientDoc = await getDoc(doc(db, "patients", firebaseUser.uid));
-          if (patientDoc.exists()) {
-            const data = patientDoc.data();
-            setUser({
-              id: firebaseUser.uid,
-              name: data.name || "Patient",
-              email: firebaseUser.email || "",
-              role: "patient",
-            });
-            setQuestionnaireCompleted(Boolean(data.questionnaireCompleted));
-          } else {
-            // Doctor Check
-            const doctorDoc = await getDoc(doc(db, "doctors", firebaseUser.uid));
-            if (doctorDoc.exists()) {
-              const data = doctorDoc.data();
-              const currentDoctor: Doctor = {
-                id: firebaseUser.uid,
-                name: data.name || "Doctor",
-                email: firebaseUser.email || "",
-                specialization: data.specialization || "",
-              };
-              setDoctor(currentDoctor);
-              setUser({
-                id: firebaseUser.uid,
-                name: data.name || "Doctor",
-                email: firebaseUser.email || "",
-                role: "doctor",
-              });
-              setQuestionnaireCompleted(null);
+      if (!authUser) {
+        clearSession();
+        setIsLoading(false);
+        return;
+      }
 
-              // Fetch Consultation Requests
-              const q = query(
-                collection(db, "consultationRequests"),
-                where("doctorId", "==", currentDoctor.id)
-              );
-              const snapshot = await getDocs(q);
-              const requests: ConsultationRequest[] = snapshot.docs.map(
-                (docSnap) => {
-                  const d = docSnap.data();
-                  return {
-                    id: docSnap.id,
-                    patientId: d.patientId,
-                    patientName: d.patientName,
-                    doctorId: d.doctorId,
-                    requestType: d.requestType,
-                    mode: d.mode,
-                    urgency: d.urgency,
-                    message: d.message,
-                    date:
-                      d.date instanceof Timestamp
-                        ? d.date.toDate()
-                        : new Date(d.date),
-                    status: d.status,
-                  };
-                }
-              );
-              setConsultationRequests(requests);
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching user or requests:", error);
-          setUser(null);
-          setDoctor(null);
-          setConsultationRequests([]);
+      try {
+        // profiles tells us which role this account signed up as, so we only
+        // hit the table that can actually have a row.
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, name")
+          .eq("id", authUser.id)
+          .maybeSingle();
+
+        if (profile?.role === "patient") {
+          const { data } = await supabase
+            .from("patients")
+            .select("name, questionnaire_completed")
+            .eq("id", authUser.id)
+            .maybeSingle();
+
+          setUser({
+            id: authUser.id,
+            name: data?.name || profile.name || "Patient",
+            email: authUser.email || "",
+            role: "patient",
+          });
+          setQuestionnaireCompleted(Boolean(data?.questionnaire_completed));
+        } else if (profile?.role === "doctor") {
+          const { data } = await supabase
+            .from("doctors")
+            .select("name, ayurvedic_specialization")
+            .eq("id", authUser.id)
+            .maybeSingle();
+
+          const name = data?.name || profile.name || "Doctor";
+          setDoctor({
+            id: authUser.id,
+            name,
+            email: authUser.email || "",
+            specialization: data?.ayurvedic_specialization?.[0] || "",
+          });
+          setUser({ id: authUser.id, name, email: authUser.email || "", role: "doctor" });
           setQuestionnaireCompleted(null);
+
+          const { data: requests } = await supabase
+            .from("consultation_requests")
+            .select(
+              "id, patient_id, patient_name, doctor_id, request_type, preferred_consultation_mode, urgency, message, requested_at, status"
+            )
+            .eq("doctor_id", authUser.id);
+
+          setConsultationRequests(
+            (requests ?? []).map((r) => ({
+              id: r.id,
+              patientId: r.patient_id,
+              patientName: r.patient_name,
+              doctorId: r.doctor_id,
+              requestType: r.request_type,
+              mode: r.preferred_consultation_mode,
+              urgency: r.urgency,
+              message: r.message ?? undefined,
+              date: new Date(r.requested_at),
+              status: r.status,
+            })) as ConsultationRequest[]
+          );
+        } else {
+          clearSession();
         }
-      } else {
-        setUser(null);
-        setDoctor(null);
-        setConsultationRequests([]);
-        setQuestionnaireCompleted(null);
+      } catch (error) {
+        console.error("Error fetching user or requests:", error);
+        clearSession();
       }
 
       setIsLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      void loadSession(data.session?.user ?? null);
     });
 
-    return () => unsubscribe();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void loadSession(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const value: AppContextType = {

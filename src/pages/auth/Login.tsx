@@ -2,12 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { auth, db } from "@/lib/firebase";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
-import { onAuthStateChanged } from "firebase/auth";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,65 +19,52 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Leaf, Upload, Shield, Star, Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
-import { doc, setDoc, getDocs, query, collection, getDoc } from "firebase/firestore";
 
-// Function to generate next patient ID
-const generateNextPatientId = async (): Promise<string> => {
-  try {
-    const counterRef = doc(db, "metadata", "patientCounter");
-    const counterDoc = await getDocs(query(collection(db, "metadata")));
-    
-    let nextId = 1;
-    
-    const counterSnapshot = await getDocs(query(collection(db, "metadata")));
-    const existingCounter = counterSnapshot.docs.find(doc => doc.id === "patientCounter");
-    
-    if (existingCounter) {
-      nextId = existingCounter.data().count + 1;
-    }
-    
-    await setDoc(counterRef, { count: nextId }, { merge: true });
-    return `P${nextId.toString().padStart(3, '0')}`;
-  } catch (error) {
-    console.error("Error generating patient ID:", error);
-    return `P${Date.now().toString().slice(-6)}`;
-  }
-};
+// Patient codes (P001, P002, ...) are issued by a Postgres sequence backing
+// patients.patient_code, so there is no counter document to read-modify-write
+// and no chance of two signups racing onto the same id.
 
-// Helper function to determine user role from Firebase with retry logic
+// Helper function to determine user role, with retry logic.
+// The role lives in public.profiles, written by the on_auth_user_created
+// trigger, so one lookup answers it regardless of which role signed up.
 const getUserRole = async (uid: string, maxRetries = 3): Promise<{ role: string | null; hasCompletedQuestionnaire?: boolean }> => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       console.log(`🔍 Checking user role for UID: ${uid} (Attempt ${attempt + 1}/${maxRetries})`);
-      
-      // Check if user is a doctor
-      const doctorRef = doc(db, "doctors", uid);
-      const doctorSnap = await getDoc(doctorRef);
-      
-      if (doctorSnap.exists()) {
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (profile?.role === "doctor") {
         console.log("👨‍⚕️ User is a doctor");
         return { role: "doctor" };
       }
-      
-      // Check if user is a patient
-      const patientRef = doc(db, "patients", uid);
-      const patientSnap = await getDoc(patientRef);
-      
-      if (patientSnap.exists()) {
-        const patientData = patientSnap.data();
-        console.log("👤 User is a patient, questionnaire completed:", patientData?.questionnaireCompleted);
-        return { 
-          role: "patient", 
-          hasCompletedQuestionnaire: patientData?.questionnaireCompleted || false 
+
+      if (profile?.role === "patient") {
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("questionnaire_completed")
+          .eq("id", uid)
+          .maybeSingle();
+
+        console.log("👤 User is a patient, questionnaire completed:", patient?.questionnaire_completed);
+        return {
+          role: "patient",
+          hasCompletedQuestionnaire: patient?.questionnaire_completed || false
         };
       }
-      
-      // If no document found, wait before retrying
+
+      // If no row found yet, wait before retrying
       if (attempt < maxRetries - 1) {
         console.log(`❓ User role not found, retrying in ${(attempt + 1) * 1000}ms...`);
         await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
       }
-      
+
     } catch (error) {
       console.error(`❌ Error fetching user role (attempt ${attempt + 1}):`, error);
       if (attempt < maxRetries - 1) {
@@ -90,7 +72,7 @@ const getUserRole = async (uid: string, maxRetries = 3): Promise<{ role: string 
       }
     }
   }
-  
+
   console.log("❓ Could not determine user role after all attempts");
   return { role: null };
 };
@@ -500,49 +482,28 @@ const Login = () => {
     console.log("🚀 Starting authentication:", { isSignup, role });
   
     try {
-      let userCredential;
-  
       if (isSignup) {
         console.log("📝 Creating new user account");
-        
-        try {
-          userCredential = await createUserWithEmailAndPassword(
-            auth,
-            formData.email,
-            formData.password
-          );
-        } catch (authError: any) {
-          if (authError.code === 'auth/email-already-in-use') {
-            toast.error("An account with this email already exists. Please sign in instead or use a different email.");
-            setIsSignup(false);
-            isSubmitting.current = false;
-            return;
-          }
-          throw authError;
-        }
-        
-        const firebaseUser = userCredential.user;
-        console.log("✅ Firebase user created:", firebaseUser.uid);
-  
-        // Create user document based on role
+
+        // The role and (for doctors) the full verification payload travel as
+        // user metadata. The on_auth_user_created trigger reads them and
+        // writes public.profiles plus the matching doctors/patients row, so
+        // the profile exists even when email confirmation delays the session.
+        const verificationScore = role === "doctor" ? calculateVerificationScore() : 0;
+        const badge = role === "doctor"
+          ? getVerificationBadge(verificationScore, verificationData.licenseVerified)
+          : null;
+
+        const metadata: Record<string, unknown> = {
+          role,
+          name: formData.name,
+        };
+
         if (role === "doctor") {
-          console.log("👨‍⚕️ Creating doctor document");
-          
-          const verificationScore = calculateVerificationScore();
-          const badge = getVerificationBadge(verificationScore, verificationData.licenseVerified);
-          
-          const doctorData = {
-            name: formData.name,
-            email: firebaseUser.email,
-            uid: firebaseUser.uid,
-            role: "doctor",
-            createdAt: new Date().toISOString(),
-            lastUpdated: new Date().toISOString(),
-            verificationStatus: verificationData.licenseVerified ? "verified" : "pending",
-            verificationScore: verificationScore,
-            verificationBadge: badge.text,
+          Object.assign(metadata, {
+            verificationScore,
+            verificationBadge: badge?.text,
             licenseVerified: verificationData.licenseVerified,
-            licenseVerificationDate: verificationData.licenseVerified ? new Date().toISOString() : null,
             licenseVerificationDetails: verificationData.verificationDetails ? {
               verifiedName: verificationData.verificationDetails.doctorName,
               registrationDate: verificationData.verificationDetails.registrationDate,
@@ -564,82 +525,82 @@ const Login = () => {
             languages: verificationData.languages,
             specialConditions: verificationData.specialConditions,
             consultationModes: verificationData.consultationModes,
-            canAcceptPatients: verificationData.licenseVerified,
-            isAvailable: verificationData.licenseVerified,
-            accountStatus: verificationData.licenseVerified ? 'active' : 'pending_verification',
-            rating: 0,
-            totalReviews: 0,
-            totalConsultations: 0,
-            profileCompleted: true,
-            trustScore: verificationScore,
-            badges: [badge.text],
-            verificationLevel: verificationData.licenseVerified ? 'high' : 'low'
-          };
-          
-          await setDoc(doc(db, "doctors", firebaseUser.uid), doctorData, { merge: true });
-          console.log("✅ Doctor document created successfully");
-          
-          toast.success(verificationData.licenseVerified ? 
-            "Verified doctor account created successfully!" : 
+          });
+        }
+
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: { data: metadata },
+        });
+
+        if (signUpError) {
+          const msg = signUpError.message.toLowerCase();
+          if (msg.includes("already registered") || msg.includes("already been registered")) {
+            toast.error("An account with this email already exists. Please sign in instead or use a different email.");
+            setIsSignup(false);
+            isSubmitting.current = false;
+            return;
+          }
+          throw signUpError;
+        }
+
+        const newUser = signUpData.user;
+        console.log("✅ Supabase user created:", newUser?.id);
+
+        if (!signUpData.session) {
+          // Email confirmation is enabled: there is no session to route with.
+          toast.success("Account created! Check your email to confirm your address, then sign in.");
+          setIsSignup(false);
+          isSubmitting.current = false;
+          setIsLoading(false);
+          return;
+        }
+
+        if (role === "doctor") {
+          toast.success(verificationData.licenseVerified ?
+            "Verified doctor account created successfully!" :
             "Account created! Please complete license verification to accept patients."
           );
-          
-        } else if (role === "patient") {
-          console.log("👤 Creating patient document");
-          
-          const patientId = await generateNextPatientId();
-          console.log("🆔 Generated patient ID:", patientId);
-          
-          const patientData = {
-            patientId: patientId,
-            name: formData.name,
-            email: firebaseUser.email,
-            uid: firebaseUser.uid,
-            role: "patient",
-            questionnaireCompleted: false,
-            createdAt: new Date().toISOString(),
-            profileCompleted: false,
-            registrationDate: new Date().toISOString(),
-            status: "active",
-            lastUpdated: new Date().toISOString()
-          };
-          
-          await setDoc(doc(db, "patients", firebaseUser.uid), patientData, { merge: true });
-          console.log("✅ Patient document created successfully with name:", formData.name);
-          
-          toast.success(`Patient account created successfully! Your Patient ID: ${patientId}`);
+        } else if (role === "patient" && newUser) {
+          // patient_code is assigned by the sequence default; read it back.
+          const { data: patientRow } = await supabase
+            .from("patients")
+            .select("patient_code")
+            .eq("id", newUser.id)
+            .maybeSingle();
+
+          toast.success(
+            patientRow?.patient_code
+              ? `Patient account created successfully! Your Patient ID: ${patientRow.patient_code}`
+              : "Patient account created successfully!"
+          );
         }
-        
-        // Wait for document to be fully written and indexed
-        console.log("⏳ Waiting for document synchronization...");
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Increased wait time
-        
+
         // Navigate based on role for NEW SIGNUP ONLY
         navigateUserToDashboard(navigate, role!, undefined, true);
-        
+
       } else {
         // Sign in existing user
         console.log("🔑 Signing in existing user");
-        userCredential = await signInWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-        );
-        
-        const firebaseUser = userCredential.user;
-        console.log("✅ User signed in successfully:", firebaseUser.uid);
-        
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+
+        if (signInError) throw signInError;
+
+        const signedInUser = signInData.user;
+        console.log("✅ User signed in successfully:", signedInUser?.id);
+
         toast.success("Welcome back!");
-        
+
         // For EXISTING users signing in, determine their role and route accordingly
         console.log("🔍 Determining user role for existing user...");
-        
-        // Wait for Firebase Auth to fully authenticate
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Get user role and questionnaire status with retry logic
-        const { role: userRole, hasCompletedQuestionnaire } = await getUserRole(firebaseUser.uid);
-        
+
+        const { role: userRole, hasCompletedQuestionnaire } = await getUserRole(signedInUser!.id);
+
         if (userRole) {
           console.log("🎯 User role determined:", userRole);
           navigateUserToDashboard(navigate, userRole, hasCompletedQuestionnaire, false);
@@ -649,47 +610,40 @@ const Login = () => {
           toast.error("Could not determine account type. Please contact support.");
         }
       }
-  
+
     } catch (error) {
       console.error("❌ Authentication error:", error);
       
       let errorMessage = "An unexpected error occurred";
       
-      if (error && typeof error === 'object' && 'code' in error) {
-        const errorCode = (error as any).code;
-        
-        switch (errorCode) {
-          case 'auth/user-not-found':
-            errorMessage = "No account found with this email. Please sign up first.";
-            break;
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            errorMessage = "Invalid credentials. Please check your email and password.";
-            break;
-          case 'auth/email-already-in-use':
-            errorMessage = "An account with this email already exists. Please sign in instead.";
-            setIsSignup(false);
-            break;
-          case 'auth/weak-password':
-            errorMessage = "Password should be at least 6 characters long.";
-            break;
-          case 'auth/invalid-email':
-            errorMessage = "Please enter a valid email address.";
-            break;
-          case 'auth/network-request-failed':
-            errorMessage = "Network error. Please check your connection and try again.";
-            break;
-          case 'auth/too-many-requests':
-            errorMessage = "Too many failed attempts. Please try again later.";
-            break;
-          case 'auth/user-disabled':
-            errorMessage = "This account has been disabled. Please contact support.";
-            break;
-          default:
-            errorMessage = error instanceof Error ? error.message : "Authentication failed";
+      // Supabase reports auth failures as messages rather than Firebase-style
+      // error codes, so match on the message text.
+      if (error instanceof Error) {
+        const msg = error.message.toLowerCase();
+
+        if (msg.includes("invalid login credentials")) {
+          errorMessage = "Invalid credentials. Please check your email and password.";
+        } else if (msg.includes("already registered") || msg.includes("already been registered")) {
+          errorMessage = "An account with this email already exists. Please sign in instead.";
+          setIsSignup(false);
+        } else if (msg.includes("password should be") || msg.includes("password is too short")) {
+          errorMessage = "Password should be at least 6 characters long.";
+        } else if (msg.includes("invalid email") || msg.includes("unable to validate email")) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (msg.includes("email not confirmed")) {
+          errorMessage = "Please confirm your email address before signing in.";
+        } else if (msg.includes("failed to fetch") || msg.includes("network")) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else if (msg.includes("rate limit") || msg.includes("too many")) {
+          errorMessage = "Too many failed attempts. Please try again later.";
+        } else if (msg.includes("banned") || msg.includes("disabled")) {
+          errorMessage = "This account has been disabled. Please contact support.";
+        } else {
+          errorMessage = error.message;
         }
       }
-      
+
+
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
