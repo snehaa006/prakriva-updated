@@ -35,17 +35,7 @@ import {
   Droplet
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  doc, 
-  updateDoc,
-  writeBatch,
-  addDoc
-} from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 
 interface ConsultationRequest {
   id: string;
@@ -57,7 +47,7 @@ interface ConsultationRequest {
   urgency: string;
   preferredConsultationMode?: string;
   message?: string;
-  status: 'pending' | 'accepted' | 'declined' | 'completed';
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
   requestedAt: string;
   fullPatientProfile: {
     name: string;
@@ -119,60 +109,61 @@ const ConsultationRequests: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      console.error('No authenticated user');
-      setIsLoading(false);
-      return;
-    }
-
-    console.log('Fetching requests for doctor:', currentUser.uid);
+    let cancelled = false;
 
     const fetchRequests = async () => {
-      try {
-        const requestsRef = collection(db, 'consultationRequests');
-        const q = query(
-          requestsRef, 
-          where('doctorId', '==', currentUser.uid)
-        );
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData.user;
+      if (!currentUser) {
+        console.error('No authenticated user');
+        setIsLoading(false);
+        return;
+      }
 
-        const snapshot = await getDocs(q);
-        console.log('Received requests, documents:', snapshot.size);
-        
-        const requestsData: ConsultationRequest[] = [];
-        snapshot.forEach((docSnapshot) => {
-          const data = docSnapshot.data();
-          console.log('Request document:', docSnapshot.id, data);
-          
-          requestsData.push({
-            id: docSnapshot.id,
-            patientId: data.patientId || '',
-            patientName: data.patientName || 'Unknown Patient',
-            patientEmail: data.patientEmail || '',
-            patientPhone: data.patientPhone,
-            requestType: data.requestType || 'consultation',
-            urgency: data.urgency || 'medium',
-            preferredConsultationMode: data.preferredConsultationMode,
-            message: data.message,
-            status: data.status || 'pending',
-            requestedAt: data.requestedAt || new Date().toISOString(),
-            doctorId: data.doctorId || '',
-            doctorName: data.doctorName || '',
-            doctorEmail: data.doctorEmail || '',
-            fullPatientProfile: data.fullPatientProfile || {
-              name: data.patientName || 'Unknown Patient',
-              age: undefined,
-              gender: undefined,
-              phoneNumber: data.patientPhone,
-              address: undefined,
-              medicalHistory: [],
-              allergies: [],
-              currentMedications: [],
-              bloodGroup: undefined,
-              emergencyContact: undefined
-            }
-          });
-        });
+      console.log('Fetching requests for doctor:', currentUser.id);
+
+      try {
+        const { data: rows, error } = await supabase
+          .from('consultation_requests')
+          .select('*')
+          .eq('doctor_id', currentUser.id)
+          .order('requested_at', { ascending: false });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        console.log('Received requests, documents:', rows?.length ?? 0);
+
+        const requestsData: ConsultationRequest[] = (rows ?? []).map((data: any) => ({
+          id: data.id,
+          patientId: data.patient_id || '',
+          patientName: data.patient_name || 'Unknown Patient',
+          patientEmail: data.patient_email || '',
+          patientPhone: data.patient_phone,
+          requestType: data.request_type || 'consultation',
+          urgency: data.urgency || 'medium',
+          preferredConsultationMode: data.preferred_consultation_mode,
+          message: data.message,
+          status: data.status || 'pending',
+          requestedAt: data.requested_at || new Date().toISOString(),
+          responseMessage: data.response_message ?? undefined,
+          respondedAt: data.status_updated_at ?? undefined,
+          doctorId: data.doctor_id || '',
+          doctorName: data.doctor_name || '',
+          doctorEmail: data.doctor_email || '',
+          fullPatientProfile: data.full_patient_profile || {
+            name: data.patient_name || 'Unknown Patient',
+            age: undefined,
+            gender: undefined,
+            phoneNumber: data.patient_phone,
+            address: undefined,
+            medicalHistory: [],
+            allergies: [],
+            currentMedications: [],
+            bloodGroup: undefined,
+            emergencyContact: undefined
+          }
+        }));
 
         console.log('Processed requests:', requestsData.length);
         setRequests(requestsData);
@@ -192,8 +183,11 @@ const ConsultationRequests: React.FC = () => {
 
     // Set up periodic refresh every 30 seconds to get new requests
     const interval = setInterval(fetchRequests, 30000);
-    
-    return () => clearInterval(interval);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -261,58 +255,49 @@ const ConsultationRequests: React.FC = () => {
 
     try {
       setSubmitting(true);
-      const batch = writeBatch(db);
       const timestamp = new Date().toISOString();
-      
+      const newStatus = responseType === 'accept' ? 'accepted' : 'rejected';
+
       // 1. Update the main consultation request
-      const requestRef = doc(db, 'consultationRequests', selectedRequest.id);
-      batch.update(requestRef, {
-        status: responseType === 'accept' ? 'accepted' : 'declined',
-        responseMessage: responseMessage.trim(),
-        respondedAt: timestamp,
-        statusUpdatedAt: timestamp,
-        // Mark as not notified so notification will be sent
-        patientNotified: false
-      });
+      const { error: updateError } = await supabase
+        .from('consultation_requests')
+        .update({
+          status: newStatus,
+          response_message: responseMessage.trim() || null,
+          status_updated_at: timestamp,
+          // Mark as not notified so notification will be sent
+          patient_notified: false
+        })
+        .eq('id', selectedRequest.id);
 
-      // 2. Create notification for patient
-      const notificationRef = doc(collection(db, `patients/${selectedRequest.patientId}/notifications`));
-      batch.set(notificationRef, {
+      if (updateError) throw updateError;
+
+      // 2. Create notification for patient. There is a single notifications
+      //    table keyed by user_id, so the old duplicate write into a parallel
+      //    users/{id}/notifications collection is gone.
+      const { error: notifyError } = await supabase.from('notifications').insert({
+        user_id: selectedRequest.patientId,
         type: responseType === 'accept' ? 'consultation_accepted' : 'consultation_rejected',
         title: responseType === 'accept' ? 'Consultation Request Accepted!' : 'Consultation Request Update',
-        message: responseType === 'accept' 
+        message: responseType === 'accept'
           ? `Dr. ${selectedRequest.doctorName} has accepted your consultation request! ${responseMessage ? `Message: ${responseMessage}` : ''}`
           : `Dr. ${selectedRequest.doctorName} is currently unavailable. ${responseMessage ? `Reason: ${responseMessage}` : ''}`,
-        doctorId: selectedRequest.doctorId,
-        doctorName: selectedRequest.doctorName,
-        requestId: selectedRequest.id,
-        read: false,
-        createdAt: timestamp
+        doctor_id: selectedRequest.doctorId,
+        doctor_name: selectedRequest.doctorName,
+        request_id: selectedRequest.id,
+        read: false
       });
 
-      // 3. Also try to create notification in users collection as fallback
-      const userNotificationRef = doc(collection(db, `users/${selectedRequest.patientId}/notifications`));
-      batch.set(userNotificationRef, {
-        type: responseType === 'accept' ? 'consultation_accepted' : 'consultation_rejected',
-        title: responseType === 'accept' ? 'Consultation Request Accepted!' : 'Consultation Request Update',
-        message: responseType === 'accept' 
-          ? `Dr. ${selectedRequest.doctorName} has accepted your consultation request! ${responseMessage ? `Message: ${responseMessage}` : ''}`
-          : `Dr. ${selectedRequest.doctorName} is currently unavailable. ${responseMessage ? `Reason: ${responseMessage}` : ''}`,
-        doctorId: selectedRequest.doctorId,
-        doctorName: selectedRequest.doctorName,
-        requestId: selectedRequest.id,
-        read: false,
-        createdAt: timestamp
-      });
-
-      await batch.commit();
+      if (notifyError) {
+        console.warn('Failed to create patient notification:', notifyError.message);
+      }
 
       // Update local state immediately
       setRequests(prev => prev.map(req => 
         req.id === selectedRequest.id 
           ? { 
               ...req, 
-              status: responseType === 'accept' ? 'accepted' : 'declined',
+              status: responseType === 'accept' ? 'accepted' : 'rejected',
               responseMessage: responseMessage.trim(),
               respondedAt: timestamp
             } 
@@ -359,7 +344,7 @@ const ConsultationRequests: React.FC = () => {
         return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
       case 'accepted':
         return <Badge className="bg-green-100 text-green-800 border-green-200">Accepted</Badge>;
-      case 'declined':
+      case 'rejected':
         return <Badge className="bg-red-100 text-red-800 border-red-200">Declined</Badge>;
       case 'completed':
         return <Badge variant="default">Completed</Badge>;
@@ -477,7 +462,7 @@ const ConsultationRequests: React.FC = () => {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="accepted">Accepted</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
+                <SelectItem value="rejected">Declined</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>

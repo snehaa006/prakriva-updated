@@ -31,8 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 // Firebase imports
-import { collection, query, orderBy, getDocs, doc, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Adjust path according to your firebase config
+import { supabase } from "@/lib/supabase";
 
 interface DietPlanRow {
   id: string;
@@ -52,7 +51,7 @@ interface SavedDietPlan {
   planDuration: string;
   planType: string;
   meals: any;
-  createdAt: Timestamp;
+  createdAt: string;
   totalMeals: number;
   activeFilter?: string;
 }
@@ -193,20 +192,27 @@ const DietChart = () => {
 
     setLoading(true);
     try {
-      const q = query(
-        collection(db, "patients", patientId, "dietPlans"),
-        orderBy("createdAt", "desc")
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const plans: SavedDietPlan[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        plans.push({
-          id: doc.id,
-          ...doc.data(),
-        } as SavedDietPlan);
-      });
+      const { data, error } = await supabase
+        .from("diet_plans")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const plans: SavedDietPlan[] = (data ?? []).map((row) => ({
+        id: row.id,
+        patientName: row.patient_name,
+        planDuration: row.plan_duration,
+        planType: row.plan_type,
+        meals: row.meals,
+        totalMeals: row.total_meals,
+        activeFilter: row.active_filter,
+        createdAt: row.created_at,
+        // loadDietPlan also looks for a days[] payload produced by
+        // PersonalizedDietChart, which lives inside the meals document.
+        ...(row.meals?.days ? { days: row.meals.days } : {}),
+      }));
 
       setSavedPlans(plans);
       
@@ -255,7 +261,14 @@ const DietChart = () => {
     if (!patientId.trim()) return;
     
     try {
-      await deleteDoc(doc(db, "patients", patientId, "dietPlans", planId));
+      const { error } = await supabase
+        .from("diet_plans")
+        .delete()
+        .eq("id", planId)
+        .eq("patient_id", patientId);
+
+      if (error) throw error;
+
       setSavedPlans(prev => prev.filter(plan => plan.id !== planId));
       
       if (selectedPlan?.id === planId) {
@@ -397,7 +410,7 @@ const DietChart = () => {
                       <Badge variant="secondary">{plan.planDuration}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Created: {plan.createdAt.toDate().toLocaleDateString()} • 
+                      Created: {new Date(plan.createdAt).toLocaleDateString()} • 
                       {plan.totalMeals} meals • 
                       View: {plan.activeFilter || 'Daily'}
                     </p>
@@ -485,7 +498,7 @@ const DietChart = () => {
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-700">
                 <AlertCircle className="w-4 h-4 inline mr-1" />
-                Viewing saved plan from {selectedPlan.createdAt.toDate().toLocaleDateString()}. 
+                Viewing saved plan from {new Date(selectedPlan.createdAt).toLocaleDateString()}. 
                 Plan details are read-only.
               </p>
             </div>
@@ -600,7 +613,7 @@ const DietChart = () => {
                 Duration: {planDuration} • Type: {planType.replace('-', ' ')}
                 {selectedPlan && (
                   <span className="ml-2 text-blue-600">
-                    (Loaded from {selectedPlan.createdAt.toDate().toLocaleDateString()})
+                    (Loaded from {new Date(selectedPlan.createdAt).toLocaleDateString()})
                   </span>
                 )}
               </CardDescription>
