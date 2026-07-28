@@ -55,10 +55,12 @@ Frontend (run from repo root):
 - `npm run build:dev` — development-mode build
 - `npm run lint` — ESLint
 - `npm run preview` — preview a production build
+- `npm run test` / `test:watch` / `test:coverage` — Vitest
 
 Backend (run from `/backend`):
 - `python run.py` or `python app.py` — start the Flask API
-- Tests live in `backend/tests`
+- `python -m pytest tests/` — backend tests (no `.env` needed; `conftest.py`
+  supplies placeholder Supabase credentials)
 
 ## Conventions
 
@@ -66,5 +68,9 @@ Backend (run from `/backend`):
   `tsconfig.json`) rather than long relative paths.
 - UI primitives come from `src/components/ui` (shadcn); prefer composing those
   over hand-rolled markup for buttons, dialogs, forms, etc.
+- Keep pages thin: Supabase/API calls belong in `src/services`, reusable domain
+  rules in `src/lib`. `src/pages/auth` is the worked example of this split.
+- Frontend tests live in `__tests__/` next to the code under test; shared test
+  setup and the Supabase mock live in `src/test`.
 - Keep secrets out of the frontend — anything sensitive belongs in
   `backend/.env`, not `.env`/`.env.example` at the root.
