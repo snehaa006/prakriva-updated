@@ -22,7 +22,8 @@ import {
   Settings,
   User,
   LogOut,
-  Leaf
+  Leaf,
+  Stethoscope
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,11 @@ const navigationItems = [
     title: "Add Patient",
     url: "/doctor/add-patient",
     icon: Plus,
+  },
+  {
+    title: "Disease Detection",
+    url: "/doctor/disease-detection",
+    icon: Stethoscope,
   },
   {
     title: "Food Explorer",

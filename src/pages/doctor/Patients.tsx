@@ -34,8 +34,10 @@ import {
   Users,
   Filter
 } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { isPregnantPatient } from '@/services/diseaseDetectionService';
 
 interface Patient {
   id: string;
@@ -94,6 +96,7 @@ interface Patient {
 
 const Patients: React.FC = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -637,6 +640,21 @@ const Patients: React.FC = () => {
                         <Eye className="w-3 h-3" />
                         View Full Profile
                       </Button>
+                      {isPregnantPatient(patient.fullPatientProfile?.assessmentData) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            navigate(
+                              `/doctor/disease-detection?patientId=${patient.patientId}`
+                            )
+                          }
+                          className="gap-1"
+                        >
+                          <Stethoscope className="w-3 h-3" />
+                          Risk Screening
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         className="gap-1"

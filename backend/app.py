@@ -26,6 +26,13 @@ from dosha_estimator import dosha_predictor
 from calorie_calculator import estimate_calories, get_calorie_breakdown
 from planner import meal_planner
 from db import db_manager
+from disease_detection import (
+    SYMPTOMS,
+    ScreeningInput,
+    available_conditions,
+    run_screening,
+)
+from disease_detection.pipeline import UnknownConditionError
 from exceptions import (
     AyurvedicPlannerError, ValidationError, ModelError,
     DoshaPredictionError, MealPlanGenerationError, DatabaseError
@@ -619,6 +626,78 @@ def calculate_calories():
     except Exception as e:
         logger.error(f"Calorie calculation failed: {e}")
         raise AyurvedicPlannerError(f"Calorie calculation failed: {e}")
+
+
+@app.route("/disease/conditions", methods=["GET"])
+@app.limiter.limit("60 per minute")
+def list_disease_conditions():
+    """Conditions the screening pipeline covers, plus the symptom vocabulary.
+
+    The frontend builds its screening form from this, so adding a condition or
+    a symptom on the backend does not need a matching frontend release.
+    """
+    try:
+        return jsonify(APIResponse(
+            success=True,
+            data={
+                "conditions": available_conditions(),
+                "symptoms": [
+                    {"key": key, "label": label} for key, label in SYMPTOMS.items()
+                ],
+            },
+            message="Disease detection metadata retrieved successfully"
+        ).dict())
+
+    except Exception as e:
+        logger.error(f"Failed to list disease conditions: {e}")
+        raise ModelError(f"Failed to list disease conditions: {e}")
+
+
+@app.route("/disease/screen", methods=["POST"])
+@app.limiter.limit("30 per minute")
+def screen_diseases():
+    """Run the maternal disease detection pipeline for one patient.
+
+    Body is a `ScreeningInput` payload, optionally with a `conditions` list to
+    restrict the run to a subset.
+    """
+    try:
+        if not request.is_json:
+            raise ValidationError("Content-Type must be application/json")
+
+        payload = dict(request.json or {})
+        conditions = payload.pop("conditions", None)
+        if conditions is not None and not isinstance(conditions, list):
+            raise ValidationError("'conditions' must be a list of condition keys")
+
+        try:
+            screening_input = ScreeningInput(**payload)
+        except ValidationError:
+            raise
+        except Exception as e:
+            raise ValidationError(f"Invalid screening input: {str(e)}")
+
+        try:
+            result = run_screening(screening_input, conditions)
+        except UnknownConditionError as e:
+            raise ValidationError(str(e))
+
+        logger.info(
+            f"Screening completed: overall={result.overall_risk_level.value}, "
+            f"top={result.highest_risk_condition}"
+        )
+
+        return jsonify(APIResponse(
+            success=True,
+            data=result.dict(),
+            message="Disease screening completed successfully"
+        ).dict())
+
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Disease screening failed: {e}")
+        raise ModelError(f"Disease screening failed: {e}")
 
 
 @app.route("/analytics", methods=["GET"])
