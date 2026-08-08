@@ -110,11 +110,15 @@ export interface ScreeningResult {
   disclaimer: string;
 }
 
+/** Who filled in the screening: the patient herself, or her clinician. */
+export type ScreeningAuthor = "patient" | "doctor";
+
 /** One stored screening run, as persisted in `disease_screenings`. */
 export interface StoredScreening {
   id: string;
   patientId: string;
-  doctorId: string;
+  doctorId: string | null;
+  submittedBy: ScreeningAuthor;
   createdAt: string;
   inputs: ScreeningInput;
   result: ScreeningResult;
