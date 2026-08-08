@@ -1101,7 +1101,7 @@ const PatientDashboard = () => {
                   <User className="w-4 h-4" /> Consult Doctor
                 </Button>
                 <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/lifestyle-tracker")}>
-                  <Heart className="w-4 h-4" /> Lifestyle Tracker
+                  <Heart className="w-4 h-4" /> Tracker
                 </Button>
               </CardContent>
             </Card>
