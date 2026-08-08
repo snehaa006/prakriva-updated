@@ -160,10 +160,12 @@ gets and the wording differ. Risk-level styling lives in `src/lib/riskLevels.ts`
 
 **Storage.** Screening runs are recorded in the `disease_screenings` Supabase
 table, tagged `submitted_by` = `patient` or `doctor`, so each side can reopen
-past results. Create the table with `supabase/disease_screenings.sql`; its RLS
-lets a patient file and read only her own checks, and a doctor read and file for
-patients they treat. Until the table exists the feature still works — results
-render normally and simply are not persisted.
+past results. The table is applied in the hosted project as the
+`disease_screenings` migration; `supabase/disease_screenings.sql` is its source,
+kept for recreating it in a fresh project. Its RLS lets a patient file and read
+only her own checks, and a doctor read and file for patients they treat. If the
+table is missing the feature still works — results render normally and simply
+are not persisted.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
