@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Accordion,
@@ -29,6 +31,7 @@ import {
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
 import {
+  AssessmentData,
   buildScreeningInputFromAssessment,
   emptyScreeningInput,
   heightCmFromAssessment,
@@ -65,6 +68,14 @@ const HealthRisks: React.FC = () => {
   const [isScreening, setIsScreening] = useState(false);
   const [activeTab, setActiveTab] = useState("check");
 
+  // Raw profile JSON, kept so the pregnancy setup can merge into it rather than
+  // overwrite it. The setup fields below let a patient open the check without
+  // going back to the whole onboarding questionnaire.
+  const [assessmentData, setAssessmentData] = useState<AssessmentData>(null);
+  const [setupDueDate, setSetupDueDate] = useState("");
+  const [setupHeightCm, setSetupHeightCm] = useState("");
+  const [savingSetup, setSavingSetup] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -85,9 +96,14 @@ const HealthRisks: React.FC = () => {
           .maybeSingle();
 
         if (cancelled) return;
-        setIsPregnant(isPregnantPatient(patient?.assessment_data));
-        setHeightCm(heightCmFromAssessment(patient?.assessment_data));
-        setForm(buildScreeningInputFromAssessment(patient?.assessment_data));
+        const assessment = (patient?.assessment_data as AssessmentData) ?? null;
+        setAssessmentData(assessment);
+        setIsPregnant(isPregnantPatient(assessment));
+        const existingHeight = heightCmFromAssessment(assessment);
+        setHeightCm(existingHeight);
+        if (existingHeight) setSetupHeightCm(String(existingHeight));
+        if (typeof assessment?.dueDate === "string") setSetupDueDate(assessment.dueDate);
+        setForm(buildScreeningInputFromAssessment(assessment));
 
         const stored = await fetchScreenings(user.id);
         if (cancelled) return;
@@ -114,6 +130,50 @@ const HealthRisks: React.FC = () => {
 
   const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  /**
+   * Record pregnancy (plus optional due date and height) straight from this
+   * page and open the check, merging into the existing profile so nothing else
+   * is lost. Saves the patient a trip back through the whole questionnaire.
+   */
+  const savePregnancySetup = async () => {
+    if (!patientId) return;
+    setSavingSetup(true);
+    try {
+      const height = Number(setupHeightCm);
+      const merged: Record<string, unknown> = {
+        ...(assessmentData ?? {}),
+        lifeStage: "pregnancy",
+        ...(setupDueDate ? { dueDate: setupDueDate } : {}),
+        ...(Number.isFinite(height) && height > 0 ? { heightCm: height } : {}),
+      };
+
+      const { error } = await supabase
+        .from("patients")
+        .update({ assessment_data: merged })
+        .eq("id", patientId);
+      if (error) throw new Error(error.message);
+
+      setAssessmentData(merged);
+      setHeightCm(heightCmFromAssessment(merged));
+      setForm(buildScreeningInputFromAssessment(merged));
+      setIsPregnant(true);
+      toast({
+        title: "Your health check is ready",
+        description: "Fill in your latest measurements to see your results.",
+      });
+    } catch (error) {
+      console.error("Could not save pregnancy details:", error);
+      toast({
+        title: "Could not save",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSetup(false);
+    }
+  };
 
   const runCheck = async () => {
     setIsScreening(true);
@@ -174,20 +234,71 @@ const HealthRisks: React.FC = () => {
 
   // The whole screening is pregnancy-specific — every score is calibrated on
   // maternal conditions, so offering it outside pregnancy would be misleading.
+  // Rather than a dead end, let her confirm she is pregnant (and capture the
+  // one-off details) right here so the check opens without re-doing onboarding.
   if (!isPregnant) {
     return (
       <div className="flex-1 p-6">
         <Card className="max-w-2xl mx-auto mt-12">
-          <CardContent className="p-12 text-center">
-            <Baby className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="text-xl font-semibold mb-2">
-              This health check is for pregnancy
-            </h3>
-            <p className="text-muted-foreground">
-              Every risk score here is specific to pregnancy. If you are pregnant,
-              update your life stage in your health questionnaire and this check
-              will appear.
-            </p>
+          <CardContent className="p-8">
+            <div className="text-center mb-6">
+              <Baby className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-60" />
+              <h3 className="text-xl font-semibold mb-2">
+                Set up your pregnancy health check
+              </h3>
+              <p className="text-muted-foreground">
+                Every risk score here is specific to pregnancy. If you are
+                pregnant, confirm below to open your health check. These details
+                are only asked once.
+              </p>
+            </div>
+
+            <div className="space-y-4 max-w-sm mx-auto">
+              <div className="space-y-1">
+                <Label htmlFor="setup-due-date">Estimated due date (optional)</Label>
+                <Input
+                  id="setup-due-date"
+                  type="date"
+                  value={setupDueDate}
+                  onChange={(e) => setSetupDueDate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used to work out how many weeks along you are.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="setup-height">Height in cm (optional)</Label>
+                <Input
+                  id="setup-height"
+                  type="number"
+                  min={100}
+                  max={220}
+                  placeholder="e.g. 160"
+                  value={setupHeightCm}
+                  onChange={(e) => setSetupHeightCm(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used with your weight to work out BMI.
+                </p>
+              </div>
+              <Button
+                onClick={savePregnancySetup}
+                disabled={savingSetup}
+                className="w-full gap-2"
+              >
+                {savingSetup ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Baby className="w-4 h-4" />
+                    Yes, I'm pregnant — start my health check
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

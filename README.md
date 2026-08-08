@@ -166,9 +166,10 @@ keys simply read as absent. Worth knowing:
 
 - Features gated on `lifeStage === "pregnancy"` — the patient Health Check page
   and the doctor's pregnant-patient list — read it from the onboarding
-  questionnaire. Profiles saved before life stage was collected won't see the
-  Health Check until the questionnaire is filled in again. See "Disease
-  detection" below.
+  questionnaire. If a profile predates life-stage capture, the Health Check page
+  shows an inline setup card (confirm pregnancy + optional due date/height) that
+  writes the value straight into `assessment_data`, so patients don't have to
+  re-do the whole questionnaire. See "Disease detection" below.
 - `buildScreeningInputFromAssessment` prefills age, gestational week (from
   `dueDate`), trimester and history; labs and today's measurements stay blank
   for the patient or doctor to enter.
