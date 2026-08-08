@@ -57,7 +57,9 @@ kitchen, and get a personalized diet plan.
   registry (`pipeline.py`). The `ml/` subpackage holds the XGBoost anaemia +
   pregnancy-risk models, their shared feature transform (`featurize.py`),
   inference (`inference.py`), detectors (`detectors.py`) and the training script
-  (`train_maternal_models.py`). See "Disease detection" below.
+  (`train_maternal_models.py`), plus the GDM logistic regression
+  (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`). See "Disease
+  detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,
@@ -196,10 +198,12 @@ Screens a pregnant patient for eight maternal risks — anaemia, an overall
 miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
 score, a low/moderate/high level, the factors that drove it, and next steps.
 
-Anaemia and pregnancy risk are scored by two **XGBoost models** (see "Maternal
-risk models" below); the remaining six use the rule-based scorers. Because every
-detector shares the same `(ScreeningInput) -> ConditionRisk` contract, the two
-kinds mix transparently and `ConditionRisk.detector` records which one answered.
+Three conditions are scored by trained models (see "Trained models" below) —
+anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a
+**logistic regression** — and the remaining five by the rule-based scorers.
+Because every detector shares the same `(ScreeningInput) -> ConditionRisk`
+contract, the two kinds mix transparently and `ConditionRisk.detector` records
+which one answered.
 
 The form is split across the two roles, because the two halves come from
 different places:
@@ -237,18 +241,19 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-Six conditions are scored by the rule-based analytics ported from the Neuviaa
+Five conditions are scored by the rule-based analytics ported from the Neuviaa
 prototype (`rules.py`), registered per condition through
-`pipeline.register_detector`. Anaemia and pregnancy risk are scored by the
-trained models in `disease_detection/ml/` (see below), which register over their
-rule-based baselines at import. A detector is any callable of
+`pipeline.register_detector`. Anaemia, pregnancy risk and gestational diabetes
+are scored by the trained models in `disease_detection/ml/` (see below), which
+register over their rule-based baselines at import. A detector is any callable of
 `(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
 reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
 records which one produced each result, which keeps a mixed run auditable.
 
-**Maternal risk models.** `backend/disease_detection/ml/` holds two XGBoost
-classifiers trained on a synthetic maternal-anaemia cohort
-(`backend/data/maternal_anemia_dataset.csv`):
+### Trained models
+
+**Maternal risk (XGBoost).** Two classifiers trained on a synthetic
+maternal-anaemia cohort (`backend/data/maternal_anemia_dataset.csv`):
 
 - **Anaemia status** — Normal / Mild / Moderate / Severe (essentially the WHO
   haemoglobin grading).
@@ -265,10 +270,52 @@ format alongside `model_schema.json`. Retrain them with:
 cd backend && python -m disease_detection.ml.train_maternal_models
 ```
 
-When a model needs an input it does not have (haemoglobin for anaemia;
-haemoglobin and blood pressure for pregnancy risk) the detector falls back to
-the rule-based baseline rather than scoring on imputed values. If XGBoost or the
-model files are absent, the whole pipeline runs on the rule-based baseline.
+**Gestational diabetes (logistic regression).** A class-balanced logistic
+regression trained on `backend/data/gdm_dataset.csv` (10,500 rows, ~17% GDM
+prevalence). It is a *pre-OGTT early screening* model: fasting glucose and the
+75g OGTT results are deliberately excluded from training, since those are the
+diagnostic test itself and would leak the target.
+
+It uses 15 features (`ml/gdm_featurize.py`), **12 of which the app already
+collects** and maps straight off `ScreeningInput` — age, BMI, blood pressure,
+pregnancies, prior GDM, family history, prior loss, prior macrosomia, PCOS,
+sedentary lifestyle, HbA1c. Only three fields were added for it:
+`known_prediabetes`, `hdl` and `triglycerides`. Three of the source notebook's
+18 features were dropped after checking the cost on held-out data
+(ROC-AUC 0.826 → 0.823):
+
+| Dropped | Why |
+|---|---|
+| `snp_genetic_risk_score` | A genetic score no patient can be expected to know; correlates only +0.067 with the outcome. |
+| `height_cm`, `weight_kg` | Fully redundant with `bmi`, which is derived from them — dropping both moved AUC by <0.0001. |
+
+Held-out performance: **ROC-AUC 0.823, recall 0.733** (recall matters most for
+a screening model, which is why the fit is class-balanced). Risk tiers follow
+the notebook's stratification table: low <35%, moderate 35–60%, high >60%.
+
+The model is stored as **plain JSON** (`gdm_model.json`: feature order, scaler
+mean/scale, coefficients, intercept, per-feature medians) rather than a pickle,
+and inference evaluates the sigmoid directly with numpy. This means it carries
+no scikit-learn version coupling — the notebook's pickle was written with 1.6.1
+while this repo pins 1.7.2, the same drift hazard `CLAUDE.md` flags for
+`dosha_model.pkl` — and the scaler cannot go missing, because it travels in the
+same file as the coefficients it belongs to. The training script asserts the
+hand-rolled sigmoid reproduces `predict_proba` exactly. Retrain with:
+
+```
+cd backend && python -m disease_detection.ml.train_gdm_model
+```
+
+Missing optional labs (HbA1c, HDL, triglycerides) are imputed with the training
+median, and the result says which ones were estimated so a score built partly on
+population averages is never mistaken for one built on the patient's own
+results.
+
+**Fallbacks.** When a model needs an input it does not have — haemoglobin for
+anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM — the
+detector falls back to the rule-based baseline rather than scoring on imputed
+values. If XGBoost or the model files are absent, the whole pipeline runs on the
+rule-based baseline.
 
 **Frontend layout.** The form sections
 (`src/components/health/ScreeningFields.tsx`) and the results rendering

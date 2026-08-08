@@ -26,6 +26,8 @@ export const MEASUREMENT_RANGES = {
   bp_systolic: { label: "Systolic BP", min: 60, max: 300, unit: "mmHg" },
   bp_diastolic: { label: "Diastolic BP", min: 30, max: 200, unit: "mmHg" },
   hemoglobin: { label: "Haemoglobin", min: 0, max: 25, unit: "g/dL" },
+  hdl: { label: "HDL cholesterol", min: 0, max: 200, unit: "mg/dL" },
+  triglycerides: { label: "Triglycerides", min: 0, max: 2000, unit: "mg/dL" },
 } as const satisfies Record<string, FieldRange>;
 
 export type MeasurementField = keyof typeof MEASUREMENT_RANGES;

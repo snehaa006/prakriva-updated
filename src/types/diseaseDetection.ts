@@ -59,6 +59,7 @@ export interface ScreeningInput {
   previous_complications: boolean;
   previous_uti: boolean;
   gestational_diabetes_previous: boolean;
+  known_prediabetes: boolean;
   unexplained_prenatal_loss: boolean;
   large_baby_previous: boolean;
   history_depression: boolean;
@@ -87,6 +88,9 @@ export interface ScreeningInput {
   hemoglobin?: number | null;
   hba1c?: number | null;
   ogtt_1hr?: number | null;
+  /** Lipids — used by the GDM early-screening model. */
+  hdl?: number | null;
+  triglycerides?: number | null;
   urine_wbc?: number | null;
   urine_nitrite: Ternary;
   tsh?: number | null;

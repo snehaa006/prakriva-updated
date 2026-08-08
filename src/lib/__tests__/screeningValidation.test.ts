@@ -17,6 +17,8 @@ describe("MEASUREMENT_RANGES", () => {
     expect(MEASUREMENT_RANGES.bp_systolic).toMatchObject({ min: 60, max: 300 });
     expect(MEASUREMENT_RANGES.bp_diastolic).toMatchObject({ min: 30, max: 200 });
     expect(MEASUREMENT_RANGES.hemoglobin).toMatchObject({ min: 0, max: 25 });
+    expect(MEASUREMENT_RANGES.hdl).toMatchObject({ min: 0, max: 200 });
+    expect(MEASUREMENT_RANGES.triglycerides).toMatchObject({ min: 0, max: 2000 });
   });
 });
 

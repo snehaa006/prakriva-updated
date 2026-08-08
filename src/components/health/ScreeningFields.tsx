@@ -429,6 +429,12 @@ export const HistorySection: React.FC<SectionProps> = ({ form, update }) => (
       onChange={(v) => update("gestational_diabetes_previous", v)}
     />
     <BoolField
+      id="known_prediabetes"
+      label="Known prediabetes"
+      checked={form.known_prediabetes}
+      onChange={(v) => update("known_prediabetes", v)}
+    />
+    <BoolField
       id="large_baby_previous"
       label="Previous large baby"
       checked={form.large_baby_previous}
@@ -537,6 +543,20 @@ export const LabsSection: React.FC<SectionProps> = ({ form, update }) => (
       label="OGTT 1-hour (mg/dL)"
       value={form.ogtt_1hr}
       onChange={(v) => update("ogtt_1hr", v)}
+    />
+    <NumberField
+      id="hdl"
+      label="HDL cholesterol (mg/dL)"
+      value={form.hdl}
+      onChange={(v) => update("hdl", v)}
+      range={MEASUREMENT_RANGES.hdl}
+    />
+    <NumberField
+      id="triglycerides"
+      label="Triglycerides (mg/dL)"
+      value={form.triglycerides}
+      onChange={(v) => update("triglycerides", v)}
+      range={MEASUREMENT_RANGES.triglycerides}
     />
     <NumberField
       id="tsh"

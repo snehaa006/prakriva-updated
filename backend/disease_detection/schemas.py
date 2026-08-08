@@ -100,6 +100,9 @@ class ScreeningInput(BaseModel):
     previous_complications: bool = False
     previous_uti: bool = False
     gestational_diabetes_previous: bool = False
+    known_prediabetes: bool = Field(
+        False, description="Previously told she has prediabetes"
+    )
     unexplained_prenatal_loss: bool = False
     large_baby_previous: bool = False
     history_depression: bool = False
@@ -130,6 +133,11 @@ class ScreeningInput(BaseModel):
     hemoglobin: Optional[float] = Field(None, ge=0, le=25, description="g/dL")
     hba1c: Optional[float] = Field(None, ge=0, le=20, description="%")
     ogtt_1hr: Optional[float] = Field(None, ge=0, le=500, description="mg/dL")
+    # Lipids — used by the GDM early-screening model (ml/gdm_featurize.py).
+    hdl: Optional[float] = Field(None, ge=0, le=200, description="HDL, mg/dL")
+    triglycerides: Optional[float] = Field(
+        None, ge=0, le=2000, description="Triglycerides, mg/dL"
+    )
     urine_wbc: Optional[int] = Field(None, ge=0, le=5000)
     urine_nitrite: TernaryEnum = TernaryEnum.UNKNOWN
     tsh: Optional[float] = Field(None, ge=0, le=100, description="mIU/L")

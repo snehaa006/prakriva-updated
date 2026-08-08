@@ -305,6 +305,75 @@ class TestMLDetectors:
         # Falls back to the rule-based detector, not the model.
         assert anaemia.detector == "rules-v1"
 
+    def test_gdm_model_is_active(self):
+        from disease_detection import available_conditions
+
+        active = {c["condition"]: c["detector"] for c in available_conditions()}
+        assert active["gdm"] == "gdm-logreg-v1"
+
+    def test_gdm_separates_high_from_low_risk(self, healthy_input):
+        low = next(
+            c for c in run_screening(healthy_input).conditions if c.condition == "gdm"
+        )
+        high_input = healthy_input.model_copy(
+            update={
+                "age": 38,
+                "bmi": 34.0,
+                "gestational_diabetes_previous": True,
+                "known_prediabetes": True,
+                "family_history": True,
+                "pcos": True,
+                "hba1c": 6.0,
+            }
+        )
+        high = next(
+            c for c in run_screening(high_input).conditions if c.condition == "gdm"
+        )
+
+        assert high.score > low.score
+        assert high.risk_level == RiskLevel.HIGH
+        assert low.risk_level == RiskLevel.LOW
+
+    def test_gdm_flags_when_labs_were_imputed(self, healthy_input):
+        """A score built partly on population averages must say so."""
+        no_labs = healthy_input.model_copy(
+            update={"hba1c": None, "hdl": None, "triglycerides": None}
+        )
+        gdm = next(c for c in run_screening(no_labs).conditions if c.condition == "gdm")
+
+        assert set(gdm.details["imputed_features"]) == {
+            "hba1c_pct",
+            "hdl_mgdL",
+            "triglycerides_mgdL",
+        }
+        assert any("Estimated without" in r for r in gdm.reasons)
+
+    def test_gdm_never_reports_a_certainty(self, healthy_input):
+        """A saturated logistic must not read as a diagnosis."""
+        extreme = healthy_input.model_copy(
+            update={
+                "age": 45,
+                "bmi": 45.0,
+                "gestational_diabetes_previous": True,
+                "known_prediabetes": True,
+                "family_history": True,
+                "pcos": True,
+                "large_baby_previous": True,
+                "hba1c": 6.1,
+                "hdl": 20,
+                "triglycerides": 433,
+            }
+        )
+        gdm = next(c for c in run_screening(extreme).conditions if c.condition == "gdm")
+
+        assert not any("100%" in r for r in gdm.reasons)
+
+    def test_gdm_without_bmi_falls_back_to_rules(self, healthy_input):
+        inputs = healthy_input.model_copy(update={"bmi": None})
+        gdm = next(c for c in run_screening(inputs).conditions if c.condition == "gdm")
+
+        assert gdm.detector == "rules-v1"
+
 
 class TestEndpoints:
     def test_conditions_endpoint(self, client):
