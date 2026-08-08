@@ -113,6 +113,43 @@ a detector out) and the `/disease/*` endpoints.
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
 
+## Patient profile
+
+The profile is filled in once, at `/patient/questionnaire`
+(`src/pages/patient/Questionnaire.tsx`), and read back at `/patient/profile`
+(`src/pages/patient/PatientProfile.tsx`). Both use the same `assessment_data`
+JSON column on `patients`.
+
+**It asks only for things that do not change over time.** Anything that varies
+week to week belongs in the trackers, not in a one-off form, so it is
+deliberately not collected here. What the profile stores:
+
+| Group | Fields |
+|---|---|
+| Personal | `name`, `dob` (age is derived, never stored), `gender`, `location` |
+| Allergies & avoidances | `allergies`, `allergiesOther`, `foodAvoidances` |
+| Dietary pattern | `dietaryPreferences` |
+| Family history | `familyHistory`, `familyHistoryOther` |
+| Prakriti (fixed at birth) | `bodyFrame`, `skinType`, `hairType`, `appetitePattern`, `personalityTraits`, `weatherPreference` |
+| Notes | `additionalNotes` |
+
+Fields the profile no longer collects, because they change over time:
+`stressLevels`, `energyLevels`, `waterIntake`, `sleepDuration`,
+`physicalActivity`, `dailyRoutine`, `cravings`, `digestionIssues`,
+`currentConditions`, `medications`, `labReports`, `healthGoals`,
+`mealPrepTime`, `budgetPreference`, and the life-stage block (`lifeStage`,
+`pregnancyTrimester`, `isBreastfeeding`, `menopauseStage`).
+
+Readers of `assessment_data` treat it as free-form `jsonb` and read every field
+defensively, so profiles saved before this change keep working and the dropped
+keys simply read as absent. Two consequences worth knowing:
+
+- Features gated on `lifeStage === "pregnancy"` — the patient Health Check page
+  and the doctor's pregnant-patient list — no longer have a source for that
+  value from the profile. See "Disease detection" below.
+- `buildScreeningInputFromAssessment` prefills less of the screening form, so
+  the doctor enters more of it by hand.
+
 ## Disease detection
 
 Screens a pregnant patient for seven maternal conditions — anaemia, gestational
@@ -126,13 +163,18 @@ different places:
 - **Patient → Health Check** (`/patient/health-check`) — she reports her own
   symptoms, medical history and wellbeing scales (stress, sleep, mood, support,
   EPDS, PHQ-9), and sees her results immediately. No lab fields are asked for.
-  The page is only offered to patients whose questionnaire life stage is
-  `pregnancy`.
+  The page is only offered to patients whose stored `assessment_data` has a
+  life stage of `pregnancy`. **The profile questionnaire no longer asks for life
+  stage** (it is not a constant), so only profiles saved before that change
+  carry the value — new patients need life stage captured somewhere else before
+  this gate opens for them.
 - **Doctor → Disease Detection** (`/doctor/disease-detection`) — lists the
   doctor's accepted pregnant patients (the Patients page also links through per
   patient via "Risk Screening"). Selecting one loads her latest self-report into
   the form; the doctor adds the clinical measurements and lab panel and re-runs.
-  Without a self-report the form falls back to her onboarding questionnaire.
+  Without a self-report the form falls back to her profile, which since the
+  static-only change supplies age and family history but not the symptom,
+  condition or stress fields.
 
 Both roles see every run in a History tab, labelled by who submitted it.
 Laboratory fields left blank mean "not performed" — they never score as a normal

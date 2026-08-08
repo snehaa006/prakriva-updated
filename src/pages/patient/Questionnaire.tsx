@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   Leaf,
   User,
-  Sun,
   Apple,
   HeartPulse,
   Target,
@@ -16,6 +15,13 @@ import {
   Circle,
 } from "lucide-react";
 
+/**
+ * The profile questionnaire only collects traits that stay the same over time.
+ *
+ * Anything that shifts week to week — stress, energy, sleep, hydration,
+ * activity, cravings, current conditions, goals — is deliberately absent: it
+ * belongs to the trackers, not to a one-off profile.
+ */
 interface FormData {
   // Personal Information
   name: string;
@@ -23,40 +29,19 @@ interface FormData {
   gender: string;
   location: string;
 
-  // Life Stage & Reproductive Health
-  lifeStage: string;
-  pregnancyTrimester: string;
-  isBreastfeeding: string;
-  menopauseStage: string;
-
   // Allergies & Food Avoidances
   allergies: string[];
   allergiesOther: string;
   foodAvoidances: string;
 
-  // Lifestyle & Habits
-  dailyRoutine: string;
-  physicalActivity: string;
-  sleepDuration: string;
-  waterIntake: number;
-
-  // Dietary Habits
+  // Long-standing dietary pattern
   dietaryPreferences: string;
-  cravings: string[];
-  cravingsOther: string;
-  digestionIssues: string[];
 
-  // Health & Wellness
-  currentConditions: string[];
-  currentConditionsOther: string;
+  // Family History
   familyHistory: string[];
   familyHistoryOther: string;
-  medications: string;
-  labReports: string;
-  energyLevels: number;
-  stressLevels: number;
 
-  // Ayurvedic Constitutional Assessment
+  // Ayurvedic Constitutional Assessment (Prakriti — fixed at birth)
   bodyFrame: string;
   skinType: string;
   hairType: string;
@@ -64,11 +49,6 @@ interface FormData {
   personalityTraits: string[];
   weatherPreference: string;
 
-  // Goals & Preferences
-  healthGoals: string[];
-  healthGoalsOther: string;
-  mealPrepTime: string;
-  budgetPreference: string;
   additionalNotes: string;
 }
 
@@ -81,62 +61,30 @@ const AyurvedicHealthAssessment: React.FC = () => {
     dob: "",
     gender: "",
     location: "",
-    lifeStage: "not_applicable",
-    pregnancyTrimester: "",
-    isBreastfeeding: "",
-    menopauseStage: "",
     allergies: [],
     allergiesOther: "",
     foodAvoidances: "",
-    dailyRoutine: "",
-    physicalActivity: "",
-    sleepDuration: "",
-    waterIntake: 2,
     dietaryPreferences: "",
-    cravings: [],
-    cravingsOther: "",
-    digestionIssues: [],
-    currentConditions: [],
-    currentConditionsOther: "",
     familyHistory: [],
     familyHistoryOther: "",
-    medications: "",
-    labReports: "",
-    energyLevels: 3,
-    stressLevels: 3,
     bodyFrame: "",
     skinType: "",
     hairType: "",
     appetitePattern: "",
     personalityTraits: [],
     weatherPreference: "",
-    healthGoals: [],
-    healthGoalsOther: "",
-    mealPrepTime: "",
-    budgetPreference: "",
     additionalNotes: "",
   });
 
   const [showModal, setShowModal] = useState(false);
-  const [waterValue, setWaterValue] = useState("2.0L");
 
   const handleInputChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
-    const { name, value, type } = e.target;
-
-    if (type === "range") {
-      const numValue = parseFloat(value);
-      setFormData((prev) => ({ ...prev, [name]: numValue }));
-
-      if (name === "waterIntake") {
-        setWaterValue(`${value}L`);
-      }
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleCheckboxChange = (name: keyof FormData, value: string) => {
@@ -170,13 +118,6 @@ const AyurvedicHealthAssessment: React.FC = () => {
         return { ...prev, [name]: newArray };
       }
     });
-  };
-
-  const handleSingleCheckbox = (name: keyof FormData, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: prev[name] === value ? "" : value,
-    }));
   };
 
   const handleRadioChange = (name: keyof FormData, value: string) => {
@@ -282,20 +223,16 @@ const AyurvedicHealthAssessment: React.FC = () => {
     name: keyof FormData;
     options: RadioOption[];
     mutualExclusive?: boolean;
-    singleSelect?: boolean;
     className?: string;
   }> = ({
     name,
     options,
     mutualExclusive = false,
-    singleSelect = false,
     className = "grid grid-cols-2 md:grid-cols-3 gap-2",
   }) => (
     <div className={className}>
       {options.map((option) => {
-        const isChecked = singleSelect
-          ? formData[name] === option.value
-          : (formData[name] as string[]).includes(option.value);
+        const isChecked = (formData[name] as string[]).includes(option.value);
 
         return (
           <label
@@ -306,9 +243,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
               type="checkbox"
               checked={isChecked}
               onChange={() => {
-                if (singleSelect) {
-                  handleSingleCheckbox(name, option.value);
-                } else if (mutualExclusive) {
+                if (mutualExclusive) {
                   handleMutualExclusiveCheckbox(name, option.value);
                 } else {
                   handleCheckboxChange(name, option.value);
@@ -347,8 +282,10 @@ const AyurvedicHealthAssessment: React.FC = () => {
             </h1>
           </div>
           <p className="text-lg text-gray-600">
-            Complete this assessment to receive a customized diet and lifestyle
-            plan based on your unique constitution (Prakriti).
+            This is a one-time profile, so we only ask for the things about you
+            that stay the same — your constitution (Prakriti), allergies and
+            family history. Day-to-day things like sleep, stress and hydration
+            are recorded in your trackers instead.
           </p>
         </header>
 
@@ -424,81 +361,6 @@ const AyurvedicHealthAssessment: React.FC = () => {
             </div>
           </div>
 
-          {/* Life Stage & Reproductive Health */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <HeartPulse className="w-6 h-6 text-green-700" />
-              <h2 className="text-xl font-semibold text-gray-800">
-                Life Stage & Reproductive Health
-              </h2>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current life stage
-                </label>
-                <RadioGroup
-                  name="lifeStage"
-                  options={[
-                    { value: "not_applicable", label: "Not Applicable" },
-                    { value: "pregnancy", label: "Pregnancy" },
-                    { value: "postpartum", label: "Postpartum" },
-                    { value: "menopause", label: "Menopause" },
-                  ]}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-2"
-                />
-              </div>
-
-              {formData.lifeStage === "pregnancy" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pregnancy trimester
-                  </label>
-                  <RadioGroup
-                    name="pregnancyTrimester"
-                    options={[
-                      { value: "first", label: "1st Trimester (1-12 weeks)" },
-                      { value: "second", label: "2nd Trimester (13-26 weeks)" },
-                      { value: "third", label: "3rd Trimester (27-40 weeks)" },
-                    ]}
-                  />
-                </div>
-              )}
-
-              {formData.lifeStage === "postpartum" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Are you currently breastfeeding?
-                  </label>
-                  <RadioGroup
-                    name="isBreastfeeding"
-                    options={[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                    ]}
-                  />
-                </div>
-              )}
-
-              {formData.lifeStage === "menopause" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Menopause stage
-                  </label>
-                  <RadioGroup
-                    name="menopauseStage"
-                    options={[
-                      { value: "perimenopause", label: "Perimenopause" },
-                      { value: "menopause", label: "Menopause" },
-                      { value: "postmenopause", label: "Postmenopause" },
-                    ]}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Allergies & Food Avoidances */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
@@ -556,205 +418,44 @@ const AyurvedicHealthAssessment: React.FC = () => {
             </div>
           </div>
 
-          {/* Lifestyle & Habits */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <Sun className="w-6 h-6 text-green-700" />
-              <h2 className="text-xl font-semibold text-gray-800">
-                Lifestyle & Habits
-              </h2>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Daily routine (wake/sleep times)
-                </label>
-                <textarea
-                  name="dailyRoutine"
-                  value={formData.dailyRoutine}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="E.g., Wake up at 6 AM, sleep by 10 PM"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Physical activity
-                </label>
-                <RadioGroup
-                  name="physicalActivity"
-                  options={[
-                    { value: "sedentary", label: "Sedentary" },
-                    { value: "light", label: "Light (e.g., walking)" },
-                    {
-                      value: "moderate",
-                      label: "Moderate (e.g., jogging, yoga)",
-                    },
-                    { value: "active", label: "Active (e.g., heavy exercise)" },
-                  ]}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Typical sleep duration
-                </label>
-                <CheckboxGroup
-                  name="sleepDuration"
-                  options={[
-                    { value: "<6h", label: "Less than 6h" },
-                    { value: "6-8h", label: "6-8 hours" },
-                    { value: ">8h", label: "More than 8h" },
-                  ]}
-                  singleSelect
-                  className="flex space-x-4"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Water intake
-                </label>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="range"
-                    name="waterIntake"
-                    min="0.5"
-                    max="5"
-                    step="0.5"
-                    value={formData.waterIntake}
-                    onChange={handleInputChange}
-                    className="w-full"
-                  />
-                  <span className="text-sm text-gray-600 font-medium whitespace-nowrap">
-                    {waterValue}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Dietary Habits */}
+          {/* Dietary Pattern */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
               <Apple className="w-6 h-6 text-green-700" />
               <h2 className="text-xl font-semibold text-gray-800">
-                Dietary Habits
+                Dietary Pattern
               </h2>
             </div>
 
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dietary preferences
-                </label>
-                <RadioGroup
-                  name="dietaryPreferences"
-                  options={[
-                    { value: "vegetarian", label: "Vegetarian" },
-                    { value: "vegan", label: "Vegan" },
-                    { value: "non-vegetarian", label: "Non-vegetarian" },
-                    { value: "other", label: "Other" },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Common food cravings
-                </label>
-                <CheckboxGroup
-                  name="cravings"
-                  options={[
-                    { value: "sweet", label: "Sweet" },
-                    { value: "salty", label: "Salty" },
-                    { value: "spicy", label: "Spicy" },
-                    { value: "sour", label: "Sour" },
-                    { value: "bitter", label: "Bitter" },
-                    { value: "oily", label: "Oily/Fried" },
-                  ]}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-2"
-                />
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    name="cravingsOther"
-                    value={formData.cravingsOther}
-                    onChange={handleInputChange}
-                    placeholder="Other cravings..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Digestive issues
-                </label>
-                <CheckboxGroup
-                  name="digestionIssues"
-                  options={[
-                    { value: "bloating", label: "Bloating" },
-                    { value: "gas", label: "Gas" },
-                    { value: "acidity", label: "Acidity/Heartburn" },
-                    { value: "constipation", label: "Constipation" },
-                    {
-                      value: "irregular-bowels",
-                      label: "Irregular bowel movements",
-                    },
-                    { value: "none", label: "None" },
-                  ]}
-                  mutualExclusive
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dietary preference
+              </label>
+              <RadioGroup
+                name="dietaryPreferences"
+                options={[
+                  { value: "vegetarian", label: "Vegetarian" },
+                  { value: "vegan", label: "Vegan" },
+                  { value: "non-vegetarian", label: "Non-vegetarian" },
+                  { value: "other", label: "Other" },
+                ]}
+              />
             </div>
           </div>
 
-          {/* Health & Wellness */}
+          {/* Family History */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
               <HeartPulse className="w-6 h-6 text-green-700" />
               <h2 className="text-xl font-semibold text-gray-800">
-                Health & Wellness
+                Family History
               </h2>
             </div>
 
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current health conditions
-                </label>
-                <CheckboxGroup
-                  name="currentConditions"
-                  options={[
-                    { value: "diabetes", label: "Diabetes" },
-                    { value: "hypertension", label: "Hypertension" },
-                    { value: "arthritis", label: "Arthritis" },
-                    { value: "pcos", label: "PCOS" },
-                    { value: "autoimmune", label: "Autoimmune disorders" },
-                    { value: "none", label: "None" },
-                  ]}
-                  mutualExclusive
-                />
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    name="currentConditionsOther"
-                    value={formData.currentConditionsOther}
-                    onChange={handleInputChange}
-                    placeholder="Other conditions..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Family history
+                  Conditions that run in your family
                 </label>
                 <CheckboxGroup
                   name="familyHistory"
@@ -778,81 +479,6 @@ const AyurvedicHealthAssessment: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current medications/supplements
-                  </label>
-                  <textarea
-                    name="medications"
-                    value={formData.medications}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="List current medications and supplements..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Recent lab reports/health checkups
-                  </label>
-                  <textarea
-                    name="labReports"
-                    value={formData.labReports}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Recent blood tests, health indicators..."
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Energy levels throughout the day
-                </label>
-                <div className="px-2">
-                  <input
-                    type="range"
-                    name="energyLevels"
-                    min="1"
-                    max="5"
-                    step="1"
-                    value={formData.energyLevels}
-                    onChange={handleInputChange}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-gray-500 mt-1">
-                    <span>Very Low</span>
-                    <span>Moderate</span>
-                    <span>Very High</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stress levels
-                </label>
-                <div className="px-2">
-                  <input
-                    type="range"
-                    name="stressLevels"
-                    min="1"
-                    max="5"
-                    step="1"
-                    value={formData.stressLevels}
-                    onChange={handleInputChange}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-gray-500 mt-1">
-                    <span>Low</span>
-                    <span>Moderate</span>
-                    <span>High</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -958,87 +584,27 @@ const AyurvedicHealthAssessment: React.FC = () => {
             </div>
           </div>
 
-          {/* Goals & Preferences */}
+          {/* Additional Notes */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
               <Target className="w-6 h-6 text-green-700" />
               <h2 className="text-xl font-semibold text-gray-800">
-                Goals & Preferences
+                Additional Notes
               </h2>
             </div>
 
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Primary health goals
-                </label>
-                <CheckboxGroup
-                  name="healthGoals"
-                  options={[
-                    { value: "weight-loss", label: "Weight loss" },
-                    { value: "weight-gain", label: "Weight gain" },
-                    { value: "digestive-health", label: "Digestive health" },
-                    { value: "energy-boost", label: "Energy boost" },
-                    { value: "stress-management", label: "Stress management" },
-                    { value: "skin-health", label: "Skin health" },
-                    { value: "immunity", label: "Immunity boost" },
-                    { value: "sleep-quality", label: "Sleep quality" },
-                    { value: "overall-wellness", label: "Overall wellness" },
-                  ]}
-                />
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    name="healthGoalsOther"
-                    value={formData.healthGoalsOther}
-                    onChange={handleInputChange}
-                    placeholder="Other goals..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Meal preparation time
-                </label>
-                <RadioGroup
-                  name="mealPrepTime"
-                  options={[
-                    { value: "quick", label: "Quick (15-30 min)" },
-                    { value: "moderate", label: "Moderate (30-60 min)" },
-                    { value: "elaborate", label: "Elaborate (60+ min)" },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Budget preference
-                </label>
-                <RadioGroup
-                  name="budgetPreference"
-                  options={[
-                    { value: "economical", label: "Economical" },
-                    { value: "moderate", label: "Moderate" },
-                    { value: "premium", label: "Premium ingredients okay" },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional preferences/notes
-                </label>
-                <textarea
-                  name="additionalNotes"
-                  value={formData.additionalNotes}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-500 focus:border-transparent"
-                  placeholder="Any food allergies, preferences, or additional information you'd like to share..."
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Anything else that is always true about you
+              </label>
+              <textarea
+                name="additionalNotes"
+                value={formData.additionalNotes}
+                onChange={handleInputChange}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="Long-standing intolerances, cultural food practices, anything a practitioner should always know..."
+              />
             </div>
           </div>
 
