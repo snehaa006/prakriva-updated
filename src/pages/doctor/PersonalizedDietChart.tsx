@@ -88,14 +88,60 @@ import {
   getInstructionsByRecipeId,
   type RecipeBasic,
 } from "@/services/foodoscopeApi";
+import { PatientPicker } from "@/components/patients/PatientPicker";
+import type { DoctorPatient } from "@/hooks/useDoctorPatients";
+import { usePersistentState } from "@/hooks/usePersistentState";
+import { CACHE_KEYS } from "@/lib/localCache";
 
 // ==================== TYPES ====================
 
-interface PatientListItem {
-  firebaseId: string;
-  customPatientId: string;
-  patientName: string;
-  fullPatientProfile: Record<string, unknown>;
+/** What we keep about the chosen patient — the UUID is what the database wants. */
+interface SelectedPatient {
+  id: string;
+  code: string;
+  name: string;
+  profile: PatientProfile;
+}
+
+/** Flatten a doctor's patient record into the profile the generator expects. */
+function toPatientProfile(patient: DoctorPatient): PatientProfile {
+  const raw = patient.profile;
+  const assessment = (raw.assessmentData || {}) as Record<string, unknown>;
+  const merged = { ...raw, ...assessment };
+
+  return {
+    name: (merged.name as string) || patient.name,
+    gender: (merged.gender as string) || "",
+    dob: (merged.dob as string) || (merged.dateOfBirth as string) || "",
+    lifeStage: ((merged.lifeStage as string) as LifeStage) || "not_applicable",
+    pregnancyTrimester: (merged.pregnancyTrimester as string) || "",
+    isBreastfeeding: (merged.isBreastfeeding as string) || "",
+    menopauseStage: (merged.menopauseStage as string) || "",
+    allergies: Array.isArray(merged.allergies) ? (merged.allergies as string[]) : [],
+    allergiesOther: (merged.allergiesOther as string) || "",
+    foodAvoidances: (merged.foodAvoidances as string) || "",
+    dietaryPreferences:
+      (merged.dietaryPreferences as string) || (merged.dietaryPreference as string) || "",
+    currentConditions: Array.isArray(merged.currentConditions)
+      ? (merged.currentConditions as string[])
+      : [],
+    healthGoals: Array.isArray(merged.healthGoals) ? (merged.healthGoals as string[]) : [],
+    bodyFrame: (merged.bodyFrame as string) || "",
+    skinType: (merged.skinType as string) || "",
+    hairType: (merged.hairType as string) || "",
+    appetitePattern: (merged.appetitePattern as string) || "",
+    personalityTraits: Array.isArray(merged.personalityTraits)
+      ? (merged.personalityTraits as string[])
+      : [],
+    weatherPreference: (merged.weatherPreference as string) || "",
+    digestionIssues: Array.isArray(merged.digestionIssues)
+      ? (merged.digestionIssues as string[])
+      : [],
+    energyLevels: Number(merged.energyLevels) || 3,
+    stressLevels: Number(merged.stressLevels) || 3,
+    physicalActivity: (merged.physicalActivity as string) || "",
+    sleepDuration: (merged.sleepDuration as string) || "",
+  };
 }
 
 interface RecipeDetail {
@@ -266,14 +312,27 @@ const PersonalizedDietChart: React.FC = () => {
   const navigate = useNavigate();
 
   // --- State ---
-  const [patientId, setPatientId] = useState("");
-  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
-  const [patientList, setPatientList] = useState<PatientListItem[]>([]);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(false);
+  // `patientId` is the patients.id UUID that every table keys on. The P001
+  // style code is display-only (`patientCode`) — writing it to diet_plans is
+  // what used to make every save fail.
+  const [selection, setSelection] = usePersistentState<SelectedPatient | null>(
+    CACHE_KEYS.dietChartDraft + ":patient",
+    null
+  );
+  const patientId = selection?.id ?? "";
+  const patientCode = selection?.code ?? "";
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(
+    selection?.profile ?? null
+  );
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   const [numDays, setNumDays] = useState(7);
-  const [dietChart, setDietChart] = useState<GeneratedDietChart | null>(null);
+  // A generated chart costs a long series of rate-limited API calls, so it is
+  // cached — a refresh mid-review no longer throws the work away.
+  const [dietChart, setDietChart] = usePersistentState<GeneratedDietChart | null>(
+    CACHE_KEYS.dietChartDraft + ":chart",
+    null
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
@@ -291,119 +350,25 @@ const PersonalizedDietChart: React.FC = () => {
 
   const [activeDay, setActiveDay] = useState(0);
 
-  // --- Auto-fetch patients on mount ---
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  // --- Fetch patient list ---
-  const fetchPatients = useCallback(async () => {
-    const { data: authData } = await supabase.auth.getUser();
-    const currentUser = authData.user;
-    if (!currentUser) return;
-
-    setIsLoadingPatients(true);
-    try {
-      // Joined select: accepted requests plus each patient row in one trip.
-      const { data: rows, error } = await supabase
-        .from("consultation_requests")
-        .select(`
-          patient_id, patient_name, full_patient_profile,
-          patients ( patient_code, name, assessment_data )
-        `)
-        .eq("doctor_id", currentUser.id)
-        .eq("status", "accepted");
-
-      if (error) throw error;
-
-      const patients: PatientListItem[] = (rows ?? []).map((data: any) => {
-        let profile = data.full_patient_profile || { name: data.patient_name || "Unknown" };
-
-        const pd = data.patients;
-        if (pd) {
-          profile = {
-            ...profile,
-            patientId: pd.patient_code || data.patient_id,
-            name: pd.name || profile.name,
-            assessmentData: pd.assessment_data || profile.assessmentData,
-            ...(pd.assessment_data && { gender: pd.assessment_data.gender || profile.gender }),
-          };
-        }
-
-        return {
-          firebaseId: data.patient_id,
-          customPatientId: profile.patientId || data.patient_id,
-          patientName: data.patient_name || profile.name || "Unknown",
-          fullPatientProfile: profile,
-        };
-      });
-
-      setPatientList(patients);
-    } catch (err) {
-      console.error("Error fetching patients:", err);
-    } finally {
-      setIsLoadingPatients(false);
-    }
-  }, []);
-
-  // --- Load patient profile ---
-  const loadPatientProfile = useCallback(
-    async (selectedId: string) => {
-      if (!selectedId) return;
-      setIsLoadingProfile(true);
-      setPatientProfile(null);
+  // --- Patient selection (restricted to this doctor's own patients) ---
+  const handlePatientSelect = useCallback(
+    (patient: DoctorPatient | null) => {
       setDietChart(null);
       setSavedPlanId(null);
       setSavedStatus(null);
+      setActiveDay(0);
 
+      if (!patient) {
+        setSelection(null);
+        setPatientProfile(null);
+        return;
+      }
+
+      setIsLoadingProfile(true);
       try {
-        let found = patientList.find(
-          (p) => p.customPatientId === selectedId || p.firebaseId === selectedId
-        );
-        if (!found) {
-          await fetchPatients();
-          found = patientList.find(
-            (p) => p.customPatientId === selectedId || p.firebaseId === selectedId
-          );
-        }
-        if (!found) {
-          toast.error("Patient not found in accepted consultations.");
-          return;
-        }
-
-        const raw = found.fullPatientProfile as Record<string, unknown>;
-        const assessment = (raw.assessmentData || {}) as Record<string, unknown>;
-        const merged = { ...raw, ...assessment };
-
-        const profile: PatientProfile = {
-          name: (merged.name as string) || found.patientName,
-          gender: (merged.gender as string) || "",
-          dob: (merged.dob as string) || (merged.dateOfBirth as string) || "",
-          lifeStage: ((merged.lifeStage as string) as LifeStage) || "not_applicable",
-          pregnancyTrimester: (merged.pregnancyTrimester as string) || "",
-          isBreastfeeding: (merged.isBreastfeeding as string) || "",
-          menopauseStage: (merged.menopauseStage as string) || "",
-          allergies: Array.isArray(merged.allergies) ? (merged.allergies as string[]) : [],
-          allergiesOther: (merged.allergiesOther as string) || "",
-          foodAvoidances: (merged.foodAvoidances as string) || "",
-          dietaryPreferences: (merged.dietaryPreferences as string) || (merged.dietaryPreference as string) || "",
-          currentConditions: Array.isArray(merged.currentConditions) ? (merged.currentConditions as string[]) : [],
-          healthGoals: Array.isArray(merged.healthGoals) ? (merged.healthGoals as string[]) : [],
-          bodyFrame: (merged.bodyFrame as string) || "",
-          skinType: (merged.skinType as string) || "",
-          hairType: (merged.hairType as string) || "",
-          appetitePattern: (merged.appetitePattern as string) || "",
-          personalityTraits: Array.isArray(merged.personalityTraits) ? (merged.personalityTraits as string[]) : [],
-          weatherPreference: (merged.weatherPreference as string) || "",
-          digestionIssues: Array.isArray(merged.digestionIssues) ? (merged.digestionIssues as string[]) : [],
-          energyLevels: Number(merged.energyLevels) || 3,
-          stressLevels: Number(merged.stressLevels) || 3,
-          physicalActivity: (merged.physicalActivity as string) || "",
-          sleepDuration: (merged.sleepDuration as string) || "",
-        };
-
+        const profile = toPatientProfile(patient);
         setPatientProfile(profile);
-        setPatientId(selectedId);
+        setSelection({ id: patient.id, code: patient.code, name: patient.name, profile });
         toast.success(`Profile loaded: ${profile.name}`);
       } catch (err) {
         console.error("Error loading patient profile:", err);
@@ -412,7 +377,7 @@ const PersonalizedDietChart: React.FC = () => {
         setIsLoadingProfile(false);
       }
     },
-    [patientList, fetchPatients]
+    [setDietChart, setSelection]
   );
 
   // --- Generate ---
@@ -437,7 +402,7 @@ const PersonalizedDietChart: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [patientProfile, numDays]);
+  }, [patientProfile, numDays, setDietChart]);
 
   // --- View recipe ---
   const handleViewRecipe = useCallback(async (recipe: RecipeBasic) => {
@@ -503,10 +468,15 @@ const PersonalizedDietChart: React.FC = () => {
 
   // --- Save ---
   const handleSave = useCallback(async (status: "draft" | "final") => {
-    if (!dietChart || !patientId) return;
+    if (!dietChart) return;
+    if (!patientId) {
+      toast.error("Select a patient before saving.");
+      return;
+    }
     setIsSaving(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
+      const doctorId = authData.user?.id ?? null;
 
       const days = dietChart.days.map((day) => ({
           dayNumber: day.dayNumber,
@@ -535,12 +505,16 @@ const PersonalizedDietChart: React.FC = () => {
       }));
 
       const planData = {
+        // Must be the patients.id UUID — diet_plans.patient_id is a uuid FK and
+        // the RLS check is `doctor_treats(patient_id)`. Passing the P001-style
+        // code here is what made every save fail.
         patient_id: patientId,
         patient_name: dietChart.patientName,
         plan_duration: `${numDays} days`,
         plan_type: "personalized-diet-chart",
         status,
-        created_by: authData.user?.id ?? null,
+        created_by: doctorId,
+        doctor_id: doctorId,
         source: "personalized-diet-chart",
         primary_dosha: dietChart.primaryDosha,
         dosha_scores: dietChart.doshaScores,
@@ -569,7 +543,13 @@ const PersonalizedDietChart: React.FC = () => {
       toast.success(status === "final" ? "Diet chart approved and saved." : "Draft saved. You can edit it in Recipe Builder.");
     } catch (err) {
       console.error("Error saving diet chart:", err);
-      toast.error("Failed to save. Please try again.");
+      // Surface the real reason (RLS rejection, bad column, …) instead of a
+      // generic message that hides why nothing was written.
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Please try again.";
+      toast.error(`Failed to save: ${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -638,45 +618,30 @@ const PersonalizedDietChart: React.FC = () => {
           <CardDescription>Select a patient from your accepted consultations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-3 items-end">
-            <div className="flex-1 max-w-xs">
-              <Label className="text-xs text-gray-500 uppercase tracking-wide">Patient ID</Label>
-              <Input
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                placeholder="e.g., P001"
-                className="mt-1"
-              />
-            </div>
-            <Button
-              onClick={() => loadPatientProfile(patientId.trim())}
-              disabled={!patientId.trim() || isLoadingProfile}
-              size="sm"
-            >
-              {isLoadingProfile ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Search className="w-4 h-4 mr-1.5" />}
-              Load
-            </Button>
-            <Button variant="ghost" size="sm" onClick={fetchPatients} disabled={isLoadingPatients}>
-              <RefreshCw className={`w-4 h-4 ${isLoadingPatients ? "animate-spin" : ""}`} />
-            </Button>
+          <div className="max-w-md">
+            <PatientPicker
+              value={patientId}
+              onSelect={handlePatientSelect}
+              label="Patient"
+              placeholder="Search your patients by name or ID…"
+            />
           </div>
 
-          {patientList.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {patientList.map((p) => (
-                <button
-                  key={p.firebaseId}
-                  onClick={() => { setPatientId(p.customPatientId); loadPatientProfile(p.customPatientId); }}
-                  className={`
-                    px-3 py-1.5 rounded-full text-xs font-medium transition-all border
-                    ${patientId === p.customPatientId
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}
-                  `}
-                >
-                  {p.patientName} ({p.customPatientId})
-                </button>
-              ))}
+          {isLoadingProfile && (
+            <p className="flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Loading profile…
+            </p>
+          )}
+
+          {selection && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {selection.name}
+              </Badge>
+              <Badge variant="secondary" className="text-xs font-mono">
+                {patientCode}
+              </Badge>
             </div>
           )}
         </CardContent>
