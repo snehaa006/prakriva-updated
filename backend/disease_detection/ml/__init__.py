@@ -17,6 +17,7 @@ def register_ml_detectors(replace: bool = True) -> bool:
     try:
         from .detectors import (
             detect_anaemia_ml,
+            detect_gdm_ml,
             detect_pregnancy_risk_ml,
         )
         from .inference import warm_up
@@ -28,6 +29,7 @@ def register_ml_detectors(replace: bool = True) -> bool:
 
         register_detector("anaemia", detect_anaemia_ml, replace=replace)
         register_detector("pregnancy_risk", detect_pregnancy_risk_ml, replace=replace)
+        register_detector("gdm", detect_gdm_ml, replace=replace)
         return True
     except Exception as exc:  # noqa: BLE001 - fall back to rules on any failure
         try:

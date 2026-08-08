@@ -11,6 +11,7 @@
 // from the cache rather than erroring.
 
 import { supabase } from "@/lib/supabase";
+import { CACHE_KEYS, readCache, writeCache } from "@/lib/localCache";
 import {
   DEFAULT_WATER_GOAL,
   type LifestyleDayLog,
@@ -23,16 +24,7 @@ const MISSING_TABLE_CODES = ["42P01", "PGRST205", "PGRST106"];
 const isMissingTable = (error: { code?: string } | null) =>
   !!error && MISSING_TABLE_CODES.includes(error.code ?? "");
 
-const cacheKey = (patientId: string) => `prakriva.lifestyleLogs.${patientId}`;
-
-/** Guard every localStorage touch — it throws in private mode and when full. */
-const safeStorage = (): Storage | null => {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-};
+const cacheKey = (patientId: string) => `${CACHE_KEYS.lifestyleLogs}:${patientId}`;
 
 const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
 
@@ -63,35 +55,26 @@ const normalise = (raw: unknown): LifestyleDayLog | null => {
   };
 };
 
-/** Everything cached for this patient, oldest first. */
+/**
+ * Everything cached for this patient, oldest first.
+ *
+ * Read with no TTL, unlike the in-progress drafts `localCache` usually holds:
+ * this is the patient's own history, and a streak that expired on its own after
+ * a day would be worse than not having one.
+ */
 export const readCachedLogs = (patientId: string): LifestyleDayLog[] => {
-  const storage = safeStorage();
-  if (!storage) return [];
+  const cached = readCache<unknown[]>(cacheKey(patientId));
+  if (!Array.isArray(cached)) return [];
 
-  try {
-    const raw = storage.getItem(cacheKey(patientId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map(normalise)
-      .filter((l): l is LifestyleDayLog => l !== null)
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
-  }
+  return cached
+    .map(normalise)
+    .filter((l): l is LifestyleDayLog => l !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
 };
 
 /** Overwrite the cache. Silently no-ops when storage is unavailable/full. */
-export const writeCachedLogs = (patientId: string, logs: LifestyleDayLog[]): void => {
-  const storage = safeStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(cacheKey(patientId), JSON.stringify(logs));
-  } catch {
-    /* quota or private mode — the in-memory state still works for this session */
-  }
-};
+export const writeCachedLogs = (patientId: string, logs: LifestyleDayLog[]): void =>
+  writeCache(cacheKey(patientId), logs);
 
 interface LifestyleLogRow {
   log_date: string;

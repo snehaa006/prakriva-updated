@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyDayLog, type LifestyleDayLog } from "@/lib/lifestyleLog";
+import { writeCache } from "@/lib/localCache";
+
+/** The raw localStorage key `localCache` stores this patient's logs under. */
+const rawKey = (patientId: string) => `prakriva:lifestyle-logs:${patientId}`;
 
 /**
  * A minimal Supabase stub for the two chains this service uses:
@@ -66,32 +70,34 @@ describe("the localStorage cache", () => {
   });
 
   it("returns an empty list rather than throwing on corrupted cache", () => {
-    localStorage.setItem("prakriva.lifestyleLogs.patient-1", "{not json");
+    localStorage.setItem(rawKey("patient-1"), "{not json");
+    expect(readCachedLogs("patient-1")).toEqual([]);
+  });
+
+  it("survives a cache entry that isn't an array at all", () => {
+    writeCache("lifestyle-logs:patient-1", { nope: true });
     expect(readCachedLogs("patient-1")).toEqual([]);
   });
 
   it("drops entries that aren't usable day logs", () => {
-    localStorage.setItem(
-      "prakriva.lifestyleLogs.patient-1",
-      JSON.stringify([{ nope: true }, { date: "2026-08-08", waterGlasses: 5 }])
-    );
+    writeCache("lifestyle-logs:patient-1", [
+      { nope: true },
+      { date: "2026-08-08", waterGlasses: 5 },
+    ]);
     expect(readCachedLogs("patient-1").map((l) => l.date)).toEqual(["2026-08-08"]);
   });
 
   it("normalises junk values instead of trusting the cache", () => {
-    localStorage.setItem(
-      "prakriva.lifestyleLogs.patient-1",
-      JSON.stringify([
-        {
-          date: "2026-08-08",
-          sleepHours: "not a number",
-          sleepQuality: "excellent",
-          activityMinutes: { "brisk-walk": "30", bogus: -5 },
-          waterGlasses: -3,
-          waterGoal: 0,
-        },
-      ])
-    );
+    writeCache("lifestyle-logs:patient-1", [
+      {
+        date: "2026-08-08",
+        sleepHours: "not a number",
+        sleepQuality: "excellent",
+        activityMinutes: { "brisk-walk": "30", bogus: -5 },
+        waterGlasses: -3,
+        waterGoal: 0,
+      },
+    ]);
 
     expect(readCachedLogs("patient-1")[0]).toEqual({
       date: "2026-08-08",

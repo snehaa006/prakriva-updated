@@ -15,11 +15,14 @@ import { Activity, Baby, ClipboardList, HeartPulse, History, Loader2 } from "luc
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import {
+  BloodResultsSection,
   computeBmi,
+  DiabetesRiskFactorsSection,
   MaternalVitalsSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
+import { validateMeasurements } from "@/lib/screeningValidation";
 import {
   AssessmentData,
   buildScreeningInputFromAssessment,
@@ -166,15 +169,32 @@ const HealthRisks: React.FC = () => {
   };
 
   const runCheck = async () => {
+    // Turn the height captured at onboarding plus today's weight into BMI,
+    // so the maternal model gets it without asking the patient for BMI.
+    const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
+    const payload: ScreeningInput = { ...form, bmi };
+
+    // Catch impossible readings here so the patient gets a sentence she can act
+    // on, rather than the backend's raw pydantic validation error.
+    const problems = validateMeasurements(payload);
+    if (problems.length > 0) {
+      toast({
+        title: "Please check your measurements",
+        description: problems.join(" "),
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScreening(true);
     try {
-      // Turn the height captured at onboarding plus today's weight into BMI,
-      // so the maternal model gets it without asking the patient for BMI.
-      const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
-      const payload: ScreeningInput = { ...form, bmi };
-
-      // Only the two maternal models are relevant to this patient check.
-      const screening = await screenPatient(payload, ["anaemia", "pregnancy_risk"]);
+      // The three trained models — the rule-only conditions need clinical
+      // findings and lab panels this form deliberately does not ask for.
+      const screening = await screenPatient(payload, [
+        "anaemia",
+        "pregnancy_risk",
+        "gdm",
+      ]);
       setResult(screening);
       setActiveTab("results");
 
@@ -304,8 +324,8 @@ const HealthRisks: React.FC = () => {
           Pregnancy Health Check
         </h1>
         <p className="text-muted-foreground">
-          Enter your latest antenatal measurements to check your anaemia and
-          pregnancy-risk analysis.
+          Enter your latest antenatal details to check your anaemia, pregnancy
+          risk and gestational diabetes analysis.
         </p>
       </div>
 
@@ -325,14 +345,14 @@ const HealthRisks: React.FC = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="check">
+        <TabsContent value="check" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Your latest measurements</CardTitle>
               <CardDescription>
-                Enter the readings from your most recent antenatal check-up. These
-                feed the anaemia and pregnancy-risk analysis. Leave a field blank
-                if you do not have it — the check still runs on what you provide.
+                Enter the readings from your most recent antenatal check-up. Leave
+                a field blank if you do not have it — the check still runs on what
+                you provide.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -343,6 +363,31 @@ const HealthRisks: React.FC = () => {
                 onWeightKg={setWeightKg}
                 heightCm={heightCm}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Blood test results</CardTitle>
+              <CardDescription>
+                Optional — these sharpen your gestational diabetes estimate.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BloodResultsSection form={form} update={update} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Diabetes risk factors</CardTitle>
+              <CardDescription>
+                Tick anything that applies to you. Some may already be filled in
+                from your questionnaire.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DiabetesRiskFactorsSection form={form} update={update} />
 
               <div className="flex justify-end pt-6">
                 <Button onClick={runCheck} disabled={isScreening} className="gap-2">
