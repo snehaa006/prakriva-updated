@@ -72,7 +72,7 @@ const navigationItems = [
     icon: Bell,
   },
   {
-    title: "Lifestyle Tracker",
+    title: "Tracker",
     url: "/patient/lifestyle-tracker",
     icon: Heart,
   },
