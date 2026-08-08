@@ -633,7 +633,6 @@ const RecipeBuilder = () => {
         plan_duration: planDuration,
         plan_type: editingDraftId ? "personalized-diet-chart" : "manual",
         meals: mealPlans,
-        last_modified: new Date().toISOString(),
         active_filter: activeFilter,
         source: editingDraftId ? "personalized-diet-chart-edited" : "manual",
         status: "final",
