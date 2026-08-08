@@ -30,6 +30,12 @@ diet plan.
   `DoctorLayout`. App-wide state lives in `src/context` (`AppContext`,
   `FoodContext`). Data access to Supabase and other APIs lives in
   `src/services` and `src/lib`. Shared TypeScript types live in `src/types/`.
+- `src/components/ui/logo.tsx` — the `Logo` component wrapping `public/logo.png`
+  at four sizes (`sm`/`md`/`lg`/`xl`). Use it instead of hand-rolled brand
+  markup; the artwork already contains the "Prakriva" wordmark, so don't pair it
+  with the name in text (pass `alt=""` where nearby copy names the brand). It
+  appears on the landing hero, the auth card, both sidebars, and the mobile
+  header of both layouts.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -53,8 +59,9 @@ diet plan.
   registry (`pipeline.py`). See "Disease detection" below.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table.
-- `public/` — static assets served as-is, including the standalone
-  `mealCompatibility.html` visualisation (reachable at
+- `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
+  also used as the browser-tab favicon and the social preview image) and the
+  standalone `mealCompatibility.html` visualisation (reachable at
   `/mealCompatibility.html`; it is not a React route).
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.

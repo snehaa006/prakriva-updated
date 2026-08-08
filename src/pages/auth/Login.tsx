@@ -9,7 +9,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Leaf, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import AccountFields, { type AccountFormData } from "./AccountFields";
 import DoctorSignupSteps from "./DoctorSignupSteps";
 import {
@@ -287,10 +288,9 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center mb-2">
-            <Leaf className="w-8 h-8 text-green-600 mr-2" />
-            <CardTitle className="text-2xl font-bold text-gray-800">Ayurvedic Health</CardTitle>
-          </div>
+          <CardTitle className="flex items-center justify-center mb-2">
+            <Logo size="xl" />
+          </CardTitle>
           <CardDescription>
             {isSignup ? "Create your account" : "Sign in to your account"} as a{" "}
             <span className="font-semibold capitalize text-green-600">{role}</span>
