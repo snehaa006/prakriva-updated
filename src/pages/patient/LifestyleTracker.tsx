@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { 
+import {
   Moon,
   Activity,
   Droplets,
@@ -18,8 +18,15 @@ import {
   Minus,
   CheckCircle2,
   Save,
-  ArrowLeft
+  ArrowLeft,
+  Flame,
+  Ban,
+  Loader2
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { currentStreak, longestStreak, todayIso, type JunkFoodLogEntry } from "@/lib/junkFoodStreak";
+import { fetchJunkFoodLogs, logJunkFoodDay } from "@/services/junkFoodStreakService";
 
 // Data management functions (easily replaceable with Firebase)
 const generateDateRange = (days: number) => {
@@ -58,6 +65,8 @@ const initializeData = () => {
 };
 
 const LifestyleTracker = () => {
+  const { toast } = useToast();
+
   // State management
   const [data, setData] = useState(() => initializeData());
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -70,6 +79,82 @@ const LifestyleTracker = () => {
   });
   const [todayWater, setTodayWater] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
+
+  // No Junk Food Streak — the only part of this page backed by Supabase; the
+  // rest is demo data reset on every load (see initializeData above).
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [junkFoodLogs, setJunkFoodLogs] = useState<JunkFoodLogEntry[]>([]);
+  const [isStreakLoading, setIsStreakLoading] = useState(true);
+  const [isLoggingToday, setIsLoggingToday] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+      if (!user) {
+        setIsStreakLoading(false);
+        return;
+      }
+      if (!cancelled) setPatientId(user.id);
+
+      try {
+        const logs = await fetchJunkFoodLogs(user.id);
+        if (!cancelled) setJunkFoodLogs(logs);
+      } catch (error) {
+        console.error("Error loading junk food streak:", error);
+      } finally {
+        if (!cancelled) setIsStreakLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const today = todayIso();
+  const todayEntry = junkFoodLogs.find((e) => e.date === today);
+  const streak = currentStreak(junkFoodLogs, today);
+  const bestStreak = longestStreak(junkFoodLogs);
+
+  const logToday = async (ateJunkFood: boolean) => {
+    if (!patientId) return;
+    setIsLoggingToday(true);
+    try {
+      const persisted = await logJunkFoodDay(patientId, today, ateJunkFood);
+      setJunkFoodLogs((prev) => [
+        ...prev.filter((e) => e.date !== today),
+        { date: today, ateJunkFood },
+      ]);
+      toast({
+        title: ateJunkFood ? "Logged — no worries, tomorrow's a fresh start" : "Nice, another clean day!",
+        description: persisted
+          ? undefined
+          : "This wasn't saved — please tell your doctor if it keeps happening.",
+      });
+    } catch (error) {
+      console.error("Could not log today:", error);
+      toast({
+        title: "Could not save",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoggingToday(false);
+    }
+  };
+
+  // Last 14 days, oldest first, for the streak calendar strip.
+  const streakCalendar = Array.from({ length: 14 }, (_, i) => {
+    const offset = 13 - i;
+    const date = new Date(`${today}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - offset);
+    const iso = date.toISOString().slice(0, 10);
+    return { date: iso, entry: junkFoodLogs.find((e) => e.date === iso) };
+  });
 
   // Initialize today's data
   useEffect(() => {
@@ -314,7 +399,7 @@ const LifestyleTracker = () => {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Sleep</CardTitle>
@@ -353,14 +438,30 @@ const LifestyleTracker = () => {
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Junk-Food-Free Streak</CardTitle>
+            <Flame className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isStreakLoading ? "—" : `${streak} day${streak === 1 ? "" : "s"}`}
+            </div>
+            <p className="text-xs text-gray-600">
+              {isStreakLoading ? "loading..." : `best: ${bestStreak} day${bestStreak === 1 ? "" : "s"}`}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Detailed Tracking */}
       <Tabs defaultValue="sleep" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sleep">Sleep Quality</TabsTrigger>
           <TabsTrigger value="activity">Activity Tracking</TabsTrigger>
           <TabsTrigger value="hydration">Hydration</TabsTrigger>
+          <TabsTrigger value="junk-food">No Junk Food</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sleep" className="space-y-6">
@@ -675,6 +776,111 @@ const LifestyleTracker = () => {
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
                         {day.glasses}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="junk-food" className="space-y-6">
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Today's check-in */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  Today's Check-in
+                </CardTitle>
+                <CardDescription>
+                  Mark whether you stayed junk-food-free today
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="text-6xl font-bold text-orange-500">
+                    {isStreakLoading ? "—" : streak}
+                  </div>
+                  <p className="text-gray-600">
+                    day{streak === 1 ? "" : "s"} junk-food-free
+                  </p>
+                  {!isStreakLoading && bestStreak > 0 && (
+                    <p className="text-xs text-gray-500">Best streak: {bestStreak} days</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant={todayEntry?.ateJunkFood === false ? "default" : "outline"}
+                    className="flex items-center gap-2 h-auto py-3"
+                    onClick={() => logToday(false)}
+                    disabled={isLoggingToday || isStreakLoading}
+                  >
+                    {isLoggingToday ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    Stayed clean
+                  </Button>
+                  <Button
+                    variant={todayEntry?.ateJunkFood === true ? "destructive" : "outline"}
+                    className="flex items-center gap-2 h-auto py-3"
+                    onClick={() => logToday(true)}
+                    disabled={isLoggingToday || isStreakLoading}
+                  >
+                    {isLoggingToday ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Ban className="w-4 h-4" />
+                    )}
+                    Had junk food
+                  </Button>
+                </div>
+
+                <p className="text-xs text-gray-500 text-center">
+                  {todayEntry
+                    ? "You can change today's entry anytime before midnight."
+                    : "One missed or junk-food day resets the streak — every clean day counts."}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Streak calendar */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Last 14 Days</CardTitle>
+                <CardDescription>
+                  Green = clean, red = junk food, grey = not logged
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-7 gap-2">
+                  {streakCalendar.map(({ date, entry }) => (
+                    <div key={date} className="text-center">
+                      <div className="text-xs text-gray-500 mb-1">
+                        {new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+                          day: "numeric",
+                        })}
+                      </div>
+                      <div
+                        className={`h-8 rounded flex items-center justify-center ${
+                          entry === undefined
+                            ? "bg-gray-100"
+                            : entry.ateJunkFood
+                              ? "bg-red-100"
+                              : "bg-green-100"
+                        }`}
+                        title={date}
+                      >
+                        {entry?.ateJunkFood === false && (
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        )}
+                        {entry?.ateJunkFood === true && (
+                          <Ban className="w-4 h-4 text-red-600" />
+                        )}
                       </div>
                     </div>
                   ))}
