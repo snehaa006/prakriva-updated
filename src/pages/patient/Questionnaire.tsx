@@ -124,6 +124,18 @@ const AyurvedicHealthAssessment: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Pressing Enter inside a single-line field should not submit the whole
+  // form. The assessment is long, so users often hit Enter after typing a
+  // value (e.g. "Other family history") expecting to move on — not to finish.
+  // Only the explicit Submit button should trigger submission. Textareas are
+  // left alone so Enter still inserts a newline there.
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    const target = e.target as HTMLElement;
+    if (e.key === "Enter" && target.tagName === "INPUT") {
+      e.preventDefault();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
   
@@ -289,7 +301,11 @@ const AyurvedicHealthAssessment: React.FC = () => {
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={handleFormKeyDown}
+          className="space-y-8"
+        >
           {/* Personal Information */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
