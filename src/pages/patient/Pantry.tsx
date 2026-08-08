@@ -25,6 +25,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -45,7 +58,15 @@ import {
   Loader2,
   ArrowRightLeft,
   Refrigerator,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  ingredientsByCategory,
+  ingredientSearchValue,
+  type IngredientOption,
+} from "@/data/ingredients";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
 import {
@@ -117,7 +138,8 @@ const Pantry: React.FC = () => {
   const queryClient = useQueryClient();
   const patientId = user?.id ?? "";
 
-  const [foodName, setFoodName] = useState("");
+  const [ingredient, setIngredient] = useState<IngredientOption | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [availability, setAvailability] = useState<PantryAvailability>("at_home");
   const [notes, setNotes] = useState("");
@@ -154,6 +176,9 @@ const Pantry: React.FC = () => {
     writeCache(pantryCacheKey(patientId), next);
   };
 
+  // Grouped once — the catalogue is static.
+  const ingredientGroups = useMemo(() => ingredientsByCategory(), []);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return items;
@@ -167,11 +192,11 @@ const Pantry: React.FC = () => {
     event.preventDefault();
     if (!patientId) return;
 
-    const name = foodName.trim();
-    if (!name) {
-      toast.error("Enter a food name first.");
+    if (!ingredient) {
+      toast.error("Pick a food from the list first.");
       return;
     }
+    const name = ingredient.label;
 
     const duplicate = items.find(
       (item) =>
@@ -187,12 +212,14 @@ const Pantry: React.FC = () => {
     try {
       const created = await addPantryItem(patientId, {
         foodName: name,
+        searchTerm: ingredient.searchTerm,
+        category: ingredient.category,
         quantity,
         availability,
         notes,
       });
       setItems([created, ...items]);
-      setFoodName("");
+      setIngredient(null);
       setQuantity("");
       setNotes("");
       toast.success(`${created.foodName} added to your ${AVAILABILITY_LABEL[created.availability].toLowerCase()} list.`);
@@ -289,20 +316,77 @@ const Pantry: React.FC = () => {
         <CardHeader className="pb-4">
           <CardTitle className="text-base">Add a food</CardTitle>
           <CardDescription>
-            Anything you keep at home — grains, vegetables, spices, dairy.
+            Search the food list — grains, dals, vegetables, fruits, spices,
+            dairy. Picking from the list is what lets your doctor find recipes
+            that use it.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="grid gap-4 md:grid-cols-12">
             <div className="md:col-span-5">
-              <Label htmlFor="pantry-food">Food</Label>
-              <Input
-                id="pantry-food"
-                value={foodName}
-                onChange={(event) => setFoodName(event.target.value)}
-                placeholder="e.g. Brown rice"
-                className="mt-1"
-              />
+              <Label>Food</Label>
+              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={pickerOpen}
+                    className="mt-1 w-full justify-between font-normal"
+                  >
+                    {ingredient ? (
+                      <span className="truncate">{ingredient.label}</span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Search all foods…
+                      </span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[--radix-popover-trigger-width] p-0"
+                  align="start"
+                >
+                  <Command
+                    filter={(itemValue, search) =>
+                      itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+                    }
+                  >
+                    <CommandInput placeholder="Type a food, e.g. rice or methi…" />
+                    <CommandList>
+                      <CommandEmpty>
+                        No matching food. Try a simpler name — "rice" rather
+                        than a dish name.
+                      </CommandEmpty>
+                      {ingredientGroups.map((group) => (
+                        <CommandGroup key={group.category} heading={group.category}>
+                          {group.options.map((option) => (
+                            <CommandItem
+                              key={option.label}
+                              value={ingredientSearchValue(option)}
+                              onSelect={() => {
+                                setIngredient(option);
+                                setPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  ingredient?.label === option.label
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {option.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="md:col-span-4">
@@ -345,7 +429,11 @@ const Pantry: React.FC = () => {
             </div>
 
             <div className="flex items-end md:col-span-3">
-              <Button type="submit" disabled={isAdding || !patientId} className="w-full">
+              <Button
+                type="submit"
+                disabled={isAdding || !patientId || !ingredient}
+                className="w-full"
+              >
                 {isAdding ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
