@@ -226,7 +226,7 @@ const MealLogging = () => {
         toast.success(`Found ${plans.length} diet plan(s)`);
         // Auto-load the most recent plan
         if (plans[0]) {
-          loadDietPlan(plans[0]);
+          await loadDietPlan(plans[0]);
         }
       }
     } catch (error) {
@@ -239,7 +239,7 @@ const MealLogging = () => {
   };
 
   // Load a specific diet plan
-  const loadDietPlan = (plan: SavedDietPlan) => {
+  const loadDietPlan = async (plan: SavedDietPlan) => {
     setSelectedPlan(plan);
     setPatientName(plan.patientName || user?.name || "");
 
@@ -247,21 +247,79 @@ const MealLogging = () => {
     const planData = (plan as any);
     const dataToConvert = planData.days ? { days: planData.days } : plan.meals;
     const meals = convertDietPlanToMeals(dataToConvert, plan.activeFilter);
-    setTodaysMeals(meals);
+
+    // Restore any eaten/skipped choices already logged for today so a reload
+    // doesn't reset every meal back to "pending". Statuses are keyed by the
+    // same meal id convertDietPlanToMeals assigns, which is stable per plan.
+    const today = new Date().toISOString().split("T")[0];
+    try {
+      const { data } = await supabase
+        .from("meal_tracking")
+        .select("statuses")
+        .eq("patient_id", patientId)
+        .eq("date", today)
+        .maybeSingle();
+      const saved = (data?.statuses as Record<string, string>) || {};
+      setTodaysMeals(
+        meals.map((m) =>
+          saved[m.id] ? { ...m, status: saved[m.id] as Meal["status"] } : m
+        )
+      );
+    } catch (e) {
+      console.error("Failed to load meal tracking:", e);
+      setTodaysMeals(meals);
+    }
 
     const dateStr = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString() : "recent";
     toast.success(`Loaded diet plan from ${dateStr}`);
   };
 
+  // Persist today's meal statuses to Supabase. The unique index on
+  // (patient_id, date) keeps this to one row per day, so re-marking a meal
+  // updates the same row instead of piling up history. Only the patient logs
+  // their own tracking; a doctor viewing the page just reads it back.
+  const persistMealStatuses = (meals: Meal[]) => {
+    if (!user?.id || patientId !== user.id) return;
+
+    const today = new Date().toISOString().split("T")[0];
+    const statuses: Record<string, string> = {};
+    let caloriesConsumed = 0;
+    for (const m of meals) {
+      statuses[m.id] = m.status;
+      if (m.status === "eaten") caloriesConsumed += m.calories;
+    }
+
+    void supabase
+      .from("meal_tracking")
+      .upsert(
+        {
+          patient_id: user.id,
+          date: today,
+          statuses,
+          calories_consumed: caloriesConsumed,
+          total_meals: meals.length,
+          eaten_count: meals.filter((m) => m.status === "eaten").length,
+          skipped_count: meals.filter((m) => m.status === "skipped").length,
+        },
+        { onConflict: "patient_id,date" }
+      )
+      .then(({ error }) => {
+        if (error) console.error("Failed to save meal tracking:", error);
+      });
+  };
+
   // Update meal status
   const updateMealStatus = (mealId: string, status: "eaten" | "skipped" | "pending", notes?: string) => {
-    setTodaysMeals(prev => 
-      prev.map(meal => 
-        meal.id === mealId 
+    setTodaysMeals(prev => {
+      const updated = prev.map(meal =>
+        meal.id === mealId
           ? { ...meal, status, notes: notes || meal.notes }
           : meal
-      )
-    );
+      );
+      // Save straight away so the choice survives a reload.
+      persistMealStatuses(updated);
+      return updated;
+    });
     toast.success(`Meal marked as ${status}`);
   };
 
