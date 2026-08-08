@@ -61,7 +61,8 @@ diet plan.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table and
-  `junk_food_streak.sql` for the Lifestyle Tracker's streak log.
+  `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
+  hydration log.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
@@ -267,26 +268,58 @@ are not persisted.
 
 ## Lifestyle Tracker
 
-`/patient/lifestyle-tracker` (`src/pages/patient/LifestyleTracker.tsx`). Sleep,
-activity and hydration logging on this page are demo data — they reset on every
-load and are not persisted anywhere; only the **No Junk Food Streak** section is
-real. That's the one part of the page where persistence matters: a streak that
-resets on refresh would defeat the point.
+`/patient/lifestyle-tracker` (`src/pages/patient/LifestyleTracker.tsx`). One
+page, one daily check-in — movement, hydration, sleep and diet-plan adherence
+are sections of a single view rather than separate tabs, because they are all
+answered in the same sitting. Everything logged here is real and persisted.
 
-- The patient marks each day "stayed clean" or "had junk food"; the current and
-  longest streaks are derived from that log and shown on the page and in the
-  overview card.
-- Streak math (`src/lib/junkFoodStreak.ts`, unit tested in
-  `src/lib/__tests__/junkFoodStreak.test.ts`) is pure and Supabase-free: a
-  streak counts consecutive clean calendar days ending today, where an
-  unlogged *today* doesn't break it (she hasn't had the chance to log it yet)
-  but any other missing day, or a day logged as junk food, does.
-- Logs are stored in the `junk_food_streak_logs` Supabase table (one row per
-  patient per day, RLS-scoped to the patient herself —
-  `supabase/junk_food_streak.sql`), read/written through
-  `src/services/junkFoodStreakService.ts`. As with disease screenings, a
-  missing table degrades gracefully: the streak just reads as untracked
-  rather than erroring.
+**Movement & exercise.** The exercises offered are chosen from the patient's
+conditions, not a fixed list: what helps anaemia (gentle, oxygen-conservative
+work) is close to the opposite of what helps PCOS (sustained aerobic plus
+resistance training), and several conditions have movements that are actively
+unsafe.
+
+- `src/lib/exerciseRecommendations.ts` holds the exercise catalog and a plan per
+  condition — the exercises, the reason they suit that condition, and what to
+  avoid. Conditions come from two sources: moderate/high findings on her latest
+  maternal screening (`disease_screenings`) and the conditions in her profile
+  (`patients.assessment_data`). Free text is matched through an alias table, so
+  "Anemia", "PCOD" and "high BP" all land correctly; anything unrecognised is
+  dropped rather than guessed at, and a patient with no known conditions gets a
+  general balanced plan.
+- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins and adds its own
+  "avoid" notes on top of the condition's.
+- Minutes are logged against the recommended exercises themselves, so the log
+  always matches the recommendation.
+
+**Streaks.** The activity streak counts consecutive days with *any* movement
+logged; the hydration section counts days the daily water target was met. Streak
+math lives in `src/lib/lifestyleLog.ts` (pure, Supabase-free, unit tested in
+`src/lib/__tests__/lifestyleLog.test.ts`): an unachieved *today* doesn't break a
+run — the day isn't over — but any earlier missed day does.
+
+**Storage is local-first.** A streak that vanishes on refresh defeats the point,
+so `src/services/lifestyleLogService.ts` writes every entry to `localStorage`
+synchronously and then mirrors it to the `lifestyle_logs` Supabase table (one row
+per patient per day, RLS-scoped to the patient herself —
+`supabase/lifestyle_logs.sql`). Reads merge the two, preferring the server where
+both have a day so a second device wins over a stale cache. A missing table or an
+unreachable server degrades gracefully: the tracker keeps working from the cache
+and shows a banner saying it isn't backed up.
+
+**Daily nutrition & diet plan.** Replaces the old "No Junk Food" streak. Rather
+than a habit game, this reports two facts per day, read from the meal statuses
+she ticks off in Meal Logging (`meal_tracking`, via
+`src/services/mealAdherenceService.ts`): whether she completed her daily
+nutrition (calories against the targets for her life stage, from
+`getNutritionalTargets`) and whether she followed the diet plan she was given
+(share of planned meals eaten). Deliberately *not* a streak — a missed day here
+is dietary information for her doctor, not something to reset. Logic and
+thresholds are in `src/lib/dietAdherence.ts`.
+
+> The old `junk_food_streak_logs` table and its `supabase/junk_food_streak.sql`
+> migration were removed with the feature. If the table exists in an already
+> provisioned project it is now unused and safe to drop.
 
 ## Environment variables
 
