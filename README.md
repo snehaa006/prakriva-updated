@@ -60,7 +60,8 @@ diet plan.
   (`train_maternal_models.py`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
-  `disease_screenings.sql` for the screening history table.
+  `disease_screenings.sql` for the screening history table and
+  `junk_food_streak.sql` for the Lifestyle Tracker's streak log.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
@@ -263,6 +264,29 @@ table is missing the feature still works — results render normally and simply
 are not persisted.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
+
+## Lifestyle Tracker
+
+`/patient/lifestyle-tracker` (`src/pages/patient/LifestyleTracker.tsx`). Sleep,
+activity and hydration logging on this page are demo data — they reset on every
+load and are not persisted anywhere; only the **No Junk Food Streak** section is
+real. That's the one part of the page where persistence matters: a streak that
+resets on refresh would defeat the point.
+
+- The patient marks each day "stayed clean" or "had junk food"; the current and
+  longest streaks are derived from that log and shown on the page and in the
+  overview card.
+- Streak math (`src/lib/junkFoodStreak.ts`, unit tested in
+  `src/lib/__tests__/junkFoodStreak.test.ts`) is pure and Supabase-free: a
+  streak counts consecutive clean calendar days ending today, where an
+  unlogged *today* doesn't break it (she hasn't had the chance to log it yet)
+  but any other missing day, or a day logged as junk food, does.
+- Logs are stored in the `junk_food_streak_logs` Supabase table (one row per
+  patient per day, RLS-scoped to the patient herself —
+  `supabase/junk_food_streak.sql`), read/written through
+  `src/services/junkFoodStreakService.ts`. As with disease screenings, a
+  missing table degrades gracefully: the streak just reads as untracked
+  rather than erroring.
 
 ## Environment variables
 
