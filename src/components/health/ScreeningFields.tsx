@@ -21,6 +21,7 @@ import {
   SYMPTOM_LABELS,
   SymptomKey,
 } from "@/types/diseaseDetection";
+import { MEASUREMENT_RANGES, type FieldRange } from "@/lib/screeningValidation";
 
 /** Applies one field change to the screening form. */
 export type UpdateField = <K extends keyof ScreeningInput>(
@@ -48,7 +49,14 @@ export const BoolField: React.FC<{
   </div>
 );
 
-/** Numeric input that keeps "not measured" distinct from zero. */
+/**
+ * Numeric input that keeps "not measured" distinct from zero.
+ *
+ * Pass `range` for a measurement with known clinical bounds: it constrains the
+ * native number input and flags an out-of-range value inline, so a typo like
+ * 119 g/dL of haemoglobin is caught here rather than coming back as a raw
+ * backend validation error.
+ */
 export const NumberField: React.FC<{
   id: string;
   label: string;
@@ -56,21 +64,48 @@ export const NumberField: React.FC<{
   onChange: (value: number | null) => void;
   step?: string;
   placeholder?: string;
-}> = ({ id, label, value, onChange, step = "1", placeholder = "Not measured" }) => (
-  <div className="space-y-1">
-    <Label htmlFor={id} className="text-xs text-muted-foreground">
-      {label}
-    </Label>
-    <Input
-      id={id}
-      type="number"
-      step={step}
-      placeholder={placeholder}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-    />
-  </div>
-);
+  range?: FieldRange;
+}> = ({
+  id,
+  label,
+  value,
+  onChange,
+  step = "1",
+  placeholder = "Not measured",
+  range,
+}) => {
+  const invalid =
+    range != null &&
+    value != null &&
+    !Number.isNaN(value) &&
+    (value < range.min || value > range.max);
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        step={step}
+        min={range?.min}
+        max={range?.max}
+        placeholder={placeholder}
+        value={value ?? ""}
+        aria-invalid={invalid || undefined}
+        className={invalid ? "border-destructive focus-visible:ring-destructive" : undefined}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      />
+      {invalid && (
+        <p className="text-xs text-destructive">
+          Enter a value between {range.min} and {range.max}
+          {range.unit ? ` ${range.unit}` : ""}.
+        </p>
+      )}
+    </div>
+  );
+};
 
 /** Slider bound to one of the mental-health scales. */
 export const ScaleField: React.FC<{
@@ -213,6 +248,7 @@ export const MaternalVitalsSection: React.FC<{
           value={form.gestational_week}
           onChange={(v) => update("gestational_week", v)}
           placeholder="e.g. 24"
+          range={MEASUREMENT_RANGES.gestational_week}
         />
         <NumberField
           id="weight_kg"
@@ -221,6 +257,7 @@ export const MaternalVitalsSection: React.FC<{
           value={weightKg}
           onChange={onWeightKg}
           placeholder="e.g. 62"
+          range={{ label: "Weight", min: 30, max: 250, unit: "kg" }}
         />
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">BMI (calculated)</Label>
@@ -241,6 +278,7 @@ export const MaternalVitalsSection: React.FC<{
           value={form.hemoglobin}
           onChange={(v) => update("hemoglobin", v)}
           placeholder="e.g. 11.5"
+          range={MEASUREMENT_RANGES.hemoglobin}
         />
         <NumberField
           id="bp_systolic"
@@ -248,6 +286,7 @@ export const MaternalVitalsSection: React.FC<{
           value={form.bp_systolic}
           onChange={(v) => update("bp_systolic", v)}
           placeholder="e.g. 118"
+          range={MEASUREMENT_RANGES.bp_systolic}
         />
         <NumberField
           id="bp_diastolic"
@@ -255,6 +294,7 @@ export const MaternalVitalsSection: React.FC<{
           value={form.bp_diastolic}
           onChange={(v) => update("bp_diastolic", v)}
           placeholder="e.g. 76"
+          range={MEASUREMENT_RANGES.bp_diastolic}
         />
       </div>
       <BoolField

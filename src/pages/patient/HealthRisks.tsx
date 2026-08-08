@@ -20,6 +20,7 @@ import {
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
+import { validateMeasurements } from "@/lib/screeningValidation";
 import {
   AssessmentData,
   buildScreeningInputFromAssessment,
@@ -166,13 +167,25 @@ const HealthRisks: React.FC = () => {
   };
 
   const runCheck = async () => {
+    // Turn the height captured at onboarding plus today's weight into BMI,
+    // so the maternal model gets it without asking the patient for BMI.
+    const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
+    const payload: ScreeningInput = { ...form, bmi };
+
+    // Catch impossible readings here so the patient gets a sentence she can act
+    // on, rather than the backend's raw pydantic validation error.
+    const problems = validateMeasurements(payload);
+    if (problems.length > 0) {
+      toast({
+        title: "Please check your measurements",
+        description: problems.join(" "),
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScreening(true);
     try {
-      // Turn the height captured at onboarding plus today's weight into BMI,
-      // so the maternal model gets it without asking the patient for BMI.
-      const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
-      const payload: ScreeningInput = { ...form, bmi };
-
       // Only the two maternal models are relevant to this patient check.
       const screening = await screenPatient(payload, ["anaemia", "pregnancy_risk"]);
       setResult(screening);

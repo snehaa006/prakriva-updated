@@ -222,6 +222,13 @@ Both roles see every run in a History tab, labelled by who submitted it.
 Laboratory fields left blank mean "not performed" — they never score as a normal
 result.
 
+**Measurement bounds.** `src/lib/screeningValidation.ts` mirrors the
+`Field(ge=..., le=...)` constraints in `backend/disease_detection/schemas.py` so
+an impossible reading (entering `119` instead of `11.9` for haemoglobin) is
+flagged in the form instead of returning a raw pydantic error. The backend
+remains the authority; **if you change a bound in `schemas.py`, update that file
+too** — its unit tests pin the expected ranges and will fail if the two drift.
+
 **Backend.** The pipeline lives in `backend/disease_detection/` and is exposed
 by two endpoints:
 
