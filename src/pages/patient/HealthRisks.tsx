@@ -11,22 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Activity, Baby, ClipboardList, HeartPulse, History, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import {
-  BasicsSection,
   computeBmi,
-  HistorySection,
   MaternalVitalsSection,
-  ScalesSection,
-  SymptomsSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -183,7 +173,8 @@ const HealthRisks: React.FC = () => {
       const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
       const payload: ScreeningInput = { ...form, bmi };
 
-      const screening = await screenPatient(payload);
+      // Only the two maternal models are relevant to this patient check.
+      const screening = await screenPatient(payload, ["anaemia", "pregnancy_risk"]);
       setResult(screening);
       setActiveTab("results");
 
@@ -313,8 +304,8 @@ const HealthRisks: React.FC = () => {
           Pregnancy Health Check
         </h1>
         <p className="text-muted-foreground">
-          Answer a few questions about how you have been feeling and see which
-          conditions may need your doctor's attention.
+          Enter your latest antenatal measurements to check your anaemia and
+          pregnancy-risk analysis.
         </p>
       </div>
 
@@ -337,61 +328,21 @@ const HealthRisks: React.FC = () => {
         <TabsContent value="check">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">How have you been feeling?</CardTitle>
+              <CardTitle className="text-lg">Your latest measurements</CardTitle>
               <CardDescription>
-                Answer as accurately as you can and add any recent measurements
-                from your antenatal check-up (weight, haemoglobin, blood
-                pressure). Anything you leave blank or unticked is treated as
-                "not provided" — nothing here is guessed for you.
+                Enter the readings from your most recent antenatal check-up. These
+                feed the anaemia and pregnancy-risk analysis. Leave a field blank
+                if you do not have it — the check still runs on what you provide.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Accordion
-                type="multiple"
-                defaultValue={["basics", "measurements", "symptoms"]}
-                className="w-full"
-              >
-                <AccordionItem value="basics">
-                  <AccordionTrigger>About your pregnancy</AccordionTrigger>
-                  <AccordionContent className="pt-2">
-                    <BasicsSection form={form} update={update} variant="patient" />
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem value="measurements">
-                  <AccordionTrigger>Your latest measurements</AccordionTrigger>
-                  <AccordionContent className="pt-2">
-                    <MaternalVitalsSection
-                      form={form}
-                      update={update}
-                      weightKg={weightKg}
-                      onWeightKg={setWeightKg}
-                      heightCm={heightCm}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem value="symptoms">
-                  <AccordionTrigger>Symptoms you have noticed</AccordionTrigger>
-                  <AccordionContent className="pt-2">
-                    <SymptomsSection form={form} update={update} />
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem value="history">
-                  <AccordionTrigger>Your medical history</AccordionTrigger>
-                  <AccordionContent className="pt-2">
-                    <HistorySection form={form} update={update} />
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem value="wellbeing">
-                  <AccordionTrigger>Mood, sleep and support</AccordionTrigger>
-                  <AccordionContent className="pt-4">
-                    <ScalesSection form={form} update={update} />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <MaternalVitalsSection
+                form={form}
+                update={update}
+                weightKg={weightKg}
+                onWeightKg={setWeightKg}
+                heightCm={heightCm}
+              />
 
               <div className="flex justify-end pt-6">
                 <Button onClick={runCheck} disabled={isScreening} className="gap-2">

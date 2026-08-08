@@ -52,7 +52,6 @@ class ProductionRunner:
         logger.info("Validating environment configuration...")
         
         required_env_vars = [
-            'OPENAI_API_KEY',
             'SUPABASE_URL',
             'SUPABASE_SERVICE_ROLE_KEY'
         ]
@@ -64,6 +63,15 @@ class ProductionRunner:
 
         if missing_vars:
             raise EnvironmentError(f"Missing required environment variables: {missing_vars}")
+
+        # OpenAI is optional — only the LLM meal-planning / dosha-refinement
+        # features need it. The disease-detection models and the rest of the API
+        # boot without it, so the backend can be deployed for free with no key.
+        if not os.getenv('OPENAI_API_KEY'):
+            logger.warning(
+                "OPENAI_API_KEY not set — LLM meal planning and dosha refinement "
+                "are disabled; disease detection and the ML dosha model still work."
+            )
 
         settings.validate_supabase()
 

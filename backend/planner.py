@@ -18,7 +18,9 @@ class MealPlanner:
     """Enhanced meal planner with multiple strategies"""
     
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # OpenAI is optional so the backend can boot without a paid key; meal
+        # planning falls back to templates when no client is available.
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
         self.fallback_templates = self._load_fallback_templates()
     
     def _load_fallback_templates(self) -> Dict[str, List[Dict]]:
@@ -299,8 +301,11 @@ Return simple JSON with day_1, day_2, etc. and totals."""
         self, prompt: str, model: str, max_tokens: int = 2000, temperature: float = 0.7
     ) -> Dict[str, Any]:
         """Call LLM and parse response with error handling"""
-        
+
         try:
+            if self.client is None:
+                raise RuntimeError("OpenAI API key not configured")
+
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[
