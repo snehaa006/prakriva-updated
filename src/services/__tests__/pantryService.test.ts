@@ -48,6 +48,7 @@ const row = {
   id: "item-1",
   patient_id: "patient-1",
   food_name: "Brown rice",
+  search_term: "rice",
   category: "Grains & Cereals",
   quantity: "2 kg",
   availability: "at_home",
@@ -75,6 +76,7 @@ describe("fetchPantryItems", () => {
         id: "item-1",
         patientId: "patient-1",
         foodName: "Brown rice",
+        searchTerm: "rice",
         category: "Grains & Cereals",
         quantity: "2 kg",
         availability: "at_home",
@@ -101,6 +103,7 @@ describe("addPantryItem", () => {
     expect(state.lastInsert).toEqual({
       patient_id: "patient-1",
       food_name: "Brown rice",
+      search_term: "brown rice",
       category: "Other",
       quantity: "",
       availability: "at_home",
@@ -118,14 +121,17 @@ describe("deletePantryItem", () => {
 });
 
 describe("pantryIngredientNames", () => {
+  // "Brown rice" and "Rice (white)" both search on `rice`, so the terms dedupe
+  // even though the labels differ.
   const items = [
-    { ...row, id: "1", foodName: "Rice", availability: "at_home" },
-    { ...row, id: "2", foodName: "rice", availability: "at_home" },
-    { ...row, id: "3", foodName: "Spinach", availability: "to_buy" },
+    { ...row, id: "1", foodName: "Brown rice", search_term: "rice", availability: "at_home" },
+    { ...row, id: "2", foodName: "Rice (white)", search_term: "rice", availability: "at_home" },
+    { ...row, id: "3", foodName: "Spinach", search_term: "spinach", availability: "to_buy" },
   ].map((item) => ({
     id: item.id,
     patientId: item.patient_id,
     foodName: item.foodName,
+    searchTerm: item.search_term,
     category: item.category,
     quantity: item.quantity,
     availability: item.availability as "at_home" | "to_buy",

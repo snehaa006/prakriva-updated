@@ -10,6 +10,10 @@ create table if not exists public.patient_pantry_items (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid not null references public.patients(id) on delete cascade,
   food_name text not null,
+  -- The plain ingredient noun the recipe API is queried with ("rice"), while
+  -- food_name keeps the label the patient picked ("Brown rice"). See
+  -- src/data/ingredients.ts.
+  search_term text not null default '',
   category text not null default 'other',
   quantity text not null default '',
   availability text not null default 'at_home'

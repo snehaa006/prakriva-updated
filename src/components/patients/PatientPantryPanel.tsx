@@ -24,8 +24,13 @@ interface PatientPantryPanelProps {
 
 const pantryCacheKey = (patientId: string) => `pantry:${patientId}`;
 
-/** The form the recipe API matches on: lowercase, no stray whitespace. */
-const searchTerm = (foodName: string) => foodName.trim().toLowerCase();
+/**
+ * The term the recipe API is queried with. Patients pick from the ingredient
+ * catalogue, so this is a plain noun ("rice") rather than their label ("Brown
+ * rice"); pantry rows written before the catalogue fall back to their name.
+ */
+const searchTerm = (item: PantryItem) =>
+  (item.searchTerm || item.foodName).trim().toLowerCase();
 
 /**
  * Doctor-side view of what a patient actually has in their kitchen, so recipes
@@ -72,8 +77,8 @@ export const PatientPantryPanel: React.FC<PatientPantryPanelProps> = ({
   const atHome = items.filter((item) => item.availability === "at_home");
   const toBuy = items.filter((item) => item.availability === "to_buy");
 
-  const toggle = (foodName: string) => {
-    const term = searchTerm(foodName);
+  const toggle = (item: PantryItem) => {
+    const term = searchTerm(item);
     setChosen((current) =>
       current.includes(term)
         ? current.filter((entry) => entry !== term)
@@ -90,12 +95,12 @@ export const PatientPantryPanel: React.FC<PatientPantryPanelProps> = ({
     ) : (
       <div className="flex flex-wrap gap-1.5">
         {list.map((item) => {
-          const picked = chosen.includes(searchTerm(item.foodName));
+          const picked = chosen.includes(searchTerm(item));
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => toggle(item.foodName)}
+              onClick={() => toggle(item)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors",
                 picked

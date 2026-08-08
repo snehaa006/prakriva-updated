@@ -12,6 +12,8 @@ export interface PantryItem {
   id: string;
   patientId: string;
   foodName: string;
+  /** The plain ingredient noun the recipe API understands ("rice"). */
+  searchTerm: string;
   category: string;
   quantity: string;
   availability: PantryAvailability;
@@ -22,6 +24,7 @@ export interface PantryItem {
 
 export interface PantryItemInput {
   foodName: string;
+  searchTerm?: string;
   category?: string;
   quantity?: string;
   availability?: PantryAvailability;
@@ -32,6 +35,7 @@ interface PantryRow {
   id: string;
   patient_id: string;
   food_name: string;
+  search_term: string | null;
   category: string | null;
   quantity: string | null;
   availability: PantryAvailability;
@@ -44,6 +48,9 @@ const toPantryItem = (row: PantryRow): PantryItem => ({
   id: row.id,
   patientId: row.patient_id,
   foodName: row.food_name,
+  // Rows written before the ingredient catalogue existed have no search term;
+  // their free-text name is the best we have.
+  searchTerm: row.search_term || row.food_name,
   category: row.category ?? "Other",
   quantity: row.quantity ?? "",
   availability: row.availability,
@@ -75,6 +82,7 @@ export const addPantryItem = async (
     .insert({
       patient_id: patientId,
       food_name: input.foodName.trim(),
+      search_term: input.searchTerm?.trim().toLowerCase() || input.foodName.trim().toLowerCase(),
       category: input.category?.trim() || "Other",
       quantity: input.quantity?.trim() ?? "",
       availability: input.availability ?? "at_home",
@@ -93,6 +101,7 @@ export const updatePantryItem = async (
 ): Promise<PantryItem> => {
   const patch: Record<string, unknown> = {};
   if (changes.foodName !== undefined) patch.food_name = changes.foodName.trim();
+  if (changes.searchTerm !== undefined) patch.search_term = changes.searchTerm.trim().toLowerCase();
   if (changes.category !== undefined) patch.category = changes.category;
   if (changes.quantity !== undefined) patch.quantity = changes.quantity;
   if (changes.availability !== undefined) patch.availability = changes.availability;
@@ -118,14 +127,18 @@ export const deletePantryItem = async (itemId: string): Promise<void> => {
   if (error) throw new Error(error.message);
 };
 
-/** The ingredient names a plan can be built around, deduped and lowercased. */
+/**
+ * The recipe-search terms a plan can be built around, deduped and lowercased.
+ * Several pantry entries can share a term ("Brown rice" and "Rice (white)" are
+ * both `rice`), which is why this dedupes.
+ */
 export const pantryIngredientNames = (
   items: PantryItem[],
   availability?: PantryAvailability
 ): string[] => {
   const names = items
     .filter((item) => !availability || item.availability === availability)
-    .map((item) => item.foodName.trim().toLowerCase())
+    .map((item) => (item.searchTerm || item.foodName).trim().toLowerCase())
     .filter(Boolean);
   return [...new Set(names)];
 };

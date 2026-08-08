@@ -140,6 +140,8 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
   including a 404 (no recipe matches every ingredient) reading as an empty
   result rather than a failure.
+- `src/data/__tests__/ingredients.test.ts` — catalogue invariants: unique
+  labels, known categories, normalized search terms and alias lookup.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
 
@@ -402,18 +404,28 @@ Patients list the food they actually have, so plans are built around what they
 can cook rather than what a generator picked.
 
 - **Patient side** — "My Kitchen" at `/patient/pantry`
-  (`src/pages/patient/Pantry.tsx`). Type a food name, with an optional quantity
-  and note, onto either the **At home** or the **Shopping list** tab, and move
-  items between the two. The old `/patient/shopping` placeholder now redirects
-  here.
+  (`src/pages/patient/Pantry.tsx`). Search the ingredient catalogue, add the
+  food with an optional quantity and note onto either the **At home** or the
+  **Shopping list** tab, and move items between the two. The old
+  `/patient/shopping` placeholder now redirects here.
+- **Ingredient catalogue** — `src/data/ingredients.ts`. Foods are picked from
+  this list rather than typed free-hand, because what a patient types ("Dals",
+  "ALL Kinds Of Fruits") is not what the recipe database indexes, and the
+  doctor's ingredient search then matched nothing. Each entry carries the
+  `label` the patient sees and is stored under, the plain `searchTerm` sent to
+  the recipe API ("Brown rice" → `rice`), a category, and optional `aliases` so
+  local names ("methi", "bhindi", "jeera") find the right entry while typing.
+  `public/foodDatabase.json` is deliberately not the source here — it lists
+  prepared dishes, not ingredients.
 - **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
   (`src/components/patients/PatientPantryPanel.tsx`). Search one of your own
   patients and their kitchen list appears as tappable chips; picking one or two
-  pushes them into the FoodOScope include-ingredients filter. The filter is an
-  AND across everything selected — a recipe must contain every ingredient
-  picked — so the panel selects nothing by default rather than searching a
-  whole pantry, which matches nothing.
-- **Storage** — `patient_pantry_items` (`supabase/patient_pantry_items.sql`),
+  pushes their catalogue search terms into the FoodOScope include-ingredients
+  filter. The filter is an AND across everything selected — a recipe must
+  contain every ingredient picked — so the panel selects nothing by default
+  rather than searching a whole pantry, which matches nothing.
+- **Storage** — `patient_pantry_items` (`supabase/patient_pantry_items.sql`,
+  one row per food with both the chosen label and its `search_term`),
   read and written through `src/services/pantryService.ts`. RLS makes the list
   the patient's own: they insert/update/delete only their rows, and a treating
   doctor can read but never write them.
