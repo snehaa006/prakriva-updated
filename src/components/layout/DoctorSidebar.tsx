@@ -26,6 +26,7 @@ import {
   Stethoscope
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 
 const navigationItems = [
@@ -104,6 +105,13 @@ export function DoctorSidebar() {
       <SidebarTrigger className="m-2 self-end" />
       
       <SidebarContent>
+        {/* Brand */}
+        <div className="px-4 pb-4 border-b border-sidebar-border">
+          <NavLink to="/doctor/dashboard" className="flex items-center justify-center">
+            <Logo size={isCollapsed ? "sm" : "lg"} />
+          </NavLink>
+        </div>
+
         {/* User Info */}
         {!isCollapsed && user && (
           <div className="p-4 border-b border-sidebar-border">

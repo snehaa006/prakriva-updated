@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Logo } from "@/components/ui/logo";
 import { Stethoscope, User, Leaf, Heart, Brain, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/ayurveda-hero.jpg";
@@ -43,10 +44,8 @@ const Landing = () => {
         
         <div className="relative container mx-auto px-4 py-24 md:py-32">
           <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
-              
-              <span className="bg-gradient-primary bg-clip-text text-transparent"> Prakriva </span>
-             
+            <h1 className="mb-6 leading-tight">
+              <Logo size="xl" className="md:h-36 rounded-xl shadow-lg" />
             </h1>
             <p className="text-xl text-muted-foreground mb-12 leading-relaxed">
               Transform your health with personalized Ayurvedic nutrition plans. 
