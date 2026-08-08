@@ -61,11 +61,6 @@ const navigationItems = [
   //   url: "/patient/symptom-tracking",
   //   icon: Activity,
   // },
-  // {
-  //   title: "Lifestyle Tracker",
-  //   url: "/patient/lifestyle-tracker",
-  //   icon: Heart,
-  // },
   {
     title: "Social Support",
     url: "/patient/social-support",
@@ -75,6 +70,11 @@ const navigationItems = [
     title: "Reminders",
     url: "/patient/reminders",
     icon: Bell,
+  },
+  {
+    title: "Lifestyle Tracker",
+    url: "/patient/lifestyle-tracker",
+    icon: Heart,
   },
 ];
 
