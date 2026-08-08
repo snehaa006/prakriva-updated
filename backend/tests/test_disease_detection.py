@@ -264,6 +264,48 @@ class TestRegistry:
             register_detector("common_cold", lambda inputs: None)
 
 
+class TestMLDetectors:
+    """The trained-model detectors, skipped when XGBoost/artifacts are absent."""
+
+    @pytest.fixture(autouse=True)
+    def ml_detectors(self):
+        pytest.importorskip("xgboost")
+        from disease_detection.ml import register_ml_detectors
+
+        if not register_ml_detectors(replace=True):
+            pytest.skip("Maternal model artifacts not available")
+        yield
+        reset_detectors()
+
+    def test_ml_detectors_are_active(self):
+        from disease_detection import available_conditions
+
+        active = {c["condition"]: c["detector"] for c in available_conditions()}
+        assert active["anaemia"] == "anaemia-xgb-v1"
+        assert active["pregnancy_risk"] == "pregnancy-risk-xgb-v1"
+
+    def test_severe_case_is_high_risk(self, healthy_input):
+        inputs = healthy_input.model_copy(
+            update={"hemoglobin": 6.8, "bp_systolic": 150, "bp_diastolic": 95, "age": 38}
+        )
+        result = run_screening(inputs)
+        anaemia = next(c for c in result.conditions if c.condition == "anaemia")
+        risk = next(c for c in result.conditions if c.condition == "pregnancy_risk")
+
+        assert anaemia.details["anemia_status"] == "Severe"
+        assert anaemia.risk_level == RiskLevel.HIGH
+        assert risk.details["pregnancy_risk"] == "High"
+        assert result.overall_risk_level == RiskLevel.HIGH
+
+    def test_missing_haemoglobin_falls_back_to_rules(self, healthy_input):
+        inputs = healthy_input.model_copy(update={"hemoglobin": None})
+        anaemia = next(
+            c for c in run_screening(inputs).conditions if c.condition == "anaemia"
+        )
+        # Falls back to the rule-based detector, not the model.
+        assert anaemia.detector == "rules-v1"
+
+
 class TestEndpoints:
     def test_conditions_endpoint(self, client):
         response = client.get("/disease/conditions")

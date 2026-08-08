@@ -25,7 +25,9 @@ const isMissingTable = (error: { code?: string; message?: string } | null) =>
 export const emptyScreeningInput = (): ScreeningInput => ({
   age: 28,
   trimester: "unknown",
+  gestational_week: null,
   bmi: null,
+  iron_supplement: false,
   gravida: 1,
   parity: 0,
   bp_systolic: null,
@@ -87,6 +89,39 @@ export const ageFromDob = (dob?: string): number | null => {
 };
 
 /**
+ * Current gestational week derived from an estimated due date (EDD).
+ *
+ * Pregnancy is dated as 40 weeks to the EDD, so the weeks already elapsed are
+ * `40 - weeks_until_due`. Returns null when the date is missing/unparseable.
+ */
+export const gestationalWeekFromDueDate = (dueDate?: string): number | null => {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return null;
+
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const weeksUntilDue = (due.getTime() - Date.now()) / msPerWeek;
+  const week = Math.round(40 - weeksUntilDue);
+  return Math.min(45, Math.max(0, week));
+};
+
+/** Trimester that a gestational week falls into. */
+export const trimesterFromWeek = (week: number | null): ScreeningInput["trimester"] => {
+  if (week === null) return "unknown";
+  if (week < 13) return "first";
+  if (week < 27) return "second";
+  return "third";
+};
+
+/** Height in centimetres captured once during onboarding, or null. */
+export const heightCmFromAssessment = (
+  assessmentData: AssessmentData
+): number | null => {
+  const raw = Number(assessmentData?.heightCm);
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+};
+
+/**
  * The questionnaire payload stored in `patients.assessment_data`.
  *
  * It is free-form `jsonb` that has grown field by field, so it is read
@@ -123,13 +158,20 @@ export const buildScreeningInputFromAssessment = (
   const age = ageFromDob(assessmentData.dob as string | undefined);
   if (age !== null && age >= 10 && age <= 60) input.age = age;
 
+  // Prefer deriving gestational week (and trimester) from the estimated due
+  // date captured at onboarding; fall back to any stored trimester answer.
+  const gestWeek = gestationalWeekFromDueDate(assessmentData.dueDate as string | undefined);
+  if (gestWeek !== null) input.gestational_week = gestWeek;
+
   const trimesterMap: Record<string, ScreeningInput["trimester"]> = {
     first: "first",
     second: "second",
     third: "third",
   };
   input.trimester =
-    trimesterMap[String(assessmentData.pregnancyTrimester)] ?? "unknown";
+    gestWeek !== null
+      ? trimesterFromWeek(gestWeek)
+      : trimesterMap[String(assessmentData.pregnancyTrimester)] ?? "unknown";
 
   const conditions = assessmentData.currentConditions;
   const familyHistory = assessmentData.familyHistory;

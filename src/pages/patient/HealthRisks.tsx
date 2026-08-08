@@ -20,7 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import {
   BasicsSection,
+  computeBmi,
   HistorySection,
+  MaternalVitalsSection,
   ScalesSection,
   SymptomsSection,
 } from "@/components/health/ScreeningFields";
@@ -29,6 +31,7 @@ import { RISK_STYLES } from "@/lib/riskLevels";
 import {
   buildScreeningInputFromAssessment,
   emptyScreeningInput,
+  heightCmFromAssessment,
   isPregnantPatient,
   fetchScreenings,
   saveScreening,
@@ -53,6 +56,8 @@ const HealthRisks: React.FC = () => {
 
   const [patientId, setPatientId] = useState<string | null>(null);
   const [form, setForm] = useState<ScreeningInput>(emptyScreeningInput());
+  const [heightCm, setHeightCm] = useState<number | null>(null);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
   const [result, setResult] = useState<ScreeningResult | null>(null);
   const [history, setHistory] = useState<StoredScreening[]>([]);
   const [isPregnant, setIsPregnant] = useState(true);
@@ -81,6 +86,7 @@ const HealthRisks: React.FC = () => {
 
         if (cancelled) return;
         setIsPregnant(isPregnantPatient(patient?.assessment_data));
+        setHeightCm(heightCmFromAssessment(patient?.assessment_data));
         setForm(buildScreeningInputFromAssessment(patient?.assessment_data));
 
         const stored = await fetchScreenings(user.id);
@@ -112,7 +118,12 @@ const HealthRisks: React.FC = () => {
   const runCheck = async () => {
     setIsScreening(true);
     try {
-      const screening = await screenPatient(form);
+      // Turn the height captured at onboarding plus today's weight into BMI,
+      // so the maternal model gets it without asking the patient for BMI.
+      const bmi = computeBmi(heightCm, weightKg) ?? form.bmi ?? null;
+      const payload: ScreeningInput = { ...form, bmi };
+
+      const screening = await screenPatient(payload);
       setResult(screening);
       setActiveTab("results");
 
@@ -121,7 +132,7 @@ const HealthRisks: React.FC = () => {
         persisted = await saveScreening({
           patientId,
           submittedBy: "patient",
-          inputs: form,
+          inputs: payload,
           result: screening,
         });
         if (persisted) setHistory(await fetchScreenings(patientId));
@@ -217,21 +228,35 @@ const HealthRisks: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-lg">How have you been feeling?</CardTitle>
               <CardDescription>
-                Answer as accurately as you can. Anything you leave unticked is
-                treated as "not happening" — nothing here is guessed for you, and
-                blood test results are added later by your doctor.
+                Answer as accurately as you can and add any recent measurements
+                from your antenatal check-up (weight, haemoglobin, blood
+                pressure). Anything you leave blank or unticked is treated as
+                "not provided" — nothing here is guessed for you.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Accordion
                 type="multiple"
-                defaultValue={["basics", "symptoms"]}
+                defaultValue={["basics", "measurements", "symptoms"]}
                 className="w-full"
               >
                 <AccordionItem value="basics">
                   <AccordionTrigger>About your pregnancy</AccordionTrigger>
                   <AccordionContent className="pt-2">
                     <BasicsSection form={form} update={update} variant="patient" />
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="measurements">
+                  <AccordionTrigger>Your latest measurements</AccordionTrigger>
+                  <AccordionContent className="pt-2">
+                    <MaternalVitalsSection
+                      form={form}
+                      update={update}
+                      weightKg={weightKg}
+                      onWeightKg={setWeightKg}
+                      heightCm={heightCm}
+                    />
                   </AccordionContent>
                 </AccordionItem>
 

@@ -12,16 +12,14 @@ diet plan.
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, plan storage, and the maternal disease detection
-  pipeline.
+  pipeline (with XGBoost anaemia + pregnancy-risk models).
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
-- **Deployment**: the frontend and backend deploy as **two separate Vercel
-  projects**. The frontend project (Root Directory = repo root, Vite
-  framework preset) serves the static build. A backend Vercel project, if
-  used, would need Root Directory = `backend/` and its own Flask/Python
-  framework preset — see "Deployment (Vercel)" below for why they aren't
-  combined into one project.
+- **Deployment**: the frontend deploys to **Vercel** (Root Directory = repo
+  root, Vite framework preset) and the Flask backend deploys to **Render** from
+  the committed `render.yaml` blueprint. The frontend reaches the backend via
+  `VITE_API_URL`. See "Deployment" below.
 
 ## Project structure
 
@@ -56,7 +54,11 @@ diet plan.
 - `backend/disease_detection/` — the maternal disease detection pipeline:
   input/output models (`schemas.py`), the rule-based baseline detectors
   (`rules.py`), clinical next steps (`recommendations.py`) and the detector
-  registry (`pipeline.py`). See "Disease detection" below.
+  registry (`pipeline.py`). The `ml/` subpackage holds the XGBoost anaemia +
+  pregnancy-risk models, their shared feature transform (`featurize.py`),
+  inference (`inference.py`), detectors (`detectors.py`) and the training script
+  (`train_maternal_models.py`). See "Disease detection" below.
+- `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
@@ -141,7 +143,8 @@ deliberately not collected here. What the profile stores:
 
 | Group | Fields |
 |---|---|
-| Personal | `name`, `dob` (age is derived, never stored), `gender`, `location` |
+| Personal | `name`, `dob` (age is derived, never stored), `gender`, `location`, `heightCm` |
+| Maternal (once) | `lifeStage` (`pregnancy`/`none`), `dueDate` (estimated due date) |
 | Allergies & avoidances | `allergies`, `allergiesOther`, `foodAvoidances` |
 | Dietary pattern | `dietaryPreferences` |
 | Family history | `familyHistory`, `familyHistoryOther` |
@@ -152,44 +155,52 @@ Fields the profile no longer collects, because they change over time:
 `stressLevels`, `energyLevels`, `waterIntake`, `sleepDuration`,
 `physicalActivity`, `dailyRoutine`, `cravings`, `digestionIssues`,
 `currentConditions`, `medications`, `labReports`, `healthGoals`,
-`mealPrepTime`, `budgetPreference`, and the life-stage block (`lifeStage`,
-`pregnancyTrimester`, `isBreastfeeding`, `menopauseStage`).
+`mealPrepTime`, `budgetPreference`, `pregnancyTrimester`, `isBreastfeeding` and
+`menopauseStage`. (`lifeStage` and `dueDate` *are* collected — they are one-off
+maternal facts; the current gestational week is derived from `dueDate` at
+screening time rather than stored.)
 
 Readers of `assessment_data` treat it as free-form `jsonb` and read every field
-defensively, so profiles saved before this change keep working and the dropped
-keys simply read as absent. Two consequences worth knowing:
+defensively, so profiles saved before this change keep working and any absent
+keys simply read as absent. Worth knowing:
 
 - Features gated on `lifeStage === "pregnancy"` — the patient Health Check page
-  and the doctor's pregnant-patient list — no longer have a source for that
-  value from the profile. See "Disease detection" below.
-- `buildScreeningInputFromAssessment` prefills less of the screening form, so
-  the doctor enters more of it by hand.
+  and the doctor's pregnant-patient list — read it from the onboarding
+  questionnaire. Profiles saved before life stage was collected won't see the
+  Health Check until the questionnaire is filled in again. See "Disease
+  detection" below.
+- `buildScreeningInputFromAssessment` prefills age, gestational week (from
+  `dueDate`), trimester and history; labs and today's measurements stay blank
+  for the patient or doctor to enter.
 
 ## Disease detection
 
-Screens a pregnant patient for seven maternal conditions — anaemia, gestational
-diabetes, preeclampsia, UTI, thyroid disorder, miscarriage risk and perinatal
-mental health. Each condition comes back with a 0-100 risk score, a
-low/moderate/high level, the factors that drove it, and next steps.
+Screens a pregnant patient for eight maternal risks — anaemia, an overall
+**pregnancy risk**, gestational diabetes, preeclampsia, UTI, thyroid disorder,
+miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
+score, a low/moderate/high level, the factors that drove it, and next steps.
+
+Anaemia and pregnancy risk are scored by two **XGBoost models** (see "Maternal
+risk models" below); the remaining six use the rule-based scorers. Because every
+detector shares the same `(ScreeningInput) -> ConditionRisk` contract, the two
+kinds mix transparently and `ConditionRisk.detector` records which one answered.
 
 The form is split across the two roles, because the two halves come from
 different places:
 
 - **Patient → Health Check** (`/patient/health-check`) — she reports her own
   symptoms, medical history and wellbeing scales (stress, sleep, mood, support,
-  EPDS, PHQ-9), and sees her results immediately. No lab fields are asked for.
-  The page is only offered to patients whose stored `assessment_data` has a
-  life stage of `pregnancy`. **The profile questionnaire no longer asks for life
-  stage** (it is not a constant), so only profiles saved before that change
-  carry the value — new patients need life stage captured somewhere else before
-  this gate opens for them.
+  EPDS, PHQ-9), **plus the measurements from her latest antenatal check-up**:
+  weight (turned into BMI using the height captured at onboarding), haemoglobin,
+  blood pressure, weeks pregnant and whether she takes iron supplements. These
+  drive the anaemia and pregnancy-risk models. She sees her results immediately.
+  The page is only offered to patients whose stored `assessment_data` has a life
+  stage of `pregnancy` — captured, along with the estimated due date and height,
+  by the onboarding questionnaire (`src/pages/patient/Questionnaire.tsx`).
 - **Doctor → Disease Detection** (`/doctor/disease-detection`) — lists the
   doctor's accepted pregnant patients (the Patients page also links through per
   patient via "Risk Screening"). Selecting one loads her latest self-report into
   the form; the doctor adds the clinical measurements and lab panel and re-runs.
-  Without a self-report the form falls back to her profile, which since the
-  static-only change supplies age and family history but not the symptom,
-  condition or stress fields.
 
 Both roles see every run in a History tab, labelled by who submitted it.
 Laboratory fields left blank mean "not performed" — they never score as a normal
@@ -203,12 +214,38 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-The scoring today is the rule-based analytics ported from the Neuviaa prototype
-(`rules.py`), registered per condition through `pipeline.register_detector`. A
-detector is any callable of `(ScreeningInput) -> ConditionRisk`, so a trained ML
-model can replace a single condition without touching the API or the frontend;
-`ConditionRisk.detector` records which one produced each result, which keeps a
-mixed rules/ML screening auditable.
+Six conditions are scored by the rule-based analytics ported from the Neuviaa
+prototype (`rules.py`), registered per condition through
+`pipeline.register_detector`. Anaemia and pregnancy risk are scored by the
+trained models in `disease_detection/ml/` (see below), which register over their
+rule-based baselines at import. A detector is any callable of
+`(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
+reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
+records which one produced each result, which keeps a mixed run auditable.
+
+**Maternal risk models.** `backend/disease_detection/ml/` holds two XGBoost
+classifiers trained on a synthetic maternal-anaemia cohort
+(`backend/data/maternal_anemia_dataset.csv`):
+
+- **Anaemia status** — Normal / Mild / Moderate / Severe (essentially the WHO
+  haemoglobin grading).
+- **Pregnancy risk** — Low / Medium / High, combining haemoglobin, blood
+  pressure, maternal age and BMI.
+
+Both read the same nine features (age, gestational week, haemoglobin, iron
+supplement, systolic/diastolic BP, MAP, pulse pressure, BMI) via one shared
+transform (`ml/featurize.py`) used for both training and inference, so they
+cannot drift. Models are stored in XGBoost's version-tolerant native JSON
+format alongside `model_schema.json`. Retrain them with:
+
+```
+cd backend && python -m disease_detection.ml.train_maternal_models
+```
+
+When a model needs an input it does not have (haemoglobin for anaemia;
+haemoglobin and blood pressure for pregnancy risk) the detector falls back to
+the rule-based baseline rather than scoring on imputed values. If XGBoost or the
+model files are absent, the whole pipeline runs on the rule-based baseline.
 
 **Frontend layout.** The form sections
 (`src/components/health/ScreeningFields.tsx`) and the results rendering
@@ -310,11 +347,35 @@ One exception, unchanged from before: `public/mealCompatibility.html` is a
 standalone static page with no bundler and no Supabase client, so it keeps its
 own `API_TOKENS` array. It is not part of the rotation described above.
 
-## Deployment (Vercel)
+## Deployment
+
+### Frontend (Vercel)
 
 The frontend deploys as its own Vercel project: Root Directory = repo root,
 Framework Preset = Vite. Set the frontend environment variables above in that
-project's settings, then redeploy.
+project's settings, then redeploy. Point `VITE_API_URL` at the deployed backend
+URL (see below) so the disease-detection screening reaches the Flask API.
+
+### Backend (Render)
+
+The Flask backend — including the maternal disease-detection models — deploys to
+Render from the committed blueprint at `render.yaml`. In Render, choose **New +
+→ Blueprint** and select this repo; it builds `backend/requirements.txt`
+(installing XGBoost and the other backend deps) and starts the app with
+`python run.py` (Waitress), health-checked at `/health`. Render injects `PORT`
+automatically; `config.py` reads it.
+
+Set these secrets in the Render dashboard (they are `sync: false` in the
+blueprint, so they are never committed): `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY` and `OPENAI_API_KEY` — `run.py` requires all three
+at startup. Once the service is live, copy its URL into the frontend's
+`VITE_API_URL`.
+
+The model artifacts in `backend/disease_detection/ml/*.json` are committed, so no
+training step runs on deploy; the service loads them at startup and falls back to
+the rule-based baseline if they are missing.
+
+### Backend (Vercel, alternative)
 
 The backend is **not** combined into the same Vercel project as the
 frontend. This was tried (routing backend paths to a Python function under
@@ -325,6 +386,6 @@ prebuilt wheel at all for the Python version Vercel defaults to there, so the
 build fails trying to compile numpy/pandas from source. The backend-only
 build path (Root Directory = `backend/`, Flask framework preset) does not
 have this problem and is known to work — deploy the backend as a separate
-Vercel project using that layout if you need it live. Nothing in the current
-frontend calls the backend in production, so this only matters once a
-feature needs it.
+Vercel project using that layout if you prefer Vercel over Render. Either way,
+the frontend's disease-detection screening calls the backend in production, so
+`VITE_API_URL` must point at whichever backend deployment you use.

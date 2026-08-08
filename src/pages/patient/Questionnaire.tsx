@@ -28,6 +28,11 @@ interface FormData {
   dob: string;
   gender: string;
   location: string;
+  heightCm: string;
+
+  // Maternal (captured once; used by the pregnancy health check)
+  lifeStage: string;
+  dueDate: string;
 
   // Allergies & Food Avoidances
   allergies: string[];
@@ -61,6 +66,9 @@ const AyurvedicHealthAssessment: React.FC = () => {
     dob: "",
     gender: "",
     location: "",
+    heightCm: "",
+    lifeStage: "",
+    dueDate: "",
     allergies: [],
     allergiesOther: "",
     foodAvoidances: "",
@@ -374,6 +382,56 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   placeholder="E.g., San Francisco, CA"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Height (cm)
+                </label>
+                <input
+                  type="number"
+                  name="heightCm"
+                  min={100}
+                  max={220}
+                  value={formData.heightCm}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="E.g., 160"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Used with your weight to work out BMI in the health check.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Are you currently pregnant?
+                </label>
+                <select
+                  name="lifeStage"
+                  value={formData.lifeStage}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">Select...</option>
+                  <option value="pregnancy">Yes, I am pregnant</option>
+                  <option value="none">No</option>
+                </select>
+              </div>
+              {formData.lifeStage === "pregnancy" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estimated due date
+                  </label>
+                  <input
+                    type="date"
+                    name="dueDate"
+                    value={formData.dueDate}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    We use this to work out how many weeks along you are.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

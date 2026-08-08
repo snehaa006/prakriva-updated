@@ -133,6 +133,13 @@ export const BasicsSection: React.FC<
       </Select>
     </div>
     <NumberField
+      id="gestational_week"
+      label="Weeks pregnant"
+      value={form.gestational_week}
+      onChange={(v) => update("gestational_week", v)}
+      placeholder="e.g. 24"
+    />
+    <NumberField
       id="gravida"
       label="Pregnancies so far"
       value={form.gravida}
@@ -173,6 +180,83 @@ export const BasicsSection: React.FC<
     )}
   </div>
 );
+
+/** BMI from height (cm) and weight (kg), rounded to one decimal, or null. */
+export const computeBmi = (
+  heightCm: number | null,
+  weightKg: number | null
+): number | null => {
+  if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) return null;
+  const metres = heightCm / 100;
+  return Math.round((weightKg / (metres * metres)) * 10) / 10;
+};
+
+/**
+ * The measurements a patient can report at each health check — weight (turned
+ * into BMI with the height captured at onboarding), haemoglobin and blood
+ * pressure. These feed the maternal anaemia / pregnancy-risk model.
+ */
+export const MaternalVitalsSection: React.FC<{
+  form: ScreeningInput;
+  update: UpdateField;
+  weightKg: number | null;
+  onWeightKg: (value: number | null) => void;
+  heightCm: number | null;
+}> = ({ form, update, weightKg, onWeightKg, heightCm }) => {
+  const bmi = computeBmi(heightCm, weightKg);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <NumberField
+          id="weight_kg"
+          label="Weight (kg)"
+          step="0.1"
+          value={weightKg}
+          onChange={onWeightKg}
+          placeholder="e.g. 62"
+        />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">BMI (calculated)</Label>
+          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm">
+            {bmi !== null ? (
+              bmi
+            ) : (
+              <span className="text-muted-foreground">
+                {heightCm ? "Enter weight" : "Add height in your questionnaire"}
+              </span>
+            )}
+          </div>
+        </div>
+        <NumberField
+          id="hemoglobin"
+          label="Haemoglobin (g/dL)"
+          step="0.1"
+          value={form.hemoglobin}
+          onChange={(v) => update("hemoglobin", v)}
+          placeholder="e.g. 11.5"
+        />
+        <NumberField
+          id="bp_systolic"
+          label="Systolic BP (mmHg)"
+          value={form.bp_systolic}
+          onChange={(v) => update("bp_systolic", v)}
+          placeholder="e.g. 118"
+        />
+        <NumberField
+          id="bp_diastolic"
+          label="Diastolic BP (mmHg)"
+          value={form.bp_diastolic}
+          onChange={(v) => update("bp_diastolic", v)}
+          placeholder="e.g. 76"
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Enter the most recent readings from your antenatal check-up. Leave a field
+        blank if you do not have it — the check still runs on what you provide.
+      </p>
+    </div>
+  );
+};
 
 /** The symptom checklist plus the thyroid/GDM specific signs. */
 export const SymptomsSection: React.FC<SectionProps> = ({ form, update }) => {
@@ -266,6 +350,12 @@ export const HistorySection: React.FC<SectionProps> = ({ form, update }) => (
       label="History of anaemia"
       checked={form.anaemia_history}
       onChange={(v) => update("anaemia_history", v)}
+    />
+    <BoolField
+      id="iron_supplement"
+      label="Currently taking iron supplements"
+      checked={form.iron_supplement}
+      onChange={(v) => update("iron_supplement", v)}
     />
     <BoolField
       id="previous_uti"
