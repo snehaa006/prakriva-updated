@@ -1466,14 +1466,14 @@ const FoodExplorer: React.FC = () => {
       {/* Patient pantry — search a patient and cook from what they own */}
       <PatientPantryPanel
         onUseIngredients={(names) => {
-          // The FoodOScope ingredient filter takes a comma-separated list.
-          setIncludeIngredients(names.slice(0, 10).join(","));
+          if (names.length === 0) return;
+          // The FoodOScope ingredient filter takes a comma-separated list, and
+          // matches recipes containing all of them.
+          setIncludeIngredients(names.join(","));
           setPage(1);
-          if (names.length === 0) {
-            toast.info("That patient has not listed any foods yet.");
-          } else {
-            toast.success(`Searching recipes using ${names.length} of their ingredients.`);
-          }
+          toast.success(
+            `Searching recipes with ${names.join(", ")}.`
+          );
         }}
       />
 

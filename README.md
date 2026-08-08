@@ -135,6 +135,9 @@ Coverage is focused on authentication, since that is the gate on both roles:
   of stored screenings (including the missing-table fallback).
 - `src/services/__tests__/pantryService.test.ts` — the pantry row ↔ item
   mapping, insert defaults, error propagation and ingredient deduplication.
+- `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
+  including a 404 (no recipe matches every ingredient) reading as an empty
+  result rather than a failure.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
 
@@ -314,8 +317,11 @@ can cook rather than what a generator picked.
   here.
 - **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
   (`src/components/patients/PatientPantryPanel.tsx`). Search one of your own
-  patients and their kitchen list appears; "Find recipes from what they have"
-  pushes those ingredients into the FoodOScope include-ingredients filter.
+  patients and their kitchen list appears as tappable chips; picking one or two
+  pushes them into the FoodOScope include-ingredients filter. The filter is an
+  AND across everything selected — a recipe must contain every ingredient
+  picked — so the panel selects nothing by default rather than searching a
+  whole pantry, which matches nothing.
 - **Storage** — `patient_pantry_items` (`supabase/patient_pantry_items.sql`),
   read and written through `src/services/pantryService.ts`. RLS makes the list
   the patient's own: they insert/update/delete only their rows, and a treating
