@@ -208,12 +208,15 @@ which one answered.
 The form is split across the two roles, because the two halves come from
 different places:
 
-- **Patient → Health Check** (`/patient/health-check`) — she reports her own
-  symptoms, medical history and wellbeing scales (stress, sleep, mood, support,
-  EPDS, PHQ-9), **plus the measurements from her latest antenatal check-up**:
-  weight (turned into BMI using the height captured at onboarding), haemoglobin,
-  blood pressure, weeks pregnant and whether she takes iron supplements. These
-  drive the anaemia and pregnancy-risk models. She sees her results immediately.
+- **Patient → Health Check** (`/patient/health-check`) — asks only for the three
+  trained models' inputs, in three cards: **measurements** (weeks pregnant,
+  weight → BMI using the height captured at onboarding, haemoglobin, blood
+  pressure, iron supplements), **blood test results** (HbA1c, HDL,
+  triglycerides — all optional), and **diabetes risk factors** (prior GDM,
+  prediabetes, family history, PCOS, previous large baby, unexplained loss,
+  inactivity). She sees anaemia, pregnancy risk and gestational diabetes
+  immediately. The rule-only conditions are not run here, since they need
+  clinical findings and lab panels this form deliberately does not ask for.
   The page is only offered to patients whose stored `assessment_data` has a life
   stage of `pregnancy` — captured, along with the estimated due date and height,
   by the onboarding questionnaire (`src/pages/patient/Questionnaire.tsx`).

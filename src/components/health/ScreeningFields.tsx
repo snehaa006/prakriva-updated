@@ -311,6 +311,103 @@ export const MaternalVitalsSection: React.FC<{
   );
 };
 
+/**
+ * Blood-test values from a recent antenatal panel, feeding the gestational
+ * diabetes model. All optional — a missing value is filled with the population
+ * median and the result says so, rather than blocking the check.
+ */
+export const BloodResultsSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <NumberField
+        id="hba1c"
+        label="HbA1c (%)"
+        step="0.1"
+        value={form.hba1c}
+        onChange={(v) => update("hba1c", v)}
+        placeholder="e.g. 5.2"
+      />
+      <NumberField
+        id="hdl"
+        label="HDL cholesterol (mg/dL)"
+        value={form.hdl}
+        onChange={(v) => update("hdl", v)}
+        placeholder="e.g. 55"
+        range={MEASUREMENT_RANGES.hdl}
+      />
+      <NumberField
+        id="triglycerides"
+        label="Triglycerides (mg/dL)"
+        value={form.triglycerides}
+        onChange={(v) => update("triglycerides", v)}
+        placeholder="e.g. 150"
+        range={MEASUREMENT_RANGES.triglycerides}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      From your most recent blood test report. Leave blank if you do not have
+      them — your diabetes risk is still estimated from everything else.
+    </p>
+  </div>
+);
+
+/**
+ * The history questions the gestational diabetes model uses. Each one is a
+ * model input, not a general questionnaire item. Some arrive pre-ticked from
+ * the onboarding questionnaire; the patient can correct them here.
+ */
+export const DiabetesRiskFactorsSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <BoolField
+        id="patient_prior_gdm"
+        label="Gestational diabetes in a previous pregnancy"
+        checked={form.gestational_diabetes_previous}
+        onChange={(v) => update("gestational_diabetes_previous", v)}
+      />
+      <BoolField
+        id="patient_known_prediabetes"
+        label="Told you have prediabetes"
+        checked={form.known_prediabetes}
+        onChange={(v) => update("known_prediabetes", v)}
+      />
+      <BoolField
+        id="patient_family_history"
+        label="Diabetes runs in your family"
+        checked={form.family_history}
+        onChange={(v) => update("family_history", v)}
+      />
+      <BoolField
+        id="patient_pcos"
+        label="PCOS"
+        checked={form.pcos}
+        onChange={(v) => update("pcos", v)}
+      />
+      <BoolField
+        id="patient_large_baby"
+        label="A previous baby weighed over 4 kg"
+        checked={form.large_baby_previous}
+        onChange={(v) => update("large_baby_previous", v)}
+      />
+      <BoolField
+        id="patient_unexplained_loss"
+        label="An unexplained pregnancy loss"
+        checked={form.unexplained_prenatal_loss}
+        onChange={(v) => update("unexplained_prenatal_loss", v)}
+      />
+      <BoolField
+        id="patient_sedentary"
+        label="Mostly inactive day to day"
+        checked={form.sedentary_lifestyle}
+        onChange={(v) => update("sedentary_lifestyle", v)}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      Leave anything unticked that does not apply to you.
+    </p>
+  </div>
+);
+
 /** The symptom checklist plus the thyroid/GDM specific signs. */
 export const SymptomsSection: React.FC<SectionProps> = ({ form, update }) => {
   const toggleSymptom = (symptom: SymptomKey, checked: boolean) =>
