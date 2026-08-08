@@ -63,12 +63,10 @@ import {
   XCircle,
   Loader2,
   Printer,
-  ExternalLink,
   FileEdit,
   Calendar,
   TrendingUp,
   CircleDot,
-  Stethoscope,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -308,7 +306,7 @@ const ProgressStep: React.FC<{
 
 // ==================== MAIN COMPONENT ====================
 
-const PersonalizedDietChart: React.FC = () => {
+export const PersonalizedGenerator: React.FC = () => {
   const navigate = useNavigate();
 
   // --- State ---
@@ -540,7 +538,7 @@ const PersonalizedDietChart: React.FC = () => {
 
       setSavedPlanId(inserted.id);
       setSavedStatus(status);
-      toast.success(status === "final" ? "Diet chart approved and saved." : "Draft saved. You can edit it in Recipe Builder.");
+      toast.success(status === "final" ? "Diet chart approved and saved." : "Draft saved. You can edit it in the Manual Builder.");
     } catch (err) {
       console.error("Error saving diet chart:", err);
       // Surface the real reason (RLS rejection, bad column, …) instead of a
@@ -555,8 +553,8 @@ const PersonalizedDietChart: React.FC = () => {
     }
   }, [dietChart, patientId, numDays]);
 
-  // --- Navigate to Recipe Builder for editing ---
-  const handleEditInRecipeBuilder = useCallback(() => {
+  // --- Switch to the Manual Builder tab for editing ---
+  const handleEditInManualBuilder = useCallback(() => {
     if (!savedPlanId || !patientId) return;
     navigate(`/doctor/recipes?editPlanId=${savedPlanId}&patientId=${patientId}`);
   }, [savedPlanId, patientId, navigate]);
@@ -583,29 +581,14 @@ const PersonalizedDietChart: React.FC = () => {
   // ==================== RENDER ====================
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-8 max-w-[1440px] mx-auto">
-      {/* ===== HEADER ===== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-              <Stethoscope className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Personalized Diet Chart</h1>
-              <p className="text-sm text-gray-500">Evidence-based, dosha-personalized nutrition planning</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="flex items-center gap-6">
-          <ProgressStep step={1} label="Patient" active={currentStep === 1} completed={currentStep > 1} />
-          <div className="w-8 h-px bg-gray-300" />
-          <ProgressStep step={2} label="Generate" active={currentStep === 2} completed={currentStep > 2} />
-          <div className="w-8 h-px bg-gray-300" />
-          <ProgressStep step={3} label="Review & Save" active={currentStep === 3} completed={!!savedPlanId} />
-        </div>
+    <div className="space-y-8 max-w-[1440px] mx-auto">
+      {/* ===== PROGRESS ===== */}
+      <div className="flex items-center gap-6">
+        <ProgressStep step={1} label="Patient" active={currentStep === 1} completed={currentStep > 1} />
+        <div className="w-8 h-px bg-gray-300" />
+        <ProgressStep step={2} label="Generate" active={currentStep === 2} completed={currentStep > 2} />
+        <div className="w-8 h-px bg-gray-300" />
+        <ProgressStep step={3} label="Review & Save" active={currentStep === 3} completed={!!savedPlanId} />
       </div>
 
       {/* ===== PATIENT SELECTION ===== */}
@@ -856,10 +839,9 @@ const PersonalizedDietChart: React.FC = () => {
                     {savedStatus === "final" ? "Approved" : "Draft Saved"}
                   </Badge>
                   {savedStatus === "draft" && (
-                    <Button variant="outline" size="sm" onClick={handleEditInRecipeBuilder} className="gap-1.5">
+                    <Button variant="outline" size="sm" onClick={handleEditInManualBuilder} className="gap-1.5">
                       <FileEdit className="w-3.5 h-3.5" />
-                      Edit in Recipe Builder
-                      <ExternalLink className="w-3 h-3 ml-1 text-gray-400" />
+                      Edit in Manual Builder
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" onClick={() => window.print()}>
@@ -1282,5 +1264,3 @@ const PersonalizedDietChart: React.FC = () => {
     </div>
   );
 };
-
-export default PersonalizedDietChart;

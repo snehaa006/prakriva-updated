@@ -100,7 +100,7 @@ const DietChart = () => {
   };
 
   // Convert Firebase meal plans to DietPlanRow format
-  // Handles both RecipeBuilder format { Daily, Weekly } and PersonalizedDietChart format { days[] }
+  // Handles both the Manual Builder format { Daily, Weekly } and the Personalized Generator format { days[] }
   const convertMealPlanToRows = (plan: any, activeFilter: string = "Daily"): DietPlanRow[] => {
     const rows: DietPlanRow[] = [];
     let rowCounter = 1;
@@ -221,8 +221,8 @@ const DietChart = () => {
         totalMeals: row.total_meals,
         activeFilter: row.active_filter,
         createdAt: row.created_at,
-        // loadDietPlan also looks for a days[] payload produced by
-        // PersonalizedDietChart, which lives inside the meals document.
+        // loadDietPlan also looks for a days[] payload produced by the
+        // Personalized Generator, which lives inside the meals document.
         ...(row.meals?.days ? { days: row.meals.days } : {}),
       }));
 
@@ -252,7 +252,7 @@ const DietChart = () => {
     let rows: DietPlanRow[] = [];
 
     if (planData.days && Array.isArray(planData.days)) {
-      // PersonalizedDietChart format: days[].meals[]
+      // Personalized Generator format: days[].meals[]
       rows = convertDaysToRows(planData.days);
     } else if (plan.meals) {
       // RecipeBuilder format: { Daily, Weekly }

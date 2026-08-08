@@ -26,7 +26,6 @@ import TeamManagement from "./pages/doctor/TeamManagement";
 import FoodExplorer from "./pages/doctor/FoodExplorer";
 import RecipeBuilder from "./pages/doctor/RecipeBuilder";
 import DietChart from "./pages/doctor/DietChart";
-import PersonalizedDietChart from "./pages/doctor/PersonalizedDietChart";
 import DiseaseDetection from "./pages/doctor/DiseaseDetection";
 import HealthRisks from "./pages/patient/HealthRisks";
 import NotFound from "./pages/NotFound";
@@ -133,7 +132,7 @@ const AppRoutes = () => (
       <Route path="food-explorer" element={<FoodExplorer />} />
       <Route path="recipes" element={<RecipeBuilder />} />
       <Route path="diet-charts" element={<DietChart />} />
-      <Route path="personalized-diet" element={<PersonalizedDietChart />} />
+      <Route path="personalized-diet" element={<Navigate to="/doctor/recipes" replace />} />
       <Route path="profile" element={<DoctorProfile />} />
       <Route path="consult-doctor" element={<ConsultDoctor />} />
       <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
