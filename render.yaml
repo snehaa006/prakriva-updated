@@ -27,9 +27,11 @@ services:
         value: "false"
       # Render injects PORT automatically; config.py reads it.
       # Secrets — set these in the Render dashboard, they are not committed.
+      # Both come from your (free) Supabase project: Project Settings -> API.
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
+      # OPENAI_API_KEY is optional — only the LLM meal-planning / dosha-chat
+      # features use it; disease detection works without it. Add it later in the
+      # Render dashboard if you want those AI features.

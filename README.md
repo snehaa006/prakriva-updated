@@ -366,10 +366,13 @@ Render from the committed blueprint at `render.yaml`. In Render, choose **New +
 `python run.py` (Waitress), health-checked at `/health`. Render injects `PORT`
 automatically; `config.py` reads it.
 
-Set these secrets in the Render dashboard (they are `sync: false` in the
-blueprint, so they are never committed): `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY` and `OPENAI_API_KEY` — `run.py` requires all three
-at startup. Once the service is live, copy its URL into the frontend's
+Set two secrets in the Render dashboard (they are `sync: false` in the
+blueprint, so they are never committed): `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`, both from your free Supabase project (Project
+Settings → API). `OPENAI_API_KEY` is **optional** — the disease-detection models
+and the rest of the API boot without it, so the backend deploys for free; only
+the LLM meal-planning / dosha-chat features need a key, which you can add later
+in the dashboard. Once the service is live, copy its URL into the frontend's
 `VITE_API_URL`.
 
 The model artifacts in `backend/disease_detection/ml/*.json` are committed, so no
