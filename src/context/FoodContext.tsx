@@ -5,6 +5,8 @@ import {
   ReactNode,
   useEffect,
 } from "react";
+import { readCache, writeCache, CACHE_KEYS, ONE_DAY_MS } from "@/lib/localCache";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export interface Food {
   id: string; // Unique ID for React keys
@@ -27,14 +29,28 @@ interface FoodContextType {
   selectedFoods: Food[];
   addToSelectedFoods: (food: Food) => void;
   removeFromSelectedFoods: (food: Food) => void;
+  clearSelectedFoods: () => void;
   setSelectedFoods: React.Dispatch<React.SetStateAction<Food[]>>; // 👈 for drag & drop
 }
 
 const FoodContext = createContext<FoodContextType | undefined>(undefined);
 
+/** The food database rarely changes, so a cached copy is good for a week. */
+const FOOD_DB_TTL = 7 * ONE_DAY_MS;
+
 export const FoodProvider = ({ children }: { children: ReactNode }) => {
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [selectedFoods, setSelectedFoods] = useState<Food[]>([]);
+  // Seed from cache so a refresh renders the food list immediately instead of
+  // waiting on the JSON fetch (and still shows something when offline).
+  const [foods, setFoods] = useState<Food[]>(
+    () => readCache<Food[]>(CACHE_KEYS.foodDatabase, FOOD_DB_TTL) ?? []
+  );
+
+  // The palette a doctor is assembling is real work — it must not vanish on a
+  // refresh or an accidental navigation.
+  const [selectedFoods, setSelectedFoods] = usePersistentState<Food[]>(
+    CACHE_KEYS.selectedFoods,
+    []
+  );
 
   // 🔹 Load foods from JSON file in public folder
   useEffect(() => {
@@ -47,6 +63,7 @@ export const FoodProvider = ({ children }: { children: ReactNode }) => {
           id: `${item.Food_Item}-${index}`,
         }));
         setFoods(foodsWithId);
+        writeCache(CACHE_KEYS.foodDatabase, foodsWithId);
       })
       .catch((err) => console.error("Error loading food database:", err));
   }, []);
@@ -63,6 +80,8 @@ export const FoodProvider = ({ children }: { children: ReactNode }) => {
     setSelectedFoods((prev) => prev.filter((f) => f.id !== food.id));
   };
 
+  const clearSelectedFoods = () => setSelectedFoods([]);
+
   return (
     <FoodContext.Provider
       value={{
@@ -70,6 +89,7 @@ export const FoodProvider = ({ children }: { children: ReactNode }) => {
         selectedFoods,
         addToSelectedFoods,
         removeFromSelectedFoods,
+        clearSelectedFoods,
         setSelectedFoods, // 👈 expose for drag & drop reorder
       }}
     >

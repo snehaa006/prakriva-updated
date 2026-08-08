@@ -52,6 +52,11 @@ const navigationItems = [
     icon: ChefHat,
   },
   {
+    title: "My Kitchen",
+    url: "/patient/pantry",
+    icon: ShoppingCart,
+  },
+  {
     title: "Health Check",
     url: "/patient/health-check",
     icon: HeartPulse,

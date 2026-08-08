@@ -3,8 +3,8 @@
 An Ayurvedic diet/wellness planning app connecting doctors and patients. Doctors
 manage patients, build recipes and diet charts, review dosha/consultation
 data, and run maternal disease-risk screening for their pregnant patients;
-patients complete an Ayurvedic health questionnaire and get a personalized
-diet plan.
+patients complete an Ayurvedic health questionnaire, list the foods in their
+kitchen, and get a personalized diet plan.
 
 ## Tech stack
 
@@ -60,8 +60,18 @@ diet plan.
   (`train_maternal_models.py`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
-  `disease_screenings.sql` for the screening history table and
-  `junk_food_streak.sql` for the Lifestyle Tracker's streak log.
+  `disease_screenings.sql` for the screening history table,
+  `junk_food_streak.sql` for the Lifestyle Tracker's streak log and
+  `patient_pantry_items.sql` for the patient kitchen list.
+- `src/components/patients/` — shared patient-selection UI:
+  `PatientPicker.tsx` (searchable dropdown over the signed-in doctor's own
+  patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
+  read-only view of a patient's kitchen). Both are backed by
+  `src/hooks/useDoctorPatients.ts`.
+- `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
+  localStorage cache that keeps in-progress work (meal-plan drafts, the food
+  palette, a generated diet chart, the selected patient) across a page refresh.
+  See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
@@ -123,6 +133,10 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/diseaseDetectionService.test.ts` — the questionnaire →
   screening-form mapping, the screening API client, and the Supabase read/write
   of stored screenings (including the missing-table fallback).
+- `src/services/__tests__/pantryService.test.ts` — the pantry row ↔ item
+  mapping, insert defaults, error propagation and ingredient deduplication.
+- `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
+  expiry, corrupted-entry handling and prefix clearing.
 
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
@@ -287,6 +301,61 @@ resets on refresh would defeat the point.
   `src/services/junkFoodStreakService.ts`. As with disease screenings, a
   missing table degrades gracefully: the streak just reads as untracked
   rather than erroring.
+
+## Patient kitchen (pantry)
+
+Patients list the food they actually have, so plans are built around what they
+can cook rather than what a generator picked.
+
+- **Patient side** — "My Kitchen" at `/patient/pantry`
+  (`src/pages/patient/Pantry.tsx`). Add a food with a category, quantity and
+  optional note, on either the **At home** or the **Shopping list** tab, and
+  move items between the two. Food names autocomplete from the shared food
+  database loaded by `FoodContext`. The old `/patient/shopping` placeholder now
+  redirects here.
+- **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
+  (`src/components/patients/PatientPantryPanel.tsx`). Search one of your own
+  patients and their kitchen list appears; "Find recipes from what they have"
+  pushes those ingredients into the FoodOScope include-ingredients filter.
+- **Storage** — `patient_pantry_items` (`supabase/patient_pantry_items.sql`),
+  read and written through `src/services/pantryService.ts`. RLS makes the list
+  the patient's own: they insert/update/delete only their rows, and a treating
+  doctor can read but never write them.
+
+## Patient selection (doctors)
+
+Every doctor-side patient search goes through `PatientPicker`
+(`src/components/patients/PatientPicker.tsx`): a searchable dropdown listing
+**only the signed-in doctor's own patients**, filterable by name or by patient
+code (P001…). It is used by the Personalized Diet Chart, the Recipe Builder, the
+Diet Chart viewer and the Food Explorer's pantry panel, replacing the free-text
+"enter a patient ID" inputs those pages used to have.
+
+The list comes from `src/hooks/useDoctorPatients.ts`, which reads the doctor's
+`consultation_requests` (statuses `pending`/`accepted`/`completed` — the same
+set `public.doctor_treats()` accepts, so anything offered in the picker is
+something the doctor may actually write a plan for) and caches the result in
+React Query.
+
+The picker hands callers the patient's **`patients.id` UUID**, and shows the
+P001-style code as display text only. That distinction matters: `diet_plans`
+(and every other table) keys on the UUID, so saving a plan against the code
+fails on both the column type and the RLS check.
+
+## Caching
+
+Long-running work no longer disappears on a page refresh:
+
+- `src/lib/localCache.ts` is a small namespaced, TTL-aware localStorage wrapper;
+  `src/hooks/usePersistentState.ts` is `useState` mirrored into it.
+- What is cached: the Recipe Builder's meal-plan draft and its form fields, the
+  food palette (`FoodContext.selectedFoods`), the food database JSON, the
+  generated diet chart and selected patient on the Personalized Diet Chart, the
+  patient selected in the Diet Chart viewer and the Food Explorer pantry panel,
+  and each patient's pantry list.
+- Server reads go through React Query, whose app-wide defaults live in
+  `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
+  focus), so switching pages serves from cache instead of refetching.
 
 ## Environment variables
 

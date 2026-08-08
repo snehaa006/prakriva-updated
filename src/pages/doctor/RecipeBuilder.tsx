@@ -17,6 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Save, Plus, Sparkles, Leaf, Target, Clock, User, Heart, FileEdit, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { PatientPicker } from "@/components/patients/PatientPicker";
+import { useDoctorPatients } from "@/hooks/useDoctorPatients";
+import { usePersistentState } from "@/hooks/usePersistentState";
+import { CACHE_KEYS } from "@/lib/localCache";
 
 // Import the Ayurnutrigenomics generator
 import AyurnutrigenomicsDietGenerator, { formatDietPlanForDisplay } from '@/services/ayurnutrigenomicsGenerator';
@@ -37,28 +41,66 @@ const RecipeBuilder = () => {
   const { selectedFoods } = useFoodContext();
 
   // Track selected filter
-  const [activeFilter, setActiveFilter] = useState("Daily");
+  const [activeFilter, setActiveFilter] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":filter",
+    "Daily"
+  );
 
-  // Save form state
-  const [patientId, setPatientId] = useState("");
-  const [patientName, setPatientName] = useState("");
-  const [planDuration, setPlanDuration] = useState("7 days");
-  const [planType, setPlanType] = useState("weight-management");
+  // Save form state. `patientId` is the patients.id UUID that diet_plans keys
+  // on; `patientCode` is the P001-style code shown to the doctor.
+  const [patientId, setPatientId] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":patientId",
+    ""
+  );
+  const [patientCode, setPatientCode] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":patientCode",
+    ""
+  );
+  const [patientName, setPatientName] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":patientName",
+    ""
+  );
+  const [planDuration, setPlanDuration] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":duration",
+    "7 days"
+  );
+  const [planType, setPlanType] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":planType",
+    "weight-management"
+  );
   const [saving, setSaving] = useState(false);
+
+  // The doctor's own patients, for the picker and profile lookups.
+  const { patients: doctorPatients } = useDoctorPatients();
+
+  // Fill in the display code/name once the patient list arrives — the id may
+  // come from a cached draft or from the ?patientId= link out of the
+  // Personalized Diet Chart, neither of which carries the P001 code.
+  useEffect(() => {
+    if (!patientId || doctorPatients.length === 0) return;
+    const match = doctorPatients.find((patient) => patient.id === patientId);
+    if (!match) return;
+    setPatientCode((current) => current || match.code);
+    setPatientName((current) => current || match.name);
+  }, [patientId, doctorPatients, setPatientCode, setPatientName]);
 
   // Draft editing state
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editingDraftMeta, setEditingDraftMeta] = useState<Record<string, unknown> | null>(null);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
-  // Meal plans
-  const [mealPlans, setMealPlans] = useState({
-    Daily: { Breakfast: [], Lunch: [], Dinner: [], Snack: [] },
-    Weekly: weekDays.reduce((acc, day) => {
-      acc[day] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
-      return acc;
-    }, {}),
-  });
+  // Meal plans. Cached in localStorage: a half-built plan is real work and must
+  // survive a page refresh or an accidental navigation.
+  const [mealPlans, setMealPlans] = usePersistentState(
+    CACHE_KEYS.recipeBuilderDraft + ":meals",
+    {
+      Daily: { Breakfast: [], Lunch: [], Dinner: [], Snack: [] },
+      Weekly: weekDays.reduce((acc, day) => {
+        acc[day] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+        return acc;
+      }, {}),
+    }
+  );
 
   // Palette
   const [paletteFoods, setPaletteFoods] = useState([...selectedFoods]);
@@ -241,109 +283,22 @@ const RecipeBuilder = () => {
     setPaletteFoods(updatedPalette);
   };
 
-  // FIXED: Patient profile fetching using the same logic as Patients.tsx
-  const fetchPatientProfileWithAssessment = async (patientId) => {
-    console.log("🔍 STARTING: Fetch patient profile for ID:", patientId);
-    
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUser = authData.user;
-      if (!currentUser) {
-        console.log("❌ No authenticated user");
-        return null;
-      }
+  // Look the patient up in the doctor's own patient list (see
+  // useDoctorPatients). Accepts either the patients.id UUID handed over by the
+  // picker or the P001-style code, so older links keep working.
+  const fetchPatientProfileWithAssessment = (id) => {
+    const match = doctorPatients.find(
+      (patient) => patient.id === id || patient.code === id
+    );
 
-      // Get accepted consultation requests, joined with the patient row so
-      // the custom P001-style code comes back in the same trip.
-      console.log("🔍 Fetching accepted consultation requests...");
+    if (!match) return null;
 
-      const { data: rows, error } = await supabase
-        .from("consultation_requests")
-        .select(`
-          patient_id, patient_name, full_patient_profile,
-          patients (
-            patient_code, name, assessment_data,
-            registration_date, created_at, profile_completed, status
-          )
-        `)
-        .eq("doctor_id", currentUser.id)
-        .eq("status", "accepted");
-
-      if (error) throw error;
-      console.log("📊 Total accepted consultation requests:", rows?.length ?? 0);
-
-      const patientsData = (rows ?? []).map((data: any) => {
-        let enhancedPatientProfile = data.full_patient_profile || {
-          name: data.patient_name || 'Unknown Patient',
-          patientId: null
-        };
-
-        const patientData = data.patients;
-        if (patientData) {
-          enhancedPatientProfile = {
-            ...enhancedPatientProfile,
-            // This is where custom P001, P012 IDs come from
-            patientId: patientData.patient_code || data.patient_id,
-            name: patientData.name || enhancedPatientProfile.name,
-            assessmentData: patientData.assessment_data || enhancedPatientProfile.assessmentData,
-            registrationDate: patientData.registration_date || patientData.created_at,
-            profileCompleted: patientData.profile_completed,
-            status: patientData.status || 'active',
-            ...(patientData.assessment_data && {
-              gender: patientData.assessment_data.gender || enhancedPatientProfile.gender,
-              phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessment_data.phoneNumber,
-              address: patientData.assessment_data.location || enhancedPatientProfile.address,
-            })
-          };
-        }
-
-        return {
-          firebaseId: data.patient_id,
-          customPatientId: enhancedPatientProfile.patientId,
-          patientName: data.patient_name,
-          fullPatientProfile: enhancedPatientProfile
-        };
-      });
-
-      // Now search for the patient using the custom patient ID
-      console.log("📋 Available patients with custom IDs:");
-      patientsData.forEach(patient => {
-        console.log(`  - ${patient.patientName}: Firebase ID = ${patient.firebaseId}, Custom ID = ${patient.customPatientId}`);
-      });
-      
-      console.log("🔍 Searching for Patient ID:", patientId);
-      
-      // Find patient by custom patient ID
-      const foundPatient = patientsData.find(patient => 
-        patient.customPatientId === patientId
-      );
-      
-      if (!foundPatient) {
-        // Try Firebase UID as fallback
-        const fallbackPatient = patientsData.find(patient => 
-          patient.firebaseId === patientId
-        );
-        
-        if (fallbackPatient) {
-          console.log("✅ Found patient by Firebase UID:", fallbackPatient.firebaseId);
-          console.log("💡 Note: Custom patient ID for this patient is:", fallbackPatient.customPatientId);
-        } else {
-          console.log("❌ No patient found with ID:", patientId);
-          console.log("💡 Available custom patient IDs:", patientsData.map(p => p.customPatientId).filter(Boolean));
-          console.log("💡 Available Firebase IDs:", patientsData.map(p => p.firebaseId));
-          return null;
-        }
-        
-        return createPatientProfile(fallbackPatient);
-      }
-      
-      console.log("✅ Found patient by custom patient ID:", foundPatient.customPatientId);
-      return createPatientProfile(foundPatient);
-      
-    } catch (error) {
-      console.error("❌ ERROR in fetchPatientProfileWithAssessment:", error);
-      return null;
-    }
+    return createPatientProfile({
+      firebaseId: match.id,
+      customPatientId: match.code,
+      patientName: match.name,
+      fullPatientProfile: match.profile,
+    });
   };
 
   // Helper function to create and validate patient profile
@@ -564,12 +519,14 @@ const RecipeBuilder = () => {
       const { data: authData } = await supabase.auth.getUser();
 
       const dietPlanData = {
+        // patients.id UUID — never the P001 code (uuid column + RLS check).
         patient_id: patientId.trim(),
         patient_name: patientName,
         plan_duration: planDuration,
         plan_type: planType === "ayur" ? "ayurnutrigenomics" : "ai-generated",
         status,
         created_by: authData.user?.id ?? null,
+        doctor_id: authData.user?.id ?? null,
         source: planType === "ayur" ? "ayurnutrigenomics" : "ai",
         plan_data: planToSave,
         patient_profile: patientProfile,
@@ -583,7 +540,9 @@ const RecipeBuilder = () => {
 
     } catch (err) {
       console.error("Error saving plan:", err);
-      toast.error("Failed to save plan. Please try again.");
+      toast.error(
+        `Failed to save plan: ${err instanceof Error ? err.message : "Please try again."}`
+      );
     } finally {
       setSaving(false);
     }
@@ -627,8 +586,13 @@ const RecipeBuilder = () => {
 
     setSaving(true);
     try {
+      const { data: authData } = await supabase.auth.getUser();
+
       const dietPlanData: Record<string, unknown> = {
+        // patients.id UUID — never the P001 code (uuid column + RLS check).
         patient_id: patientId.trim(),
+        created_by: authData.user?.id ?? null,
+        doctor_id: authData.user?.id ?? null,
         patient_name: patientName,
         plan_duration: planDuration,
         plan_type: editingDraftId ? "personalized-diet-chart" : "manual",
@@ -676,7 +640,9 @@ const RecipeBuilder = () => {
       }
     } catch (error) {
       console.error("Error saving diet plan:", error);
-      toast.error("Failed to save diet plan. Please try again.");
+      toast.error(
+        `Failed to save diet plan: ${error instanceof Error ? error.message : "Please try again."}`
+      );
     } finally {
       setSaving(false);
     }
@@ -916,12 +882,15 @@ const RecipeBuilder = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <Label htmlFor="patient-id">Patient ID</Label>
-                <Input
-                  id="patient-id"
+                <PatientPicker
+                  label="Patient"
                   value={patientId}
-                  onChange={(e) => setPatientId(e.target.value)}
-                  placeholder="Enter patient ID (e.g., P001)"
+                  onSelect={(patient) => {
+                    setPatientId(patient?.id ?? "");
+                    setPatientCode(patient?.code ?? "");
+                    setPatientName(patient?.name ?? "");
+                    setPatientProfile(null);
+                  }}
                 />
               </div>
               <div>
@@ -930,8 +899,13 @@ const RecipeBuilder = () => {
                   id="patient-name"
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Enter patient name"
+                  placeholder="Selected from the patient list"
                 />
+                {patientCode && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Patient ID: <span className="font-mono">{patientCode}</span>
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="plan-duration">Plan Duration</Label>
