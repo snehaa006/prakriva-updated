@@ -208,6 +208,13 @@ export const MaternalVitalsSection: React.FC<{
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <NumberField
+          id="gestational_week"
+          label="Weeks pregnant"
+          value={form.gestational_week}
+          onChange={(v) => update("gestational_week", v)}
+          placeholder="e.g. 24"
+        />
+        <NumberField
           id="weight_kg"
           label="Weight (kg)"
           step="0.1"
@@ -250,6 +257,12 @@ export const MaternalVitalsSection: React.FC<{
           placeholder="e.g. 76"
         />
       </div>
+      <BoolField
+        id="iron_supplement"
+        label="Currently taking iron supplements"
+        checked={form.iron_supplement}
+        onChange={(v) => update("iron_supplement", v)}
+      />
       <p className="text-xs text-muted-foreground">
         Enter the most recent readings from your antenatal check-up. Leave a field
         blank if you do not have it — the check still runs on what you provide.
