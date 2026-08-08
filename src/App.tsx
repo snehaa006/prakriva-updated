@@ -28,6 +28,7 @@ import RecipeBuilder from "./pages/doctor/RecipeBuilder";
 import DietChart from "./pages/doctor/DietChart";
 import PersonalizedDietChart from "./pages/doctor/PersonalizedDietChart";
 import DiseaseDetection from "./pages/doctor/DiseaseDetection";
+import HealthRisks from "./pages/patient/HealthRisks";
 import NotFound from "./pages/NotFound";
 import Questionnaire from "./pages/patient/Questionnaire";
 import PatientProfile from "./pages/patient/PatientProfile";
@@ -149,6 +150,7 @@ const AppRoutes = () => (
         <Route path="dashboard" element={<PatientDashboard />} />
         <Route path="meal-logging" element={<MealLogging />} />
         {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
+        <Route path="health-check" element={<HealthRisks />} />
         <Route path="lifestyle-tracker" element={<LifestyleTracker />} />
         <Route path="social-support" element={<SocialSupport />} />
         <Route path="consult-doctor" element={<ConsultDoctor />} />

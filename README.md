@@ -115,16 +115,26 @@ real auth and license logic runs in tests; no test touches a live project.
 
 ## Disease detection
 
-Doctors can screen a pregnant patient for seven maternal conditions — anaemia,
-gestational diabetes, preeclampsia, UTI, thyroid disorder, miscarriage risk and
-perinatal mental health — at **Doctor → Disease Detection**
-(`/doctor/disease-detection`). The patient list on that page holds the doctor's
-accepted patients whose questionnaire life stage is `pregnancy`; the Patients
-page also links straight through per patient ("Risk Screening"). The screening
-form is prefilled from the patient's questionnaire, the doctor adds any clinical
-signs and lab values, and each condition comes back with a 0-100 risk score, a
-low/moderate/high level, the factors that drove it and clinical next steps.
+Screens a pregnant patient for seven maternal conditions — anaemia, gestational
+diabetes, preeclampsia, UTI, thyroid disorder, miscarriage risk and perinatal
+mental health. Each condition comes back with a 0-100 risk score, a
+low/moderate/high level, the factors that drove it, and next steps.
 
+The form is split across the two roles, because the two halves come from
+different places:
+
+- **Patient → Health Check** (`/patient/health-check`) — she reports her own
+  symptoms, medical history and wellbeing scales (stress, sleep, mood, support,
+  EPDS, PHQ-9), and sees her results immediately. No lab fields are asked for.
+  The page is only offered to patients whose questionnaire life stage is
+  `pregnancy`.
+- **Doctor → Disease Detection** (`/doctor/disease-detection`) — lists the
+  doctor's accepted pregnant patients (the Patients page also links through per
+  patient via "Risk Screening"). Selecting one loads her latest self-report into
+  the form; the doctor adds the clinical measurements and lab panel and re-runs.
+  Without a self-report the form falls back to her onboarding questionnaire.
+
+Both roles see every run in a History tab, labelled by who submitted it.
 Laboratory fields left blank mean "not performed" — they never score as a normal
 result.
 
@@ -143,10 +153,17 @@ model can replace a single condition without touching the API or the frontend;
 `ConditionRisk.detector` records which one produced each result, which keeps a
 mixed rules/ML screening auditable.
 
+**Frontend layout.** The form sections
+(`src/components/health/ScreeningFields.tsx`) and the results rendering
+(`ScreeningResults.tsx`) are shared by both pages; only the sections each role
+gets and the wording differ. Risk-level styling lives in `src/lib/riskLevels.ts`.
+
 **Storage.** Screening runs are recorded in the `disease_screenings` Supabase
-table so a doctor can reopen past results (History tab). Create the table with
-`supabase/disease_screenings.sql`. Until it exists the feature still works —
-results render normally and simply are not persisted.
+table, tagged `submitted_by` = `patient` or `doctor`, so each side can reopen
+past results. Create the table with `supabase/disease_screenings.sql`; its RLS
+lets a patient file and read only her own checks, and a doctor read and file for
+patients they treat. Until the table exists the feature still works — results
+render normally and simply are not persisted.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 

@@ -6,6 +6,7 @@
 import { supabase } from "@/lib/supabase";
 import type {
   ConditionKey,
+  ScreeningAuthor,
   ScreeningInput,
   ScreeningResult,
   StoredScreening,
@@ -184,21 +185,32 @@ export const screenPatient = async (
   return body.data as ScreeningResult;
 };
 
+export interface SaveScreeningArgs {
+  patientId: string;
+  /** The clinician who ran it; absent on a patient's own submission. */
+  doctorId?: string | null;
+  submittedBy: ScreeningAuthor;
+  inputs: ScreeningInput;
+  result: ScreeningResult;
+}
+
 /**
  * Store a screening run against the patient.
  *
  * Returns `false` (rather than throwing) when the `disease_screenings` table
- * has not been created yet, so the doctor still sees the result they just ran.
+ * has not been created yet, so the result the caller just ran is still shown.
  */
-export const saveScreening = async (
-  patientId: string,
-  doctorId: string,
-  inputs: ScreeningInput,
-  result: ScreeningResult
-): Promise<boolean> => {
+export const saveScreening = async ({
+  patientId,
+  doctorId,
+  submittedBy,
+  inputs,
+  result,
+}: SaveScreeningArgs): Promise<boolean> => {
   const { error } = await supabase.from("disease_screenings").insert({
     patient_id: patientId,
-    doctor_id: doctorId,
+    doctor_id: doctorId ?? null,
+    submitted_by: submittedBy,
     inputs,
     result,
     overall_risk_level: result.overall_risk_level,
@@ -214,7 +226,8 @@ export const saveScreening = async (
 interface ScreeningRow {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  doctor_id: string | null;
+  submitted_by: ScreeningAuthor | null;
   created_at: string;
   inputs: ScreeningInput;
   result: ScreeningResult;
@@ -226,7 +239,7 @@ export const fetchScreenings = async (
 ): Promise<StoredScreening[]> => {
   const { data, error } = await supabase
     .from("disease_screenings")
-    .select("id, patient_id, doctor_id, created_at, inputs, result")
+    .select("id, patient_id, doctor_id, submitted_by, created_at, inputs, result")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -240,6 +253,8 @@ export const fetchScreenings = async (
     id: row.id,
     patientId: row.patient_id,
     doctorId: row.doctor_id,
+    // Rows written before `submitted_by` existed were all clinician-run.
+    submittedBy: row.submitted_by ?? "doctor",
     createdAt: row.created_at,
     inputs: row.inputs,
     result: row.result,

@@ -166,37 +166,52 @@ describe("screenPatient", () => {
   });
 });
 
+const clinicianRun = () => ({
+  patientId: "patient-1",
+  doctorId: "doctor-1",
+  submittedBy: "doctor" as const,
+  inputs: emptyScreeningInput(),
+  result: screeningResult(),
+});
+
 describe("saveScreening", () => {
   it("returns true and stores the denormalised risk level", async () => {
-    const saved = await saveScreening(
-      "patient-1",
-      "doctor-1",
-      emptyScreeningInput(),
-      screeningResult()
-    );
+    const saved = await saveScreening(clinicianRun());
 
     expect(saved).toBe(true);
     expect(state.lastInsert).toMatchObject({
       patient_id: "patient-1",
       doctor_id: "doctor-1",
+      submitted_by: "doctor",
       overall_risk_level: "low",
+    });
+  });
+
+  it("records a patient self-report with no doctor attached", async () => {
+    await saveScreening({
+      patientId: "patient-1",
+      submittedBy: "patient",
+      inputs: emptyScreeningInput(),
+      result: screeningResult(),
+    });
+
+    expect(state.lastInsert).toMatchObject({
+      patient_id: "patient-1",
+      doctor_id: null,
+      submitted_by: "patient",
     });
   });
 
   it("returns false rather than throwing when the table is missing", async () => {
     state.insertResult = { error: { code: "42P01", message: "relation missing" } };
 
-    await expect(
-      saveScreening("p", "d", emptyScreeningInput(), screeningResult())
-    ).resolves.toBe(false);
+    await expect(saveScreening(clinicianRun())).resolves.toBe(false);
   });
 
   it("propagates other database errors", async () => {
     state.insertResult = { error: { code: "42501", message: "permission denied" } };
 
-    await expect(
-      saveScreening("p", "d", emptyScreeningInput(), screeningResult())
-    ).rejects.toThrow("permission denied");
+    await expect(saveScreening(clinicianRun())).rejects.toThrow("permission denied");
   });
 });
 
@@ -208,6 +223,7 @@ describe("fetchScreenings", () => {
           id: "s1",
           patient_id: "patient-1",
           doctor_id: "doctor-1",
+          submitted_by: "doctor",
           created_at: "2026-01-02T10:00:00Z",
           inputs: emptyScreeningInput(),
           result: screeningResult(),
@@ -219,7 +235,32 @@ describe("fetchScreenings", () => {
     const history = await fetchScreenings("patient-1");
 
     expect(history).toHaveLength(1);
-    expect(history[0]).toMatchObject({ id: "s1", patientId: "patient-1" });
+    expect(history[0]).toMatchObject({
+      id: "s1",
+      patientId: "patient-1",
+      submittedBy: "doctor",
+    });
+  });
+
+  it("treats rows written before submitted_by existed as clinician-run", async () => {
+    state.selectResult = {
+      data: [
+        {
+          id: "s0",
+          patient_id: "patient-1",
+          doctor_id: "doctor-1",
+          submitted_by: null,
+          created_at: "2026-01-01T10:00:00Z",
+          inputs: emptyScreeningInput(),
+          result: screeningResult(),
+        },
+      ],
+      error: null,
+    };
+
+    const [entry] = await fetchScreenings("patient-1");
+
+    expect(entry.submittedBy).toBe("doctor");
   });
 
   it("returns an empty history when the table is missing", async () => {

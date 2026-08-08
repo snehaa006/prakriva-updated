@@ -10,19 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Accordion,
   AccordionContent,
@@ -31,17 +19,25 @@ import {
 } from "@/components/ui/accordion";
 import {
   Activity,
-  AlertTriangle,
   Baby,
   ClipboardList,
   History,
   Loader2,
   Search,
-  ShieldCheck,
   Stethoscope,
+  UserCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import {
+  BasicsSection,
+  HistorySection,
+  LabsSection,
+  ScalesSection,
+  SymptomsSection,
+} from "@/components/health/ScreeningFields";
+import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { RISK_STYLES } from "@/lib/riskLevels";
 import {
   AssessmentData,
   buildScreeningInputFromAssessment,
@@ -51,12 +47,9 @@ import {
   screenPatient,
 } from "@/services/diseaseDetectionService";
 import {
-  RiskLevel,
   ScreeningInput,
   ScreeningResult,
   StoredScreening,
-  SYMPTOM_LABELS,
-  SymptomKey,
 } from "@/types/diseaseDetection";
 
 interface PregnantPatient {
@@ -80,95 +73,12 @@ interface ConsultationRow {
   } | null;
 }
 
-const RISK_STYLES: Record<RiskLevel, { badge: string; bar: string; label: string }> = {
-  low: {
-    badge: "bg-green-100 text-green-800 border-green-200",
-    bar: "bg-green-500",
-    label: "Low risk",
-  },
-  moderate: {
-    badge: "bg-amber-100 text-amber-800 border-amber-200",
-    bar: "bg-amber-500",
-    label: "Moderate risk",
-  },
-  high: {
-    badge: "bg-red-100 text-red-800 border-red-200",
-    bar: "bg-red-500",
-    label: "High risk",
-  },
-};
-
 const TRIMESTER_LABELS: Record<string, string> = {
   first: "1st trimester",
   second: "2nd trimester",
   third: "3rd trimester",
   unknown: "Trimester unknown",
 };
-
-/** Checkbox bound to a boolean field on the screening form. */
-const BoolField: React.FC<{
-  id: string;
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}> = ({ id, label, checked, onChange }) => (
-  <div className="flex items-center space-x-2">
-    <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
-    <Label htmlFor={id} className="text-sm font-normal cursor-pointer">
-      {label}
-    </Label>
-  </div>
-);
-
-/** Numeric input that keeps "not measured" distinct from zero. */
-const NumberField: React.FC<{
-  id: string;
-  label: string;
-  value: number | null | undefined;
-  onChange: (value: number | null) => void;
-  step?: string;
-  placeholder?: string;
-}> = ({ id, label, value, onChange, step = "1", placeholder = "Not measured" }) => (
-  <div className="space-y-1">
-    <Label htmlFor={id} className="text-xs text-muted-foreground">
-      {label}
-    </Label>
-    <Input
-      id={id}
-      type="number"
-      step={step}
-      placeholder={placeholder}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-    />
-  </div>
-);
-
-/** Slider bound to one of the mental-health scales. */
-const ScaleField: React.FC<{
-  label: string;
-  value: number;
-  max: number;
-  onChange: (value: number) => void;
-  hint?: string;
-}> = ({ label, value, max, onChange, hint }) => (
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <span className="text-sm font-medium">
-        {value}/{max}
-      </span>
-    </div>
-    <Slider
-      value={[value]}
-      min={0}
-      max={max}
-      step={1}
-      onValueChange={([v]) => onChange(v)}
-    />
-    {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-  </div>
-);
 
 const DiseaseDetection: React.FC = () => {
   const { toast } = useToast();
@@ -182,6 +92,7 @@ const DiseaseDetection: React.FC = () => {
   const [form, setForm] = useState<ScreeningInput | null>(null);
   const [result, setResult] = useState<ScreeningResult | null>(null);
   const [history, setHistory] = useState<StoredScreening[]>([]);
+  const [selfReport, setSelfReport] = useState<StoredScreening | null>(null);
   const [isScreening, setIsScreening] = useState(false);
   const [activeTab, setActiveTab] = useState("assessment");
 
@@ -257,23 +168,31 @@ const DiseaseDetection: React.FC = () => {
     };
   }, [toast]);
 
-  // --- Selecting a patient prefills the form and pulls their history -------
+  // --- Selecting a patient prefills the form and pulls her history ---------
   const selectPatient = useCallback(
     async (patient: PregnantPatient) => {
       setSelectedPatientId(patient.patientId);
-      setForm(buildScreeningInputFromAssessment(patient.assessmentData));
       setResult(null);
+      setSelfReport(null);
       setActiveTab("assessment");
       setSearchParams({ patientId: patient.patientId }, { replace: true });
+
+      // Fall back to the onboarding questionnaire until we know whether the
+      // patient has submitted a self-report.
+      setForm(buildScreeningInputFromAssessment(patient.assessmentData));
 
       try {
         const stored = await fetchScreenings(patient.patientId);
         setHistory(stored);
-        if (stored.length > 0) {
-          // Show the last verdict straight away — the common case is a doctor
-          // reopening results rather than running a fresh screening.
-          setResult(stored[0].result);
+
+        const latestSelfReport = stored.find((entry) => entry.submittedBy === "patient");
+        if (latestSelfReport) {
+          // The patient's own answers are the better starting point — the
+          // doctor only has to add the labs on top.
+          setSelfReport(latestSelfReport);
+          setForm(latestSelfReport.inputs);
         }
+        if (stored.length > 0) setResult(stored[0].result);
       } catch (error) {
         console.error("Error loading screening history:", error);
         setHistory([]);
@@ -294,15 +213,6 @@ const DiseaseDetection: React.FC = () => {
   const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
     setForm((current) => (current ? { ...current, [key]: value } : current));
 
-  const toggleSymptom = (symptom: SymptomKey, checked: boolean) =>
-    setForm((current) => {
-      if (!current) return current;
-      const symptoms = checked
-        ? [...current.symptoms, symptom]
-        : current.symptoms.filter((s) => s !== symptom);
-      return { ...current, symptoms };
-    });
-
   const runScreening = async () => {
     if (!form || !selectedPatient) return;
 
@@ -315,12 +225,13 @@ const DiseaseDetection: React.FC = () => {
       const { data: authData } = await supabase.auth.getUser();
       let persisted = false;
       if (authData.user) {
-        persisted = await saveScreening(
-          selectedPatient.patientId,
-          authData.user.id,
-          form,
-          screening
-        );
+        persisted = await saveScreening({
+          patientId: selectedPatient.patientId,
+          doctorId: authData.user.id,
+          submittedBy: "doctor",
+          inputs: form,
+          result: screening,
+        });
         if (persisted) setHistory(await fetchScreenings(selectedPatient.patientId));
       }
 
@@ -472,366 +383,72 @@ const DiseaseDetection: React.FC = () => {
 
             {/* --- Assessment form --- */}
             <TabsContent value="assessment" className="space-y-4">
+              {selfReport && (
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="p-4 flex items-start gap-3">
+                    <UserCheck className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium">
+                        Prefilled from the patient's own submission
+                      </p>
+                      <p className="text-muted-foreground">
+                        She reported her symptoms, history and wellbeing scales on{" "}
+                        {new Date(selfReport.createdAt).toLocaleString()}. Add the
+                        clinical measurements and labs below, then re-run.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Screening Inputs</CardTitle>
                   <CardDescription>
-                    Prefilled from the patient's questionnaire. Laboratory values
-                    left blank are treated as "not performed", not as normal.
+                    Laboratory values left blank are treated as "not performed",
+                    not as normal.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Accordion
                     type="multiple"
-                    defaultValue={["basics", "symptoms"]}
+                    defaultValue={["basics", "labs"]}
                     className="w-full"
                   >
                     <AccordionItem value="basics">
                       <AccordionTrigger>Basic information</AccordionTrigger>
-                      <AccordionContent className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
-                        <NumberField
-                          id="age"
-                          label="Age (years)"
-                          value={form.age}
-                          onChange={(v) => update("age", (v ?? 28) as number)}
-                          placeholder="28"
-                        />
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Trimester
-                          </Label>
-                          <Select
-                            value={form.trimester}
-                            onValueChange={(v) =>
-                              update("trimester", v as ScreeningInput["trimester"])
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="first">First</SelectItem>
-                              <SelectItem value="second">Second</SelectItem>
-                              <SelectItem value="third">Third</SelectItem>
-                              <SelectItem value="unknown">Unknown</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <NumberField
-                          id="bmi"
-                          label="BMI"
-                          step="0.1"
-                          value={form.bmi}
-                          onChange={(v) => update("bmi", v)}
-                        />
-                        <NumberField
-                          id="gravida"
-                          label="Gravida (pregnancies)"
-                          value={form.gravida}
-                          onChange={(v) => update("gravida", (v ?? 0) as number)}
-                          placeholder="1"
-                        />
-                        <NumberField
-                          id="parity"
-                          label="Parity (births)"
-                          value={form.parity}
-                          onChange={(v) => update("parity", (v ?? 0) as number)}
-                          placeholder="0"
-                        />
-                        <div />
-                        <NumberField
-                          id="bp_systolic"
-                          label="Systolic BP (mmHg)"
-                          value={form.bp_systolic}
-                          onChange={(v) => update("bp_systolic", v)}
-                        />
-                        <NumberField
-                          id="bp_diastolic"
-                          label="Diastolic BP (mmHg)"
-                          value={form.bp_diastolic}
-                          onChange={(v) => update("bp_diastolic", v)}
-                        />
+                      <AccordionContent className="pt-2">
+                        <BasicsSection form={form} update={update} />
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    <AccordionItem value="labs">
+                      <AccordionTrigger>
+                        Clinical measurements &amp; laboratory values
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2">
+                        <LabsSection form={form} update={update} />
                       </AccordionContent>
                     </AccordionItem>
 
                     <AccordionItem value="symptoms">
                       <AccordionTrigger>Symptoms &amp; signs</AccordionTrigger>
-                      <AccordionContent className="space-y-4 pt-2">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {(
-                            Object.keys(SYMPTOM_LABELS) as SymptomKey[]
-                          ).map((symptom) => (
-                            <BoolField
-                              key={symptom}
-                              id={`symptom-${symptom}`}
-                              label={SYMPTOM_LABELS[symptom]}
-                              checked={form.symptoms.includes(symptom)}
-                              onChange={(v) => toggleSymptom(symptom, v)}
-                            />
-                          ))}
-                        </div>
-                        <Separator />
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          <BoolField
-                            id="weight_gain"
-                            label="Unexplained weight gain"
-                            checked={form.weight_gain}
-                            onChange={(v) => update("weight_gain", v)}
-                          />
-                          <BoolField
-                            id="hair_loss"
-                            label="Hair loss"
-                            checked={form.hair_loss}
-                            onChange={(v) => update("hair_loss", v)}
-                          />
-                          <BoolField
-                            id="cold_intolerance"
-                            label="Cold intolerance"
-                            checked={form.cold_intolerance}
-                            onChange={(v) => update("cold_intolerance", v)}
-                          />
-                          <BoolField
-                            id="constipation"
-                            label="Constipation"
-                            checked={form.constipation}
-                            onChange={(v) => update("constipation", v)}
-                          />
-                          <BoolField
-                            id="menstrual_irregularity"
-                            label="Menstrual irregularity (pre-pregnancy)"
-                            checked={form.menstrual_irregularity}
-                            onChange={(v) => update("menstrual_irregularity", v)}
-                          />
-                          <BoolField
-                            id="excessive_thirst"
-                            label="Excessive thirst"
-                            checked={form.excessive_thirst}
-                            onChange={(v) => update("excessive_thirst", v)}
-                          />
-                        </div>
+                      <AccordionContent className="pt-2">
+                        <SymptomsSection form={form} update={update} />
                       </AccordionContent>
                     </AccordionItem>
 
                     <AccordionItem value="history">
                       <AccordionTrigger>History &amp; risk factors</AccordionTrigger>
-                      <AccordionContent className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                        <BoolField
-                          id="family_history"
-                          label="Family history (any)"
-                          checked={form.family_history}
-                          onChange={(v) => update("family_history", v)}
-                        />
-                        <BoolField
-                          id="pcos"
-                          label="PCOS"
-                          checked={form.pcos}
-                          onChange={(v) => update("pcos", v)}
-                        />
-                        <BoolField
-                          id="previous_miscarriage"
-                          label="Previous miscarriage"
-                          checked={form.previous_miscarriage}
-                          onChange={(v) => update("previous_miscarriage", v)}
-                        />
-                        <BoolField
-                          id="anaemia_history"
-                          label="History of anaemia"
-                          checked={form.anaemia_history}
-                          onChange={(v) => update("anaemia_history", v)}
-                        />
-                        <BoolField
-                          id="previous_uti"
-                          label="Previous UTI"
-                          checked={form.previous_uti}
-                          onChange={(v) => update("previous_uti", v)}
-                        />
-                        <BoolField
-                          id="previous_complications"
-                          label="Previous pregnancy complications"
-                          checked={form.previous_complications}
-                          onChange={(v) => update("previous_complications", v)}
-                        />
-                        <BoolField
-                          id="gestational_diabetes_previous"
-                          label="Previous gestational diabetes"
-                          checked={form.gestational_diabetes_previous}
-                          onChange={(v) => update("gestational_diabetes_previous", v)}
-                        />
-                        <BoolField
-                          id="large_baby_previous"
-                          label="Previous large baby"
-                          checked={form.large_baby_previous}
-                          onChange={(v) => update("large_baby_previous", v)}
-                        />
-                        <BoolField
-                          id="unexplained_prenatal_loss"
-                          label="Unexplained prenatal loss"
-                          checked={form.unexplained_prenatal_loss}
-                          onChange={(v) => update("unexplained_prenatal_loss", v)}
-                        />
-                        <BoolField
-                          id="sedentary_lifestyle"
-                          label="Sedentary lifestyle"
-                          checked={form.sedentary_lifestyle}
-                          onChange={(v) => update("sedentary_lifestyle", v)}
-                        />
-                        <BoolField
-                          id="smoking"
-                          label="Smoking"
-                          checked={form.smoking}
-                          onChange={(v) => update("smoking", v)}
-                        />
-                        <BoolField
-                          id="alcohol"
-                          label="Alcohol use"
-                          checked={form.alcohol}
-                          onChange={(v) => update("alcohol", v)}
-                        />
-                        <BoolField
-                          id="history_depression"
-                          label="History of depression"
-                          checked={form.history_depression}
-                          onChange={(v) => update("history_depression", v)}
-                        />
+                      <AccordionContent className="pt-2">
+                        <HistorySection form={form} update={update} />
                       </AccordionContent>
                     </AccordionItem>
 
                     <AccordionItem value="mental">
                       <AccordionTrigger>Mental health scales</AccordionTrigger>
-                      <AccordionContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                        <ScaleField
-                          label="Stress level"
-                          value={form.stress_level}
-                          max={3}
-                          onChange={(v) => update("stress_level", v)}
-                          hint="0 minimal · 3 severe"
-                        />
-                        <ScaleField
-                          label="Sleep disturbance"
-                          value={form.sleep_disturbance}
-                          max={3}
-                          onChange={(v) => update("sleep_disturbance", v)}
-                          hint="0 none · 3 severe"
-                        />
-                        <ScaleField
-                          label="Mood symptoms"
-                          value={form.mood_symptoms}
-                          max={7}
-                          onChange={(v) => update("mood_symptoms", v)}
-                        />
-                        <ScaleField
-                          label="Social support"
-                          value={form.social_support}
-                          max={5}
-                          onChange={(v) => update("social_support", v)}
-                          hint="0 low · 5 high"
-                        />
-                        <ScaleField
-                          label="Edinburgh Postnatal Depression Scale"
-                          value={form.edinburgh_score}
-                          max={30}
-                          onChange={(v) => update("edinburgh_score", v)}
-                        />
-                        <ScaleField
-                          label="PHQ-9"
-                          value={form.phq9_score}
-                          max={27}
-                          onChange={(v) => update("phq9_score", v)}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="labs">
-                      <AccordionTrigger>Laboratory values (optional)</AccordionTrigger>
-                      <AccordionContent className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
-                        <NumberField
-                          id="hemoglobin"
-                          label="Haemoglobin (g/dL)"
-                          step="0.1"
-                          value={form.hemoglobin}
-                          onChange={(v) => update("hemoglobin", v)}
-                        />
-                        <NumberField
-                          id="hba1c"
-                          label="HbA1c (%)"
-                          step="0.1"
-                          value={form.hba1c}
-                          onChange={(v) => update("hba1c", v)}
-                        />
-                        <NumberField
-                          id="ogtt_1hr"
-                          label="OGTT 1-hour (mg/dL)"
-                          step="1"
-                          value={form.ogtt_1hr}
-                          onChange={(v) => update("ogtt_1hr", v)}
-                        />
-                        <NumberField
-                          id="tsh"
-                          label="TSH (mIU/L)"
-                          step="0.01"
-                          value={form.tsh}
-                          onChange={(v) => update("tsh", v)}
-                        />
-                        <NumberField
-                          id="t3"
-                          label="T3"
-                          step="0.01"
-                          value={form.t3}
-                          onChange={(v) => update("t3", v)}
-                        />
-                        <NumberField
-                          id="t4"
-                          label="T4"
-                          step="0.01"
-                          value={form.t4}
-                          onChange={(v) => update("t4", v)}
-                        />
-                        <NumberField
-                          id="urine_wbc"
-                          label="Urine WBC count"
-                          value={form.urine_wbc}
-                          onChange={(v) => update("urine_wbc", v)}
-                        />
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Urine nitrite
-                          </Label>
-                          <Select
-                            value={form.urine_nitrite}
-                            onValueChange={(v) =>
-                              update("urine_nitrite", v as ScreeningInput["urine_nitrite"])
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unknown">Not performed</SelectItem>
-                              <SelectItem value="positive">Positive</SelectItem>
-                              <SelectItem value="negative">Negative</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Proteinuria
-                          </Label>
-                          <Select
-                            value={form.proteinuria}
-                            onValueChange={(v) =>
-                              update("proteinuria", v as ScreeningInput["proteinuria"])
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unknown">Not performed</SelectItem>
-                              <SelectItem value="positive">Positive</SelectItem>
-                              <SelectItem value="negative">Negative</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <AccordionContent className="pt-4">
+                        <ScalesSection form={form} update={update} />
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
@@ -856,7 +473,7 @@ const DiseaseDetection: React.FC = () => {
             </TabsContent>
 
             {/* --- Results --- */}
-            <TabsContent value="results" className="space-y-4">
+            <TabsContent value="results">
               {!result ? (
                 <Card>
                   <CardContent className="p-12 text-center">
@@ -868,114 +485,7 @@ const DiseaseDetection: React.FC = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <>
-                  <Card>
-                    <CardContent className="p-6 flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        {result.overall_risk_level === "low" ? (
-                          <ShieldCheck className="w-8 h-8 text-green-600" />
-                        ) : (
-                          <AlertTriangle
-                            className={
-                              result.overall_risk_level === "high"
-                                ? "w-8 h-8 text-red-600"
-                                : "w-8 h-8 text-amber-600"
-                            }
-                          />
-                        )}
-                        <div>
-                          <p className="text-sm text-muted-foreground">Overall</p>
-                          <p className="text-xl font-semibold">
-                            {RISK_STYLES[result.overall_risk_level].label}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-sm text-muted-foreground text-right">
-                        <p>
-                          Screened{" "}
-                          {new Date(result.generated_at).toLocaleString()}
-                        </p>
-                        <p>{result.disclaimer}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {result.conditions.map((condition) => (
-                      <Card key={condition.condition}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <CardTitle className="text-base">
-                                {condition.label}
-                              </CardTitle>
-                              <CardDescription className="text-xs">
-                                Detector: {condition.detector}
-                              </CardDescription>
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className={RISK_STYLES[condition.risk_level].badge}
-                            >
-                              {RISK_STYLES[condition.risk_level].label}
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">Risk score</span>
-                              <span className="font-semibold">{condition.score}%</span>
-                            </div>
-                            <Progress
-                              value={condition.score}
-                              indicatorClassName={RISK_STYLES[condition.risk_level].bar}
-                            />
-                          </div>
-
-                          {typeof condition.details?.thyroid_type === "string" && (
-                            <p className="text-sm">
-                              <span className="text-muted-foreground">Pattern: </span>
-                              {condition.details.thyroid_type as string}
-                            </p>
-                          )}
-
-                          <div>
-                            <p className="text-sm font-medium mb-1">
-                              Contributing factors
-                            </p>
-                            {condition.reasons.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">
-                                No risk factors detected from the entered data.
-                              </p>
-                            ) : (
-                              <ul className="text-sm space-y-1">
-                                {condition.reasons.map((reason, index) => (
-                                  <li key={index} className="flex gap-2">
-                                    <span className="text-muted-foreground">•</span>
-                                    <span>{reason}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-
-                          <div>
-                            <p className="text-sm font-medium mb-1">Next steps</p>
-                            <ul className="text-sm space-y-1">
-                              {condition.recommendations.map((rec, index) => (
-                                <li key={index} className="flex gap-2">
-                                  <span className="text-muted-foreground">→</span>
-                                  <span>{rec}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </>
+                <ScreeningResultsView result={result} audience="clinician" />
               )}
             </TabsContent>
 
@@ -985,7 +495,8 @@ const DiseaseDetection: React.FC = () => {
                 <CardHeader>
                   <CardTitle className="text-lg">Previous Screenings</CardTitle>
                   <CardDescription>
-                    The last 20 screening runs recorded for this patient.
+                    The last 20 screening runs recorded for this patient, whether
+                    she submitted them herself or you ran them.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1011,7 +522,10 @@ const DiseaseDetection: React.FC = () => {
                               {new Date(entry.createdAt).toLocaleString()}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Highest risk:{" "}
+                              {entry.submittedBy === "patient"
+                                ? "Self-reported by patient"
+                                : "Run by clinician"}
+                              {" · Highest risk: "}
                               {entry.result.highest_risk_condition
                                 ? entry.result.conditions.find(
                                     (c) =>
