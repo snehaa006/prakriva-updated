@@ -22,6 +22,7 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | `doctor_edits`          | `doctor_edits` (backend)                    |
 | `user_feedback`         | `user_feedback` (backend)                   |
 | `foodoscope_api_keys`   | — (new; FoodOScope keys the frontend rotates through) |
+| `disease_screenings`    | — (new; maternal disease screening runs, see `disease_screenings.sql`) |
 
 Notes on the shape:
 
@@ -95,3 +96,8 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `appointments_and_meal_tracking`, `consultation_response_message`,
 `patient_self_service_diet_plans`, `notification_patient_columns`,
 `diet_plan_authorship`, `diet_plan_builder_payloads`, `foodoscope_api_keys`.
+
+`disease_screenings.sql` in this folder is **not** applied yet — run it in the
+SQL editor (or `supabase db execute -f supabase/disease_screenings.sql`) to
+enable screening history. The doctor's Disease Detection page works without it;
+runs simply are not stored.

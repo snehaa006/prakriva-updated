@@ -1,16 +1,18 @@
 # Prakriva
 
 An Ayurvedic diet/wellness planning app connecting doctors and patients. Doctors
-manage patients, build recipes and diet charts, and review dosha/consultation
-data; patients complete an Ayurvedic health questionnaire and get a
-personalized diet plan.
+manage patients, build recipes and diet charts, review dosha/consultation
+data, and run maternal disease-risk screening for their pregnant patients;
+patients complete an Ayurvedic health questionnaire and get a personalized
+diet plan.
 
 ## Tech stack
 
 - **Frontend**: React + TypeScript + Vite, shadcn/ui + Radix + Tailwind CSS,
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
-  calculation, meal planning, and plan storage.
+  calculation, meal planning, plan storage, and the maternal disease detection
+  pipeline.
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
@@ -45,7 +47,12 @@ personalized diet plan.
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
   access (`dataset_loader.py`, `db.py`). Config comes from `config.py` and
   `backend/.env` (see `backend/.env.example`).
-- `supabase/` — SQL migrations for the Supabase project.
+- `backend/disease_detection/` — the maternal disease detection pipeline:
+  input/output models (`schemas.py`), the rule-based baseline detectors
+  (`rules.py`), clinical next steps (`recommendations.py`) and the detector
+  registry (`pipeline.py`). See "Disease detection" below.
+- `supabase/` — SQL migrations for the Supabase project, including
+  `disease_screenings.sql` for the screening history table.
 - `public/` — static assets served as-is, including the standalone
   `mealCompatibility.html` visualisation (reachable at
   `/mealCompatibility.html`; it is not a React route).
@@ -95,9 +102,53 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/pages/auth/__tests__/Login.test.tsx` — the rendered screen for both
   roles: patient sign-in and sign-up, doctor sign-in, and the full four-step
   doctor sign-up wizard including license verification.
+- `src/services/__tests__/diseaseDetectionService.test.ts` — the questionnaire →
+  screening-form mapping, the screening API client, and the Supabase read/write
+  of stored screenings (including the missing-table fallback).
+
+On the backend, `backend/tests/test_disease_detection.py` covers input
+validation, each rule-based detector, the detector registry (including swapping
+a detector out) and the `/disease/*` endpoints.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
+
+## Disease detection
+
+Doctors can screen a pregnant patient for seven maternal conditions — anaemia,
+gestational diabetes, preeclampsia, UTI, thyroid disorder, miscarriage risk and
+perinatal mental health — at **Doctor → Disease Detection**
+(`/doctor/disease-detection`). The patient list on that page holds the doctor's
+accepted patients whose questionnaire life stage is `pregnancy`; the Patients
+page also links straight through per patient ("Risk Screening"). The screening
+form is prefilled from the patient's questionnaire, the doctor adds any clinical
+signs and lab values, and each condition comes back with a 0-100 risk score, a
+low/moderate/high level, the factors that drove it and clinical next steps.
+
+Laboratory fields left blank mean "not performed" — they never score as a normal
+result.
+
+**Backend.** The pipeline lives in `backend/disease_detection/` and is exposed
+by two endpoints:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
+| `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
+
+The scoring today is the rule-based analytics ported from the Neuviaa prototype
+(`rules.py`), registered per condition through `pipeline.register_detector`. A
+detector is any callable of `(ScreeningInput) -> ConditionRisk`, so a trained ML
+model can replace a single condition without touching the API or the frontend;
+`ConditionRisk.detector` records which one produced each result, which keeps a
+mixed rules/ML screening auditable.
+
+**Storage.** Screening runs are recorded in the `disease_screenings` Supabase
+table so a doctor can reopen past results (History tab). Create the table with
+`supabase/disease_screenings.sql`. Until it exists the feature still works —
+results render normally and simply are not persisted.
+
+*These scores are decision aids for a clinician, not a diagnosis.*
 
 ## Environment variables
 
@@ -110,6 +161,7 @@ committed.
 |---|---|---|---|
 | `VITE_SUPABASE_URL` | Frontend | Yes | Supabase project URL. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`) | Frontend | Yes | Supabase anon/publishable key. Safe to expose — protected by RLS. |
+| `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |

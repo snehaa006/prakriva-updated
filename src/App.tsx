@@ -27,6 +27,7 @@ import FoodExplorer from "./pages/doctor/FoodExplorer";
 import RecipeBuilder from "./pages/doctor/RecipeBuilder";
 import DietChart from "./pages/doctor/DietChart";
 import PersonalizedDietChart from "./pages/doctor/PersonalizedDietChart";
+import DiseaseDetection from "./pages/doctor/DiseaseDetection";
 import NotFound from "./pages/NotFound";
 import Questionnaire from "./pages/patient/Questionnaire";
 import PatientProfile from "./pages/patient/PatientProfile";
@@ -111,6 +112,7 @@ const AppRoutes = () => (
       <Route path="add-patient" element={<AddPatient />} />
       <Route path="appointments" element={<AppointmentScheduler />} />
       <Route path="alerts" element={<PatientAlerts />} />
+      <Route path="disease-detection" element={<DiseaseDetection />} />
       <Route path="communication" element={<CommunicationPortal />} />
       <Route path="feedback" element={<PatientFeedback />} />
       <Route path="team" element={<TeamManagement />} />
