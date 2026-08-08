@@ -436,6 +436,28 @@ const PatientDashboard = () => {
     }
 
     setTodaysMeals(meals);
+
+    // localStorage is per-browser, so a reload on another device (or after the
+    // cache is cleared) would show every meal as pending even though the
+    // choices were saved. meal_tracking is the durable record — pull today's
+    // row and apply any saved statuses on top. Keyed by the same plan_N ids.
+    if (user?.id) {
+      void supabase
+        .from("meal_tracking")
+        .select("statuses")
+        .eq("patient_id", user.id)
+        .eq("date", today)
+        .maybeSingle()
+        .then(({ data }) => {
+          const saved = (data?.statuses as Record<string, string>) || {};
+          if (Object.keys(saved).length === 0) return;
+          setTodaysMeals((prev) =>
+            prev.map((m) =>
+              saved[m.id] ? { ...m, status: saved[m.id] as TrackedMeal["status"] } : m
+            )
+          );
+        });
+    }
   }, [activePlan]);
 
   // ── Load tracking history ──
