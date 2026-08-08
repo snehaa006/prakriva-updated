@@ -1,0 +1,35 @@
+# Render blueprint for the Prakriva Flask backend (dosha, calorie, meal
+# planning and the maternal disease-detection pipeline with its XGBoost models).
+#
+# Deploy: push this repo, then in Render choose "New +" -> "Blueprint" and point
+# it at this file. Render installs backend/requirements.txt and starts run.py.
+# Set the secret env vars below in the Render dashboard (they are marked
+# sync:false so they are never committed). After the service is live, point the
+# frontend at it by setting VITE_API_URL to the service's URL.
+services:
+  - type: web
+    name: prakriva-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    healthCheckPath: /health
+    envVars:
+      # Match the Python the requirements' wheels target (see requirements.txt).
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: HOST
+        value: 0.0.0.0
+      - key: FLASK_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      # Render injects PORT automatically; config.py reads it.
+      # Secrets — set these in the Render dashboard, they are not committed.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

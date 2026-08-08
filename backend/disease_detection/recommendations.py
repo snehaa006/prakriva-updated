@@ -57,6 +57,16 @@ _ESCALATION: Dict[str, Dict[RiskLevel, List[str]]] = {
             "Start oral iron supplements and recheck haemoglobin in 4 weeks",
         ],
     },
+    "pregnancy_risk": {
+        RiskLevel.HIGH: [
+            "URGENT: refer for obstetric review and closer antenatal monitoring — "
+            "multiple risk factors are present",
+            "Address the driving factors directly (anaemia, blood pressure, weight)",
+        ],
+        RiskLevel.MODERATE: [
+            "Increase antenatal visit frequency and monitor the contributing factors",
+        ],
+    },
     "preeclampsia": {
         RiskLevel.HIGH: [
             "CRITICAL: immediate obstetric evaluation — possible admission",
@@ -106,6 +116,12 @@ _BASELINE: Dict[str, List[str]] = {
         "Take iron with vitamin C; avoid tea/coffee with meals",
         "Include folate-rich foods: beans, citrus, dark greens",
         "Monitor haemoglobin through the pregnancy",
+    ],
+    "pregnancy_risk": [
+        "Keep every scheduled antenatal appointment",
+        "Maintain a balanced, iron- and folate-rich diet and stay hydrated",
+        "Track blood pressure and report headaches, swelling or reduced fetal movement",
+        "Take prescribed supplements (iron, folic acid) consistently",
     ],
     "preeclampsia": [
         "Home blood pressure monitoring where possible",

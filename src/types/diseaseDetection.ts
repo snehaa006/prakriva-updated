@@ -10,6 +10,7 @@ export type Trimester = "first" | "second" | "third" | "unknown";
 
 export type ConditionKey =
   | "anaemia"
+  | "pregnancy_risk"
   | "gdm"
   | "preeclampsia"
   | "uti"
@@ -41,7 +42,9 @@ export interface ScreeningInput {
   // Basic information
   age: number;
   trimester: Trimester;
+  gestational_week?: number | null;
   bmi?: number | null;
+  iron_supplement: boolean;
   gravida: number;
   parity: number;
   bp_systolic?: number | null;
@@ -126,6 +129,7 @@ export interface StoredScreening {
 
 export const CONDITION_LABELS: Record<ConditionKey, string> = {
   anaemia: "Anaemia",
+  pregnancy_risk: "Pregnancy Risk",
   gdm: "Gestational Diabetes",
   preeclampsia: "Preeclampsia",
   uti: "Urinary Tract Infection",

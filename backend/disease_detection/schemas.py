@@ -35,6 +35,7 @@ class TrimesterEnum(str, Enum):
 #: Condition keys the pipeline screens for, with display labels for the UI.
 CONDITIONS: Dict[str, str] = {
     "anaemia": "Anaemia",
+    "pregnancy_risk": "Pregnancy Risk",
     "gdm": "Gestational Diabetes",
     "preeclampsia": "Preeclampsia",
     "uti": "Urinary Tract Infection",
@@ -78,7 +79,13 @@ class ScreeningInput(BaseModel):
     # --- Basic information -------------------------------------------------
     age: int = Field(..., ge=10, le=60, description="Maternal age in years")
     trimester: TrimesterEnum = TrimesterEnum.UNKNOWN
+    gestational_week: Optional[int] = Field(
+        None, ge=0, le=45, description="Weeks of gestation"
+    )
     bmi: Optional[float] = Field(None, ge=10, le=60)
+    iron_supplement: bool = Field(
+        False, description="Currently taking iron supplements"
+    )
     gravida: int = Field(0, ge=0, le=20, description="Number of pregnancies")
     parity: int = Field(0, ge=0, le=20, description="Number of births")
     bp_systolic: Optional[int] = Field(None, ge=60, le=300)
