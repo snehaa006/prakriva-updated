@@ -48,13 +48,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
-import { useFoodContext } from "@/context/FoodContext";
 import {
   addPantryItem,
   deletePantryItem,
   fetchPantryItems,
   updatePantryItem,
-  PANTRY_CATEGORIES,
   type PantryAvailability,
   type PantryItem,
 } from "@/services/pantryService";
@@ -78,9 +76,6 @@ const PantryItemCard: React.FC<{
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium capitalize">{item.foodName}</p>
-        <Badge variant="outline" className="text-[10px]">
-          {item.category}
-        </Badge>
         {item.quantity && (
           <span className="text-xs text-muted-foreground">{item.quantity}</span>
         )}
@@ -119,12 +114,10 @@ const PantryItemCard: React.FC<{
 
 const Pantry: React.FC = () => {
   const { user } = useApp();
-  const { foods } = useFoodContext();
   const queryClient = useQueryClient();
   const patientId = user?.id ?? "";
 
   const [foodName, setFoodName] = useState("");
-  const [category, setCategory] = useState<string>("Other");
   const [quantity, setQuantity] = useState("");
   const [availability, setAvailability] = useState<PantryAvailability>("at_home");
   const [notes, setNotes] = useState("");
@@ -161,23 +154,10 @@ const Pantry: React.FC = () => {
     writeCache(pantryCacheKey(patientId), next);
   };
 
-  // Suggestions come from the shared food database already loaded by FoodContext.
-  const foodSuggestions = useMemo(
-    () =>
-      [...new Set(foods.map((food) => food.Food_Item).filter(Boolean))]
-        .sort()
-        .slice(0, 500),
-    [foods]
-  );
-
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return items;
-    return items.filter(
-      (item) =>
-        item.foodName.toLowerCase().includes(term) ||
-        item.category.toLowerCase().includes(term)
-    );
+    return items.filter((item) => item.foodName.toLowerCase().includes(term));
   }, [items, search]);
 
   const atHome = filtered.filter((item) => item.availability === "at_home");
@@ -207,7 +187,6 @@ const Pantry: React.FC = () => {
     try {
       const created = await addPantryItem(patientId, {
         foodName: name,
-        category,
         quantity,
         availability,
         notes,
@@ -315,40 +294,18 @@ const Pantry: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="grid gap-4 md:grid-cols-12">
-            <div className="md:col-span-4">
+            <div className="md:col-span-5">
               <Label htmlFor="pantry-food">Food</Label>
               <Input
                 id="pantry-food"
-                list="pantry-food-suggestions"
                 value={foodName}
                 onChange={(event) => setFoodName(event.target.value)}
                 placeholder="e.g. Brown rice"
                 className="mt-1"
               />
-              <datalist id="pantry-food-suggestions">
-                {foodSuggestions.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
             </div>
 
-            <div className="md:col-span-3">
-              <Label htmlFor="pantry-category">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger id="pantry-category" className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PANTRY_CATEGORIES.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="md:col-span-2">
+            <div className="md:col-span-4">
               <Label htmlFor="pantry-quantity">Quantity</Label>
               <Input
                 id="pantry-quantity"

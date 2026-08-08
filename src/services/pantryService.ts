@@ -28,22 +28,6 @@ export interface PantryItemInput {
   notes?: string;
 }
 
-/** Categories offered in the "add food" form. */
-export const PANTRY_CATEGORIES = [
-  "Grains & Cereals",
-  "Legumes & Pulses",
-  "Vegetables",
-  "Fruits",
-  "Dairy",
-  "Nuts & Seeds",
-  "Spices & Herbs",
-  "Oils & Fats",
-  "Beverages",
-  "Sweeteners",
-  "Proteins",
-  "Other",
-] as const;
-
 interface PantryRow {
   id: string;
   patient_id: string;
