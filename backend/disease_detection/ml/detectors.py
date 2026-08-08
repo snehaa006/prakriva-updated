@@ -12,12 +12,13 @@ haemoglobin would make anaemia scoring meaningless.
 from typing import List
 
 from ..recommendations import get_recommendations
-from ..rules import detect_anaemia, detect_pregnancy_risk
+from ..rules import detect_anaemia, detect_gdm, detect_pregnancy_risk
 from ..schemas import ConditionRisk, RiskLevel, ScreeningInput
-from .inference import predict_from_screening
+from .inference import predict_from_screening, predict_gdm
 
 ANAEMIA_DETECTOR = "anaemia-xgb-v1"
 PREGNANCY_RISK_DETECTOR = "pregnancy-risk-xgb-v1"
+GDM_DETECTOR = "gdm-logreg-v1"
 
 #: Anemia grade -> (representative 0-100 score, risk level). Scores sit inside
 #: the band `rules.classify` would assign, so mixed rules/ML runs stay coherent.
@@ -123,7 +124,105 @@ def detect_pregnancy_risk_ml(inputs: ScreeningInput) -> ConditionRisk:
     )
 
 
+_GDM_LEVELS = {
+    "low": RiskLevel.LOW,
+    "moderate": RiskLevel.MODERATE,
+    "high": RiskLevel.HIGH,
+}
+
+#: Labels for the features the model may have to impute, for the reasons list.
+_GDM_LAB_LABELS = {
+    "hba1c_pct": "HbA1c",
+    "hdl_mgdL": "HDL cholesterol",
+    "triglycerides_mgdL": "triglycerides",
+}
+
+
+def _gdm_driver_reasons(inputs: ScreeningInput) -> List[str]:
+    """Plain-language factors behind the GDM score."""
+    reasons: List[str] = []
+    if inputs.gestational_diabetes_previous:
+        reasons.append("Gestational diabetes in a previous pregnancy")
+    if inputs.known_prediabetes:
+        reasons.append("Known prediabetes")
+    if inputs.hba1c is not None and inputs.hba1c >= 5.7:
+        reasons.append(f"HbA1c {inputs.hba1c:.1f}%")
+    if inputs.bmi is not None and inputs.bmi >= 30:
+        reasons.append(f"Obesity (BMI {inputs.bmi:.1f})")
+    elif inputs.bmi is not None and inputs.bmi >= 25:
+        reasons.append(f"Overweight (BMI {inputs.bmi:.1f})")
+    if inputs.family_history:
+        reasons.append("Family history of diabetes")
+    if inputs.pcos:
+        reasons.append("PCOS")
+    if inputs.large_baby_previous:
+        reasons.append("Previous large baby")
+    if inputs.age >= 35:
+        reasons.append(f"Maternal age {inputs.age}")
+    return reasons
+
+
+def _format_probability(probability: float) -> str:
+    """Percentage that never reads as a certainty.
+
+    A saturated logistic can round to 0% or 100%, which would present a
+    screening estimate as a diagnosis. Clamp the *wording* at the extremes
+    while leaving the underlying score untouched.
+    """
+    if probability >= 0.995:
+        return ">99%"
+    if probability <= 0.005:
+        return "<1%"
+    return f"{probability:.0%}"
+
+
+def detect_gdm_ml(inputs: ScreeningInput) -> ConditionRisk:
+    """Gestational diabetes risk from the logistic regression model.
+
+    Falls back to the rule-based detector when BMI is unknown — BMI is the
+    model's strongest routinely-available predictor, and imputing it would mean
+    scoring a patient largely on population averages.
+    """
+    if inputs.bmi is None:
+        return detect_gdm(inputs)
+
+    prediction = predict_gdm(inputs)
+    risk_level = _GDM_LEVELS[prediction.risk_level]
+
+    reasons: List[str] = [
+        f"Estimated gestational diabetes risk: {_format_probability(prediction.probability)}",
+        *_gdm_driver_reasons(inputs),
+    ]
+
+    # Be explicit when labs were missing, so a score built partly on population
+    # averages is never mistaken for one built on this patient's own results.
+    missing_labs = [
+        _GDM_LAB_LABELS[f]
+        for f in prediction.imputed_features
+        if f in _GDM_LAB_LABELS
+    ]
+    if missing_labs:
+        reasons.append(
+            "Estimated without " + ", ".join(missing_labs) + " — add for a sharper result"
+        )
+
+    return ConditionRisk(
+        condition="gdm",
+        label="Gestational Diabetes",
+        score=round(prediction.probability * 100, 1),
+        risk_level=risk_level,
+        reasons=reasons,
+        recommendations=get_recommendations("gdm", risk_level),
+        detector=GDM_DETECTOR,
+        details={
+            "probability": prediction.probability,
+            "imputed_features": prediction.imputed_features,
+        },
+    )
+
+
 # `available_conditions()` reports this name for the active detector, so tag the
 # functions with their versioned name (falls back to __name__ otherwise).
 detect_anaemia_ml.detector_name = ANAEMIA_DETECTOR
 detect_pregnancy_risk_ml.detector_name = PREGNANCY_RISK_DETECTOR
+detect_gdm_ml.detector_name = GDM_DETECTOR

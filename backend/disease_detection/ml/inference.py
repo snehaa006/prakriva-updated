@@ -8,19 +8,23 @@ model outputs with confidences.
 import json
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 from ..schemas import ScreeningInput
 from .featurize import align_features, build_features
+from .gdm_featurize import risk_level_for
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANEMIA_MODEL_PATH = os.path.join(HERE, "anemia_status_xgb.json")
 RISK_MODEL_PATH = os.path.join(HERE, "pregnancy_risk_xgb.json")
 SCHEMA_PATH = os.path.join(HERE, "model_schema.json")
+GDM_MODEL_PATH = os.path.join(HERE, "gdm_model.json")
 
 _STATE: dict = {}
+_GDM_STATE: dict = {}
 
 
 @dataclass
@@ -31,6 +35,16 @@ class MaternalPrediction:
     anemia_confidence: float
     pregnancy_risk: str
     risk_confidence: float
+
+
+@dataclass
+class GdmPrediction:
+    """GDM early-screening output for one patient."""
+
+    probability: float
+    risk_level: str
+    #: Features the patient had no value for, filled with the training median.
+    imputed_features: List[str]
 
 
 def _load() -> dict:
@@ -63,9 +77,95 @@ def _load() -> dict:
     return _STATE
 
 
+def _load_gdm() -> dict:
+    """Load the GDM coefficients/scaler once; cached in module state."""
+    if _GDM_STATE:
+        return _GDM_STATE
+
+    if not os.path.exists(GDM_MODEL_PATH):
+        raise FileNotFoundError(
+            f"GDM model artifact missing: {GDM_MODEL_PATH}. Run "
+            "`python -m disease_detection.ml.train_gdm_model`."
+        )
+
+    with open(GDM_MODEL_PATH) as f:
+        artifact = json.load(f)
+
+    _GDM_STATE.update(
+        feature_columns=artifact["feature_columns"],
+        mean=np.array(artifact["scaler_mean"], dtype=float),
+        scale=np.array(artifact["scaler_scale"], dtype=float),
+        coefficients=np.array(artifact["coefficients"], dtype=float),
+        intercept=float(artifact["intercept"]),
+        medians=artifact["feature_medians"],
+    )
+    return _GDM_STATE
+
+
 def warm_up() -> None:
     """Force the models to load now (raises if artifacts are missing)."""
     _load()
+    _load_gdm()
+
+
+def _gdm_raw_values(inputs: ScreeningInput) -> dict:
+    """Map a `ScreeningInput` onto the GDM model's raw feature values.
+
+    Twelve of the fifteen features are already collected elsewhere in the app,
+    so they are read straight off the screening input. `None` marks a value the
+    patient does not have; `predict_gdm` fills those with the training median.
+    """
+    return {
+        "age": inputs.age,
+        "bmi": inputs.bmi,
+        "systolic_bp": inputs.bp_systolic,
+        "diastolic_bp": inputs.bp_diastolic,
+        "no_of_pregnancies": inputs.gravida,
+        "prior_gdm": int(inputs.gestational_diabetes_previous),
+        "family_history_diabetes": int(inputs.family_history),
+        "prior_unexplained_loss": int(inputs.unexplained_prenatal_loss),
+        "prior_macrosomia": int(inputs.large_baby_previous),
+        "pcos_diagnosed": int(inputs.pcos),
+        "known_prediabetes": int(inputs.known_prediabetes),
+        "sedentary_lifestyle": int(inputs.sedentary_lifestyle),
+        "hba1c_pct": inputs.hba1c,
+        "hdl_mgdL": inputs.hdl,
+        "triglycerides_mgdL": inputs.triglycerides,
+    }
+
+
+def predict_gdm(inputs: ScreeningInput) -> GdmPrediction:
+    """GDM probability for one screening input.
+
+    Evaluates the logistic regression directly from its stored coefficients
+    (standardise, dot product, sigmoid) rather than through scikit-learn, so
+    predictions do not depend on the installed scikit-learn version. The
+    training script asserts this reproduces `predict_proba` exactly.
+    """
+    state = _load_gdm()
+    columns = state["feature_columns"]
+    medians = state["medians"]
+
+    raw = _gdm_raw_values(inputs)
+    imputed: List[str] = []
+    values = []
+    for column in columns:
+        value = raw.get(column)
+        if value is None:
+            value = medians[column]
+            imputed.append(column)
+        values.append(float(value))
+
+    x = np.array(values, dtype=float)
+    scaled = (x - state["mean"]) / state["scale"]
+    logit = float(scaled @ state["coefficients"] + state["intercept"])
+    probability = 1.0 / (1.0 + np.exp(-logit))
+
+    return GdmPrediction(
+        probability=round(probability, 4),
+        risk_level=risk_level_for(probability),
+        imputed_features=imputed,
+    )
 
 
 def _raw_record(inputs: ScreeningInput) -> dict:
