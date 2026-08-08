@@ -62,11 +62,11 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIngredientCatalog } from "@/hooks/useIngredientCatalog";
 import {
-  ingredientsByCategory,
-  ingredientSearchValue,
-  type IngredientOption,
-} from "@/data/ingredients";
+  catalogSearchValue,
+  type CatalogIngredient,
+} from "@/services/ingredientCatalogService";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
 import {
@@ -138,8 +138,9 @@ const Pantry: React.FC = () => {
   const queryClient = useQueryClient();
   const patientId = user?.id ?? "";
 
-  const [ingredient, setIngredient] = useState<IngredientOption | null>(null);
+  const [ingredient, setIngredient] = useState<CatalogIngredient | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [foodQuery, setFoodQuery] = useState("");
   const [quantity, setQuantity] = useState("");
   const [availability, setAvailability] = useState<PantryAvailability>("at_home");
   const [notes, setNotes] = useState("");
@@ -176,8 +177,38 @@ const Pantry: React.FC = () => {
     writeCache(pantryCacheKey(patientId), next);
   };
 
-  // Grouped once — the catalogue is static.
-  const ingredientGroups = useMemo(() => ingredientsByCategory(), []);
+  // The ingredient vocabulary comes from the recipe API, so anything a patient
+  // can pick is something the doctor's recipe search can actually match.
+  const { ingredients: catalog, source: catalogSource, isLoadingCatalog } =
+    useIngredientCatalog();
+
+  // cmdk's own filter would render every one of ~1000 entries; rank and cap
+  // them instead. The catalogue arrives sorted by how many recipes use each
+  // ingredient, so an empty query already shows the common foods first.
+  const matches = useMemo(() => {
+    const term = foodQuery.trim().toLowerCase();
+    if (!term) return catalog.slice(0, 60);
+
+    const scored: { entry: CatalogIngredient; score: number }[] = [];
+    for (const entry of catalog) {
+      const label = entry.label.toLowerCase();
+      let score = 0;
+      if (label.startsWith(term)) score = 3;
+      else if (label.includes(term)) score = 2;
+      else if (catalogSearchValue(entry).toLowerCase().includes(term)) score = 1;
+      if (score > 0) scored.push({ entry, score });
+    }
+
+    return scored
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.entry.frequency - a.entry.frequency ||
+          a.entry.label.localeCompare(b.entry.label)
+      )
+      .slice(0, 60)
+      .map((match) => match.entry);
+  }, [catalog, foodQuery]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -220,6 +251,7 @@ const Pantry: React.FC = () => {
       });
       setItems([created, ...items]);
       setIngredient(null);
+      setFoodQuery("");
       setQuantity("");
       setNotes("");
       toast.success(`${created.foodName} added to your ${AVAILABILITY_LABEL[created.availability].toLowerCase()} list.`);
@@ -317,8 +349,14 @@ const Pantry: React.FC = () => {
           <CardTitle className="text-base">Add a food</CardTitle>
           <CardDescription>
             Search the food list — grains, dals, vegetables, fruits, spices,
-            dairy. Picking from the list is what lets your doctor find recipes
-            that use it.
+            dairy. The list is every ingredient the recipe database knows, so
+            whatever you pick, your doctor can find recipes that use it.
+            {catalogSource === "fallback" && !isLoadingCatalog && (
+              <span className="mt-1 block text-amber-700">
+                Showing the offline food list — the full one will load when the
+                connection is back.
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -348,41 +386,45 @@ const Pantry: React.FC = () => {
                   className="w-[--radix-popover-trigger-width] p-0"
                   align="start"
                 >
-                  <Command
-                    filter={(itemValue, search) =>
-                      itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
-                    }
-                  >
-                    <CommandInput placeholder="Type a food, e.g. rice or methi…" />
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      value={foodQuery}
+                      onValueChange={setFoodQuery}
+                      placeholder="Type a food, e.g. rice or methi…"
+                    />
                     <CommandList>
                       <CommandEmpty>
-                        No matching food. Try a simpler name — "rice" rather
-                        than a dish name.
+                        {isLoadingCatalog
+                          ? "Loading the food list…"
+                          : "No matching food. Try a simpler name — \"rice\" rather than a dish name."}
                       </CommandEmpty>
-                      {ingredientGroups.map((group) => (
-                        <CommandGroup key={group.category} heading={group.category}>
-                          {group.options.map((option) => (
-                            <CommandItem
-                              key={option.label}
-                              value={ingredientSearchValue(option)}
-                              onSelect={() => {
-                                setIngredient(option);
-                                setPickerOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  ingredient?.label === option.label
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              {option.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      ))}
+                      <CommandGroup
+                        heading={foodQuery.trim() ? "Matches" : "Most used foods"}
+                      >
+                        {matches.map((option) => (
+                          <CommandItem
+                            key={option.searchTerm}
+                            value={option.searchTerm}
+                            onSelect={() => {
+                              setIngredient(option);
+                              setPickerOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                ingredient?.searchTerm === option.searchTerm
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <span className="flex-1 truncate">{option.label}</span>
+                            <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {option.category}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
                     </CommandList>
                   </Command>
                 </PopoverContent>
