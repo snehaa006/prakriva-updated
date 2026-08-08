@@ -140,8 +140,12 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
   including a 404 (no recipe matches every ingredient) reading as an empty
   result rather than a failure.
-- `src/data/__tests__/ingredients.test.ts` — catalogue invariants: unique
-  labels, known categories, normalized search terms and alias lookup.
+- `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
+  unique labels, known categories, normalized search terms and alias lookup.
+- `src/services/__tests__/ingredientCatalogService.test.ts` — building the
+  vocabulary from the API: frequency ordering, de-duplication across
+  categories, alias carry-over, the merged staples, the offline fallback and
+  the week-long cache.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
 
@@ -408,13 +412,20 @@ can cook rather than what a generator picked.
   food with an optional quantity and note onto either the **At home** or the
   **Shopping list** tab, and move items between the two. The old
   `/patient/shopping` placeholder now redirects here.
-- **Ingredient catalogue** — `src/data/ingredients.ts`. Foods are picked from
-  this list rather than typed free-hand, because what a patient types ("Dals",
-  "ALL Kinds Of Fruits") is not what the recipe database indexes, and the
-  doctor's ingredient search then matched nothing. Each entry carries the
-  `label` the patient sees and is stored under, the plain `searchTerm` sent to
-  the recipe API ("Brown rice" → `rice`), a category, and optional `aliases` so
-  local names ("methi", "bhindi", "jeera") find the right entry while typing.
+- **Ingredient catalogue** — `src/services/ingredientCatalogService.ts`. Foods
+  are picked from a list rather than typed free-hand, because what a patient
+  types ("Dals", "ALL Kinds Of Fruits") is not what the recipe database
+  indexes, and the doctor's ingredient search then matched nothing. The list is
+  **FoodOScope's own ingredient index**: the service sweeps the FlavorDB
+  categories (`/ingredients/flavor/{category}`), keeps each entry's indexed
+  name as the `searchTerm`, its readable `generic_name` as the label, and its
+  `frequency` — how many recipes actually use it — to sort the common foods to
+  the top. The sweep runs at most once a week (localStorage, 4 categories at a
+  time) behind `src/hooks/useIngredientCatalog.ts`.
+  `src/data/ingredients.ts` remains as the bundled fallback shown while the
+  sweep runs or when the API is unreachable, and as the source of local-name
+  aliases ("methi", "bhindi", "jeera", "gur") the API does not carry; curated
+  staples the API omits are merged in.
   `public/foodDatabase.json` is deliberately not the source here — it lists
   prepared dishes, not ingredients.
 - **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
