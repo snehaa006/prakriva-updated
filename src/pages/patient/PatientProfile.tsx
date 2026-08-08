@@ -7,11 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
-import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Activity, Droplet, Target, MapPin, Sun, Apple, HeartPulse, Thermometer, Moon, IdCard, Copy, Check } from "lucide-react";
+import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Target, MapPin, Apple, HeartPulse, IdCard, Copy, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 
+/**
+ * The profile holds only traits that stay the same over time.
+ *
+ * Values that shift week to week — stress, energy, sleep, hydration, activity,
+ * cravings, current conditions, goals — live in the trackers, so they are
+ * neither collected by the questionnaire nor shown here.
+ */
 interface AssessmentData {
   // Personal Information
   name: string;
@@ -19,29 +26,19 @@ interface AssessmentData {
   gender: string;
   location: string;
 
-  // Lifestyle & Habits
-  dailyRoutine: string;
-  physicalActivity: string;
-  sleepDuration: string;
-  waterIntake: number;
+  // Allergies & Food Avoidances
+  allergies: string[];
+  allergiesOther: string;
+  foodAvoidances: string;
 
-  // Dietary Habits
+  // Long-standing dietary pattern
   dietaryPreferences: string;
-  cravings: string[];
-  cravingsOther: string;
-  digestionIssues: string[];
 
-  // Health & Wellness
-  currentConditions: string[];
-  currentConditionsOther: string;
+  // Family History
   familyHistory: string[];
   familyHistoryOther: string;
-  medications: string;
-  labReports: string;
-  energyLevels: number;
-  stressLevels: number;
 
-  // Ayurvedic Constitutional Assessment
+  // Ayurvedic Constitutional Assessment (Prakriti — fixed at birth)
   bodyFrame: string;
   skinType: string;
   hairType: string;
@@ -49,11 +46,6 @@ interface AssessmentData {
   personalityTraits: string[];
   weatherPreference: string;
 
-  // Goals & Preferences
-  healthGoals: string[];
-  healthGoalsOther: string;
-  mealPrepTime: string;
-  budgetPreference: string;
   additionalNotes: string;
 }
 
@@ -491,38 +483,6 @@ export default function Profile() {
         </Card>
       ) : (
         <>
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="p-6 text-center border-primary/20 hover:border-primary/40 transition-colors">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-blue-100 text-blue-600">
-                <Activity className="w-6 h-6" />
-              </div>
-              <div className="text-2xl font-bold text-foreground">{assessmentData.energyLevels || 0}/5</div>
-              <div className="text-sm text-muted-foreground">Energy Levels</div>
-            </Card>
-            <Card className="p-6 text-center border-primary/20 hover:border-primary/40 transition-colors">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 text-red-600">
-                <Thermometer className="w-6 h-6" />
-              </div>
-              <div className="text-2xl font-bold text-foreground">{assessmentData.stressLevels || 0}/5</div>
-              <div className="text-sm text-muted-foreground">Stress Levels</div>
-            </Card>
-            <Card className="p-6 text-center border-primary/20 hover:border-primary/40 transition-colors">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-blue-100 text-blue-600">
-                <Droplet className="w-6 h-6" />
-              </div>
-              <div className="text-2xl font-bold text-foreground">{assessmentData.waterIntake || 0}L</div>
-              <div className="text-sm text-muted-foreground">Daily Water</div>
-            </Card>
-            <Card className="p-6 text-center border-primary/20 hover:border-primary/40 transition-colors">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-purple-100 text-purple-600">
-                <Moon className="w-6 h-6" />
-              </div>
-              <div className="text-2xl font-bold text-foreground">{assessmentData.sleepDuration || "N/A"}</div>
-              <div className="text-sm text-muted-foreground">Sleep Duration</div>
-            </Card>
-          </div>
-
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Personal Information */}
             <Card className="border-primary/20 shadow-lg">
@@ -618,178 +578,52 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            {/* Lifestyle & Habits */}
+            {/* Allergies & Dietary Pattern */}
             <Card className="border-primary/20 shadow-lg">
               <CardHeader className="pb-6">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 rounded-full bg-orange-100">
-                    <Sun className="w-6 h-6 text-orange-600" />
+                  <div className="p-2 rounded-full bg-green-100">
+                    <Apple className="w-6 h-6 text-green-600" />
                   </div>
-                  Lifestyle & Habits
+                  Allergies & Dietary Pattern
                 </CardTitle>
-                <CardDescription>Your daily routine and lifestyle patterns</CardDescription>
+                <CardDescription>Foods you always avoid and how you eat</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-3">
-                    <Label className="text-base font-medium">Physical Activity Level</Label>
+                    <Label className="text-base font-medium">Dietary Preference</Label>
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <Badge variant="outline" className="capitalize">
-                        {assessmentData.physicalActivity || "Not specified"}
+                        {assessmentData.dietaryPreferences || "Not specified"}
                       </Badge>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-base font-medium">Sleep Duration</Label>
+                    <Label className="text-base font-medium">Food Allergies</Label>
                     <div className="p-3 bg-muted/50 rounded-lg">
-                      <span className="text-base">{assessmentData.sleepDuration || "Not specified"}</span>
+                      <p className="text-base">{formatArrayToString(assessmentData.allergies, assessmentData.allergiesOther)}</p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-base font-medium">Daily Water Intake</Label>
+                    <Label className="text-base font-medium">Foods Avoided</Label>
                     <div className="p-3 bg-muted/50 rounded-lg">
-                      <span className="text-base">{assessmentData.waterIntake || 0}L per day</span>
+                      <p className="text-base">{assessmentData.foodAvoidances || "Not specified"}</p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-base font-medium">Daily Routine</Label>
+                    <Label className="text-base font-medium">Family History</Label>
                     <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-base">{assessmentData.dailyRoutine || "Not specified"}</p>
+                      <p className="text-base">{formatArrayToString(assessmentData.familyHistory, assessmentData.familyHistoryOther)}</p>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Dietary Information */}
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-6">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-green-100">
-                  <Apple className="w-6 h-6 text-green-600" />
-                </div>
-                Dietary Habits & Preferences
-              </CardTitle>
-              <CardDescription>Your dietary choices and eating patterns</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Dietary Preference</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <Badge variant="outline" className="capitalize">
-                      {assessmentData.dietaryPreferences || "Not specified"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Food Cravings</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <div className="flex flex-wrap gap-2">
-                      {assessmentData.cravings && assessmentData.cravings.length > 0 ? (
-                        assessmentData.cravings.map((craving, index) => (
-                          <Badge key={index} variant="secondary" className="capitalize">
-                            {craving}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Not specified</span>
-                      )}
-                    </div>
-                    {assessmentData.cravingsOther && (
-                      <p className="text-sm mt-2 text-muted-foreground">Other: {assessmentData.cravingsOther}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3 md:col-span-2">
-                  <Label className="text-base font-medium">Digestive Issues</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{formatArrayToString(assessmentData.digestionIssues)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Health Information */}
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-6">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-red-100">
-                  <HeartPulse className="w-6 h-6 text-red-600" />
-                </div>
-                Health & Wellness
-              </CardTitle>
-              <CardDescription>Your health status and medical information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Current Health Conditions</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{formatArrayToString(assessmentData.currentConditions, assessmentData.currentConditionsOther)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Family History</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{formatArrayToString(assessmentData.familyHistory, assessmentData.familyHistoryOther)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Energy Levels (1-5)</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${((assessmentData.energyLevels || 0) / 5) * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium">{assessmentData.energyLevels || 0}/5</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Stress Levels (1-5)</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-red-500 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${((assessmentData.stressLevels || 0) / 5) * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium">{assessmentData.stressLevels || 0}/5</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 md:col-span-2">
-                  <Label className="text-base font-medium">Current Medications & Supplements</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{assessmentData.medications || "Not specified"}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 md:col-span-2">
-                  <Label className="text-base font-medium">Recent Lab Reports</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{assessmentData.labReports || "Not specified"}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Ayurvedic Constitution */}
           <Card className="border-primary/20 shadow-lg">
@@ -869,63 +703,20 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          {/* Health Goals & Preferences */}
+          {/* Additional Notes */}
           <Card className="border-primary/20 shadow-lg">
             <CardHeader className="pb-6">
               <CardTitle className="flex items-center gap-3 text-xl">
                 <div className="p-2 rounded-full bg-blue-100">
                   <Target className="w-6 h-6 text-blue-600" />
                 </div>
-                Health Goals & Lifestyle Preferences
+                Additional Notes
               </CardTitle>
-              <CardDescription>Your wellness objectives and lifestyle choices</CardDescription>
+              <CardDescription>Long-standing details a practitioner should always know</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Health Goals</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {assessmentData.healthGoals && assessmentData.healthGoals.length > 0 ? (
-                        assessmentData.healthGoals.map((goal, index) => (
-                          <Badge key={index} variant="secondary" className="capitalize">
-                            {goal.replace('-', ' ')}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Not specified</span>
-                      )}
-                    </div>
-                    {assessmentData.healthGoalsOther && (
-                      <p className="text-sm text-muted-foreground">Other: {assessmentData.healthGoalsOther}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Meal Prep Time</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <Badge variant="outline" className="capitalize">
-                      {assessmentData.mealPrepTime || "Not specified"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Budget Preference</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <Badge variant="outline" className="capitalize">
-                      {assessmentData.budgetPreference || "Not specified"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3 md:col-span-2">
-                  <Label className="text-base font-medium">Additional Notes</Label>
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-base">{assessmentData.additionalNotes || "Not specified"}</p>
-                  </div>
-                </div>
+            <CardContent>
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <p className="text-base">{assessmentData.additionalNotes || "Not specified"}</p>
               </div>
             </CardContent>
           </Card>
