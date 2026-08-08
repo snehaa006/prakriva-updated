@@ -2,6 +2,7 @@
 Enhanced Flask application with comprehensive features and production readiness
 """
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -45,8 +46,12 @@ def create_app() -> Flask:
     
     app = Flask(__name__)
     
-    # Configure CORS
-    CORS(app, origins=["http://localhost:3000", "https://yourdomain.com"])
+    # Configure CORS. Exact origins come from settings.ALLOWED_ORIGINS (see
+    # config.py — override with the ALLOWED_ORIGINS env var in production).
+    # Vercel preview deployments get a new *.vercel.app subdomain per branch/PR,
+    # so also allow any origin under vercel.app rather than hardcoding each one.
+    vercel_preview_pattern = re.compile(r"^https://[a-z0-9-]+\.vercel\.app$")
+    CORS(app, origins=[*settings.ALLOWED_ORIGINS, vercel_preview_pattern])
     
     # Configure rate limiting
     limiter = Limiter(
