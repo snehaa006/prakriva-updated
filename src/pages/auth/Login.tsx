@@ -285,7 +285,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-accent flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center mb-2">
@@ -293,7 +293,7 @@ const Login = () => {
           </CardTitle>
           <CardDescription>
             {isSignup ? "Create your account" : "Sign in to your account"} as a{" "}
-            <span className="font-semibold capitalize text-green-600">{role}</span>
+            <span className="font-semibold capitalize text-primary">{role}</span>
             {/* A block element here would be invalid — CardDescription is a <p>. */}
             {isDoctorSignup && (
               <span className="mt-2 block text-xs text-gray-500">
@@ -314,7 +314,7 @@ const Login = () => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(currentStep / TOTAL_DOCTOR_STEPS) * 100}%` }}
                   />
                 </div>
@@ -392,7 +392,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={toggleMode}
-                className="text-sm text-green-600 hover:text-green-700 underline"
+                className="text-sm text-primary hover:text-primary/80 underline"
                 disabled={isLoading}
               >
                 {isSignup

@@ -59,6 +59,14 @@ diet plan.
   registry (`pipeline.py`). See "Disease detection" below.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table.
+- `src/index.css` — the design system: shadcn/Tailwind CSS variables
+  (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
+  Prakriva brand palette (deep maroon/burgundy on warm cream, matching
+  `public/logo.png`). Dosha colors (`--vata`/`--pitta`/`--kapha`) and status
+  colors (`--success`/`--warning`/`--info`, plus the ad hoc green/red/amber
+  used for risk levels and meal/reminder status across `src/pages`) are kept
+  separate from the brand palette on purpose — they carry meaning and aren't
+  restyled when the brand colors change.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
   standalone `mealCompatibility.html` visualisation (reachable at

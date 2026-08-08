@@ -197,7 +197,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           <div
             className={`w-4 h-4 rounded-full border-2 transition-all ${
               formData[name] === option.value
-                ? "bg-green-600 border-green-600"
+                ? "bg-primary border-primary"
                 : "border-gray-300"
             }`}
           >
@@ -208,7 +208,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           <span
             className={
               formData[name] === option.value
-                ? "font-semibold text-green-600"
+                ? "font-semibold text-primary"
                 : ""
             }
           >
@@ -253,14 +253,14 @@ const AyurvedicHealthAssessment: React.FC = () => {
             />
             <div
               className={`w-4 h-4 rounded border-2 transition-all ${
-                isChecked ? "bg-green-600 border-green-600" : "border-gray-300"
+                isChecked ? "bg-primary border-primary" : "border-gray-300"
               }`}
             >
               {isChecked && <Check className="w-3 h-3 text-white" />}
             </div>
             <span
               className={`text-sm ${
-                isChecked ? "font-semibold text-green-600" : ""
+                isChecked ? "font-semibold text-primary" : ""
               }`}
             >
               {option.label}
@@ -276,7 +276,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <header className="text-center mb-8">
           <div className="flex items-center justify-center space-x-4 mb-4">
-            <Leaf className="w-12 h-12 text-green-700" />
+            <Leaf className="w-12 h-12 text-primary" />
             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800">
               Personalized Ayurvedic Profile
             </h1>
@@ -293,7 +293,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Personal Information */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <User className="w-6 h-6 text-green-700" />
+              <User className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Personal Information
               </h2>
@@ -310,7 +310,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   value={formData.name}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="John Doe"
                 />
               </div>
@@ -324,7 +324,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   value={formData.dob}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
               <div>
@@ -336,7 +336,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   value={formData.gender}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="">Select...</option>
                   <option value="male">Male</option>
@@ -354,7 +354,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="E.g., San Francisco, CA"
                 />
               </div>
@@ -364,7 +364,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Allergies & Food Avoidances */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <Apple className="w-6 h-6 text-green-700" />
+              <Apple className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Allergies & Food Avoidances
               </h2>
@@ -397,7 +397,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                     value={formData.allergiesOther}
                     onChange={handleInputChange}
                     placeholder="Other allergies (e.g., sesame, mustard)..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
               </div>
@@ -411,7 +411,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   value={formData.foodAvoidances}
                   onChange={handleInputChange}
                   rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="E.g., beef, pork, alcohol, caffeine..."
                 />
               </div>
@@ -421,7 +421,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Dietary Pattern */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <Apple className="w-6 h-6 text-green-700" />
+              <Apple className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Dietary Pattern
               </h2>
@@ -446,7 +446,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Family History */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <HeartPulse className="w-6 h-6 text-green-700" />
+              <HeartPulse className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Family History
               </h2>
@@ -474,7 +474,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                     value={formData.familyHistoryOther}
                     onChange={handleInputChange}
                     placeholder="Other family history..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
               </div>
@@ -485,7 +485,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Ayurvedic Constitutional Assessment */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <Circle className="w-6 h-6 text-green-700" />
+              <Circle className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Ayurvedic Constitutional Assessment
               </h2>
@@ -587,7 +587,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           {/* Additional Notes */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-3 mb-6">
-              <Target className="w-6 h-6 text-green-700" />
+              <Target className="w-6 h-6 text-primary" />
               <h2 className="text-xl font-semibold text-gray-800">
                 Additional Notes
               </h2>
@@ -602,7 +602,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                 value={formData.additionalNotes}
                 onChange={handleInputChange}
                 rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="Long-standing intolerances, cultural food practices, anything a practitioner should always know..."
               />
             </div>
@@ -613,7 +613,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg shadow-lg transform transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+              className="bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg shadow-lg transform transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
             >
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-5 h-5" />
@@ -628,8 +628,8 @@ const AyurvedicHealthAssessment: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl p-8 max-w-md mx-4">
               <div className="text-center">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                  <Check className="h-6 w-6 text-green-600" />
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-accent mb-4">
+                  <Check className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Assessment Submitted Successfully!
@@ -641,7 +641,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                 </p>
                 <button
                   onClick={closeModal}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
                 >
                   Close
                 </button>

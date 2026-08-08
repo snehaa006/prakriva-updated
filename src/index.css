@@ -3,52 +3,53 @@
 @tailwind utilities;
 
 /* Ayurvedic Diet Management Platform Design System
-Modern, nature-inspired design with Ayurvedic aesthetics
+Modern Ayurvedic aesthetic in the Prakriva brand palette: deep maroon/
+burgundy on warm cream, matching public/logo.png and the pitch deck.
 All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Base colors - Soft, natural background */
-    --background: 45 20% 98%;
-    --foreground: 30 15% 15%;
+    /* Base colors - Warm cream background */
+    --background: 30 35% 97%;
+    --foreground: 345 30% 15%;
 
-    /* Card colors - Clean white with natural border */
+    /* Card colors - Clean white with warm maroon-tinted border */
     --card: 0 0% 100%;
-    --card-foreground: 30 15% 15%;
+    --card-foreground: 345 30% 15%;
 
     /* Popover colors */
     --popover: 0 0% 100%;
-    --popover-foreground: 30 15% 15%;
+    --popover-foreground: 345 30% 15%;
 
-    /* Primary - Sage green for natural, calming feel */
-    --primary: 120 25% 35%;
-    --primary-foreground: 0 0% 98%;
+    /* Primary - Deep maroon/burgundy, the Prakriva brand color */
+    --primary: 345 50% 24%;
+    --primary-foreground: 30 45% 96%;
 
-    /* Secondary - Warm earth tone */
-    --secondary: 30 35% 88%;
-    --secondary-foreground: 30 15% 25%;
+    /* Secondary - Blush/cream */
+    --secondary: 14 45% 90%;
+    --secondary-foreground: 345 40% 22%;
 
-    /* Muted - Soft neutral */
-    --muted: 45 20% 92%;
-    --muted-foreground: 30 8% 45%;
+    /* Muted - Soft warm neutral */
+    --muted: 30 30% 93%;
+    --muted-foreground: 345 12% 42%;
 
-    /* Accent - Ayurvedic orange/saffron */
-    --accent: 35 85% 88%;
-    --accent-foreground: 35 85% 25%;
+    /* Accent - Peach */
+    --accent: 33 55% 90%;
+    --accent-foreground: 345 50% 24%;
 
     /* Destructive - Soft red */
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 98%;
 
     /* Borders and inputs */
-    --border: 30 20% 85%;
-    --input: 30 20% 92%;
-    --ring: 120 25% 35%;
+    --border: 345 20% 86%;
+    --input: 345 15% 92%;
+    --ring: 345 50% 24%;
 
     --radius: 0.75rem;
 
-    /* Ayurvedic-specific colors */
+    /* Ayurvedic-specific colors (status/meaning, not brand - kept distinct) */
     --vata: 200 60% 65%;        /* Cool blue for Vata */
     --pitta: 25 85% 60%;        /* Warm orange-red for Pitta */
     --kapha: 120 40% 50%;       /* Earth green for Kapha */
@@ -57,20 +58,20 @@ All colors MUST be HSL.
     --info: 200 80% 65%;        /* Calming blue */
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(120, 25%, 35%), hsl(120, 30%, 45%));
-    --gradient-secondary: linear-gradient(135deg, hsl(30, 35%, 88%), hsl(45, 30%, 92%));
-    --gradient-hero: linear-gradient(135deg, hsl(120, 25%, 35%), hsl(35, 85%, 60%), hsl(30, 35%, 88%));
+    --gradient-primary: linear-gradient(135deg, hsl(345, 50%, 22%), hsl(344, 49%, 34%));
+    --gradient-secondary: linear-gradient(135deg, hsl(14, 45%, 90%), hsl(33, 55%, 92%));
+    --gradient-hero: linear-gradient(135deg, hsl(345, 50%, 20%), hsl(344, 49%, 36%), hsl(14, 45%, 88%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
     /* Sidebar colors */
-    --sidebar-background: 120 15% 96%;
-    --sidebar-foreground: 30 15% 25%;
-    --sidebar-primary: 120 25% 35%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 30 20% 90%;
-    --sidebar-accent-foreground: 30 15% 25%;
-    --sidebar-border: 30 20% 85%;
-    --sidebar-ring: 120 25% 35%;
+    --sidebar-background: 30 30% 96%;
+    --sidebar-foreground: 345 30% 20%;
+    --sidebar-primary: 345 50% 24%;
+    --sidebar-primary-foreground: 30 45% 96%;
+    --sidebar-accent: 14 40% 91%;
+    --sidebar-accent-foreground: 345 40% 22%;
+    --sidebar-border: 345 20% 86%;
+    --sidebar-ring: 345 50% 24%;
   }
 
   .dark {
