@@ -365,11 +365,10 @@ Patients list the food they actually have, so plans are built around what they
 can cook rather than what a generator picked.
 
 - **Patient side** — "My Kitchen" at `/patient/pantry`
-  (`src/pages/patient/Pantry.tsx`). Add a food with a category, quantity and
-  optional note, on either the **At home** or the **Shopping list** tab, and
-  move items between the two. Food names autocomplete from the shared food
-  database loaded by `FoodContext`. The old `/patient/shopping` placeholder now
-  redirects here.
+  (`src/pages/patient/Pantry.tsx`). Type a food name, with an optional quantity
+  and note, onto either the **At home** or the **Shopping list** tab, and move
+  items between the two. The old `/patient/shopping` placeholder now redirects
+  here.
 - **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
   (`src/components/patients/PatientPantryPanel.tsx`). Search one of your own
   patients and their kitchen list appears; "Find recipes from what they have"
