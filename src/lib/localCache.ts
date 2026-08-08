@@ -86,6 +86,9 @@ export const CACHE_KEYS = {
   dietChartDraft: "personalized-diet-chart-draft",
   dietChartViewerPatient: "diet-chart-viewer-patient",
   foodExplorerPantryPatient: "food-explorer-pantry-patient",
+  // Suffixed with the patient id, and read with no TTL — the Lifestyle
+  // Tracker's streak history has to outlive an in-progress-work lifetime.
+  lifestyleLogs: "lifestyle-logs",
 } as const;
 
 /** A day, in ms — the default lifetime for cached in-progress work. */

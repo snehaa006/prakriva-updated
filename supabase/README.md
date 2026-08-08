@@ -107,11 +107,16 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `patient_self_service_diet_plans`, `notification_patient_columns`,
 `diet_plan_authorship`, `diet_plan_builder_payloads`, `seed_demo_doctors`,
 `foodoscope_api_keys`, `disease_screenings`, `patient_pantry_items`,
-`diet_plans_medical_notes_array`.
+`diet_plans_medical_notes_array`, `create_lifestyle_logs`.
 
-`disease_screenings.sql` and `patient_pantry_items.sql` in this folder are the
-sources for the matching migrations, kept here so the tables can be recreated in
-a fresh project.
+`disease_screenings.sql`, `patient_pantry_items.sql` and `lifestyle_logs.sql` in
+this folder are the sources for the matching migrations, kept here so the tables
+can be recreated in a fresh project.
+
+`create_lifestyle_logs` added the Lifestyle Tracker's daily sleep/activity/
+hydration log. It replaced `junk_food_streak_logs`, whose tab was retired in
+favour of the diet plan / daily nutrition view (which reads `meal_tracking`
+instead). That table is still present but unused, and is safe to drop.
 
 `diet_plans_medical_notes_array` widened `diet_plans.medical_notes` from `text`
 to `text[]`. The frontend has always produced a list of notes
