@@ -32,6 +32,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # Powers the written analysis and the patient assistant. Optional — both
+      # features hide themselves when it is unset.
+      - key: GEMINI_API_KEY
+        sync: false
       # OPENAI_API_KEY is optional — only the LLM meal-planning / dosha-chat
       # features use it; disease detection works without it. Add it later in the
       # Render dashboard if you want those AI features.
