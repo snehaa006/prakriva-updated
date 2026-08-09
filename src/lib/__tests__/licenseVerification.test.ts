@@ -55,20 +55,28 @@ describe("getLicenseFormatHint", () => {
 
 describe("verifyLicense", () => {
   it("resolves a registered license to its council record", async () => {
-    const result = await verify("MH12345678", "mci");
+    const result = await verify("AYU/MH/104627", "ayush");
 
     expect(result).toMatchObject({
       isValid: true,
       doctorName: "Dr. Rajesh Kumar",
       status: "active",
-      council: "Maharashtra Medical Council",
+      council: "Maharashtra Council of Indian Medicine",
     });
   });
 
   it("resolves an AYUSH license", async () => {
-    const result = await verify("AYU/KA/789012", "ayush");
+    const result = await verify("AYU/KA/143852", "ayush");
     expect(result.isValid).toBe(true);
-    expect(result.doctorName).toBe("Dr. Lakshmi Rao");
+    expect(result.doctorName).toBe("Dr. Priya Sharma");
+  });
+
+  it("rejects a well-formed number whose registration has lapsed", async () => {
+    const result = await verify("MH12345678", "mci");
+
+    expect(result.isValid).toBe(false);
+    expect(result.status).toBe("expired");
+    expect(result.error).toContain("lapsed");
   });
 
   it("reports a format error before attempting the lookup", async () => {

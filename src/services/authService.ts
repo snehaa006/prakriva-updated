@@ -6,18 +6,18 @@
  * has, and which route that role lands on. Keeping them out of the component
  * means the rules are testable without rendering a form.
  *
- * Signup writes the role — and, for doctors, the whole verification payload —
- * into auth user metadata. The `on_auth_user_created` Postgres trigger reads
- * that metadata and creates `public.profiles` plus the matching
- * `doctors`/`patients` row, so the profile exists even when email confirmation
- * means there is no session yet.
+ * Signup writes the role — and, for doctors, their claimed credentials — into
+ * auth user metadata. The `on_auth_user_created` Postgres trigger reads that
+ * metadata and creates `public.profiles` plus the matching `doctors`/`patients`
+ * row, so the profile exists even when email confirmation means there is no
+ * session yet.
+ *
+ * That metadata is entirely client-controlled, so it carries claims only. The
+ * trigger deliberately ignores anything resembling a verification result and
+ * starts every doctor at `pending`; see `supabase/doctor_verification.sql`.
  */
 import { supabase } from "@/lib/supabase";
 import type { DoctorVerificationData } from "@/lib/licenseVerification";
-import {
-  calculateVerificationScore,
-  getVerificationBadge,
-} from "@/lib/licenseVerification";
 
 export type AuthRole = "doctor" | "patient";
 
@@ -59,6 +59,12 @@ const isAlreadyRegistered = (message: string): boolean => {
 /**
  * Build the auth metadata the `on_auth_user_created` trigger consumes.
  * Exported so tests can assert the doctor payload without a network call.
+ *
+ * Credentials the applicant states about themselves only. The browser-side
+ * license lookup, its resulting score and its badge are deliberately *not*
+ * sent: the database ignores them, and including them would suggest the client
+ * has a say in whether an account is trusted. Verification is granted
+ * server-side through `public.verify_doctor()`.
  */
 export const buildSignupMetadata = ({
   role,
@@ -69,24 +75,8 @@ export const buildSignupMetadata = ({
 
   if (role !== "doctor" || !verification) return metadata;
 
-  const verificationScore = calculateVerificationScore(verification);
-  const badge = getVerificationBadge(verificationScore, verification.licenseVerified);
-  const details = verification.verificationDetails;
-
   return {
     ...metadata,
-    verificationScore,
-    verificationBadge: badge.text,
-    licenseVerified: verification.licenseVerified,
-    licenseVerificationDetails: details
-      ? {
-          verifiedName: details.doctorName,
-          registrationDate: details.registrationDate,
-          councilStatus: details.status,
-          verifyingCouncil: details.council,
-          verificationMethod: "api_verification",
-        }
-      : null,
     licenseNumber: verification.licenseNumber,
     medicalCouncil: verification.medicalCouncil,
     graduationYear: parseInt(verification.graduationYear, 10) || 0,

@@ -167,12 +167,19 @@ const currentUserId = async (): Promise<string | null> => {
   return data.user?.id ?? null;
 };
 
-// Fetch all doctors, verified first then by rating.
+// Fetch the bookable doctor directory, best rated first.
+//
+// Only verified doctors are listed. The `doctors_select_directory` RLS policy
+// already hides unverified practitioners from patients, but it deliberately
+// lets a doctor read their own row so their dashboard works while pending —
+// these filters keep that row out of the directory listing too.
 export const fetchDoctors = async (): Promise<Doctor[]> => {
   const { data, error } = await supabase
     .from('doctors')
     .select('*')
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .eq('verification_status', 'verified')
+    .eq('license_verified', true);
 
   if (error) {
     console.error('Error in fetchDoctors:', error);
@@ -270,24 +277,26 @@ export const createConsultationRequest = async (
 
   if (insertError || !inserted) {
     console.error('Error creating consultation request:', insertError);
+
+    // The database refuses requests against an unverified practitioner
+    // (consultation_requests_require_verified_doctor). Say so plainly rather
+    // than surfacing a Postgres error to the patient.
+    if (insertError?.message?.includes('not a verified practitioner')) {
+      throw new Error(
+        `${doctorData.name} is not currently verified to accept consultation requests.`
+      );
+    }
     throw new Error(insertError?.message ?? 'Failed to create consultation request');
   }
 
   const requestId = inserted.id as string;
 
-  // 2. Bump the doctor's pending counter. The old code kept a duplicate
-  //    doctors/{id}/requests subcollection; consultation_requests is now the
-  //    single source of truth and is queried by doctor_id directly.
-  const { error: counterError } = await supabase
-    .from('doctors')
-    .update({ pending_requests: (doctorData.pendingRequests || 0) + 1 })
-    .eq('id', requestData.doctorId);
+  // The doctor's pending counter is maintained by the
+  // consultation_requests_bump_pending trigger. It used to be updated from
+  // here, which RLS quietly refused — a patient cannot write another user's
+  // doctors row — so the count never moved.
 
-  if (counterError) {
-    console.warn('Failed to update doctor pending count:', counterError.message);
-  }
-
-  // 3. Notify the patient that the request went out.
+  // 2. Notify the patient that the request went out.
   const { error: notifyError } = await supabase.from('notifications').insert({
     user_id: userId,
     type: 'consultation_request_sent',

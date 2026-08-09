@@ -8,6 +8,19 @@
  * There is no real council API yet — `verifyLicense` resolves against
  * `MOCK_LICENSE_REGISTRY`. When a real integration lands, only this file
  * changes; the signup UI already treats it as an async lookup that can fail.
+ *
+ * **Nothing here confers verified status.** Everything in this module runs in
+ * the browser, so a result from `verifyLicense` is a claim the applicant is
+ * making, not evidence. `supabase/doctor_verification.sql` ignores whatever
+ * the client reports and starts every new doctor at `pending`; only
+ * `public.verify_doctor()`, called with the service role after a real council
+ * check, can flip a doctor to verified. Treat these helpers as form
+ * validation and a completeness hint — never as authorisation.
+ *
+ * `calculateVerificationScore` / `getVerificationBadge` are mirrored in SQL as
+ * `public.doctor_profile_score()` / `public.doctor_badge()`, which compute the
+ * values actually stored. Change the weights in both places or the badge a
+ * patient sees will drift from the one the form previews.
  */
 
 export type MedicalCouncil = "mci" | "nmc" | "state-council" | "ayush";
@@ -95,56 +108,45 @@ export const MEDICAL_DEGREES: { value: string; label: string }[] = [
 /**
  * Stand-in for the council registries. Keyed by license number; the council
  * only decides which format the number has to match.
+ *
+ * The AYUSH entries mirror the seeded demo doctors in
+ * `supabase/demo_doctors.sql` so the signup flow can be exercised end to end.
+ * All of them are fictional practitioners: the councils and registration
+ * formats are real, the people and numbers are not.
+ *
+ * Ayurvedic practitioners (BAMS/MD) register under the Ministry of AYUSH and
+ * their state Board of Indian Medicine, so those are the AYU/… entries. The
+ * MCI and NMC formats below cover an applicant holding an allopathic
+ * registration and exist mainly to exercise the other format branches.
  */
 export const MOCK_LICENSE_REGISTRY: Record<string, VerificationResult> = {
-  MH12345678: {
+  "AYU/MH/104627": {
     isValid: true,
     doctorName: "Dr. Rajesh Kumar",
-    registrationDate: "2020-03-15",
+    registrationDate: "2013-09-12",
     status: "active",
-    council: "Maharashtra Medical Council",
+    council: "Maharashtra Council of Indian Medicine",
   },
-  KA87654321: {
+  "AYU/KA/143852": {
     isValid: true,
     doctorName: "Dr. Priya Sharma",
-    registrationDate: "2018-07-22",
+    registrationDate: "2011-08-19",
     status: "active",
-    council: "Karnataka Medical Council",
+    council: "Karnataka Ayurvedic and Unani Practitioners' Board",
   },
-  TN98765432: {
+  "AYU/KL/207431": {
     isValid: true,
     doctorName: "Dr. Meera Nair",
-    registrationDate: "2017-05-20",
+    registrationDate: "2012-07-05",
     status: "active",
-    council: "Tamil Nadu Medical Council",
+    council: "Kerala Ayurveda Medical Council",
   },
-  GJ11223344: {
+  "GJ/224180": {
     isValid: true,
-    doctorName: "Dr. Arjun Patel",
-    registrationDate: "2021-01-12",
+    doctorName: "Dr. Anita Desai",
+    registrationDate: "2015-02-27",
     status: "active",
-    council: "Gujarat Medical Council",
-  },
-  UP55667788: {
-    isValid: true,
-    doctorName: "Dr. Sita Gupta",
-    registrationDate: "2016-11-08",
-    status: "active",
-    council: "Uttar Pradesh Medical Council",
-  },
-  RJ99887766: {
-    isValid: true,
-    doctorName: "Dr. Vikram Singh",
-    registrationDate: "2019-08-25",
-    status: "active",
-    council: "Rajasthan Medical Council",
-  },
-  "AYU/KA/789012": {
-    isValid: true,
-    doctorName: "Dr. Lakshmi Rao",
-    registrationDate: "2020-04-18",
-    status: "active",
-    council: "AYUSH Ministry - Karnataka",
+    council: "Gujarat Board of Ayurvedic and Unani Systems of Medicine",
   },
   "NMC/2022001234": {
     isValid: true,
@@ -152,6 +154,15 @@ export const MOCK_LICENSE_REGISTRY: Record<string, VerificationResult> = {
     registrationDate: "2022-02-14",
     status: "active",
     council: "National Medical Commission",
+  },
+  // Resolves, but not to a usable registration — exercises the rejected path.
+  MH12345678: {
+    isValid: false,
+    doctorName: "Dr. Sunil Rao",
+    registrationDate: "2009-06-30",
+    status: "expired",
+    council: "Maharashtra Medical Council",
+    error: "This registration has lapsed. Renew it with the council before applying.",
   },
 };
 

@@ -518,6 +518,68 @@ P001-style code as display text only. That distinction matters: `diet_plans`
 (and every other table) keys on the UUID, so saving a plan against the code
 fails on both the column type and the RLS check.
 
+## Doctor verification
+
+A doctor's "verified" badge is a claim patients act on, so nothing the browser
+says decides it. The rules live in `supabase/doctor_verification.sql`.
+
+**Signup records claims, never status.** The doctor wizard's license lookup
+(`src/lib/licenseVerification.ts`) is browser-side and mocked, so it is form
+validation and a completeness hint — not evidence. `buildSignupMetadata` sends
+the claimed credentials (license number, council, degree, clinic) and
+deliberately omits `licenseVerified`, `verificationScore` and
+`verificationBadge`; the `handle_new_user` trigger ignores them regardless.
+Every new doctor starts `verification_status = 'pending'`,
+`can_accept_patients = false`.
+
+**Doctors cannot promote themselves.** `authenticated` holds column-level
+UPDATE grants covering profile fields only, so writing `verification_status`,
+`license_verified`, `trust_score`, `badges`, `rating` or the consultation
+counters fails at the SQL layer before RLS is consulted. The
+`doctors_enforce_verification` trigger is the second layer: on any
+non-privileged write it forces those columns back to their stored values, and
+recomputes `verification_score` / `verification_badge` from the row via
+`public.doctor_profile_score()` and `public.doctor_badge()` — SQL mirrors of
+the TypeScript helpers. Change the weights in one and you must change the
+other. Changing the claimed license or council resets the doctor to pending.
+
+**Only the service role can verify.** `public.verify_doctor(id, verified,
+details)` is the sole route to verified status; EXECUTE is revoked from `anon`
+and `authenticated`, so it is reachable only from the Python backend or the
+Supabase dashboard, both of which hold the service-role key. Pass
+`p_verified => false` to revoke.
+
+**The gate is enforced, not cosmetic.** The `doctors_select_directory` policy
+hides unverified doctors from patients (a doctor still reads their own row so
+their dashboard works while pending), `fetchDoctors` filters to verified, and
+`consultation_requests_require_verified_doctor` rejects a booking against an
+unverified doctor in the database — so bypassing the UI does not help. The
+doctor's `pending_requests` counter is maintained by
+`consultation_requests_bump_pending`; it used to be written by the patient's
+client, which RLS silently refused, so the count never moved.
+
+### Demo doctor accounts
+
+`supabase/demo_doctors.sql` seeds three demonstration practitioners
+(`*.demo@prakriva.app`). They are **fictional composites** — the institutions,
+councils and `AYU/<state>/<6 digits>` registration format are real, the people
+and numbers are not. Each is flagged `doctors.is_demo = true` and carries a
+`license_verification_details.note` saying so, and they are verified through
+`verify_doctor()` rather than by writing the trust columns directly.
+
+They share a demo password and are fine for a prototype, but purge them before
+the app sees real patients:
+
+```sql
+delete from auth.users where id in (select id from public.doctors where is_demo);
+```
+
+Note that Ayurvedic practitioners (BAMS/MD) register under the Ministry of
+AYUSH / NCISM and their state Board of Indian Medicine — not the MCI or NMC,
+which register allopathic doctors. The `ayush` council option is the correct
+one for this app; `mci`/`nmc` exist for an applicant who also holds an
+allopathic registration.
+
 ## Caching
 
 Long-running work no longer disappears on a page refresh:
