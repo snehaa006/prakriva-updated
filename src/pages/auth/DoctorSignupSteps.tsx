@@ -76,6 +76,9 @@ const CheckboxGrid = ({ options, selected, columns, onToggle }: CheckboxGridProp
 /**
  * The mocked registry has no public directory, so the numbers that resolve are
  * listed inline. Drop this once verification talks to a real council API.
+ *
+ * Clearing this check does not make an account verified — it only records the
+ * claim. A human still has to approve the doctor server-side.
  */
 const TestDoctorIds = () => (
   <Alert className="mb-4 border-blue-200 bg-blue-50">
@@ -87,9 +90,16 @@ const TestDoctorIds = () => (
           {Object.entries(MOCK_LICENSE_REGISTRY).map(([number, entry]) => (
             <div key={number}>
               <code>{number}</code> - {entry.doctorName}
+              {!entry.isValid && (
+                <span className="text-blue-500"> (rejected: {entry.status})</span>
+              )}
             </div>
           ))}
         </div>
+        <p className="text-blue-500 text-xs mt-2">
+          Passing this check records your claim only. Your account stays pending
+          until it is verified.
+        </p>
       </div>
     </AlertDescription>
   </Alert>
