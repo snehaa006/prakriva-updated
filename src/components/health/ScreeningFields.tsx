@@ -408,6 +408,124 @@ export const DiabetesRiskFactorsSection: React.FC<SectionProps> = ({ form, updat
   </div>
 );
 
+/**
+ * Thyroid panel plus the history the thyroid model uses. "Suspected" mirrors
+ * the source dataset's "query" fields: a clinician raised the possibility
+ * without it being confirmed.
+ */
+export const ThyroidSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <NumberField
+        id="tsh_thyroid"
+        label="TSH (mIU/L)"
+        step="0.01"
+        value={form.tsh}
+        onChange={(v) => update("tsh", v)}
+        placeholder="e.g. 2.1"
+      />
+      <NumberField
+        id="t3_thyroid"
+        label="T3"
+        step="0.01"
+        value={form.t3}
+        onChange={(v) => update("t3", v)}
+        placeholder="e.g. 2.0"
+      />
+      <NumberField
+        id="tt4"
+        label="Total T4 (µg/dL)"
+        step="0.1"
+        value={form.tt4}
+        onChange={(v) => update("tt4", v)}
+        placeholder="e.g. 103"
+      />
+      <NumberField
+        id="t4u"
+        label="T4 uptake"
+        step="0.01"
+        value={form.t4u}
+        onChange={(v) => update("t4u", v)}
+        placeholder="e.g. 0.97"
+      />
+      <NumberField
+        id="fti"
+        label="Free thyroxine index"
+        step="0.1"
+        value={form.fti}
+        onChange={(v) => update("fti", v)}
+        placeholder="e.g. 107"
+      />
+    </div>
+    <Separator />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <BoolField
+        id="on_thyroxine"
+        label="Taking thyroxine"
+        checked={form.on_thyroxine}
+        onChange={(v) => update("on_thyroxine", v)}
+      />
+      <BoolField
+        id="on_antithyroid_medication"
+        label="Taking antithyroid medication"
+        checked={form.on_antithyroid_medication}
+        onChange={(v) => update("on_antithyroid_medication", v)}
+      />
+      <BoolField
+        id="thyroid_surgery"
+        label="Previous thyroid surgery"
+        checked={form.thyroid_surgery}
+        onChange={(v) => update("thyroid_surgery", v)}
+      />
+      <BoolField
+        id="i131_treatment"
+        label="Radioactive iodine treatment"
+        checked={form.i131_treatment}
+        onChange={(v) => update("i131_treatment", v)}
+      />
+      <BoolField
+        id="goitre"
+        label="Goitre (swelling in the neck)"
+        checked={form.goitre}
+        onChange={(v) => update("goitre", v)}
+      />
+      <BoolField
+        id="lithium"
+        label="Taking lithium"
+        checked={form.lithium}
+        onChange={(v) => update("lithium", v)}
+      />
+      <BoolField
+        id="query_hypothyroid"
+        label="Underactive thyroid suspected"
+        checked={form.query_hypothyroid}
+        onChange={(v) => update("query_hypothyroid", v)}
+      />
+      <BoolField
+        id="query_hyperthyroid"
+        label="Overactive thyroid suspected"
+        checked={form.query_hyperthyroid}
+        onChange={(v) => update("query_hyperthyroid", v)}
+      />
+      <BoolField
+        id="currently_unwell"
+        label="Unwell when the blood test was taken"
+        checked={form.currently_unwell}
+        onChange={(v) => update("currently_unwell", v)}
+      />
+      <BoolField
+        id="thyroid_tumour"
+        label="Thyroid tumour"
+        checked={form.thyroid_tumour}
+        onChange={(v) => update("thyroid_tumour", v)}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      TSH alone is enough to run the check — the other values sharpen it.
+    </p>
+  </div>
+);
+
 /** The symptom checklist plus the thyroid/GDM specific signs. */
 export const SymptomsSection: React.FC<SectionProps> = ({ form, update }) => {
   const toggleSymptom = (symptom: SymptomKey, checked: boolean) =>
@@ -671,10 +789,31 @@ export const LabsSection: React.FC<SectionProps> = ({ form, update }) => (
     />
     <NumberField
       id="t4"
-      label="T4"
+      label="Free T4 (ng/dL)"
       step="0.01"
       value={form.t4}
       onChange={(v) => update("t4", v)}
+    />
+    <NumberField
+      id="labs_tt4"
+      label="Total T4 (µg/dL)"
+      step="0.1"
+      value={form.tt4}
+      onChange={(v) => update("tt4", v)}
+    />
+    <NumberField
+      id="labs_t4u"
+      label="T4 uptake"
+      step="0.01"
+      value={form.t4u}
+      onChange={(v) => update("t4u", v)}
+    />
+    <NumberField
+      id="labs_fti"
+      label="Free thyroxine index"
+      step="0.1"
+      value={form.fti}
+      onChange={(v) => update("fti", v)}
     />
     <NumberField
       id="urine_wbc"

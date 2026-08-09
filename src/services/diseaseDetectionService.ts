@@ -47,6 +47,19 @@ export const emptyScreeningInput = (): ScreeningInput => ({
   history_depression: false,
   smoking: false,
   alcohol: false,
+  on_thyroxine: false,
+  query_on_thyroxine: false,
+  on_antithyroid_medication: false,
+  currently_unwell: false,
+  thyroid_surgery: false,
+  i131_treatment: false,
+  query_hypothyroid: false,
+  query_hyperthyroid: false,
+  lithium: false,
+  goitre: false,
+  thyroid_tumour: false,
+  hypopituitary: false,
+  psych_history: false,
 
   symptoms: [],
   weight_gain: false,
@@ -74,6 +87,9 @@ export const emptyScreeningInput = (): ScreeningInput => ({
   tsh: null,
   t3: null,
   t4: null,
+  tt4: null,
+  t4u: null,
+  fti: null,
 });
 
 /** Age in whole years from a date of birth, or null when unparseable. */
