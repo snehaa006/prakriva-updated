@@ -10,7 +10,7 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | Table                   | Replaces                                    |
 | ----------------------- | ------------------------------------------- |
 | `profiles`              | role marker (was implicit in which collection held the doc) |
-| `doctors`               | `doctors`                                   |
+| `doctors`               | `doctors` (verification rules in `doctor_verification.sql`, demo rows in `demo_doctors.sql`) |
 | `patients`              | `patients` (+ `metadata/patientCounter`)    |
 | `consultation_requests` | `consultationRequests` + `doctors/{id}/requests` |
 | `notifications`         | `patients/{id}/notifications` + `doctors/{id}/notifications` |
@@ -41,10 +41,62 @@ Notes on the shape:
 ## Auth
 
 `public.handle_new_user()` runs on insert into `auth.users`. It reads the role
-(and, for doctors, the verification payload) out of the signup metadata and
+(and, for doctors, their claimed credentials) out of the signup metadata and
 creates the `profiles` row plus the matching `doctors`/`patients` row. Doing it
 in a trigger rather than a follow-up insert from the browser means it still
 works when email confirmation is on and there is no session yet.
+
+That metadata comes from the browser's `signUp()` call, so it is untrusted. The
+trigger treats it as claims only: it stores the license number, council and
+degree an applicant states, and ignores anything asserting a *result* —
+`licenseVerified`, `verificationScore`, `verificationBadge`. Every doctor is
+created `pending`. See "Doctor verification" below.
+
+## Doctor verification
+
+`doctor_verification.sql` holds the whole model. Two holes it closes: the
+trigger above used to copy `licenseVerified` straight out of client metadata
+(so `{"licenseVerified": true}` at the signup endpoint bought a verified,
+patient-accepting account), and `doctors_update_own` allowed UPDATE on every
+column of your own row (so a pending doctor could promote themselves from the
+browser console).
+
+- **Column grants.** `UPDATE` is revoked from `authenticated` and re-granted
+  per column, covering profile fields only. Writing `verification_status`,
+  `license_verified`, `trust_score`, `badges`, `rating` or the consultation
+  counters is denied by Postgres before RLS is reached.
+- **`doctors_enforce_verification`** (BEFORE INSERT OR UPDATE) is the second
+  layer: on a non-privileged write it restores the protected columns from the
+  stored row and recomputes `verification_score` / `verification_badge` /
+  `badges` via `doctor_profile_score()` and `doctor_badge()`. Those two are SQL
+  mirrors of `calculateVerificationScore` / `getVerificationBadge` in
+  `src/lib/licenseVerification.ts` — keep the weights in step. Changing the
+  claimed license or council resets the doctor to pending.
+- **`verify_doctor(id, verified, details)`** is the only route to verified.
+  `EXECUTE` is revoked from `anon` and `authenticated`, so it needs the
+  service-role key. It is `SECURITY INVOKER` on purpose: it runs as the caller
+  and would trip the guard trigger if it were ever reachable from the browser.
+  `is_privileged_writer()` decides that, off `current_user` — PostgREST issues
+  `SET LOCAL ROLE` per request, so a publishable-key session can never satisfy
+  it. That function keeps its default `PUBLIC` grant because the guard trigger
+  is `SECURITY INVOKER` and an ordinary doctor editing their profile has to be
+  able to call it; it only reports the caller's own role.
+- **The gate is real.** `doctors_select_directory` hides unverified doctors
+  from patients (a doctor still reads their own row, so the dashboard works
+  while pending), and `consultation_requests_require_verified_doctor` rejects
+  bookings against an unverified doctor in the database.
+- **`consultation_requests_bump_pending`** maintains `doctors.pending_requests`.
+  It used to be updated by the patient's browser, which RLS correctly refused —
+  a patient cannot write another user's `doctors` row — so the counter never
+  actually moved.
+
+`demo_doctors.sql` seeds three fictional demonstration practitioners flagged
+`doctors.is_demo`, verified through `verify_doctor()` like any real approval.
+Purge them before launch:
+
+```sql
+delete from auth.users where id in (select id from public.doctors where is_demo);
+```
 
 ## Row level security
 
@@ -53,8 +105,10 @@ policies are the access control:
 
 - Patients read and write their own rows. Doctors additionally see patients they
   have a non-rejected consultation request with (`public.doctor_treats`).
-- The doctor directory is readable by any signed-in user; a doctor writes only
-  their own row.
+- The doctor directory is readable by any signed-in user, but only lists
+  verified doctors; a doctor additionally reads their own row while pending,
+  and writes only their own row — and only its non-verification columns. See
+  "Doctor verification" above.
 - `generated_plans`, `doctor_edits` and `user_feedback` have RLS on with **no
   policies at all**, so the publishable key can never reach them. The Python
   backend uses the service-role key, which bypasses RLS by design. The

@@ -32,8 +32,8 @@ beforeEach(() => {
 
 const doctorVerification = () => ({
   ...emptyVerificationData(),
-  licenseNumber: "MH12345678",
-  medicalCouncil: "mci",
+  licenseNumber: "AYU/MH/104627",
+  medicalCouncil: "ayush",
   graduationYear: "2015",
   medicalDegree: "bams",
   yearsOfExperience: "8",
@@ -42,9 +42,9 @@ const doctorVerification = () => ({
   verificationDetails: {
     isValid: true,
     doctorName: "Dr. Rajesh Kumar",
-    registrationDate: "2020-03-15",
+    registrationDate: "2013-09-12",
     status: "active" as const,
-    council: "Maharashtra Medical Council",
+    council: "Maharashtra Council of Indian Medicine",
   },
 });
 
@@ -66,7 +66,7 @@ describe("buildSignupMetadata", () => {
     expect(metadata).not.toHaveProperty("licenseNumber");
   });
 
-  it("carries the full verification payload for a doctor", () => {
+  it("carries the doctor's claimed credentials", () => {
     const metadata = buildSignupMetadata({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
@@ -76,10 +76,9 @@ describe("buildSignupMetadata", () => {
     expect(metadata).toMatchObject({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
-      licenseNumber: "MH12345678",
-      medicalCouncil: "mci",
+      licenseNumber: "AYU/MH/104627",
+      medicalCouncil: "ayush",
       medicalDegree: "bams",
-      licenseVerified: true,
     });
   });
 
@@ -105,43 +104,49 @@ describe("buildSignupMetadata", () => {
     expect(metadata.yearsOfExperience).toBe(0);
   });
 
-  it("derives the verification score and badge from the payload", () => {
+  // The signup metadata is written by the browser, so anything in it that
+  // looks like a verification result is an unverifiable assertion. The
+  // database ignores these fields; not sending them keeps that explicit.
+  // See supabase/doctor_verification.sql.
+  it("never claims a verified licence, even when the form checked one", () => {
     const metadata = buildSignupMetadata({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
       verification: doctorVerification(),
     });
 
-    // 50 (verified licence) + 10 (degree) + 5 (grad year) + 5 (>5 yrs) + 5 (clinic)
-    expect(metadata.verificationScore).toBe(75);
-    expect(metadata.verificationBadge).toBe("Verified Doctor");
+    expect(metadata).not.toHaveProperty("licenseVerified");
+    expect(metadata).not.toHaveProperty("verificationScore");
+    expect(metadata).not.toHaveProperty("verificationBadge");
   });
 
-  it("flattens the council response into the licence audit trail", () => {
+  it("does not forward the council lookup result", () => {
     const metadata = buildSignupMetadata({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
       verification: doctorVerification(),
     });
 
-    expect(metadata.licenseVerificationDetails).toEqual({
-      verifiedName: "Dr. Rajesh Kumar",
-      registrationDate: "2020-03-15",
-      councilStatus: "active",
-      verifyingCouncil: "Maharashtra Medical Council",
-      verificationMethod: "api_verification",
-    });
+    expect(metadata).not.toHaveProperty("licenseVerificationDetails");
   });
 
-  it("nulls the audit trail when the licence was never checked", () => {
-    const metadata = buildSignupMetadata({
+  it("sends the same claim set whether or not the licence was checked", () => {
+    const checked = buildSignupMetadata({
       role: "doctor",
       name: "Dr. X",
-      verification: { ...emptyVerificationData(), licenseNumber: "MH12345678" },
+      verification: { ...doctorVerification(), licenseVerified: true },
+    });
+    const unchecked = buildSignupMetadata({
+      role: "doctor",
+      name: "Dr. X",
+      verification: {
+        ...doctorVerification(),
+        licenseVerified: false,
+        verificationDetails: undefined,
+      },
     });
 
-    expect(metadata.licenseVerificationDetails).toBeNull();
-    expect(metadata.licenseVerified).toBe(false);
+    expect(checked).toEqual(unchecked);
   });
 });
 
@@ -206,7 +211,7 @@ describe("signUpUser", () => {
     expect(supabaseMock.from).not.toHaveBeenCalled();
   });
 
-  it("sends the doctor verification payload as signup metadata", async () => {
+  it("sends the doctor's claimed credentials as signup metadata", async () => {
     await signUpUser({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
@@ -220,9 +225,10 @@ describe("signUpUser", () => {
     ];
     expect(call.options.data).toMatchObject({
       role: "doctor",
-      licenseNumber: "MH12345678",
-      licenseVerified: true,
+      licenseNumber: "AYU/MH/104627",
+      medicalCouncil: "ayush",
     });
+    expect(call.options.data).not.toHaveProperty("licenseVerified");
   });
 
   it("raises a typed error for an already-registered email", async () => {

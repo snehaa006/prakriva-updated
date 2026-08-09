@@ -12,13 +12,14 @@ haemoglobin would make anaemia scoring meaningless.
 from typing import List
 
 from ..recommendations import get_recommendations
-from ..rules import detect_anaemia, detect_gdm, detect_pregnancy_risk
+from ..rules import detect_anaemia, detect_gdm, detect_pregnancy_risk, detect_thyroid
 from ..schemas import ConditionRisk, RiskLevel, ScreeningInput
-from .inference import predict_from_screening, predict_gdm
+from .inference import predict_from_screening, predict_gdm, predict_thyroid
 
 ANAEMIA_DETECTOR = "anaemia-xgb-v1"
 PREGNANCY_RISK_DETECTOR = "pregnancy-risk-xgb-v1"
 GDM_DETECTOR = "gdm-logreg-v1"
+THYROID_DETECTOR = "thyroid-nn-v1"
 
 #: Anemia grade -> (representative 0-100 score, risk level). Scores sit inside
 #: the band `rules.classify` would assign, so mixed rules/ML runs stay coherent.
@@ -221,8 +222,83 @@ def detect_gdm_ml(inputs: ScreeningInput) -> ConditionRisk:
     )
 
 
+_THYROID_LEVELS = {
+    "low": RiskLevel.LOW,
+    "moderate": RiskLevel.MODERATE,
+    "high": RiskLevel.HIGH,
+}
+
+
+def _thyroid_driver_reasons(inputs: ScreeningInput) -> List[str]:
+    """Plain-language factors behind the thyroid score."""
+    reasons: List[str] = []
+    tsh = inputs.tsh
+    if tsh is not None:
+        if tsh > 4.5:
+            reasons.append(f"Raised TSH ({tsh:.2f} mIU/L)")
+        elif tsh < 0.4:
+            reasons.append(f"Low TSH ({tsh:.2f} mIU/L)")
+    if inputs.on_thyroxine:
+        reasons.append("Already on thyroxine")
+    if inputs.on_antithyroid_medication:
+        reasons.append("On antithyroid medication")
+    if inputs.thyroid_surgery:
+        reasons.append("Previous thyroid surgery")
+    if inputs.i131_treatment:
+        reasons.append("Previous radioactive iodine treatment")
+    if inputs.goitre:
+        reasons.append("Goitre")
+    if inputs.query_hypothyroid:
+        reasons.append("Hypothyroidism suspected")
+    if inputs.query_hyperthyroid:
+        reasons.append("Hyperthyroidism suspected")
+    if inputs.lithium:
+        reasons.append("Taking lithium")
+    return reasons
+
+
+def detect_thyroid_ml(inputs: ScreeningInput) -> ConditionRisk:
+    """Thyroid disorder risk from the trained neural network.
+
+    Falls back to the rule-based detector when TSH is unknown: TSH is the
+    single measurement thyroid screening turns on, and without it the network
+    would be scoring an otherwise-default patient on population medians.
+    """
+    if inputs.tsh is None:
+        return detect_thyroid(inputs)
+
+    prediction = predict_thyroid(inputs)
+    risk_level = _THYROID_LEVELS[prediction.risk_level]
+
+    reasons: List[str] = [
+        f"Model estimate: {_format_probability(prediction.probability)} likelihood "
+        "of a thyroid disorder",
+        *_thyroid_driver_reasons(inputs),
+    ]
+    if prediction.imputed_labs:
+        reasons.append(
+            "Estimated without " + ", ".join(prediction.imputed_labs)
+            + " — add for a sharper result"
+        )
+
+    return ConditionRisk(
+        condition="thyroid",
+        label="Thyroid Disorder",
+        score=round(prediction.probability * 100, 1),
+        risk_level=risk_level,
+        reasons=reasons,
+        recommendations=get_recommendations("thyroid", risk_level),
+        detector=THYROID_DETECTOR,
+        details={
+            "probability": prediction.probability,
+            "imputed_labs": prediction.imputed_labs,
+        },
+    )
+
+
 # `available_conditions()` reports this name for the active detector, so tag the
 # functions with their versioned name (falls back to __name__ otherwise).
 detect_anaemia_ml.detector_name = ANAEMIA_DETECTOR
 detect_pregnancy_risk_ml.detector_name = PREGNANCY_RISK_DETECTOR
 detect_gdm_ml.detector_name = GDM_DETECTOR
+detect_thyroid_ml.detector_name = THYROID_DETECTOR

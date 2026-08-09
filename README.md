@@ -12,7 +12,8 @@ kitchen, and get a personalized diet plan.
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, plan storage, and the maternal disease detection
-  pipeline (with XGBoost anaemia + pregnancy-risk models).
+  pipeline (XGBoost anaemia + pregnancy-risk, a GDM logistic regression, and a
+  thyroid neural network run in numpy).
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
@@ -58,8 +59,9 @@ kitchen, and get a personalized diet plan.
   pregnancy-risk models, their shared feature transform (`featurize.py`),
   inference (`inference.py`), detectors (`detectors.py`) and the training script
   (`train_maternal_models.py`), plus the GDM logistic regression
-  (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`). See "Disease
-  detection" below.
+  (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`) and the thyroid
+  network (`thyroid_featurize.py`, `convert_thyroid_model.py`,
+  `thyroid_model.npz`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,
@@ -215,9 +217,10 @@ Screens a pregnant patient for eight maternal risks — anaemia, an overall
 miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
 score, a low/moderate/high level, the factors that drove it, and next steps.
 
-Three conditions are scored by trained models (see "Trained models" below) —
-anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a
-**logistic regression** — and the remaining five by the rule-based scorers.
+Four conditions are scored by trained models (see "Trained models" below) —
+anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a **logistic
+regression**, thyroid disorder by a **neural network** — and the remaining four
+by the rule-based scorers.
 Because every detector shares the same `(ScreeningInput) -> ConditionRisk`
 contract, the two kinds mix transparently and `ConditionRisk.detector` records
 which one answered.
@@ -229,10 +232,11 @@ different places:
   trained models' inputs, in three cards: **measurements** (weeks pregnant,
   weight → BMI using the height captured at onboarding, haemoglobin, blood
   pressure, iron supplements), **blood test results** (HbA1c, HDL,
-  triglycerides — all optional), and **diabetes risk factors** (prior GDM,
+  triglycerides — all optional), **thyroid** (TSH, T3, total T4, T4 uptake, FTI
+  plus the thyroid history flags), and **diabetes risk factors** (prior GDM,
   prediabetes, family history, PCOS, previous large baby, unexplained loss,
-  inactivity). She sees anaemia, pregnancy risk and gestational diabetes
-  immediately. The rule-only conditions are not run here, since they need
+  inactivity). She sees anaemia, pregnancy risk, gestational diabetes and
+  thyroid disorder immediately. The rule-only conditions are not run here, since they need
   clinical findings and lab panels this form deliberately does not ask for.
   The page is only offered to patients whose stored `assessment_data` has a life
   stage of `pregnancy` — captured, along with the estimated due date and height,
@@ -267,11 +271,11 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-Five conditions are scored by the rule-based analytics ported from the Neuviaa
+Four conditions are scored by the rule-based analytics ported from the Neuviaa
 prototype (`rules.py`), registered per condition through
-`pipeline.register_detector`. Anaemia, pregnancy risk and gestational diabetes
-are scored by the trained models in `disease_detection/ml/` (see below), which
-register over their rule-based baselines at import. A detector is any callable of
+`pipeline.register_detector`. Anaemia, pregnancy risk, gestational diabetes and
+thyroid disorder are scored by the trained models in `disease_detection/ml/`
+(see below), which register over their rule-based baselines at import. A detector is any callable of
 `(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
 reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
 records which one produced each result, which keeps a mixed run auditable.
@@ -337,8 +341,47 @@ median, and the result says which ones were estimated so a score built partly on
 population averages is never mistaken for one built on the patient's own
 results.
 
+**Thyroid disorder (neural network).** A Keras feed-forward network
+(256-128-64, batch norm + dropout) trained externally on the UCI thyroid
+dataset. The source artifacts live in `backend/data/thyroid_source/`.
+
+It reads 31 features: 6 continuous labs (age, TSH, T3, TT4, T4U, FTI,
+median-imputed then standardised), 13 clinical history flags, and 12 values that
+are never asked for — the 6 "<lab> measured" flags are **derived** from whether
+each value was supplied (asking twice would only create a way for the two to
+disagree), `sex` and `pregnant` are known from the app's population, and the 4
+referral-source one-hots take the training defaults.
+
+> **TT4 is not the `t4` field.** The rule-based scorer's `t4` is *free* T4
+> (roughly 0.8-2.5 ng/dL); the model's TT4 is *total* T4 (median 103 µg/dL).
+> They are separate fields on purpose — feeding one in as the other would read
+> every patient as severely hypothyroid.
+
+**Converted, not shipped as-is.** `convert_thyroid_model.py` folds the Keras
+weights and the scikit-learn preprocessor into `thyroid_model.npz` +
+`thyroid_schema.json`, and inference runs the forward pass in numpy. This
+matters twice over:
+
+* Shipping the original would drag in **TensorFlow** — roughly 600 MB installed
+  against a 512 MB free-tier Render instance. It would not merely be wasteful;
+  it would likely take down the whole API, including the models that already
+  work. None of that weight buys anything at inference, where dropout is a no-op
+  and batch norm collapses to a fixed affine transform.
+* The preprocessor pickle was written with scikit-learn 1.6.1 and, under the
+  1.7.2 this repo pins, does not merely warn — it **fails to unpickle**
+  (`_RemainderColsList` no longer exists). Its statistics are extracted to plain
+  numbers instead.
+
+The conversion asserts the numpy forward pass reproduces Keras (max drift
+1.1e-06, i.e. float32 rounding). Re-run it only if the model is retrained:
+
+```
+cd backend && python -m disease_detection.ml.convert_thyroid_model
+```
+
 **Fallbacks.** When a model needs an input it does not have — haemoglobin for
-anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM — the
+anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM, TSH for
+thyroid — the
 detector falls back to the rule-based baseline rather than scoring on imputed
 values. If XGBoost or the model files are absent, the whole pipeline runs on the
 rule-based baseline.
@@ -356,6 +399,43 @@ kept for recreating it in a fresh project. Its RLS lets a patient file and read
 only her own checks, and a doctor read and file for patients they treat. If the
 table is missing the feature still works — results render normally and simply
 are not persisted.
+
+### Written analysis (Gemini)
+
+Two features read the screening data through Google's Gemini, both proxied by
+Flask (`backend/gemini_service.py`, endpoints `/analysis/screening` and
+`/assistant/ask`):
+
+- **Doctor → Patient Analysis** — a "Write analysis" panel that turns the
+  selected patient's screening history into prose: how the risk picture has
+  moved, which measurements drive it, what to check next.
+- **Patient → chatbot** — questions about her own results ("is my haemoglobin
+  ok?") are answered from her stored screenings instead of the scripted
+  nutrition replies.
+- **Patient → Health Check** — "Fill from your report" reads a photographed or
+  uploaded lab report (`/analysis/extract-report`) and offers the values it
+  found. They are shown for confirmation and only written into the form when
+  she accepts them: OCR's characteristic failure is a lost decimal point
+  (haemoglobin 11.9 read as 119), and a wrong number reaching a risk model
+  silently is worse than typing it by hand. The backend additionally discards
+  anything outside the field's clinically plausible range before it is ever
+  offered.
+
+Three things are deliberate here:
+
+1. **The key is backend-only.** `VITE_`-prefixed variables are compiled into the
+   browser bundle, so a frontend Gemini key could be lifted from devtools and
+   spent by anyone. Only the Flask process ever sees it.
+2. **Gemini explains, it does not score.** Risk levels stay with the trained
+   models and rules. The prompt shows Gemini those results and forbids
+   recalculating or contradicting them — a screening tool whose risk level
+   changed between identical runs would be neither auditable nor safe.
+3. **No identifiers leave the app.** The prompt builders take clinical values
+   only; name, email and patient ID are never included.
+
+Both features hide themselves when `GEMINI_API_KEY` is unset (the frontend asks
+`/analysis/status` first), and a Gemini outage degrades to the existing
+behaviour rather than an error state.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
@@ -475,6 +555,68 @@ P001-style code as display text only. That distinction matters: `diet_plans`
 (and every other table) keys on the UUID, so saving a plan against the code
 fails on both the column type and the RLS check.
 
+## Doctor verification
+
+A doctor's "verified" badge is a claim patients act on, so nothing the browser
+says decides it. The rules live in `supabase/doctor_verification.sql`.
+
+**Signup records claims, never status.** The doctor wizard's license lookup
+(`src/lib/licenseVerification.ts`) is browser-side and mocked, so it is form
+validation and a completeness hint — not evidence. `buildSignupMetadata` sends
+the claimed credentials (license number, council, degree, clinic) and
+deliberately omits `licenseVerified`, `verificationScore` and
+`verificationBadge`; the `handle_new_user` trigger ignores them regardless.
+Every new doctor starts `verification_status = 'pending'`,
+`can_accept_patients = false`.
+
+**Doctors cannot promote themselves.** `authenticated` holds column-level
+UPDATE grants covering profile fields only, so writing `verification_status`,
+`license_verified`, `trust_score`, `badges`, `rating` or the consultation
+counters fails at the SQL layer before RLS is consulted. The
+`doctors_enforce_verification` trigger is the second layer: on any
+non-privileged write it forces those columns back to their stored values, and
+recomputes `verification_score` / `verification_badge` from the row via
+`public.doctor_profile_score()` and `public.doctor_badge()` — SQL mirrors of
+the TypeScript helpers. Change the weights in one and you must change the
+other. Changing the claimed license or council resets the doctor to pending.
+
+**Only the service role can verify.** `public.verify_doctor(id, verified,
+details)` is the sole route to verified status; EXECUTE is revoked from `anon`
+and `authenticated`, so it is reachable only from the Python backend or the
+Supabase dashboard, both of which hold the service-role key. Pass
+`p_verified => false` to revoke.
+
+**The gate is enforced, not cosmetic.** The `doctors_select_directory` policy
+hides unverified doctors from patients (a doctor still reads their own row so
+their dashboard works while pending), `fetchDoctors` filters to verified, and
+`consultation_requests_require_verified_doctor` rejects a booking against an
+unverified doctor in the database — so bypassing the UI does not help. The
+doctor's `pending_requests` counter is maintained by
+`consultation_requests_bump_pending`; it used to be written by the patient's
+client, which RLS silently refused, so the count never moved.
+
+### Demo doctor accounts
+
+`supabase/demo_doctors.sql` seeds three demonstration practitioners
+(`*.demo@prakriva.app`). They are **fictional composites** — the institutions,
+councils and `AYU/<state>/<6 digits>` registration format are real, the people
+and numbers are not. Each is flagged `doctors.is_demo = true` and carries a
+`license_verification_details.note` saying so, and they are verified through
+`verify_doctor()` rather than by writing the trust columns directly.
+
+They share a demo password and are fine for a prototype, but purge them before
+the app sees real patients:
+
+```sql
+delete from auth.users where id in (select id from public.doctors where is_demo);
+```
+
+Note that Ayurvedic practitioners (BAMS/MD) register under the Ministry of
+AYUSH / NCISM and their state Board of Indian Medicine — not the MCI or NMC,
+which register allopathic doctors. The `ayush` council option is the correct
+one for this app; `mci`/`nmc` exist for an applicant who also holds an
+allopathic registration.
+
 ## Caching
 
 Long-running work no longer disappears on a page refresh:
@@ -508,6 +650,8 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
+| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis and the chatbot's assistant. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables both features cleanly. |
+| `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 

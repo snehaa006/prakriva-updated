@@ -210,9 +210,11 @@ const Login = () => {
     }
 
     if (role === "doctor") {
+      // Signing up never grants verified status — the licence claim still has
+      // to be approved server-side before the account can take patients.
       toast.success(
         verificationData.licenseVerified
-          ? "Verified doctor account created successfully!"
+          ? "Account created! Your licence is pending review — you can accept patients once it is approved."
           : "Account created! Please complete license verification to accept patients."
       );
     } else {

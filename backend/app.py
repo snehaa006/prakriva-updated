@@ -34,6 +34,7 @@ from disease_detection import (
     run_screening,
 )
 from disease_detection.pipeline import UnknownConditionError
+import gemini_service
 from exceptions import (
     AyurvedicPlannerError, ValidationError, ModelError,
     DoshaPredictionError, MealPlanGenerationError, DatabaseError
@@ -703,6 +704,162 @@ def screen_diseases():
     except Exception as e:
         logger.error(f"Disease screening failed: {e}")
         raise ModelError(f"Disease screening failed: {e}")
+
+
+@app.route("/analysis/status", methods=["GET"])
+def analysis_status():
+    """Whether the Gemini-backed analysis features are configured.
+
+    The frontend uses this to hide the AI panels entirely rather than offering
+    a button that can only fail.
+    """
+    return jsonify(APIResponse(
+        success=True,
+        data={"enabled": gemini_service.is_configured()},
+        message="Analysis availability retrieved",
+    ).dict())
+
+
+@app.route("/analysis/screening", methods=["POST"])
+@app.limiter.limit("20 per hour")
+def analyse_screenings():
+    """Narrative clinical read of a patient's screening history.
+
+    Body: `{"screenings": [...], "range_label": "the last 30 days"}` — the same
+    stored screening objects the frontend already holds, so no patient lookup
+    happens here and no identifiers are needed.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        screenings = payload.get("screenings")
+        if not isinstance(screenings, list) or not screenings:
+            raise ValidationError("At least one screening is required")
+
+        prompt = gemini_service.build_clinician_prompt(
+            screenings, str(payload.get("range_label") or "the recorded period")
+        )
+        analysis = gemini_service.generate(prompt, gemini_service.CLINICIAN_RULES)
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"analysis": analysis, "model": settings.GEMINI_MODEL},
+            message="Analysis generated successfully",
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Gemini analysis unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Analysis unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Screening analysis failed: {e}")
+        raise ModelError(f"Screening analysis failed: {e}")
+
+
+@app.route("/assistant/ask", methods=["POST"])
+@app.limiter.limit("30 per hour")
+def assistant_ask():
+    """Answer a patient's question about her own screening results.
+
+    Body: `{"question": "...", "screenings": [...]}`. The screenings are passed
+    in by the caller, so this endpoint never reads another patient's data.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        question = str(payload.get("question") or "").strip()
+        if not question:
+            raise ValidationError("A question is required")
+        if len(question) > 1000:
+            raise ValidationError("Question is too long")
+
+        screenings = payload.get("screenings")
+        if not isinstance(screenings, list):
+            screenings = []
+
+        prompt = gemini_service.build_patient_prompt(question, screenings)
+        answer = gemini_service.generate(
+            prompt, gemini_service.PATIENT_RULES, max_tokens=600
+        )
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"answer": answer},
+            message="Answer generated successfully",
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Gemini assistant unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Assistant unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Assistant question failed: {e}")
+        raise ModelError(f"Assistant question failed: {e}")
+
+
+#: Report uploads are photos or scans; anything else is a mistake or an attack.
+_ALLOWED_REPORT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
+                         "image/heif", "application/pdf"}
+#: ~8 MB of base64, comfortably above a phone photo and below anything abusive.
+_MAX_REPORT_BASE64_CHARS = 11_000_000
+
+
+@app.route("/analysis/extract-report", methods=["POST"])
+@app.limiter.limit("20 per hour")
+def extract_report():
+    """Read lab values off a photographed or scanned report.
+
+    Body: `{"image": "<base64>", "mime_type": "image/jpeg"}`. Returns only the
+    fields the screening form uses, and only those that read as clinically
+    plausible — the caller is expected to show them for confirmation rather
+    than apply them silently.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        image = payload.get("image")
+        mime_type = str(payload.get("mime_type") or "").lower()
+
+        if not isinstance(image, str) or not image:
+            raise ValidationError("An image is required")
+        if len(image) > _MAX_REPORT_BASE64_CHARS:
+            raise ValidationError("That file is too large — try a photo under 8 MB")
+        if mime_type not in _ALLOWED_REPORT_TYPES:
+            raise ValidationError(
+                "Upload a photo (JPEG, PNG, WEBP, HEIC) or a PDF of the report"
+            )
+
+        values = gemini_service.extract_report_values(image, mime_type)
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"values": values},
+            message=(
+                f"Read {len(values)} value(s) from the report"
+                if values
+                else "No recognisable values were found"
+            ),
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Report extraction unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Report reading unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Report extraction failed: {e}")
+        raise ModelError(f"Report extraction failed: {e}")
 
 
 @app.route("/analytics", methods=["GET"])

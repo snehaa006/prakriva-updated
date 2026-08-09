@@ -109,6 +109,24 @@ class ScreeningInput(BaseModel):
     smoking: bool = False
     alcohol: bool = False
 
+    # --- Thyroid history ---------------------------------------------------
+    # Inputs to the thyroid model (ml/thyroid_featurize.py). The "query "
+    # fields mean a clinician has raised the possibility without it being
+    # confirmed, which is how the source dataset recorded them.
+    on_thyroxine: bool = False
+    query_on_thyroxine: bool = False
+    on_antithyroid_medication: bool = False
+    currently_unwell: bool = Field(False, description="Unwell at time of testing")
+    thyroid_surgery: bool = False
+    i131_treatment: bool = Field(False, description="Radioactive iodine treatment")
+    query_hypothyroid: bool = False
+    query_hyperthyroid: bool = False
+    lithium: bool = Field(False, description="Taking lithium")
+    goitre: bool = False
+    thyroid_tumour: bool = False
+    hypopituitary: bool = False
+    psych_history: bool = Field(False, description="Psychiatric history")
+
     # --- Symptoms / signs --------------------------------------------------
     symptoms: List[str] = Field(default_factory=list)
     weight_gain: bool = Field(False, description="Unexplained weight gain")
@@ -142,7 +160,18 @@ class ScreeningInput(BaseModel):
     urine_nitrite: TernaryEnum = TernaryEnum.UNKNOWN
     tsh: Optional[float] = Field(None, ge=0, le=100, description="mIU/L")
     t3: Optional[float] = Field(None, ge=0, le=500)
-    t4: Optional[float] = Field(None, ge=0, le=50)
+    #: Free T4, in ng/dL (normal roughly 0.8-2.5) — used by the rule-based
+    #: thyroid scorer. Distinct from `tt4` below: they are different assays on
+    #: very different scales, and conflating them would read a normal free T4
+    #: of 1.2 as a catastrophically low total T4.
+    t4: Optional[float] = Field(None, ge=0, le=50, description="Free T4, ng/dL")
+    tt4: Optional[float] = Field(
+        None, ge=0, le=400, description="Total T4, ug/dL (normal roughly 60-180)"
+    )
+    t4u: Optional[float] = Field(None, ge=0, le=5, description="T4 uptake ratio")
+    fti: Optional[float] = Field(
+        None, ge=0, le=500, description="Free thyroxine index"
+    )
 
     @field_validator("symptoms")
     @classmethod

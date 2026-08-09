@@ -455,14 +455,14 @@ describe("doctor sign up wizard", () => {
     await user.type(screen.getByLabelText(/full name/i), "Dr. Rajesh Kumar");
     await user.click(screen.getByRole("button", { name: /^next$/i }));
 
-    await chooseFromSelect(user, /medical council/i, /medical council of india/i);
-    await user.type(screen.getByLabelText(/medical license number/i), "MH12345678");
+    await chooseFromSelect(user, /medical council/i, /ayush ministry/i);
+    await user.type(screen.getByLabelText(/medical license number/i), "AYU/MH/104627");
     await user.click(screen.getByRole("button", { name: /verify/i }));
 
     expect(
       await screen.findByText(/license verified successfully/i, {}, { timeout: 10000 })
     ).toBeInTheDocument();
-    expect(screen.getByText("Maharashtra Medical Council")).toBeInTheDocument();
+    expect(screen.getByText("Maharashtra Council of Indian Medicine")).toBeInTheDocument();
     expect(mock.toast.success).toHaveBeenCalledWith("License verified successfully!");
   }, 20000);
 
@@ -482,8 +482,8 @@ describe("doctor sign up wizard", () => {
     await user.click(screen.getByRole("button", { name: /^next$/i }));
 
     // --- Step 2: license ---
-    await chooseFromSelect(user, /medical council/i, /medical council of india/i);
-    await user.type(screen.getByLabelText(/medical license number/i), "MH12345678");
+    await chooseFromSelect(user, /medical council/i, /ayush ministry/i);
+    await user.type(screen.getByLabelText(/medical license number/i), "AYU/MH/104627");
     await user.click(screen.getByRole("button", { name: /verify/i }));
     await screen.findByText(/license verified successfully/i, {}, { timeout: 10000 });
 
@@ -511,21 +511,22 @@ describe("doctor sign up wizard", () => {
     expect(call.options.data).toMatchObject({
       role: "doctor",
       name: "Dr. Rajesh Kumar",
-      licenseNumber: "MH12345678",
-      medicalCouncil: "mci",
+      licenseNumber: "AYU/MH/104627",
+      medicalCouncil: "ayush",
       medicalDegree: "bams",
       graduationYear: 2015,
       yearsOfExperience: 8,
       clinicName: "Wellness Center",
-      licenseVerified: true,
       ayurvedicSpecialization: ["Panchakarma"],
     });
+    // Clearing the browser-side licence check must not assert verified status.
+    expect(call.options.data).not.toHaveProperty("licenseVerified");
 
     await waitFor(() =>
       expect(mock.navigate).toHaveBeenCalledWith("/doctor/dashboard", { replace: true })
     );
     expect(mock.toast.success).toHaveBeenCalledWith(
-      "Verified doctor account created successfully!"
+      "Account created! Your licence is pending review — you can accept patients once it is approved."
     );
   }, 30000);
 
