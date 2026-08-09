@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   CardContent,
@@ -33,28 +33,24 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import {
   cleanMessageBody,
   defaultDisplayName,
   isRecommendedFor,
   membershipFor,
-  profileMatchKeys,
   sortGroupsForPatient,
 } from "@/lib/community";
-import { conditionsFromScreening } from "@/lib/exerciseRecommendations";
 import {
   decideRequest,
-  fetchGroups,
   fetchMessages,
-  fetchMyMemberships,
-  fetchPendingRequests,
   leaveGroup,
+  loadCommunityOverview,
   requestToJoin,
   sendMessage,
   subscribeToMessages,
 } from "@/services/communityService";
-import { fetchScreenings } from "@/services/diseaseDetectionService";
 import type {
   CommunityGroup,
   CommunityMembership,
@@ -92,16 +88,26 @@ const initials = (name: string) =>
  */
 const Community = () => {
   const { toast } = useToast();
+  const patientId = useAuthUserId();
 
-  const [patientId, setPatientId] = useState<string | null>(null);
-  const [accountName, setAccountName] = useState("");
-  const [groups, setGroups] = useState<CommunityGroup[]>([]);
-  const [memberships, setMemberships] = useState<CommunityMembership[]>([]);
-  const [requests, setRequests] = useState<CommunityMembership[]>([]);
-  const [matchKeys, setMatchKeys] = useState<string[]>(["general"]);
-  const [isLoading, setIsLoading] = useState(true);
+  // One cached snapshot for the whole page: leaving and coming back re-renders
+  // from it instead of putting a spinner over circles she was just reading.
+  // Writes below re-read it rather than patching a second copy of the state.
+  const { data, isFirstLoad, error, refresh } = useCachedPageData(
+    ["community", patientId],
+    () => loadCommunityOverview(patientId as string),
+    { enabled: !!patientId }
+  );
+
+  const groups = useMemo(() => data?.groups ?? [], [data]);
+  const memberships = useMemo(() => data?.memberships ?? [], [data]);
+  const requests = useMemo(() => data?.pendingRequests ?? [], [data]);
+  const matchKeys = useMemo(() => data?.matchKeys ?? ["general"], [data]);
+  const accountName = data?.accountName ?? "";
+
   // Controlled so "Open chat" on a circle in Discover can move to the chat.
   const [tab, setTab] = useState("discover");
+  const hasChosenTab = useRef(false);
 
   // Join dialog
   const [joining, setJoining] = useState<CommunityGroup | null>(null);
@@ -142,107 +148,33 @@ const Community = () => {
     [requests, patientId]
   );
 
-  const loadRequests = useCallback(async (approvedGroupIds: string[]) => {
-    try {
-      setRequests(await fetchPendingRequests(approvedGroupIds));
-    } catch (error) {
-      console.error("Error loading community requests:", error);
-    }
-  }, []);
-
   useEffect(() => {
-    let cancelled = false;
+    if (error) {
+      console.error("Error loading community circles:", error);
+      toast({
+        title: "Could not load the circles",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) {
-        if (!cancelled) setIsLoading(false);
-        return;
-      }
-      if (!cancelled) setPatientId(user.id);
+  // Open on the first circle she is in. Runs off the loaded data rather than
+  // the fetch, so a cached page lands on the same circle it did last time.
+  useEffect(() => {
+    if (myCircles.length === 0) return;
+    setActiveGroupId((current) =>
+      current && myCircles.some((g) => g.id === current) ? current : myCircles[0].id
+    );
 
-      try {
-        const [catalogue, mine] = await Promise.all([
-          fetchGroups(),
-          fetchMyMemberships(user.id),
-        ]);
-        if (cancelled) return;
-
-        setGroups(catalogue);
-        setMemberships(mine);
-
-        const approved = mine.filter((m) => m.status === "approved");
-        setActiveGroupId((current) => current ?? approved[0]?.groupId ?? null);
-        // Someone who is already in a circle came here for the conversation;
-        // someone who isn't came to find one.
-        if (approved.length > 0) setTab("circles");
-        void loadRequests(approved.map((m) => m.groupId));
-      } catch (error) {
-        console.error("Error loading community circles:", error);
-        if (!cancelled) {
-          toast({
-            title: "Could not load the circles",
-            description: "Please check your connection and try again.",
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Which circles to recommend: her reported conditions, her latest
-      // screening findings and her life stage — the same signals the exercise
-      // plan is built from.
-      try {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("name, assessment_data")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const record = (patient?.assessment_data ?? {}) as Record<string, unknown>;
-        const reported = [
-          ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
-          ...(typeof record.currentConditionsOther === "string"
-            ? [record.currentConditionsOther]
-            : []),
-        ].filter((c): c is string => typeof c === "string" && c.trim() !== "");
-
-        let screened: string[] = [];
-        try {
-          const screenings = await fetchScreenings(user.id);
-          screened = conditionsFromScreening(screenings[0]?.result.conditions).map(
-            (c) => c.condition
-          );
-        } catch (error) {
-          console.error("Error loading screening results:", error);
-        }
-
-        if (cancelled) return;
-        setAccountName(
-          (typeof patient?.name === "string" && patient.name) ||
-            (user.user_metadata?.name as string) ||
-            ""
-        );
-        setMatchKeys(
-          profileMatchKeys({
-            conditions: reported,
-            screeningConditions: screened,
-            lifeStage: record.lifeStage as string | undefined,
-            isBreastfeeding: record.isBreastfeeding as string | undefined,
-          })
-        );
-      } catch (error) {
-        console.error("Error loading patient profile:", error);
-      }
-
-      if (!cancelled) setIsLoading(false);
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadRequests, toast]);
+    // Someone already in a circle came here for the conversation; someone who
+    // isn't came to find one. Once only — a background refresh must not yank
+    // her out of a tab she chose herself.
+    if (!hasChosenTab.current) {
+      hasChosenTab.current = true;
+      setTab("circles");
+    }
+  }, [myCircles]);
 
   // ── Chat ──
   useEffect(() => {
@@ -302,16 +234,12 @@ const Community = () => {
         intro,
       });
 
-      setMemberships((current) => [
-        ...current.filter((m) => m.groupId !== membership.groupId),
-        membership,
-      ]);
       setJoining(null);
+      await refresh();
 
       if (membership.status === "approved") {
         setActiveGroupId(membership.groupId);
         setTab("circles");
-        setGroups(await fetchGroups());
         toast({
           title: `Welcome to ${joining.name}`,
           description: "You're in — say hello whenever you're ready.",
@@ -341,8 +269,7 @@ const Community = () => {
   ) => {
     try {
       await decideRequest(membership.id, status);
-      setRequests((current) => current.filter((r) => r.id !== membership.id));
-      if (status === "approved") setGroups(await fetchGroups());
+      await refresh();
       toast({
         title: status === "approved" ? "Request approved" : "Request declined",
         description:
@@ -367,9 +294,8 @@ const Community = () => {
 
     try {
       await leaveGroup(membership.id);
-      setMemberships((current) => current.filter((m) => m.id !== membership.id));
       setActiveGroupId((current) => (current === group.id ? null : current));
-      setGroups(await fetchGroups());
+      await refresh();
       toast({
         title: `You have left ${group.name}`,
         description: "You can ask to rejoin any time.",
@@ -416,7 +342,9 @@ const Community = () => {
     }
   };
 
-  if (isLoading) {
+  // Only ever on the very first visit — coming back renders from the cached
+  // snapshot while it refreshes underneath.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 p-6">
         <div className="flex min-h-[60vh] items-center justify-center">

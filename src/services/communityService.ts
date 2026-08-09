@@ -10,6 +10,9 @@
 // row mapping and nothing more.
 
 import { supabase } from "@/lib/supabase";
+import { profileMatchKeys } from "@/lib/community";
+import { conditionsFromScreening } from "@/lib/exerciseRecommendations";
+import { fetchScreenings } from "@/services/diseaseDetectionService";
 import type {
   CommunityGroup,
   CommunityMembership,
@@ -267,6 +270,86 @@ export const sendMessage = async ({
 
   if (error) throw new Error(error.message);
   return toMessage(data as MessageRow);
+};
+
+/** Everything the Community page needs to render, in one load. */
+export interface CommunityOverview {
+  groups: CommunityGroup[];
+  memberships: CommunityMembership[];
+  /** Requests waiting in the circles this patient is already in. */
+  pendingRequests: CommunityMembership[];
+  /** Condition/life-stage keys her circles are recommended off. */
+  matchKeys: string[];
+  /** Her account name, used to default the display name on a join request. */
+  accountName: string;
+}
+
+/**
+ * One round trip's worth of Community state.
+ *
+ * Gathered here rather than in the page so it can be cached as a single
+ * snapshot — switching tabs then re-renders from the last snapshot instead of
+ * putting a spinner over the circles she was just reading.
+ */
+export const loadCommunityOverview = async (
+  patientId: string,
+  fallbackName = ""
+): Promise<CommunityOverview> => {
+  const [groups, memberships] = await Promise.all([
+    fetchGroups(),
+    fetchMyMemberships(patientId),
+  ]);
+
+  const approvedGroupIds = memberships
+    .filter((m) => m.status === "approved")
+    .map((m) => m.groupId);
+
+  const pendingRequests = await fetchPendingRequests(approvedGroupIds);
+
+  // Which circles to recommend: her reported conditions, her latest screening
+  // findings and her life stage — the same signals the exercise plan uses.
+  let matchKeys = profileMatchKeys({});
+  let accountName = fallbackName;
+
+  try {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("name, assessment_data")
+      .eq("id", patientId)
+      .maybeSingle();
+
+    const record = (patient?.assessment_data ?? {}) as Record<string, unknown>;
+    const reported = [
+      ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
+      ...(typeof record.currentConditionsOther === "string"
+        ? [record.currentConditionsOther]
+        : []),
+    ].filter((c): c is string => typeof c === "string" && c.trim() !== "");
+
+    let screened: string[] = [];
+    try {
+      const screenings = await fetchScreenings(patientId);
+      screened = conditionsFromScreening(screenings[0]?.result.conditions).map(
+        (c) => c.condition
+      );
+    } catch (error) {
+      console.error("Error loading screening results:", error);
+    }
+
+    if (typeof patient?.name === "string" && patient.name) accountName = patient.name;
+    matchKeys = profileMatchKeys({
+      conditions: reported,
+      screeningConditions: screened,
+      lifeStage: record.lifeStage as string | undefined,
+      isBreastfeeding: record.isBreastfeeding as string | undefined,
+    });
+  } catch (error) {
+    // A profile that cannot be read costs her the "suits your profile" badges,
+    // not the page — every circle is still browsable and joinable.
+    console.error("Error loading patient profile:", error);
+  }
+
+  return { groups, memberships, pendingRequests, matchKeys, accountName };
 };
 
 /**

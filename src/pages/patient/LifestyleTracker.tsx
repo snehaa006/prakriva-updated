@@ -32,6 +32,8 @@ import {
   CloudOff,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import {
   DEFAULT_WATER_GOAL,
@@ -107,6 +109,100 @@ const dayNumber = (iso: string) =>
     timeZone: "UTC",
   });
 
+/** Everything the tracker reads on open, loaded as one cacheable snapshot. */
+interface TrackerSnapshot {
+  logs: LifestyleDayLog[];
+  /** False when the logs came from the local cache alone. */
+  synced: boolean;
+  conditions: ConditionInput[];
+  isPregnant: boolean;
+  calorieTarget: CalorieTarget;
+  mealTracking: MealTrackingDay[];
+}
+
+/**
+ * Read the tracker's four sources in one pass.
+ *
+ * Each part fails on its own: a screening service that is down costs the
+ * tailored exercises, not the page, and the logs themselves are local-first so
+ * they survive Supabase being unreachable entirely.
+ */
+const loadTracker = async (patientId: string): Promise<TrackerSnapshot> => {
+  const snapshot: TrackerSnapshot = {
+    logs: [],
+    synced: true,
+    conditions: [],
+    isPregnant: false,
+    calorieTarget: { min: 1800, max: 2200, label: "General Adult" },
+    mealTracking: [],
+  };
+
+  // Cached logs render immediately; the Supabase merge lands underneath.
+  try {
+    const { logs, synced } = await loadLifestyleLogs(patientId);
+    snapshot.logs = logs;
+    snapshot.synced = synced;
+  } catch (error) {
+    console.error("Error loading lifestyle logs:", error);
+  }
+
+  // Conditions come from two places: what she reported in her profile, and
+  // what the maternal screening flagged. Both feed the exercise picks.
+  try {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("assessment_data")
+      .eq("id", patientId)
+      .maybeSingle();
+
+    const assessment = (patient?.assessment_data as AssessmentData) ?? null;
+    const record = (assessment ?? {}) as Record<string, unknown>;
+
+    const reported: ConditionInput[] = [
+      ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
+      ...(typeof record.currentConditionsOther === "string"
+        ? [record.currentConditionsOther]
+        : []),
+    ]
+      .filter((c): c is string => typeof c === "string" && c.trim() !== "")
+      .map((condition) => ({ condition }));
+
+    snapshot.isPregnant = isPregnantPatient(assessment);
+    snapshot.calorieTarget = getNutritionalTargets(
+      (record.lifeStage as LifeStage) ?? "not_applicable",
+      record.pregnancyTrimester as string | undefined,
+      record.isBreastfeeding as string | undefined,
+      record.menopauseStage as string | undefined
+    ).calories;
+
+    // Only moderate/high screening findings shape the plan — a low-risk score
+    // is a reassurance, not a condition to train around.
+    let screened: ConditionInput[] = [];
+    try {
+      const screenings = await fetchScreenings(patientId);
+      screened = conditionsFromScreening(screenings[0]?.result.conditions);
+    } catch (error) {
+      console.error("Error loading screening results:", error);
+    }
+
+    snapshot.conditions = [...screened, ...reported];
+  } catch (error) {
+    console.error("Error loading patient profile:", error);
+  }
+
+  // Diet adherence is read from what she logs on the Meal Logging page.
+  try {
+    snapshot.mealTracking = await fetchMealTracking(
+      patientId,
+      lastNDates(7, todayIso())[0]
+    );
+  } catch (error) {
+    console.error("Error loading meal tracking:", error);
+  }
+
+  return snapshot;
+};
+
 /**
  * The patient's one-page lifestyle tracker.
  *
@@ -120,18 +216,27 @@ const LifestyleTracker = () => {
 
   const today = todayIso();
 
-  const [patientId, setPatientId] = useState<string | null>(null);
+  const patientId = useAuthUserId();
+
+  // Cached: coming back to the tracker re-renders yesterday's streak instantly
+  // instead of spinning while the same four sources are read again. Keyed on
+  // the date too, so a tab left open overnight reloads for the new day.
+  const { data, isFirstLoad } = useCachedPageData(
+    ["lifestyle-tracker", patientId, today],
+    () => loadTracker(patientId as string),
+    { enabled: !!patientId }
+  );
+
+  const conditions = useMemo(() => data?.conditions ?? [], [data]);
+  const isPregnant = data?.isPregnant ?? false;
+  const calorieTarget = useMemo<CalorieTarget>(
+    () => data?.calorieTarget ?? { min: 1800, max: 2200, label: "General Adult" },
+    [data]
+  );
+  const mealTracking = useMemo(() => data?.mealTracking ?? [], [data]);
+
   const [logs, setLogs] = useState<LifestyleDayLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSynced, setIsSynced] = useState(true);
-  const [conditions, setConditions] = useState<ConditionInput[]>([]);
-  const [isPregnant, setIsPregnant] = useState(false);
-  const [calorieTarget, setCalorieTarget] = useState<CalorieTarget>({
-    min: 1800,
-    max: 2200,
-    label: "General Adult",
-  });
-  const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
 
   // Demo data is generated on the fly from a persisted flag — never written to
   // Supabase, and never into the lifestyle-log cache either, so it cannot be
@@ -170,96 +275,24 @@ const LifestyleTracker = () => {
     }
   }, [patientId]);
 
+  /**
+   * Put the loaded logs on screen — but only when they are newer than what is
+   * already there.
+   *
+   * Logging is local-first and debounced, so a background refresh that landed
+   * mid-edit could otherwise paint a stale server copy over minutes she had
+   * just entered. Demo mode owns `logs` outright while it is on, so it is left
+   * alone here too.
+   */
+  const seededLogs = useRef<LifestyleDayLog[] | null>(null);
   useEffect(() => {
-    let cancelled = false;
+    if (!data || seededLogs.current === data.logs) return;
+    seededLogs.current = data.logs;
 
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) {
-        if (!cancelled) setIsLoading(false);
-        return;
-      }
-      if (!cancelled) setPatientId(user.id);
-
-      // Cached logs render immediately; the Supabase merge lands underneath.
-      try {
-        const { logs: loaded, synced } = await loadLifestyleLogs(user.id);
-        if (!cancelled) {
-          realLogs.current = loaded;
-          // Don't clobber a demo month with the real (probably empty) one; the
-          // regeneration effect owns `logs` while demo mode is on.
-          if (!isDemoDataOn(user.id) && !isDemoRequestedByUrl()) setLogs(loaded);
-          setIsSynced(synced);
-        }
-      } catch (error) {
-        console.error("Error loading lifestyle logs:", error);
-      }
-
-      // Conditions come from two places: what she reported in her profile, and
-      // what the maternal screening flagged. Both feed the exercise picks.
-      try {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("assessment_data")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const assessment = (patient?.assessment_data as AssessmentData) ?? null;
-        const record = (assessment ?? {}) as Record<string, unknown>;
-
-        const reported: ConditionInput[] = [
-          ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
-          ...(typeof record.currentConditionsOther === "string"
-            ? [record.currentConditionsOther]
-            : []),
-        ]
-          .filter((c): c is string => typeof c === "string" && c.trim() !== "")
-          .map((condition) => ({ condition }));
-
-        if (!cancelled) {
-          setIsPregnant(isPregnantPatient(assessment));
-          setCalorieTarget(
-            getNutritionalTargets(
-              (record.lifeStage as LifeStage) ?? "not_applicable",
-              record.pregnancyTrimester as string | undefined,
-              record.isBreastfeeding as string | undefined,
-              record.menopauseStage as string | undefined
-            ).calories
-          );
-        }
-
-        // Only moderate/high screening findings shape the plan — a low-risk
-        // score is a reassurance, not a condition to train around.
-        let screened: ConditionInput[] = [];
-        try {
-          const screenings = await fetchScreenings(user.id);
-          screened = conditionsFromScreening(screenings[0]?.result.conditions);
-        } catch (error) {
-          console.error("Error loading screening results:", error);
-        }
-
-        if (!cancelled) setConditions([...screened, ...reported]);
-      } catch (error) {
-        console.error("Error loading patient profile:", error);
-      }
-
-      // Diet adherence is read from what she logs on the Meal Logging page.
-      try {
-        const rows = await fetchMealTracking(user.id, lastNDates(7, todayIso())[0]);
-        if (!cancelled) setMealTracking(rows);
-      } catch (error) {
-        console.error("Error loading meal tracking:", error);
-      }
-
-      if (!cancelled) setIsLoading(false);
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    realLogs.current = data.logs;
+    setIsSynced(data.synced);
+    if (!isDemoData) setLogs(data.logs);
+  }, [data, isDemoData]);
 
   const todayLog = useMemo(
     () => logs.find((l) => l.date === today) ?? emptyDayLog(today),
@@ -399,7 +432,8 @@ const LifestyleTracker = () => {
   const setWaterGoal = (goal: number) =>
     updateToday((log) => ({ ...log, waterGoal: Math.max(1, Math.min(20, goal)) }));
 
-  if (isLoading) {
+  // First visit only — a return to this tab renders from the cached snapshot.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 flex items-center justify-center p-12">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />

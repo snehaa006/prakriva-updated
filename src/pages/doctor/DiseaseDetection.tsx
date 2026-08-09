@@ -33,6 +33,8 @@ import {
   YAxis,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
@@ -134,6 +136,49 @@ const tooltipProps = {
   labelStyle: { color: CHART_NEUTRALS.tick, fontWeight: 600 },
 } as const;
 
+/**
+ * The doctor's accepted patients who are pregnant, de-duplicated and sorted.
+ *
+ * Every score on this page is calibrated on maternal conditions, so a patient
+ * who is not pregnant has nothing to show here and is left out.
+ */
+const fetchPregnantPatients = async (doctorId: string): Promise<PregnantPatient[]> => {
+  const { data, error } = await supabase
+    .from("consultation_requests")
+    .select(
+      `id, patient_id, patient_name, patient_email,
+       patients ( patient_code, name, assessment_data )`
+    )
+    .eq("doctor_id", doctorId)
+    .eq("status", "accepted");
+
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const pregnant: PregnantPatient[] = [];
+
+  for (const row of data ?? []) {
+    const record = row as unknown as ConsultationRow;
+    const assessment = record.patients?.assessment_data;
+    const patientId = record.patient_id;
+
+    if (!patientId || seen.has(patientId)) continue;
+    if (!isPregnantPatient(assessment)) continue;
+
+    seen.add(patientId);
+    pregnant.push({
+      patientId,
+      name: record.patients?.name || record.patient_name || "Unknown patient",
+      email: record.patient_email || "",
+      patientCode: record.patients?.patient_code,
+      trimester: assessment?.pregnancyTrimester as string | undefined,
+      assessmentData: assessment,
+    });
+  }
+
+  return pregnant.sort((a, b) => a.name.localeCompare(b.name));
+};
+
 /** A compact stat tile for the headline numbers above the charts. */
 const StatTile: React.FC<{
   icon: React.ReactNode;
@@ -157,8 +202,7 @@ const DiseaseDetection: React.FC = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [patients, setPatients] = useState<PregnantPatient[]>([]);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const doctorId = useAuthUserId();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
@@ -174,77 +218,33 @@ const DiseaseDetection: React.FC = () => {
   const [aiError, setAiError] = useState<string | null>(null);
   const [isAnalysing, setIsAnalysing] = useState(false);
 
+  // --- The doctor's accepted patients, keeping the pregnant ones -----------
+  //
+  // Cached: moving between a patient's analysis and the rest of the app comes
+  // back to the same list instead of reloading it behind a spinner.
+  const { data: loadedPatients, error: patientsError, isFirstLoad: isLoadingPatients } =
+    useCachedPageData(
+      ["pregnant-patients", doctorId],
+      () => fetchPregnantPatients(doctorId as string),
+      { enabled: !!doctorId }
+    );
+
+  const patients = useMemo(() => loadedPatients ?? [], [loadedPatients]);
+
   const selectedPatient = useMemo(
     () => patients.find((p) => p.patientId === selectedPatientId) ?? null,
     [patients, selectedPatientId]
   );
 
-  // --- Load the doctor's accepted patients, keeping the pregnant ones -------
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) {
-        setIsLoadingPatients(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("consultation_requests")
-          .select(
-            `id, patient_id, patient_name, patient_email,
-             patients ( patient_code, name, assessment_data )`
-          )
-          .eq("doctor_id", authData.user.id)
-          .eq("status", "accepted");
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        const seen = new Set<string>();
-        const pregnant: PregnantPatient[] = [];
-
-        for (const row of data ?? []) {
-          const record = row as unknown as ConsultationRow;
-          const assessment = record.patients?.assessment_data;
-          const patientId = record.patient_id;
-
-          if (!patientId || seen.has(patientId)) continue;
-          if (!isPregnantPatient(assessment)) continue;
-
-          seen.add(patientId);
-          pregnant.push({
-            patientId,
-            name: record.patients?.name || record.patient_name || "Unknown patient",
-            email: record.patient_email || "",
-            patientCode: record.patients?.patient_code,
-            trimester: assessment?.pregnancyTrimester as string | undefined,
-            assessmentData: assessment,
-          });
-        }
-
-        pregnant.sort((a, b) => a.name.localeCompare(b.name));
-        setPatients(pregnant);
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Error loading pregnant patients:", error);
-        toast({
-          title: "Could not load patients",
-          description: "Failed to fetch your accepted patients. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        if (!cancelled) setIsLoadingPatients(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [toast]);
+    if (!patientsError) return;
+    console.error("Error loading pregnant patients:", patientsError);
+    toast({
+      title: "Could not load patients",
+      description: "Failed to fetch your accepted patients. Please try again.",
+      variant: "destructive",
+    });
+  }, [patientsError, toast]);
 
   // --- Selecting a patient pulls her recorded screenings ------------------
   const selectPatient = useCallback(

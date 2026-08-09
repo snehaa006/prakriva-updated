@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { endOfDay, format, isSameDay, startOfDay } from "date-fns";
 import {
@@ -25,6 +25,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import {
   BloodResultsSection,
@@ -48,6 +50,7 @@ import {
   heightCmFromAssessment,
   isPregnantPatient,
   fetchScreenings,
+  loadHealthCheck,
   saveScreening,
   screenPatient,
 } from "@/services/diseaseDetectionService";
@@ -77,7 +80,8 @@ const RANGE_PRESETS = [
 const HealthRisks: React.FC = () => {
   const { toast } = useToast();
 
-  const [patientId, setPatientId] = useState<string | null>(null);
+  const patientId = useAuthUserId();
+
   const [form, setForm] = useState<ScreeningInput>(emptyScreeningInput());
   const [heightCm, setHeightCm] = useState<number | null>(null);
   const [weightKg, setWeightKg] = useState<number | null>(null);
@@ -91,7 +95,6 @@ const HealthRisks: React.FC = () => {
   const [useCustomRange, setUseCustomRange] = useState(false);
 
   const [isPregnant, setIsPregnant] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
   const [isScreening, setIsScreening] = useState(false);
   const [activeTab, setActiveTab] = useState("check");
 
@@ -117,57 +120,42 @@ const HealthRisks: React.FC = () => {
     };
   }, []);
 
+  // Cached, so returning to this tab re-renders her last check rather than
+  // spinning while the same rows are read again.
+  const { data, error, isFirstLoad } = useCachedPageData(
+    ["health-check", patientId],
+    () => loadHealthCheck(patientId as string),
+    { enabled: !!patientId }
+  );
+
   useEffect(() => {
-    let cancelled = false;
+    if (error) console.error("Error loading health check:", error);
+  }, [error]);
 
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-      if (!cancelled) setPatientId(user.id);
+  // Seeded once per patient: the form below is hers to edit, so a background
+  // refresh must never overwrite what she is part-way through typing.
+  const hasSeededForm = useRef(false);
+  useEffect(() => {
+    if (!data || hasSeededForm.current) return;
+    hasSeededForm.current = true;
 
-      try {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("assessment_data")
-          .eq("id", user.id)
-          .maybeSingle();
+    const { assessment, screenings } = data;
+    setAssessmentData(assessment);
+    setIsPregnant(isPregnantPatient(assessment));
+    const existingHeight = heightCmFromAssessment(assessment);
+    setHeightCm(existingHeight);
+    if (existingHeight) setSetupHeightCm(String(existingHeight));
+    if (typeof assessment?.dueDate === "string") setSetupDueDate(assessment.dueDate);
 
-        if (cancelled) return;
-        const assessment = (patient?.assessment_data as AssessmentData) ?? null;
-        setAssessmentData(assessment);
-        setIsPregnant(isPregnantPatient(assessment));
-        const existingHeight = heightCmFromAssessment(assessment);
-        setHeightCm(existingHeight);
-        if (existingHeight) setSetupHeightCm(String(existingHeight));
-        if (typeof assessment?.dueDate === "string") setSetupDueDate(assessment.dueDate);
-        setForm(buildScreeningInputFromAssessment(assessment));
-
-        const stored = await fetchScreenings(user.id);
-        if (cancelled) return;
-
-        setHistory(stored);
-        if (stored.length > 0) {
-          // Reopen the most recent answers and result rather than a blank form.
-          setForm(stored[0].inputs);
-          setResult(stored[0].result);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Error loading health check:", error);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setHistory(screenings);
+    if (screenings.length > 0) {
+      // Reopen the most recent answers and result rather than a blank form.
+      setForm(screenings[0].inputs);
+      setResult(screenings[0].result);
+    } else {
+      setForm(buildScreeningInputFromAssessment(assessment));
+    }
+  }, [data]);
 
   const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -312,7 +300,8 @@ const HealthRisks: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  // First visit only — a return to this tab renders from the cached snapshot.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 p-6">
         <div className="flex items-center justify-center min-h-[60vh]">

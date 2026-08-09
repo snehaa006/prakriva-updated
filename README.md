@@ -45,9 +45,11 @@ risks their health check flagged, and join peer-support community circles.
     expertise, practice), with its option lists in `doctorProfileOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
-- `src/test/` — Vitest setup (`setup.ts`) and the Supabase client mock
-  (`supabaseMock.ts`) shared across frontend tests. Tests themselves sit in
-  `__tests__/` folders next to the code they cover.
+- `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
+  (`supabaseMock.ts`) and `renderPage.tsx` (renders a page with the router and
+  a fresh react-query client, which pages need since they load through
+  `useCachedPageData`). Tests themselves sit in `__tests__/` folders next to
+  the code they cover.
 - `backend/` — Flask API (`app.py`) providing dosha estimation
   (`dosha_estimator.py`, `dosha_model.pkl`), calorie calculation
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
@@ -170,6 +172,9 @@ Coverage is focused on authentication, since that is the gate on both roles:
   the week-long cache.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
+- `src/hooks/__tests__/useCachedPageData.test.tsx` — that a revisited page
+  renders from cache without a spinner and without re-fetching. See
+  "Page loads" under Caching.
 - `src/lib/__tests__/exerciseRecommendations.test.ts` — condition → exercise
   matching, the screening findings that feed it, the pregnancy substitutions,
   and a working video link for every recommended exercise.
@@ -877,6 +882,42 @@ Long-running work no longer disappears on a page refresh:
 - Server reads go through React Query, whose app-wide defaults live in
   `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
   focus), so switching pages serves from cache instead of refetching.
+
+### Page loads (why tabs no longer flash a spinner)
+
+Pages used to load themselves in a `useEffect` with their own `isLoading`
+starting at `true`. React Router unmounts the page you leave, so the fresh
+mount knew nothing about what the previous one had fetched: **every** tab
+switch — not just the first visit — put a full-page spinner over data that had
+been on screen a second earlier, and refetched all of it.
+
+Two hooks fix that for good, and both are the pattern to follow for any new
+page:
+
+- `src/hooks/useCachedPageData.ts` wraps `useQuery` for a page's whole
+  snapshot. The query cache lives at the app root and outlives the unmount, so
+  a return visit renders the previous answer in its first frame and
+  revalidates underneath. It hands back `isFirstLoad` — true only when there is
+  genuinely nothing to show — which is the *only* state a page should block
+  on. A query still waiting on `enabled` counts as loading, because rendering
+  the page empty for that beat is the same flicker. `refreshMs` keeps the
+  polling that the doctor's request queue and patient list rely on.
+  Unit tested in `src/hooks/__tests__/useCachedPageData.test.tsx`, including
+  that a second mount neither spins nor re-fetches.
+- `src/hooks/useAuthUserId.ts` is one cached answer for "who is signed in".
+  Eleven call sites each ran their own `supabase.auth.getUser()` — a round trip
+  to the auth server that every page waited on before its first query could
+  even start. `useDoctorPatients` owns the same cache key, so they share it.
+
+Converted so far: the patient's Dashboard, Health Check, Tracker, Community and
+Profile, and the doctor's Patients, Consultation Requests and Patient Analysis.
+Page tests render through `src/test/renderPage.tsx`, which supplies a **fresh**
+query client per test so one test's cache cannot satisfy the next test's query.
+
+Two rules keep the cache honest where a page also owns editable state: seed
+local state from the snapshot **once** (a background refresh must never
+overwrite half-typed input), and after a write, re-read the snapshot rather
+than patching a second copy of it.
 
 ## Environment variables
 
