@@ -290,6 +290,13 @@ export interface RecipeOfDay {
 
 // --- Helper ---
 
+// Without this, a request that hangs instead of erroring (a stalled
+// connection, an upstream node that accepts but never answers) blocks this
+// key forever — and with it, every sequential call made while generating a
+// diet chart. Aborting after a timeout turns that into an ordinary failure
+// the key-rotation logic already knows how to route around.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function apiFetch<T>(url: string): Promise<T> {
   await ensureRemoteKeys();
 
@@ -299,19 +306,26 @@ async function apiFetch<T>(url: string): Promise<T> {
     const { key } = keyPool[index];
     let res: Response;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
     try {
       res = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${key}`,
         },
+        signal: controller.signal,
       });
     } catch (err) {
-      // Network/CORS failure. Not the key's fault as such, but there's
-      // nothing else to vary, so cool it off and try the next one.
+      // Network/CORS failure, or the timeout above firing. Not the key's
+      // fault as such, but there's nothing else to vary, so cool it off and
+      // try the next one.
       lastError = err instanceof Error ? err : new Error(String(err));
       penalize(index, 0);
       continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (res.ok) {
