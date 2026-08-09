@@ -10,45 +10,39 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   Activity,
+  AlertTriangle,
   Baby,
+  BarChart3,
   ClipboardList,
-  History,
   Loader2,
   Search,
-  Stethoscope,
-  UserCheck,
+  ShieldCheck,
+  TrendingUp,
 } from "lucide-react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import {
-  BasicsSection,
-  HistorySection,
-  LabsSection,
-  ScalesSection,
-  SymptomsSection,
-} from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
 import {
   AssessmentData,
-  buildScreeningInputFromAssessment,
   fetchScreenings,
   isPregnantPatient,
-  saveScreening,
-  screenPatient,
 } from "@/services/diseaseDetectionService";
 import {
+  RiskLevel,
   ScreeningInput,
-  ScreeningResult,
   StoredScreening,
 } from "@/types/diseaseDetection";
 
@@ -80,6 +74,86 @@ const TRIMESTER_LABELS: Record<string, string> = {
   unknown: "Trimester unknown",
 };
 
+/** Date-range presets for the trend view. `0` means "all recorded". */
+const RANGE_OPTIONS = [
+  { value: 7, label: "7 days" },
+  { value: 15, label: "15 days" },
+  { value: 30, label: "30 days" },
+  { value: 0, label: "All" },
+] as const;
+
+// Chart chrome — fixed hues validated by the data-viz palette. Grid/axis are
+// recessive; the single vital series is blue, the second (diastolic) is orange.
+const CHART = {
+  grid: "#e1e0d9",
+  axis: "#898781",
+  primary: "#2a78d6",
+  secondary: "#eb6834",
+};
+
+/** Status hues (good / warning / critical) reused for risk trend lines. */
+const RISK_HEX: Record<RiskLevel, string> = {
+  low: "#0ca30c",
+  moderate: "#fab219",
+  high: "#d03b3b",
+};
+
+/** Numeric vitals we can trend from a screening's inputs. */
+interface VitalMetric {
+  key: keyof ScreeningInput;
+  label: string;
+  unit: string;
+  normal: string;
+}
+
+const VITAL_METRICS: VitalMetric[] = [
+  { key: "hemoglobin", label: "Hemoglobin", unit: "g/dL", normal: "≥ 11 g/dL in pregnancy" },
+  { key: "bmi", label: "BMI", unit: "kg/m²", normal: "18.5 – 24.9" },
+  { key: "hba1c", label: "HbA1c", unit: "%", normal: "< 5.7 %" },
+  { key: "ogtt_1hr", label: "OGTT (1-hour)", unit: "mg/dL", normal: "< 180 mg/dL" },
+  { key: "tsh", label: "TSH", unit: "mIU/L", normal: "0.1 – 4.0 mIU/L" },
+  { key: "t3", label: "T3", unit: "", normal: "reference-dependent" },
+  { key: "t4", label: "T4", unit: "", normal: "reference-dependent" },
+  { key: "urine_wbc", label: "Urine WBC", unit: "/hpf", normal: "< 5 /hpf" },
+  { key: "phq9_score", label: "PHQ-9 (depression)", unit: "", normal: "< 5" },
+  { key: "edinburgh_score", label: "Edinburgh (EPDS)", unit: "", normal: "< 10" },
+];
+
+type ChartRow = { t: number; label: string } & Record<string, number | string | null>;
+
+const dayLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+/** Shared tooltip styling so every chart reads the same. */
+const tooltipProps = {
+  contentStyle: {
+    borderRadius: 8,
+    border: "1px solid #e1e0d9",
+    fontSize: 12,
+    padding: "6px 10px",
+  },
+  labelStyle: { color: "#52514e", fontWeight: 600 },
+} as const;
+
+/** A compact stat tile for the headline numbers above the charts. */
+const StatTile: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+}> = ({ icon, label, value, hint }) => (
+  <Card>
+    <CardContent className="p-4">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        {icon}
+        {label}
+      </div>
+      <div className="text-2xl font-bold mt-1 leading-tight">{value}</div>
+      {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
+    </CardContent>
+  </Card>
+);
+
 const DiseaseDetection: React.FC = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,12 +163,9 @@ const DiseaseDetection: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
-  const [form, setForm] = useState<ScreeningInput | null>(null);
-  const [result, setResult] = useState<ScreeningResult | null>(null);
   const [history, setHistory] = useState<StoredScreening[]>([]);
-  const [selfReport, setSelfReport] = useState<StoredScreening | null>(null);
-  const [isScreening, setIsScreening] = useState(false);
-  const [activeTab, setActiveTab] = useState("assessment");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [rangeDays, setRangeDays] = useState<number>(30);
 
   const selectedPatient = useMemo(
     () => patients.find((p) => p.patientId === selectedPatientId) ?? null,
@@ -168,40 +239,26 @@ const DiseaseDetection: React.FC = () => {
     };
   }, [toast]);
 
-  // --- Selecting a patient prefills the form and pulls her history ---------
+  // --- Selecting a patient pulls her recorded screenings ------------------
   const selectPatient = useCallback(
     async (patient: PregnantPatient) => {
       setSelectedPatientId(patient.patientId);
-      setResult(null);
-      setSelfReport(null);
-      setActiveTab("assessment");
       setSearchParams({ patientId: patient.patientId }, { replace: true });
-
-      // Fall back to the onboarding questionnaire until we know whether the
-      // patient has submitted a self-report.
-      setForm(buildScreeningInputFromAssessment(patient.assessmentData));
-
+      setIsLoadingHistory(true);
       try {
         const stored = await fetchScreenings(patient.patientId);
         setHistory(stored);
-
-        const latestSelfReport = stored.find((entry) => entry.submittedBy === "patient");
-        if (latestSelfReport) {
-          // The patient's own answers are the better starting point — the
-          // doctor only has to add the labs on top.
-          setSelfReport(latestSelfReport);
-          setForm(latestSelfReport.inputs);
-        }
-        if (stored.length > 0) setResult(stored[0].result);
       } catch (error) {
         console.error("Error loading screening history:", error);
         setHistory([]);
+      } finally {
+        setIsLoadingHistory(false);
       }
     },
     [setSearchParams]
   );
 
-  // Deep link from the Patients page: /doctor/disease-detection?patientId=...
+  // Deep link from the Patients page: /doctor/patient-analysis?patientId=...
   useEffect(() => {
     const requested = searchParams.get("patientId");
     if (!requested || selectedPatientId || patients.length === 0) return;
@@ -209,52 +266,6 @@ const DiseaseDetection: React.FC = () => {
     const match = patients.find((p) => p.patientId === requested);
     if (match) selectPatient(match);
   }, [patients, searchParams, selectedPatientId, selectPatient]);
-
-  const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
-    setForm((current) => (current ? { ...current, [key]: value } : current));
-
-  const runScreening = async () => {
-    if (!form || !selectedPatient) return;
-
-    setIsScreening(true);
-    try {
-      const screening = await screenPatient(form);
-      setResult(screening);
-      setActiveTab("results");
-
-      const { data: authData } = await supabase.auth.getUser();
-      let persisted = false;
-      if (authData.user) {
-        persisted = await saveScreening({
-          patientId: selectedPatient.patientId,
-          doctorId: authData.user.id,
-          submittedBy: "doctor",
-          inputs: form,
-          result: screening,
-        });
-        if (persisted) setHistory(await fetchScreenings(selectedPatient.patientId));
-      }
-
-      toast({
-        title: "Screening complete",
-        description: persisted
-          ? `Overall risk: ${RISK_STYLES[screening.overall_risk_level].label}. Saved to the patient record.`
-          : `Overall risk: ${RISK_STYLES[screening.overall_risk_level].label}. Not saved — the disease_screenings table is missing.`,
-      });
-    } catch (error) {
-      console.error("Screening failed:", error);
-      toast({
-        title: "Screening failed",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not reach the screening service.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsScreening(false);
-    }
-  };
 
   const filteredPatients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -267,18 +278,77 @@ const DiseaseDetection: React.FC = () => {
     );
   }, [patients, searchTerm]);
 
+  // Screenings oldest→newest, so trend lines read left (past) to right (now).
+  const sorted = useMemo(
+    () =>
+      [...history].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      ),
+    [history]
+  );
+
+  const screeningsInRange = useMemo(() => {
+    if (rangeDays === 0) return sorted;
+    const cutoff = Date.now() - rangeDays * 86_400_000;
+    return sorted.filter((s) => new Date(s.createdAt).getTime() >= cutoff);
+  }, [sorted, rangeDays]);
+
+  const latest = screeningsInRange.length
+    ? screeningsInRange[screeningsInRange.length - 1]
+    : null;
+
+  // Flatten each screening's inputs into one chart row.
+  const chartRows = useMemo<ChartRow[]>(
+    () =>
+      screeningsInRange.map((s) => {
+        const i = s.inputs;
+        const row: ChartRow = { t: new Date(s.createdAt).getTime(), label: dayLabel(s.createdAt) };
+        for (const m of VITAL_METRICS) {
+          const v = i[m.key];
+          row[m.key as string] = typeof v === "number" ? v : null;
+        }
+        row.bp_systolic = typeof i.bp_systolic === "number" ? i.bp_systolic : null;
+        row.bp_diastolic = typeof i.bp_diastolic === "number" ? i.bp_diastolic : null;
+        return row;
+      }),
+    [screeningsInRange]
+  );
+
+  const hasData = (key: string) => chartRows.some((r) => r[key] != null);
+  const availableVitals = VITAL_METRICS.filter((m) => hasData(m.key as string));
+  const hasBP = hasData("bp_systolic") || hasData("bp_diastolic");
+
+  // Per-condition score series for the risk trend (needs ≥2 points to trend).
+  const riskSeries = useMemo(() => {
+    if (!latest || screeningsInRange.length < 2) return [];
+    return latest.result.conditions.map((c) => ({
+      condition: c.condition,
+      label: c.label,
+      riskLevel: c.risk_level,
+      currentScore: c.score,
+      data: screeningsInRange.map((s) => ({
+        label: dayLabel(s.createdAt),
+        score:
+          s.result.conditions.find((x) => x.condition === c.condition)?.score ?? null,
+      })),
+    }));
+  }, [latest, screeningsInRange]);
+
+  const rangeLabel = rangeDays === 0 ? "all recorded screenings" : `the last ${rangeDays} days`;
+
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <Stethoscope className="w-7 h-7" />
-            Disease Detection
+            <BarChart3 className="w-7 h-7" />
+            Patient Analysis
           </h1>
           <p className="text-muted-foreground">
-            Maternal risk screening across anaemia, gestational diabetes,
-            preeclampsia, UTI, thyroid, miscarriage risk and perinatal mental
-            health.
+            Trends from each patient's maternal screenings — vitals, labs and
+            wellbeing scores over time, with the detected conditions and their
+            risk. Read-only: the data comes from what the patient submits in her
+            Health Check.
           </p>
         </div>
         <Badge variant="outline" className="gap-1 shrink-0">
@@ -344,213 +414,373 @@ const DiseaseDetection: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Screening workspace */}
-        {!selectedPatient || !form ? (
+        {/* Analysis workspace */}
+        {!selectedPatient ? (
           <Card>
             <CardContent className="p-12 text-center">
               <ClipboardList className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-xl font-semibold mb-2">Select a patient</h3>
               <p className="text-muted-foreground">
-                Pick a pregnant patient to review her screening inputs and risk
-                results.
+                Pick a pregnant patient to see her screening trends and detected
+                risks.
               </p>
             </CardContent>
           </Card>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <div className="space-y-6">
+            {/* Header + range selector */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold">{selectedPatient.name}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedPatient.email}
-                </p>
+                <p className="text-sm text-muted-foreground">{selectedPatient.email}</p>
               </div>
-              <TabsList>
-                <TabsTrigger value="assessment" className="gap-1">
-                  <ClipboardList className="w-4 h-4" />
-                  Assessment
-                </TabsTrigger>
-                <TabsTrigger value="results" className="gap-1">
-                  <Activity className="w-4 h-4" />
-                  Results
-                </TabsTrigger>
-                <TabsTrigger value="history" className="gap-1">
-                  <History className="w-4 h-4" />
-                  History
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex items-center gap-1 rounded-lg border p-1">
+                {RANGE_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    size="sm"
+                    variant={rangeDays === opt.value ? "default" : "ghost"}
+                    onClick={() => setRangeDays(opt.value)}
+                    className="h-8 px-3"
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
-            {/* --- Assessment form --- */}
-            <TabsContent value="assessment" className="space-y-4">
-              {selfReport && (
-                <Card className="border-primary/30 bg-primary/5">
-                  <CardContent className="p-4 flex items-start gap-3">
-                    <UserCheck className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                    <div className="text-sm">
-                      <p className="font-medium">
-                        Prefilled from the patient's own submission
-                      </p>
-                      <p className="text-muted-foreground">
-                        She reported her symptoms, history and wellbeing scales on{" "}
-                        {new Date(selfReport.createdAt).toLocaleString()}. Add the
-                        clinical measurements and labs below, then re-run.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
+            {isLoadingHistory ? (
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Screening Inputs</CardTitle>
-                  <CardDescription>
-                    Laboratory values left blank are treated as "not performed",
-                    not as normal.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Accordion
-                    type="multiple"
-                    defaultValue={["basics", "labs"]}
-                    className="w-full"
+                <CardContent className="p-12 text-center text-muted-foreground">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  Loading screening history...
+                </CardContent>
+              </Card>
+            ) : history.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Activity className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">No screenings yet</h3>
+                  <p className="text-muted-foreground">
+                    This analysis fills in once {selectedPatient.name.split(" ")[0]}{" "}
+                    completes a Health Check. Each submission adds a point to every
+                    trend below.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : screeningsInRange.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Activity className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">
+                    Nothing in {rangeLabel}
+                  </h3>
+                  <p className="text-muted-foreground">
+                    She has {history.length} recorded screening
+                    {history.length === 1 ? "" : "s"}, but none within this window.
+                    Switch to a wider range to see them.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => setRangeDays(0)}
                   >
-                    <AccordionItem value="basics">
-                      <AccordionTrigger>Basic information</AccordionTrigger>
-                      <AccordionContent className="pt-2">
-                        <BasicsSection form={form} update={update} />
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="labs">
-                      <AccordionTrigger>
-                        Clinical measurements &amp; laboratory values
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-2">
-                        <LabsSection form={form} update={update} />
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="symptoms">
-                      <AccordionTrigger>Symptoms &amp; signs</AccordionTrigger>
-                      <AccordionContent className="pt-2">
-                        <SymptomsSection form={form} update={update} />
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="history">
-                      <AccordionTrigger>History &amp; risk factors</AccordionTrigger>
-                      <AccordionContent className="pt-2">
-                        <HistorySection form={form} update={update} />
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="mental">
-                      <AccordionTrigger>Mental health scales</AccordionTrigger>
-                      <AccordionContent className="pt-4">
-                        <ScalesSection form={form} update={update} />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-
-                  <div className="flex justify-end pt-6">
-                    <Button onClick={runScreening} disabled={isScreening} className="gap-2">
-                      {isScreening ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Running screening...
-                        </>
-                      ) : (
-                        <>
-                          <Activity className="w-4 h-4" />
-                          Run screening
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                    Show all
+                  </Button>
                 </CardContent>
               </Card>
-            </TabsContent>
+            ) : (
+              <>
+                {/* --- Headline stats --- */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatTile
+                    icon={
+                      latest?.result.overall_risk_level === "low" ? (
+                        <ShieldCheck className="w-4 h-4" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4" />
+                      )
+                    }
+                    label="Overall risk"
+                    value={
+                      latest ? (
+                        <span
+                          className={
+                            RISK_STYLES[latest.result.overall_risk_level].badge +
+                            " px-2 py-0.5 rounded-md text-base"
+                          }
+                        >
+                          {RISK_STYLES[latest.result.overall_risk_level].label}
+                        </span>
+                      ) : (
+                        "—"
+                      )
+                    }
+                    hint="From the most recent screening"
+                  />
+                  <StatTile
+                    icon={<BarChart3 className="w-4 h-4" />}
+                    label="Screenings"
+                    value={screeningsInRange.length}
+                    hint={`Within ${rangeLabel}`}
+                  />
+                  <StatTile
+                    icon={<AlertTriangle className="w-4 h-4" />}
+                    label="Highest risk"
+                    value={
+                      <span className="text-lg">
+                        {latest?.result.highest_risk_condition
+                          ? latest.result.conditions.find(
+                              (c) => c.condition === latest.result.highest_risk_condition
+                            )?.label ?? "—"
+                          : "None"}
+                      </span>
+                    }
+                    hint="Leading condition now"
+                  />
+                  <StatTile
+                    icon={<TrendingUp className="w-4 h-4" />}
+                    label="Last screening"
+                    value={
+                      <span className="text-lg">
+                        {latest ? dayLabel(latest.createdAt) : "—"}
+                      </span>
+                    }
+                    hint={
+                      latest
+                        ? new Date(latest.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : undefined
+                    }
+                  />
+                </div>
 
-            {/* --- Results --- */}
-            <TabsContent value="results">
-              {!result ? (
+                {/* --- Vital / lab trends --- */}
                 <Card>
-                  <CardContent className="p-12 text-center">
-                    <Activity className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <h3 className="text-xl font-semibold mb-2">No results yet</h3>
-                    <p className="text-muted-foreground">
-                      Run a screening from the Assessment tab to see risk scores.
-                    </p>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Activity className="w-5 h-5" />
+                      Vitals &amp; lab trends
+                    </CardTitle>
+                    <CardDescription>
+                      Each measurement the patient has recorded over {rangeLabel}.
+                      Charts only appear for values that were actually measured.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {availableVitals.length === 0 && !hasBP ? (
+                      <p className="text-sm text-muted-foreground py-6 text-center">
+                        No numeric measurements recorded in this window — the
+                        patient's Health Check does not ask for lab values, so
+                        these fill in when a clinician records them.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Blood pressure — two same-axis series */}
+                        {hasBP && (
+                          <div className="rounded-lg border p-4">
+                            <div className="flex items-baseline justify-between mb-1">
+                              <h4 className="font-medium">Blood pressure</h4>
+                              <span className="text-xs text-muted-foreground">mmHg</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Normal &lt; 140 / 90
+                            </p>
+                            <ResponsiveContainer width="100%" height={180}>
+                              <LineChart
+                                data={chartRows}
+                                margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={CHART.grid}
+                                  vertical={false}
+                                />
+                                <XAxis
+                                  dataKey="label"
+                                  tick={{ fontSize: 11, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={{ stroke: CHART.grid }}
+                                />
+                                <YAxis
+                                  tick={{ fontSize: 11, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={false}
+                                  width={44}
+                                />
+                                <Tooltip {...tooltipProps} />
+                                <Legend wrapperStyle={{ fontSize: 12 }} />
+                                <Line
+                                  name="Systolic"
+                                  type="monotone"
+                                  dataKey="bp_systolic"
+                                  stroke={CHART.primary}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                  connectNulls
+                                />
+                                <Line
+                                  name="Diastolic"
+                                  type="monotone"
+                                  dataKey="bp_diastolic"
+                                  stroke={CHART.secondary}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                  connectNulls
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+
+                        {availableVitals.map((m) => (
+                          <div key={m.key as string} className="rounded-lg border p-4">
+                            <div className="flex items-baseline justify-between mb-1">
+                              <h4 className="font-medium">{m.label}</h4>
+                              {m.unit && (
+                                <span className="text-xs text-muted-foreground">
+                                  {m.unit}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Normal {m.normal}
+                            </p>
+                            <ResponsiveContainer width="100%" height={180}>
+                              <LineChart
+                                data={chartRows}
+                                margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={CHART.grid}
+                                  vertical={false}
+                                />
+                                <XAxis
+                                  dataKey="label"
+                                  tick={{ fontSize: 11, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={{ stroke: CHART.grid }}
+                                />
+                                <YAxis
+                                  tick={{ fontSize: 11, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={false}
+                                  width={44}
+                                  domain={["auto", "auto"]}
+                                />
+                                <Tooltip {...tooltipProps} />
+                                <Line
+                                  name={m.label}
+                                  type="monotone"
+                                  dataKey={m.key as string}
+                                  stroke={CHART.primary}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                  connectNulls
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-              ) : (
-                <ScreeningResultsView result={result} audience="clinician" />
-              )}
-            </TabsContent>
 
-            {/* --- History --- */}
-            <TabsContent value="history">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Previous Screenings</CardTitle>
-                  <CardDescription>
-                    The last 20 screening runs recorded for this patient, whether
-                    she submitted them herself or you ran them.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {history.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      No stored screenings for this patient yet.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {history.map((entry) => (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          onClick={() => {
-                            setResult(entry.result);
-                            setForm(entry.inputs);
-                            setActiveTab("results");
-                          }}
-                          className="w-full flex items-center justify-between gap-4 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
-                        >
-                          <div>
-                            <p className="font-medium">
-                              {new Date(entry.createdAt).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {entry.submittedBy === "patient"
-                                ? "Self-reported by patient"
-                                : "Run by clinician"}
-                              {" · Highest risk: "}
-                              {entry.result.highest_risk_condition
-                                ? entry.result.conditions.find(
-                                    (c) =>
-                                      c.condition ===
-                                      entry.result.highest_risk_condition
-                                  )?.label ?? entry.result.highest_risk_condition
-                                : "—"}
-                            </p>
+                {/* --- Risk score trend (small multiples) --- */}
+                {riskSeries.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Risk score trend
+                      </CardTitle>
+                      <CardDescription>
+                        How each condition's 0–100 risk score has moved over{" "}
+                        {rangeLabel}. Line colour is the latest risk level.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {riskSeries.map((s) => (
+                          <div key={s.condition} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-sm font-medium">{s.label}</h4>
+                              <Badge
+                                variant="outline"
+                                className={RISK_STYLES[s.riskLevel].badge}
+                              >
+                                {s.currentScore}%
+                              </Badge>
+                            </div>
+                            <ResponsiveContainer width="100%" height={120}>
+                              <LineChart
+                                data={s.data}
+                                margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={CHART.grid}
+                                  vertical={false}
+                                />
+                                <XAxis
+                                  dataKey="label"
+                                  tick={{ fontSize: 10, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={{ stroke: CHART.grid }}
+                                />
+                                <YAxis
+                                  domain={[0, 100]}
+                                  tick={{ fontSize: 10, fill: CHART.axis }}
+                                  tickLine={false}
+                                  axisLine={false}
+                                  width={32}
+                                />
+                                <Tooltip {...tooltipProps} />
+                                <Line
+                                  name="Risk score"
+                                  type="monotone"
+                                  dataKey="score"
+                                  stroke={RISK_HEX[s.riskLevel]}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                  connectNulls
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
                           </div>
-                          <Badge
-                            variant="outline"
-                            className={
-                              RISK_STYLES[entry.result.overall_risk_level].badge
-                            }
-                          >
-                            {RISK_STYLES[entry.result.overall_risk_level].label}
-                          </Badge>
-                        </button>
-                      ))}
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* --- Detected conditions & risk (latest screening) --- */}
+                {latest && (
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <ClipboardList className="w-5 h-5" />
+                        Detected conditions &amp; risk
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        From the most recent screening on{" "}
+                        {new Date(latest.createdAt).toLocaleString()} (
+                        {latest.submittedBy === "patient"
+                          ? "self-reported by the patient"
+                          : "recorded by a clinician"}
+                        ).
+                      </p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    <ScreeningResultsView result={latest.result} audience="clinician" />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

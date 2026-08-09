@@ -125,6 +125,8 @@ const AppRoutes = () => (
       <Route path="add-patient" element={<AddPatient />} />
       <Route path="appointments" element={<AppointmentScheduler />} />
       <Route path="alerts" element={<PatientAlerts />} />
+      <Route path="patient-analysis" element={<DiseaseDetection />} />
+      {/* Legacy path kept so existing links/bookmarks still resolve. */}
       <Route path="disease-detection" element={<DiseaseDetection />} />
       <Route path="communication" element={<CommunicationPortal />} />
       <Route path="feedback" element={<PatientFeedback />} />
