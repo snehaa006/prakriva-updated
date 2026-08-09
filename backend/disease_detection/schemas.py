@@ -103,6 +103,10 @@ class ScreeningInput(BaseModel):
     known_prediabetes: bool = Field(
         False, description="Previously told she has prediabetes"
     )
+    diabetes: bool = Field(False, description="Diagnosed diabetes")
+    hypertension_history: bool = Field(
+        False, description="History of high blood pressure"
+    )
     unexplained_prenatal_loss: bool = False
     large_baby_previous: bool = False
     history_depression: bool = False
@@ -151,6 +155,13 @@ class ScreeningInput(BaseModel):
     hemoglobin: Optional[float] = Field(None, ge=0, le=25, description="g/dL")
     hba1c: Optional[float] = Field(None, ge=0, le=20, description="%")
     ogtt_1hr: Optional[float] = Field(None, ge=0, le=500, description="mg/dL")
+    # Ultrasound findings — inputs to the preeclampsia model.
+    fetal_weight_kg: Optional[float] = Field(
+        None, ge=0, le=8, description="Estimated fetal weight, kg"
+    )
+    amniotic_fluid_cm: Optional[float] = Field(
+        None, ge=0, le=40, description="Amniotic fluid index, cm"
+    )
     # Lipids — used by the GDM early-screening model (ml/gdm_featurize.py).
     hdl: Optional[float] = Field(None, ge=0, le=200, description="HDL, mg/dL")
     triglycerides: Optional[float] = Field(

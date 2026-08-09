@@ -19,6 +19,7 @@ import {
   computeBmi,
   DiabetesRiskFactorsSection,
   MaternalVitalsSection,
+  PreeclampsiaSection,
   ThyroidSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
@@ -212,6 +213,7 @@ const HealthRisks: React.FC = () => {
         "pregnancy_risk",
         "gdm",
         "thyroid",
+        "preeclampsia",
       ]);
       setResult(screening);
       setActiveTab("results");
@@ -343,7 +345,7 @@ const HealthRisks: React.FC = () => {
         </h1>
         <p className="text-muted-foreground">
           Enter your latest antenatal details to check your anaemia, pregnancy
-          risk, gestational diabetes and thyroid analysis.
+          risk, gestational diabetes, thyroid and preeclampsia analysis.
         </p>
       </div>
 
@@ -395,6 +397,18 @@ const HealthRisks: React.FC = () => {
             </CardHeader>
             <CardContent>
               <BloodResultsSection form={form} update={update} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Blood pressure & scan</CardTitle>
+              <CardDescription>
+                Optional — these sharpen your preeclampsia estimate.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PreeclampsiaSection form={form} update={update} />
             </CardContent>
           </Card>
 

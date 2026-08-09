@@ -81,6 +81,8 @@ EXTRACTABLE_FIELDS = {
     "tt4": "Total T4 / TT4 / total thyroxine, in ug/dL. NOT free T4 or FT4",
     "t4u": "T4 uptake / T3 uptake ratio",
     "fti": "Free thyroxine index / FTI",
+    "fetal_weight_kg": "Estimated fetal weight / EFW on an ultrasound, in kg",
+    "amniotic_fluid_cm": "Amniotic fluid index / AFI on an ultrasound, in cm",
     "bp_systolic": "Systolic blood pressure, the upper number, in mmHg",
     "bp_diastolic": "Diastolic blood pressure, the lower number, in mmHg",
 }
@@ -173,6 +175,8 @@ _PLAUSIBLE_RANGES = {
     "tt4": (0, 400),
     "t4u": (0, 5),
     "fti": (0, 500),
+    "fetal_weight_kg": (0, 8),
+    "amniotic_fluid_cm": (0, 40),
     "bp_systolic": (60, 300),
     "bp_diastolic": (30, 200),
 }
