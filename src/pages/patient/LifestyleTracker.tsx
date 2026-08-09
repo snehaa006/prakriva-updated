@@ -65,7 +65,12 @@ import {
   type Exercise,
   type ExerciseIcon,
 } from "@/lib/exerciseRecommendations";
-import { isDemoModeAvailable } from "@/lib/demoMode";
+import {
+  isDemoDataOn,
+  isDemoModeAvailable,
+  isDemoRequestedByUrl,
+  setDemoDataOn,
+} from "@/lib/demoMode";
 import {
   buildDemoLogs,
   buildDemoMealTracking,
@@ -79,11 +84,8 @@ import {
   type MealTrackingDay,
 } from "@/lib/dietAdherence";
 import {
-  cacheLifestyleDay,
-  clearCachedLogs,
   loadLifestyleLogs,
   saveLifestyleDay,
-  writeCachedLogs,
 } from "@/services/lifestyleLogService";
 import { fetchMealTracking } from "@/services/mealAdherenceService";
 import {
@@ -159,10 +161,14 @@ const LifestyleTracker = () => {
   });
   const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
 
-  // Demo data is local-only and clearly flagged; see src/lib/demoMode.ts.
+  // Demo data is generated on the fly from a persisted flag — never written to
+  // Supabase, and never into the lifestyle-log cache either, so it cannot be
+  // mistaken for (or overwrite) the patient's own history. See lib/demoMode.ts.
   const demoAvailable = useMemo(() => isDemoModeAvailable(), []);
   const [isDemoData, setIsDemoData] = useState(false);
   const [demoMealTracking, setDemoMealTracking] = useState<MealTrackingDay[] | null>(null);
+  /** Real logs, parked while demo data is showing so Clear can restore them. */
+  const realLogs = useRef<LifestyleDayLog[]>([]);
 
   // Supabase mirroring is debounced so holding "+" on a water glass doesn't
   // fire an upsert per click; the localStorage cache is written synchronously
@@ -175,6 +181,22 @@ const LifestyleTracker = () => {
     },
     []
   );
+
+  /**
+   * Pick up demo mode from the persisted flag (or `?demo=1`).
+   *
+   * Runs again once the patient id resolves, and only ever switches demo *on* —
+   * turning it off is Clear's job alone, so a late-arriving id can't yank a
+   * demo out from under someone mid-walkthrough.
+   */
+  useEffect(() => {
+    if (isDemoRequestedByUrl()) {
+      setDemoDataOn(patientId, true);
+      setIsDemoData(true);
+    } else if (isDemoDataOn(patientId)) {
+      setIsDemoData(true);
+    }
+  }, [patientId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +214,10 @@ const LifestyleTracker = () => {
       try {
         const { logs: loaded, synced } = await loadLifestyleLogs(user.id);
         if (!cancelled) {
-          setLogs(loaded);
+          realLogs.current = loaded;
+          // Don't clobber a demo month with the real (probably empty) one; the
+          // regeneration effect owns `logs` while demo mode is on.
+          if (!isDemoDataOn(user.id) && !isDemoRequestedByUrl()) setLogs(loaded);
           setIsSynced(synced);
         }
       } catch (error) {
@@ -281,18 +306,16 @@ const LifestyleTracker = () => {
           a.date.localeCompare(b.date)
         );
 
-        if (patientId) {
-          if (isDemoData) {
-            // Never mirror fabricated data to Supabase — cache only.
-            cacheLifestyleDay(patientId, updated);
-          } else {
-            if (saveTimer.current) clearTimeout(saveTimer.current);
-            saveTimer.current = setTimeout(() => {
-              void saveLifestyleDay(patientId, updated).then((persisted) =>
-                setIsSynced(persisted)
-              );
-            }, 600);
-          }
+        // While demo data is showing, edits stay in memory: they are changes to
+        // a fabricated month, so persisting them anywhere would be writing
+        // fiction into her real history.
+        if (patientId && !isDemoData) {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(() => {
+            void saveLifestyleDay(patientId, updated).then((persisted) =>
+              setIsSynced(persisted)
+            );
+          }, 600);
         }
 
         return next;
@@ -306,32 +329,40 @@ const LifestyleTracker = () => {
     [conditions, isPregnant]
   );
 
-  /** Fill the tracker with a month of fabricated data, cache-only. */
-  const loadDemoData = useCallback(() => {
-    // Logged against her actual recommended exercises, so the demo month
-    // matches the plan she is being shown.
-    const demoLogs = buildDemoLogs(
-      recommendation.exercises.map((e) => e.id),
-      today
-    );
-    setLogs(demoLogs);
+  // Exercise ids as a stable string, so the regeneration effect below fires
+  // when the recommended plan actually changes rather than on every render.
+  const exerciseIdsKey = recommendation.exercises.map((e) => e.id).join(",");
+
+  /**
+   * Generate (or regenerate) the demo month whenever demo mode is on.
+   *
+   * Anchored to `today` and to her current recommended exercises, so it is
+   * always internally consistent: reopen the page a week later and the streaks
+   * still run up to today instead of trailing off into a stale gap.
+   */
+  useEffect(() => {
+    if (!isDemoData) return;
+    setLogs(buildDemoLogs(exerciseIdsKey ? exerciseIdsKey.split(",") : [], today));
     setDemoMealTracking(buildDemoMealTracking(today, calorieTarget.min));
-    setIsDemoData(true);
-    if (patientId) writeCachedLogs(patientId, demoLogs);
-  }, [recommendation.exercises, today, calorieTarget.min, patientId]);
+  }, [isDemoData, exerciseIdsKey, today, calorieTarget.min]);
+
+  const loadDemoData = useCallback(() => {
+    // No `patientId` guard: the toggle is clickable before auth resolves, and
+    // the flag helpers handle a null id by parking it under a pending key.
+    setDemoDataOn(patientId, true);
+    setIsDemoData(true); // the effect above fills in the month
+  }, [patientId]);
 
   const clearDemoData = useCallback(() => {
+    setDemoDataOn(patientId, false);
+    // Also clear the pre-auth key, so Clear sticks regardless of which one the
+    // demo was switched on under.
+    setDemoDataOn(null, false);
     setIsDemoData(false);
     setDemoMealTracking(null);
-    setLogs([]);
-    if (patientId) clearCachedLogs(patientId);
-    // Re-read whatever is really on the server.
-    if (patientId) {
-      void loadLifestyleLogs(patientId).then(({ logs: real, synced }) => {
-        setLogs(real);
-        setIsSynced(synced);
-      });
-    }
+    // Demo data never touched the cache or the server, so her real logs are
+    // exactly as they were — just put them back on screen.
+    setLogs(realLogs.current);
   }, [patientId]);
 
   const activityStreak = useMemo(() => currentStreak(activeDates(logs), today), [logs, today]);
@@ -439,19 +470,19 @@ const LifestyleTracker = () => {
             <span>
               {isDemoData ? (
                 <>
-                  <strong>Showing {DEMO_DAYS} days of demo data.</strong> None of this is
-                  real, and none of it is saved to the server — it lives in this browser
-                  only until you clear it.
+                  <strong>Sample data — showing {DEMO_DAYS} days of example logs.</strong>{" "}
+                  None of this is real and none of it is saved: your own logs are
+                  untouched underneath and come straight back when you clear it.
                 </>
               ) : (
-                <>Testing tools: load {DEMO_DAYS} days of fake data to see the streaks,
-                calendars and charts populated.</>
+                <>See it with data: load {DEMO_DAYS} days of sample logs to fill the
+                streaks, calendars, charts and diet summary.</>
               )}
             </span>
           </div>
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="outline" onClick={loadDemoData}>
-              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of demo data`}
+              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of sample data`}
             </Button>
             {isDemoData && (
               <Button
