@@ -15,6 +15,7 @@ import PatientLayout from "./components/layout/PatientLayout";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 import PatientDashboard from "./pages/patient/PatientDashboard";
 import MealLogging from "./pages/patient/MealLogging";
+import FoodCompatibility from "./pages/patient/FoodCompatibility";
 import SymptomTracking from "./pages/patient/SymptomTracking";
 import LifestyleTracker from "./pages/patient/LifestyleTracker";
 import SocialSupport from "./pages/patient/SocialSupport";
@@ -165,6 +166,7 @@ const AppRoutes = () => (
       >
         <Route path="dashboard" element={<PatientDashboard />} />
         <Route path="meal-logging" element={<MealLogging />} />
+        <Route path="food-compatibility" element={<FoodCompatibility />} />
         {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
         <Route path="health-check" element={<HealthRisks />} />
         <Route path="lifestyle-tracker" element={<LifestyleTracker />} />

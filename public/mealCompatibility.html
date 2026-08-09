@@ -1450,13 +1450,16 @@
         function createDetailedFemaleBody() {
             bodyGroup = new THREE.Group();
 
-            // Semi-transparent body mesh material (like x-ray effect)
+            // Semi-transparent body mesh material (like x-ray effect). Kept
+            // faint so the skeleton and organs read through it, as in a real
+            // x-ray plate.
             const bodyMat = new THREE.MeshPhongMaterial({
                 color: 0x22d3ee,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.07,
                 side: THREE.DoubleSide,
-                shininess: 30
+                shininess: 30,
+                depthWrite: false
             });
 
             // Wireframe overlay for structure
@@ -1634,6 +1637,109 @@
             bodyGroup.add(createLeg(-1));
             bodyGroup.add(createLeg(1));
 
+            // ===== SKELETON — the element that makes it read as an x-ray =====
+            const boneMat = new THREE.MeshPhongMaterial({
+                color: 0xbdf0ff,
+                transparent: true,
+                opacity: 0.9,
+                emissive: 0x2bd4ee,
+                emissiveIntensity: 0.55,
+                shininess: 80
+            });
+            const skeleton = new THREE.Group();
+
+            // Skull outline
+            const skull = new THREE.Mesh(
+                new THREE.SphereGeometry(0.2, 20, 16),
+                new THREE.MeshBasicMaterial({ color: 0x9fe8ff, wireframe: true, transparent: true, opacity: 0.5 })
+            );
+            skull.scale.set(0.88, 1.08, 0.92);
+            skull.position.y = 1.82;
+            skeleton.add(skull);
+
+            // Spine — stacked vertebrae from skull base down to the pelvis
+            for (let i = 0; i < 22; i++) {
+                const t = i / 21;
+                const vert = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.03 - t * 0.005, 8, 8),
+                    boneMat.clone()
+                );
+                vert.position.set(0, 1.58 - t * 1.06, -0.05 - t * 0.015);
+                skeleton.add(vert);
+            }
+
+            // Ribcage — stacked elliptical hoops forming a barrel (narrow top,
+            // widest at mid-chest, tapering toward the floating ribs)
+            const ribCount = 10;
+            for (let i = 0; i < ribCount; i++) {
+                const t = i / (ribCount - 1);
+                const y = 1.45 - t * 0.36;
+                const spread = Math.sin((t * 0.82 + 0.12) * Math.PI);
+                const rib = new THREE.Mesh(
+                    new THREE.TorusGeometry(1, 0.006, 6, 44),
+                    boneMat.clone()
+                );
+                rib.rotation.x = Math.PI / 2;
+                rib.scale.set(0.11 + spread * 0.06, 0.07 + spread * 0.045, 1);
+                rib.position.set(0, y, -0.005);
+                skeleton.add(rib);
+            }
+
+            // Sternum — front centre bar
+            const sternum = new THREE.Mesh(
+                new THREE.BoxGeometry(0.03, 0.28, 0.02),
+                boneMat.clone()
+            );
+            sternum.position.set(0, 1.3, 0.14);
+            skeleton.add(sternum);
+
+            // Clavicles
+            [-1, 1].forEach((s) => {
+                const clav = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.012, 0.012, 0.22, 8),
+                    boneMat.clone()
+                );
+                clav.rotation.z = Math.PI / 2;
+                clav.rotation.y = s * 0.25;
+                clav.position.set(s * 0.11, 1.47, 0.07);
+                skeleton.add(clav);
+            });
+
+            // Pelvis — tilted ring
+            const pelvisRing = new THREE.Mesh(
+                new THREE.TorusGeometry(0.18, 0.02, 8, 32),
+                boneMat.clone()
+            );
+            pelvisRing.rotation.x = Math.PI / 2.3;
+            pelvisRing.scale.set(1, 0.75, 1);
+            pelvisRing.position.set(0, 0.45, 0);
+            skeleton.add(pelvisRing);
+
+            // Long bones of the arms and legs
+            const makeBone = (len, r) =>
+                new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, len, 8), boneMat.clone());
+            [-1, 1].forEach((s) => {
+                const humerus = makeBone(0.36, 0.016);
+                humerus.position.set(s * 0.3, 1.28, 0);
+                humerus.rotation.z = s * 0.12;
+                skeleton.add(humerus);
+
+                const forearm = makeBone(0.34, 0.013);
+                forearm.position.set(s * 0.36, 0.92, 0);
+                forearm.rotation.z = s * 0.18;
+                skeleton.add(forearm);
+
+                const femur = makeBone(0.5, 0.02);
+                femur.position.set(s * 0.11, 0.28, 0);
+                skeleton.add(femur);
+
+                const tibia = makeBone(0.48, 0.016);
+                tibia.position.set(s * 0.11, -0.22, 0);
+                skeleton.add(tibia);
+            });
+
+            bodyGroup.add(skeleton);
+
             // INTERNAL ORGANS - glowing and interactive
             
             // BRAIN
@@ -1677,12 +1783,12 @@
             });
             
             const leftLung = new THREE.Mesh(lungGeo, lungMat.clone());
-            leftLung.position.set(-0.12, 1.25, 0.02);
+            leftLung.position.set(-0.13, 1.32, -0.01);
             leftLung.userData = { organ: 'lungs' };
             bodyGroup.add(leftLung);
-            
+
             const rightLung = new THREE.Mesh(lungGeo, lungMat.clone());
-            rightLung.position.set(0.12, 1.25, 0.02);
+            rightLung.position.set(0.13, 1.32, -0.01);
             rightLung.userData = { organ: 'lungs' };
             bodyGroup.add(rightLung);
             
@@ -1699,13 +1805,15 @@
                 emissiveIntensity: 0.5
             });
             const heart = new THREE.Mesh(heartGeo, heartMat);
-            heart.position.set(0.02, 1.2, 0.08);
+            // Slightly to the patient's left and forward, between the lungs.
+            heart.position.set(0.05, 1.24, 0.05);
             heart.userData = { organ: 'heart' };
             bodyGroup.add(heart);
             organs.heart = heart;
 
-            // LIVER
-            const liverGeo = new THREE.BoxGeometry(0.18, 0.14, 0.12);
+            // LIVER — patient's right upper abdomen, just under the ribs
+            // (viewer's left in this front-facing view). Larger, wedge-like.
+            const liverGeo = new THREE.BoxGeometry(0.22, 0.15, 0.13);
             const liverMat = new THREE.MeshPhongMaterial({
                 color: 0x92400e,
                 transparent: true,
@@ -1714,8 +1822,8 @@
                 emissiveIntensity: 0.3
             });
             const liver = new THREE.Mesh(liverGeo, liverMat);
-            liver.position.set(0.11, 1.0, 0.05);
-            liver.rotation.y = 0.2;
+            liver.position.set(-0.10, 1.08, 0.04);
+            liver.rotation.set(0, -0.3, 0.12);
             liver.userData = { organ: 'liver' };
             bodyGroup.add(liver);
             organs.liver = liver;
@@ -1731,19 +1839,22 @@
                 emissiveIntensity: 0.4
             });
             const stomach = new THREE.Mesh(stomachGeo, stomachMat);
-            stomach.position.set(-0.06, 0.95, 0.08);
+            // Patient's left upper abdomen, opposite the liver.
+            stomach.position.set(0.09, 1.06, 0.05);
             stomach.userData = { organ: 'stomach' };
             bodyGroup.add(stomach);
             organs.stomach = stomach;
 
             // INTESTINES - realistic curved tube
+            // Coiled through the lower abdomen, below the stomach/liver and
+            // above the pelvis.
             const intestineCurve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(-0.08, 0.78, 0.06),
-                new THREE.Vector3(0.1, 0.7, 0.09),
-                new THREE.Vector3(-0.07, 0.62, 0.07),
-                new THREE.Vector3(0.09, 0.54, 0.08),
-                new THREE.Vector3(-0.06, 0.46, 0.06),
-                new THREE.Vector3(0.07, 0.38, 0.07)
+                new THREE.Vector3(-0.09, 0.98, 0.05),
+                new THREE.Vector3(0.10, 0.90, 0.07),
+                new THREE.Vector3(-0.10, 0.82, 0.06),
+                new THREE.Vector3(0.10, 0.74, 0.07),
+                new THREE.Vector3(-0.08, 0.66, 0.05),
+                new THREE.Vector3(0.08, 0.60, 0.06)
             ]);
             const intestineGeo = new THREE.TubeGeometry(intestineCurve, 80, 0.035, 12, false);
             const intestineMat = new THREE.MeshPhongMaterial({

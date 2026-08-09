@@ -96,8 +96,11 @@ kitchen, and get a personalized diet plan.
   strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
-  standalone `mealCompatibility.html` visualisation (reachable at
-  `/mealCompatibility.html`; it is not a React route).
+  standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
+  viruddha ahara / incompatible-combination checker). It is served directly at
+  `/mealCompatibility.html`, and the patient **Food Compatibility** page
+  (`/patient/food-compatibility`, `src/pages/patient/FoodCompatibility.tsx`)
+  embeds it in an iframe so it is reachable from the patient sidebar.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
 
