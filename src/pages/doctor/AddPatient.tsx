@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { withDoctorTitle } from '@/services/doctorService';
 
 interface ConsultationRequest {
   id: string;
@@ -280,8 +281,8 @@ const ConsultationRequests: React.FC = () => {
         type: responseType === 'accept' ? 'consultation_accepted' : 'consultation_rejected',
         title: responseType === 'accept' ? 'Consultation Request Accepted!' : 'Consultation Request Update',
         message: responseType === 'accept'
-          ? `Dr. ${selectedRequest.doctorName} has accepted your consultation request! ${responseMessage ? `Message: ${responseMessage}` : ''}`
-          : `Dr. ${selectedRequest.doctorName} is currently unavailable. ${responseMessage ? `Reason: ${responseMessage}` : ''}`,
+          ? `${withDoctorTitle(selectedRequest.doctorName)} has accepted your consultation request! ${responseMessage ? `Message: ${responseMessage}` : ''}`
+          : `${withDoctorTitle(selectedRequest.doctorName)} is currently unavailable. ${responseMessage ? `Reason: ${responseMessage}` : ''}`,
         doctor_id: selectedRequest.doctorId,
         doctor_name: selectedRequest.doctorName,
         request_id: selectedRequest.id,
