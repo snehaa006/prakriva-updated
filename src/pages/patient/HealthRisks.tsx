@@ -19,6 +19,7 @@ import {
   computeBmi,
   DiabetesRiskFactorsSection,
   MaternalVitalsSection,
+  ThyroidSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -194,6 +195,7 @@ const HealthRisks: React.FC = () => {
         "anaemia",
         "pregnancy_risk",
         "gdm",
+        "thyroid",
       ]);
       setResult(screening);
       setActiveTab("results");
@@ -325,7 +327,7 @@ const HealthRisks: React.FC = () => {
         </h1>
         <p className="text-muted-foreground">
           Enter your latest antenatal details to check your anaemia, pregnancy
-          risk and gestational diabetes analysis.
+          risk, gestational diabetes and thyroid analysis.
         </p>
       </div>
 
@@ -375,6 +377,18 @@ const HealthRisks: React.FC = () => {
             </CardHeader>
             <CardContent>
               <BloodResultsSection form={form} update={update} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Thyroid</CardTitle>
+              <CardDescription>
+                Optional — your thyroid blood results and history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ThyroidSection form={form} update={update} />
             </CardContent>
           </Card>
 

@@ -66,6 +66,22 @@ export interface ScreeningInput {
   smoking: boolean;
   alcohol: boolean;
 
+  // Thyroid history — inputs to the thyroid model. "query_*" means a clinician
+  // raised the possibility without it being confirmed.
+  on_thyroxine: boolean;
+  query_on_thyroxine: boolean;
+  on_antithyroid_medication: boolean;
+  currently_unwell: boolean;
+  thyroid_surgery: boolean;
+  i131_treatment: boolean;
+  query_hypothyroid: boolean;
+  query_hyperthyroid: boolean;
+  lithium: boolean;
+  goitre: boolean;
+  thyroid_tumour: boolean;
+  hypopituitary: boolean;
+  psych_history: boolean;
+
   // Symptoms / signs
   symptoms: SymptomKey[];
   weight_gain: boolean;
@@ -95,7 +111,12 @@ export interface ScreeningInput {
   urine_nitrite: Ternary;
   tsh?: number | null;
   t3?: number | null;
+  /** Free T4 (ng/dL) — used by the rule-based scorer. */
   t4?: number | null;
+  /** Total T4 (ug/dL) — a different assay from `t4`, used by the thyroid model. */
+  tt4?: number | null;
+  t4u?: number | null;
+  fti?: number | null;
 }
 
 export interface ConditionRisk {

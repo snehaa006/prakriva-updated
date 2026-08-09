@@ -374,6 +374,71 @@ class TestMLDetectors:
 
         assert gdm.detector == "rules-v1"
 
+    def test_thyroid_model_is_active(self):
+        from disease_detection import available_conditions
+
+        active = {c["condition"]: c["detector"] for c in available_conditions()}
+        assert active["thyroid"] == "thyroid-nn-v1"
+
+    def test_thyroid_separates_high_from_low_risk(self, healthy_input):
+        low = healthy_input.model_copy(
+            update={"tsh": 1.8, "t3": 2.1, "tt4": 105, "t4u": 0.99, "fti": 108}
+        )
+        high = healthy_input.model_copy(
+            update={
+                "tsh": 14.2,
+                "t3": 0.8,
+                "tt4": 52,
+                "t4u": 0.78,
+                "fti": 60,
+                "query_hypothyroid": True,
+                "goitre": True,
+                "on_thyroxine": True,
+            }
+        )
+        low_risk = next(
+            c for c in run_screening(low).conditions if c.condition == "thyroid"
+        )
+        high_risk = next(
+            c for c in run_screening(high).conditions if c.condition == "thyroid"
+        )
+
+        assert high_risk.score > low_risk.score
+        assert high_risk.risk_level == RiskLevel.HIGH
+        assert low_risk.risk_level == RiskLevel.LOW
+
+    def test_thyroid_without_tsh_falls_back_to_rules(self, healthy_input):
+        inputs = healthy_input.model_copy(update={"tsh": None})
+        thyroid = next(
+            c for c in run_screening(inputs).conditions if c.condition == "thyroid"
+        )
+
+        assert thyroid.detector == "rules-v1"
+
+    def test_thyroid_flags_imputed_labs(self, healthy_input):
+        only_tsh = healthy_input.model_copy(
+            update={"tsh": 2.0, "t3": None, "tt4": None, "t4u": None, "fti": None}
+        )
+        thyroid = next(
+            c for c in run_screening(only_tsh).conditions if c.condition == "thyroid"
+        )
+
+        assert set(thyroid.details["imputed_labs"]) == {"T3", "TT4", "T4U", "FTI"}
+        assert any("Estimated without" in r for r in thyroid.reasons)
+
+    def test_free_t4_is_not_fed_to_the_model_as_total_t4(self, healthy_input):
+        """`t4` (free T4, ~1.2) and `tt4` (total T4, ~103) are different assays.
+
+        Feeding free T4 in as TT4 would read as catastrophically low and drive
+        the score up, so setting only `t4` must leave the model's TT4 imputed.
+        """
+        free_t4_only = healthy_input.model_copy(update={"tsh": 2.0, "t4": 1.2})
+        thyroid = next(
+            c for c in run_screening(free_t4_only).conditions if c.condition == "thyroid"
+        )
+
+        assert "TT4" in thyroid.details["imputed_labs"]
+
 
 class TestEndpoints:
     def test_conditions_endpoint(self, client):
