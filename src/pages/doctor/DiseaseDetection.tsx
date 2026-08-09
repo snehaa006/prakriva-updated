@@ -357,17 +357,23 @@ const DiseaseDetection: React.FC = () => {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-        {/* Patient picker */}
-        <Card className="h-fit">
+      {/*
+        Patient selection takes the full width as a browsable list until a
+        patient is chosen, then collapses to a horizontal strip above the
+        analysis. A fixed sidebar would squeeze the charts into a narrow column
+        and leave the doctor scrolling for everything below the fold.
+      */}
+      {!selectedPatient ? (
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg">Pregnant Patients</CardTitle>
             <CardDescription>
               Patients you have accepted whose questionnaire marks them pregnant.
+              Pick one to see her screening trends and detected risks.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="relative">
+          <CardContent className="space-y-4">
+            <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 value={searchTerm}
@@ -389,17 +395,13 @@ const DiseaseDetection: React.FC = () => {
                   : "No patients match your search."}
               </div>
             ) : (
-              <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {filteredPatients.map((patient) => (
                   <button
                     key={patient.patientId}
                     type="button"
                     onClick={() => selectPatient(patient)}
-                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                      patient.patientId === selectedPatientId
-                        ? "border-primary bg-primary/5"
-                        : "hover:bg-muted/50"
-                    }`}
+                    className="text-left rounded-lg border p-3 transition-colors hover:border-primary hover:bg-primary/5"
                   >
                     <p className="font-medium truncate">{patient.name}</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -413,20 +415,35 @@ const DiseaseDetection: React.FC = () => {
             )}
           </CardContent>
         </Card>
+      ) : (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {patients.map((patient) => (
+            <button
+              key={patient.patientId}
+              type="button"
+              onClick={() => selectPatient(patient)}
+              className={`shrink-0 rounded-full border px-4 py-2 text-sm transition-colors ${
+                patient.patientId === selectedPatientId
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "hover:bg-muted/50"
+              }`}
+            >
+              <span className="font-medium">{patient.name}</span>
+              <span
+                className={`ml-2 text-xs ${
+                  patient.patientId === selectedPatientId
+                    ? "text-primary-foreground/70"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {patient.patientCode ?? ""}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {/* Analysis workspace */}
-        {!selectedPatient ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <ClipboardList className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <h3 className="text-xl font-semibold mb-2">Select a patient</h3>
-              <p className="text-muted-foreground">
-                Pick a pregnant patient to see her screening trends and detected
-                risks.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
+      {selectedPatient && (
           <div className="space-y-6">
             {/* Header + range selector */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -781,8 +798,7 @@ const DiseaseDetection: React.FC = () => {
               </>
             )}
           </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
