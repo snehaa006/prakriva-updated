@@ -28,6 +28,14 @@ from .schemas import (
     SYMPTOMS,
 )
 
+# Swap the trained anaemia + pregnancy-risk models in for their rule-based
+# baselines when their artifacts are available. This is a no-op (and logs a
+# warning) if the models or XGBoost are missing, so the rule-based pipeline
+# keeps working either way.
+from .ml import register_ml_detectors
+
+register_ml_detectors()
+
 __all__ = [
     "CONDITIONS",
     "SYMPTOMS",

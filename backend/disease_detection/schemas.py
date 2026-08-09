@@ -35,6 +35,7 @@ class TrimesterEnum(str, Enum):
 #: Condition keys the pipeline screens for, with display labels for the UI.
 CONDITIONS: Dict[str, str] = {
     "anaemia": "Anaemia",
+    "pregnancy_risk": "Pregnancy Risk",
     "gdm": "Gestational Diabetes",
     "preeclampsia": "Preeclampsia",
     "uti": "Urinary Tract Infection",
@@ -78,7 +79,13 @@ class ScreeningInput(BaseModel):
     # --- Basic information -------------------------------------------------
     age: int = Field(..., ge=10, le=60, description="Maternal age in years")
     trimester: TrimesterEnum = TrimesterEnum.UNKNOWN
+    gestational_week: Optional[int] = Field(
+        None, ge=0, le=45, description="Weeks of gestation"
+    )
     bmi: Optional[float] = Field(None, ge=10, le=60)
+    iron_supplement: bool = Field(
+        False, description="Currently taking iron supplements"
+    )
     gravida: int = Field(0, ge=0, le=20, description="Number of pregnancies")
     parity: int = Field(0, ge=0, le=20, description="Number of births")
     bp_systolic: Optional[int] = Field(None, ge=60, le=300)
@@ -93,6 +100,9 @@ class ScreeningInput(BaseModel):
     previous_complications: bool = False
     previous_uti: bool = False
     gestational_diabetes_previous: bool = False
+    known_prediabetes: bool = Field(
+        False, description="Previously told she has prediabetes"
+    )
     unexplained_prenatal_loss: bool = False
     large_baby_previous: bool = False
     history_depression: bool = False
@@ -123,6 +133,11 @@ class ScreeningInput(BaseModel):
     hemoglobin: Optional[float] = Field(None, ge=0, le=25, description="g/dL")
     hba1c: Optional[float] = Field(None, ge=0, le=20, description="%")
     ogtt_1hr: Optional[float] = Field(None, ge=0, le=500, description="mg/dL")
+    # Lipids — used by the GDM early-screening model (ml/gdm_featurize.py).
+    hdl: Optional[float] = Field(None, ge=0, le=200, description="HDL, mg/dL")
+    triglycerides: Optional[float] = Field(
+        None, ge=0, le=2000, description="Triglycerides, mg/dL"
+    )
     urine_wbc: Optional[int] = Field(None, ge=0, le=5000)
     urine_nitrite: TernaryEnum = TernaryEnum.UNKNOWN
     tsh: Optional[float] = Field(None, ge=0, le=100, description="mIU/L")

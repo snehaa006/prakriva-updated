@@ -1,0 +1,132 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+
+/**
+ * A patient the signed-in doctor is allowed to work with.
+ *
+ * `id` is the auth/`patients.id` UUID — the value every table (diet_plans,
+ * patient_pantry_items, …) keys on. `code` is the human-facing P001-style
+ * `patients.patient_code`. Mixing the two up is what made saved plans fail, so
+ * anything that talks to the database must use `id`, and only ever show `code`.
+ */
+export interface DoctorPatient {
+  id: string;
+  code: string;
+  name: string;
+  email: string;
+  requestStatus: string;
+  /** Questionnaire/consultation payload, merged for diet-chart generation. */
+  profile: Record<string, unknown>;
+}
+
+/** The statuses `public.doctor_treats()` accepts — i.e. patients the doctor can write for. */
+export const TREATED_STATUSES = ["pending", "accepted", "completed"] as const;
+
+interface UseDoctorPatientsOptions {
+  /** Restrict to certain consultation statuses. Defaults to every treated status. */
+  statuses?: readonly string[];
+  enabled?: boolean;
+}
+
+interface ConsultationRow {
+  patient_id: string;
+  patient_name: string | null;
+  patient_email: string | null;
+  status: string;
+  requested_at: string;
+  full_patient_profile: Record<string, unknown> | null;
+  patients: {
+    patient_code: string | null;
+    name: string | null;
+    email: string | null;
+    assessment_data: Record<string, unknown> | null;
+  } | null;
+}
+
+export const doctorPatientsQueryKey = (
+  doctorId: string | undefined,
+  statuses: readonly string[]
+) => ["doctor-patients", doctorId ?? "anonymous", [...statuses].sort().join(",")];
+
+export async function fetchDoctorPatients(
+  doctorId: string,
+  statuses: readonly string[]
+): Promise<DoctorPatient[]> {
+  const { data, error } = await supabase
+    .from("consultation_requests")
+    .select(
+      `patient_id, patient_name, patient_email, status, requested_at, full_patient_profile,
+       patients ( patient_code, name, email, assessment_data )`
+    )
+    .eq("doctor_id", doctorId)
+    .in("status", [...statuses])
+    .order("requested_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  // A doctor can have several requests from the same patient; keep the newest.
+  const byPatient = new Map<string, DoctorPatient>();
+
+  for (const row of (data ?? []) as unknown as ConsultationRow[]) {
+    if (!row.patient_id || byPatient.has(row.patient_id)) continue;
+
+    const record = row.patients;
+    const assessment = record?.assessment_data ?? {};
+    const profile: Record<string, unknown> = {
+      ...(row.full_patient_profile ?? {}),
+      ...assessment,
+      assessmentData: assessment,
+      patientId: record?.patient_code ?? row.patient_id,
+      name: record?.name || row.patient_name || "Unknown",
+    };
+
+    byPatient.set(row.patient_id, {
+      id: row.patient_id,
+      code: record?.patient_code ?? row.patient_id,
+      name: record?.name || row.patient_name || "Unknown",
+      email: record?.email || row.patient_email || "",
+      requestStatus: row.status,
+      profile,
+    });
+  }
+
+  return [...byPatient.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The signed-in doctor's own patients. Cached by react-query so navigating
+ * between pages (or coming back after a refresh within the stale window) does
+ * not re-hit Supabase.
+ */
+export function useDoctorPatients(options: UseDoctorPatientsOptions = {}) {
+  const { statuses = TREATED_STATUSES, enabled = true } = options;
+
+  const sessionQuery = useQuery({
+    queryKey: ["auth-user-id"],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      return data.user?.id ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const doctorId = sessionQuery.data ?? undefined;
+
+  const patientsQuery = useQuery({
+    queryKey: doctorPatientsQueryKey(doctorId, statuses),
+    queryFn: () => fetchDoctorPatients(doctorId as string, statuses),
+    enabled: enabled && !!doctorId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    doctorId,
+    patients: patientsQuery.data ?? [],
+    isLoading: sessionQuery.isLoading || patientsQuery.isLoading,
+    isFetching: patientsQuery.isFetching,
+    error: patientsQuery.error as Error | null,
+    refetch: patientsQuery.refetch,
+  };
+}
+
+export default useDoctorPatients;

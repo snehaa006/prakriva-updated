@@ -731,10 +731,23 @@ export async function getRecipesByIngredientsCategoriesTitle(
   searchParams.set("page", String(params.page || 1));
   searchParams.set("limit", String(params.limit || 12));
   const url = `${BASE_URL}/recipebyingredient/by-ingredients-categories-title?${searchParams}`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: RecipeBasic[] };
-  }>(url);
-  return data.payload.data;
+
+  try {
+    const data = await apiFetch<{
+      success: string;
+      message: string;
+      payload: { data: RecipeBasic[] };
+    }>(url);
+    return data.payload.data;
+  } catch (err) {
+    // This endpoint answers 404 when no recipe contains every requested
+    // ingredient — a normal outcome of a narrow filter, not a failure. Report
+    // it as "no matches" so the UI shows its empty state rather than a red
+    // "Failed to load recipes" card.
+    if (err instanceof FoodoscopeApiError && err.status === 404) {
+      console.warn("No recipes matched the ingredient filter:", url);
+      return [];
+    }
+    throw err;
+  }
 }

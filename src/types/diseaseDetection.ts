@@ -10,6 +10,7 @@ export type Trimester = "first" | "second" | "third" | "unknown";
 
 export type ConditionKey =
   | "anaemia"
+  | "pregnancy_risk"
   | "gdm"
   | "preeclampsia"
   | "uti"
@@ -41,7 +42,9 @@ export interface ScreeningInput {
   // Basic information
   age: number;
   trimester: Trimester;
+  gestational_week?: number | null;
   bmi?: number | null;
+  iron_supplement: boolean;
   gravida: number;
   parity: number;
   bp_systolic?: number | null;
@@ -56,6 +59,7 @@ export interface ScreeningInput {
   previous_complications: boolean;
   previous_uti: boolean;
   gestational_diabetes_previous: boolean;
+  known_prediabetes: boolean;
   unexplained_prenatal_loss: boolean;
   large_baby_previous: boolean;
   history_depression: boolean;
@@ -84,6 +88,9 @@ export interface ScreeningInput {
   hemoglobin?: number | null;
   hba1c?: number | null;
   ogtt_1hr?: number | null;
+  /** Lipids — used by the GDM early-screening model. */
+  hdl?: number | null;
+  triglycerides?: number | null;
   urine_wbc?: number | null;
   urine_nitrite: Ternary;
   tsh?: number | null;
@@ -126,6 +133,7 @@ export interface StoredScreening {
 
 export const CONDITION_LABELS: Record<ConditionKey, string> = {
   anaemia: "Anaemia",
+  pregnancy_risk: "Pregnancy Risk",
   gdm: "Gestational Diabetes",
   preeclampsia: "Preeclampsia",
   uti: "Urinary Tract Infection",

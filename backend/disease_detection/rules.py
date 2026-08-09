@@ -464,9 +464,75 @@ def detect_mental_health(inputs: ScreeningInput) -> ConditionRisk:
     return _build("mental_health", score, reasons)
 
 
+def detect_pregnancy_risk(inputs: ScreeningInput) -> ConditionRisk:
+    """Overall pregnancy risk from the same drivers the ML model uses.
+
+    This is the rule-based baseline: the trained XGBoost model
+    (`ml/detectors.py`) replaces it when its artifacts are available, and it is
+    the fallback the ML detector defers to when haemoglobin or blood pressure is
+    missing. Risk emerges from anaemia severity, blood pressure, maternal age
+    and BMI together.
+    """
+    score = 0.0
+    reasons: List[str] = []
+
+    hb = inputs.hemoglobin
+    if hb is not None and hb > 0:
+        if hb < 7:
+            score += 40
+            reasons.append(f"Severe anaemia (Hb {hb:.1f} g/dL)")
+        elif hb < 10:
+            score += 30
+            reasons.append(f"Moderate anaemia (Hb {hb:.1f} g/dL)")
+        elif hb < 11:
+            score += 18
+            reasons.append(f"Mild anaemia (Hb {hb:.1f} g/dL)")
+
+    sys_bp, dia_bp = _blood_pressure(inputs)
+    if sys_bp is not None and dia_bp is not None:
+        if sys_bp >= 160 or dia_bp >= 110:
+            score += 30
+            reasons.append(f"Severe hypertension ({sys_bp}/{dia_bp})")
+        elif sys_bp >= 140 or dia_bp >= 90:
+            score += 20
+            reasons.append(f"Hypertension ({sys_bp}/{dia_bp})")
+        elif sys_bp >= 130 or dia_bp >= 85:
+            score += 10
+            reasons.append(f"Elevated blood pressure ({sys_bp}/{dia_bp})")
+
+    if inputs.age >= 40:
+        score += 15
+        reasons.append(f"Advanced maternal age ({inputs.age})")
+    elif inputs.age >= 35:
+        score += 8
+        reasons.append(f"Maternal age {inputs.age}")
+    elif inputs.age < 18:
+        score += 12
+        reasons.append(f"Young maternal age ({inputs.age})")
+
+    bmi = inputs.bmi
+    if bmi is not None:
+        if bmi >= 35:
+            score += 15
+            reasons.append(f"Obesity (BMI {bmi:.1f})")
+        elif bmi >= 30:
+            score += 8
+            reasons.append(f"High BMI ({bmi:.1f})")
+        elif bmi < 18.5:
+            score += 8
+            reasons.append(f"Low BMI ({bmi:.1f})")
+
+    if inputs.previous_complications:
+        score += 10
+        reasons.append("Previous pregnancy complications")
+
+    return _build("pregnancy_risk", score, reasons)
+
+
 #: Condition key -> baseline detector, in the order results are returned.
 BASELINE_DETECTORS = {
     "anaemia": detect_anaemia,
+    "pregnancy_risk": detect_pregnancy_risk,
     "gdm": detect_gdm,
     "preeclampsia": detect_preeclampsia,
     "uti": detect_uti,

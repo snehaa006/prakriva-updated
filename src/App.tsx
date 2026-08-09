@@ -26,18 +26,30 @@ import TeamManagement from "./pages/doctor/TeamManagement";
 import FoodExplorer from "./pages/doctor/FoodExplorer";
 import RecipeBuilder from "./pages/doctor/RecipeBuilder";
 import DietChart from "./pages/doctor/DietChart";
-import PersonalizedDietChart from "./pages/doctor/PersonalizedDietChart";
 import DiseaseDetection from "./pages/doctor/DiseaseDetection";
 import HealthRisks from "./pages/patient/HealthRisks";
 import NotFound from "./pages/NotFound";
 import Questionnaire from "./pages/patient/Questionnaire";
 import PatientProfile from "./pages/patient/PatientProfile";
 import Reminders from "./pages/patient/Reminders";
+import Pantry from "./pages/patient/Pantry";
 import Settings from "./pages/patient/Settings";
 import DoctorProfile from "./pages/doctor/DoctorProfile";
 import ConsultDoctor from "./components/ConsultDoctor";
 
-const queryClient = new QueryClient();
+// Shared cache for every `useQuery` in the app. The defaults matter: without
+// them React Query refetches on every mount and window focus, which is what
+// made lists appear to "reset" when moving between pages.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // --- Loading Component ---
 const LoadingScreen = ({ message = "Loading..." }: { message?: string }) => (
@@ -122,7 +134,7 @@ const AppRoutes = () => (
       <Route path="food-explorer" element={<FoodExplorer />} />
       <Route path="recipes" element={<RecipeBuilder />} />
       <Route path="diet-charts" element={<DietChart />} />
-      <Route path="personalized-diet" element={<PersonalizedDietChart />} />
+      <Route path="personalized-diet" element={<Navigate to="/doctor/recipes" replace />} />
       <Route path="profile" element={<DoctorProfile />} />
       <Route path="consult-doctor" element={<ConsultDoctor />} />
       <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
@@ -160,7 +172,8 @@ const AppRoutes = () => (
         <Route path="meal-plan" element={<div className="p-6">Meal Plan - Coming Soon</div>} />
         <Route path="progress" element={<div className="p-6">Progress Tracking - Coming Soon</div>} />
         <Route path="wellness" element={<div className="p-6">Wellness Tips - Coming Soon</div>} />
-        <Route path="shopping" element={<div className="p-6">Shopping List - Coming Soon</div>} />
+        <Route path="pantry" element={<Pantry />} />
+        <Route path="shopping" element={<Navigate to="/patient/pantry" replace />} />
         <Route path="appointments" element={<AppointmentScheduler/>} />
         <Route path="reminders" element={<Reminders />} />
         <Route path="profile" element={<PatientProfile />} />

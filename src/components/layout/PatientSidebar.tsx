@@ -52,6 +52,11 @@ const navigationItems = [
     icon: ChefHat,
   },
   {
+    title: "My Kitchen",
+    url: "/patient/pantry",
+    icon: ShoppingCart,
+  },
+  {
     title: "Health Check",
     url: "/patient/health-check",
     icon: HeartPulse,
@@ -60,11 +65,6 @@ const navigationItems = [
   //   title: "Symptom Tracking",
   //   url: "/patient/symptom-tracking",
   //   icon: Activity,
-  // },
-  // {
-  //   title: "Lifestyle Tracker",
-  //   url: "/patient/lifestyle-tracker",
-  //   icon: Heart,
   // },
   {
     title: "Social Support",
@@ -75,6 +75,11 @@ const navigationItems = [
     title: "Reminders",
     url: "/patient/reminders",
     icon: Bell,
+  },
+  {
+    title: "Tracker",
+    url: "/patient/lifestyle-tracker",
+    icon: Heart,
   },
 ];
 

@@ -41,6 +41,13 @@ numpy==2.3.3
 scikit-learn==1.7.2
 joblib==1.5.2
 
+# XGBoost — the maternal anaemia / pregnancy-risk models in
+# disease_detection/ml. These are stored in XGBoost's native JSON format
+# (anemia_status_xgb.json, pregnancy_risk_xgb.json), which loads across XGBoost
+# versions, so this pin can be bumped without retraining. If a model fails to
+# load, the pipeline falls back to its rule-based baseline detectors.
+xgboost==3.2.0
+
 # OpenAI
 openai==1.108.1
 

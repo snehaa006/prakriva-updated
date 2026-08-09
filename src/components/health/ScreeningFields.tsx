@@ -21,6 +21,7 @@ import {
   SYMPTOM_LABELS,
   SymptomKey,
 } from "@/types/diseaseDetection";
+import { MEASUREMENT_RANGES, type FieldRange } from "@/lib/screeningValidation";
 
 /** Applies one field change to the screening form. */
 export type UpdateField = <K extends keyof ScreeningInput>(
@@ -48,7 +49,14 @@ export const BoolField: React.FC<{
   </div>
 );
 
-/** Numeric input that keeps "not measured" distinct from zero. */
+/**
+ * Numeric input that keeps "not measured" distinct from zero.
+ *
+ * Pass `range` for a measurement with known clinical bounds: it constrains the
+ * native number input and flags an out-of-range value inline, so a typo like
+ * 119 g/dL of haemoglobin is caught here rather than coming back as a raw
+ * backend validation error.
+ */
 export const NumberField: React.FC<{
   id: string;
   label: string;
@@ -56,21 +64,48 @@ export const NumberField: React.FC<{
   onChange: (value: number | null) => void;
   step?: string;
   placeholder?: string;
-}> = ({ id, label, value, onChange, step = "1", placeholder = "Not measured" }) => (
-  <div className="space-y-1">
-    <Label htmlFor={id} className="text-xs text-muted-foreground">
-      {label}
-    </Label>
-    <Input
-      id={id}
-      type="number"
-      step={step}
-      placeholder={placeholder}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-    />
-  </div>
-);
+  range?: FieldRange;
+}> = ({
+  id,
+  label,
+  value,
+  onChange,
+  step = "1",
+  placeholder = "Not measured",
+  range,
+}) => {
+  const invalid =
+    range != null &&
+    value != null &&
+    !Number.isNaN(value) &&
+    (value < range.min || value > range.max);
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        step={step}
+        min={range?.min}
+        max={range?.max}
+        placeholder={placeholder}
+        value={value ?? ""}
+        aria-invalid={invalid || undefined}
+        className={invalid ? "border-destructive focus-visible:ring-destructive" : undefined}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      />
+      {invalid && (
+        <p className="text-xs text-destructive">
+          Enter a value between {range.min} and {range.max}
+          {range.unit ? ` ${range.unit}` : ""}.
+        </p>
+      )}
+    </div>
+  );
+};
 
 /** Slider bound to one of the mental-health scales. */
 export const ScaleField: React.FC<{
@@ -133,6 +168,13 @@ export const BasicsSection: React.FC<
       </Select>
     </div>
     <NumberField
+      id="gestational_week"
+      label="Weeks pregnant"
+      value={form.gestational_week}
+      onChange={(v) => update("gestational_week", v)}
+      placeholder="e.g. 24"
+    />
+    <NumberField
       id="gravida"
       label="Pregnancies so far"
       value={form.gravida}
@@ -171,6 +213,198 @@ export const BasicsSection: React.FC<
         />
       </>
     )}
+  </div>
+);
+
+/** BMI from height (cm) and weight (kg), rounded to one decimal, or null. */
+export const computeBmi = (
+  heightCm: number | null,
+  weightKg: number | null
+): number | null => {
+  if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) return null;
+  const metres = heightCm / 100;
+  return Math.round((weightKg / (metres * metres)) * 10) / 10;
+};
+
+/**
+ * The measurements a patient can report at each health check — weight (turned
+ * into BMI with the height captured at onboarding), haemoglobin and blood
+ * pressure. These feed the maternal anaemia / pregnancy-risk model.
+ */
+export const MaternalVitalsSection: React.FC<{
+  form: ScreeningInput;
+  update: UpdateField;
+  weightKg: number | null;
+  onWeightKg: (value: number | null) => void;
+  heightCm: number | null;
+}> = ({ form, update, weightKg, onWeightKg, heightCm }) => {
+  const bmi = computeBmi(heightCm, weightKg);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <NumberField
+          id="gestational_week"
+          label="Weeks pregnant"
+          value={form.gestational_week}
+          onChange={(v) => update("gestational_week", v)}
+          placeholder="e.g. 24"
+          range={MEASUREMENT_RANGES.gestational_week}
+        />
+        <NumberField
+          id="weight_kg"
+          label="Weight (kg)"
+          step="0.1"
+          value={weightKg}
+          onChange={onWeightKg}
+          placeholder="e.g. 62"
+          range={{ label: "Weight", min: 30, max: 250, unit: "kg" }}
+        />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">BMI (calculated)</Label>
+          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm">
+            {bmi !== null ? (
+              bmi
+            ) : (
+              <span className="text-muted-foreground">
+                {heightCm ? "Enter weight" : "Add height in your questionnaire"}
+              </span>
+            )}
+          </div>
+        </div>
+        <NumberField
+          id="hemoglobin"
+          label="Haemoglobin (g/dL)"
+          step="0.1"
+          value={form.hemoglobin}
+          onChange={(v) => update("hemoglobin", v)}
+          placeholder="e.g. 11.5"
+          range={MEASUREMENT_RANGES.hemoglobin}
+        />
+        <NumberField
+          id="bp_systolic"
+          label="Systolic BP (mmHg)"
+          value={form.bp_systolic}
+          onChange={(v) => update("bp_systolic", v)}
+          placeholder="e.g. 118"
+          range={MEASUREMENT_RANGES.bp_systolic}
+        />
+        <NumberField
+          id="bp_diastolic"
+          label="Diastolic BP (mmHg)"
+          value={form.bp_diastolic}
+          onChange={(v) => update("bp_diastolic", v)}
+          placeholder="e.g. 76"
+          range={MEASUREMENT_RANGES.bp_diastolic}
+        />
+      </div>
+      <BoolField
+        id="iron_supplement"
+        label="Currently taking iron supplements"
+        checked={form.iron_supplement}
+        onChange={(v) => update("iron_supplement", v)}
+      />
+      <p className="text-xs text-muted-foreground">
+        Enter the most recent readings from your antenatal check-up. Leave a field
+        blank if you do not have it — the check still runs on what you provide.
+      </p>
+    </div>
+  );
+};
+
+/**
+ * Blood-test values from a recent antenatal panel, feeding the gestational
+ * diabetes model. All optional — a missing value is filled with the population
+ * median and the result says so, rather than blocking the check.
+ */
+export const BloodResultsSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <NumberField
+        id="hba1c"
+        label="HbA1c (%)"
+        step="0.1"
+        value={form.hba1c}
+        onChange={(v) => update("hba1c", v)}
+        placeholder="e.g. 5.2"
+      />
+      <NumberField
+        id="hdl"
+        label="HDL cholesterol (mg/dL)"
+        value={form.hdl}
+        onChange={(v) => update("hdl", v)}
+        placeholder="e.g. 55"
+        range={MEASUREMENT_RANGES.hdl}
+      />
+      <NumberField
+        id="triglycerides"
+        label="Triglycerides (mg/dL)"
+        value={form.triglycerides}
+        onChange={(v) => update("triglycerides", v)}
+        placeholder="e.g. 150"
+        range={MEASUREMENT_RANGES.triglycerides}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      From your most recent blood test report. Leave blank if you do not have
+      them — your diabetes risk is still estimated from everything else.
+    </p>
+  </div>
+);
+
+/**
+ * The history questions the gestational diabetes model uses. Each one is a
+ * model input, not a general questionnaire item. Some arrive pre-ticked from
+ * the onboarding questionnaire; the patient can correct them here.
+ */
+export const DiabetesRiskFactorsSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <BoolField
+        id="patient_prior_gdm"
+        label="Gestational diabetes in a previous pregnancy"
+        checked={form.gestational_diabetes_previous}
+        onChange={(v) => update("gestational_diabetes_previous", v)}
+      />
+      <BoolField
+        id="patient_known_prediabetes"
+        label="Told you have prediabetes"
+        checked={form.known_prediabetes}
+        onChange={(v) => update("known_prediabetes", v)}
+      />
+      <BoolField
+        id="patient_family_history"
+        label="Diabetes runs in your family"
+        checked={form.family_history}
+        onChange={(v) => update("family_history", v)}
+      />
+      <BoolField
+        id="patient_pcos"
+        label="PCOS"
+        checked={form.pcos}
+        onChange={(v) => update("pcos", v)}
+      />
+      <BoolField
+        id="patient_large_baby"
+        label="A previous baby weighed over 4 kg"
+        checked={form.large_baby_previous}
+        onChange={(v) => update("large_baby_previous", v)}
+      />
+      <BoolField
+        id="patient_unexplained_loss"
+        label="An unexplained pregnancy loss"
+        checked={form.unexplained_prenatal_loss}
+        onChange={(v) => update("unexplained_prenatal_loss", v)}
+      />
+      <BoolField
+        id="patient_sedentary"
+        label="Mostly inactive day to day"
+        checked={form.sedentary_lifestyle}
+        onChange={(v) => update("sedentary_lifestyle", v)}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      Leave anything unticked that does not apply to you.
+    </p>
   </div>
 );
 
@@ -268,6 +502,12 @@ export const HistorySection: React.FC<SectionProps> = ({ form, update }) => (
       onChange={(v) => update("anaemia_history", v)}
     />
     <BoolField
+      id="iron_supplement"
+      label="Currently taking iron supplements"
+      checked={form.iron_supplement}
+      onChange={(v) => update("iron_supplement", v)}
+    />
+    <BoolField
       id="previous_uti"
       label="Previous urine infection"
       checked={form.previous_uti}
@@ -284,6 +524,12 @@ export const HistorySection: React.FC<SectionProps> = ({ form, update }) => (
       label="Previous gestational diabetes"
       checked={form.gestational_diabetes_previous}
       onChange={(v) => update("gestational_diabetes_previous", v)}
+    />
+    <BoolField
+      id="known_prediabetes"
+      label="Known prediabetes"
+      checked={form.known_prediabetes}
+      onChange={(v) => update("known_prediabetes", v)}
     />
     <BoolField
       id="large_baby_previous"
@@ -394,6 +640,20 @@ export const LabsSection: React.FC<SectionProps> = ({ form, update }) => (
       label="OGTT 1-hour (mg/dL)"
       value={form.ogtt_1hr}
       onChange={(v) => update("ogtt_1hr", v)}
+    />
+    <NumberField
+      id="hdl"
+      label="HDL cholesterol (mg/dL)"
+      value={form.hdl}
+      onChange={(v) => update("hdl", v)}
+      range={MEASUREMENT_RANGES.hdl}
+    />
+    <NumberField
+      id="triglycerides"
+      label="Triglycerides (mg/dL)"
+      value={form.triglycerides}
+      onChange={(v) => update("triglycerides", v)}
+      range={MEASUREMENT_RANGES.triglycerides}
     />
     <NumberField
       id="tsh"

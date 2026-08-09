@@ -21,7 +21,10 @@ class DoshaPredictor:
     """Enhanced dosha predictor with ML + LLM hybrid approach"""
     
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # OpenAI is optional: the disease-detection pipeline and the ML dosha
+        # model work without it. Only the LLM dosha refinement below needs a key,
+        # so the backend can boot (and deploy) with OPENAI_API_KEY unset.
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
         self.ml_model = None
         self.label_encoder = None
         self.feature_encoders = {}
@@ -185,11 +188,14 @@ class DoshaPredictor:
     ) -> Optional[DoshaResult]:
         """Predict dosha using LLM"""
         try:
+            if self.client is None:
+                raise LLMError("OpenAI API key not configured")
+
             model = model or settings.DEFAULT_MODEL
-            
+
             # Build comprehensive prompt
             prompt = self._build_dosha_prompt(user_profile, dosha_df)
-            
+
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[

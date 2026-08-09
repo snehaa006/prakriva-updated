@@ -1,689 +1,1005 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
+import {
   Moon,
   Activity,
   Droplets,
   Dumbbell,
-  TreePine,
+  Wind,
+  Waves,
+  Bike,
+  StretchHorizontal,
   Footprints,
-  Calendar,
+  Heart,
   TrendingUp,
   Plus,
   Minus,
   CheckCircle2,
-  Save,
-  ArrowLeft
+  ArrowLeft,
+  Flame,
+  Loader2,
+  AlertTriangle,
+  Utensils,
+  ClipboardCheck,
+  CloudOff,
+  Info,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import {
+  DEFAULT_WATER_GOAL,
+  activeDates,
+  currentStreak,
+  emptyDayLog,
+  hydratedDates,
+  isHydrationGoalMet,
+  lastNDates,
+  longestStreak,
+  todayIso,
+  totalActivityMinutes,
+  weeklyAverages,
+  type LifestyleDayLog,
+  type SleepQuality,
+} from "@/lib/lifestyleLog";
+import {
+  recommendExercises,
+  type ConditionInput,
+  type Exercise,
+  type ExerciseIcon,
+} from "@/lib/exerciseRecommendations";
+import {
+  evaluateDay,
+  summarise,
+  type CalorieTarget,
+  type DietAdherenceDay,
+  type MealTrackingDay,
+} from "@/lib/dietAdherence";
+import { loadLifestyleLogs, saveLifestyleDay } from "@/services/lifestyleLogService";
+import { fetchMealTracking } from "@/services/mealAdherenceService";
+import {
+  fetchScreenings,
+  isPregnantPatient,
+  type AssessmentData,
+} from "@/services/diseaseDetectionService";
+import { getNutritionalTargets, type LifeStage } from "@/services/dietChartService";
 
-// Data management functions (easily replaceable with Firebase)
-const generateDateRange = (days: number) => {
-  const dates = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    dates.push(date.toISOString().split('T')[0]);
-  }
-  return dates;
+const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
+
+const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
+  walk: Footprints,
+  yoga: StretchHorizontal,
+  breathing: Wind,
+  strength: Dumbbell,
+  swim: Waves,
+  cycle: Bike,
+  stretch: StretchHorizontal,
+  heart: Heart,
 };
 
-const initializeData = () => {
-  const dates = generateDateRange(7);
-  
-  const sleepData = dates.map(date => ({
-    date,
-    quality: Math.floor(Math.random() * 4) + 1,
-    hours: parseFloat((6 + Math.random() * 3).toFixed(1)),
-    type: ['deep', 'disturbed', 'insufficient', 'deep'][Math.floor(Math.random() * 3)]
-  }));
-
-  const activityData = dates.map(date => ({
-    date,
-    yoga: Math.floor(Math.random() * 60),
-    walk: Math.floor(Math.random() * 90),
-    gym: Math.floor(Math.random() * 60)
-  }));
-
-  const hydrationData = dates.map(date => ({
-    date,
-    glasses: Math.floor(Math.random() * 5) + 5
-  }));
-
-  return { sleepData, activityData, hydrationData };
+const INTENSITY_STYLES: Record<string, string> = {
+  gentle: "bg-green-100 text-green-800 border-green-200",
+  moderate: "bg-blue-100 text-blue-800 border-blue-200",
+  brisk: "bg-purple-100 text-purple-800 border-purple-200",
 };
 
-const LifestyleTracker = () => {
-  // State management
-  const [data, setData] = useState(() => initializeData());
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [sleepHours, setSleepHours] = useState(7);
-  const [sleepQuality, setSleepQuality] = useState('deep');
-  const [activities, setActivities] = useState({
-    yoga: 0,
-    walk: 0,
-    gym: 0
+const SLEEP_QUALITY_STYLES: Record<string, string> = {
+  deep: "bg-green-100 text-green-800 border-green-200",
+  disturbed: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  insufficient: "bg-red-100 text-red-800 border-red-200",
+};
+
+const dayLabel = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    timeZone: "UTC",
   });
-  const [todayWater, setTodayWater] = useState(5);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize today's data
+const dayNumber = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
+/**
+ * The patient's one-page lifestyle tracker.
+ *
+ * Sleep, activity, hydration and diet-plan adherence live in a single view —
+ * they are one daily check-in, not four separate ones. Everything logged here
+ * is cached locally first and mirrored to Supabase, so the activity streak
+ * survives a refresh (and an offline day) rather than resetting.
+ */
+const LifestyleTracker = () => {
+  const navigate = useNavigate();
+
+  const today = todayIso();
+
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<LifestyleDayLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSynced, setIsSynced] = useState(true);
+  const [conditions, setConditions] = useState<ConditionInput[]>([]);
+  const [isPregnant, setIsPregnant] = useState(false);
+  const [calorieTarget, setCalorieTarget] = useState<CalorieTarget>({
+    min: 1800,
+    max: 2200,
+    label: "General Adult",
+  });
+  const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
+
+  // Supabase mirroring is debounced so holding "+" on a water glass doesn't
+  // fire an upsert per click; the localStorage cache is written synchronously
+  // inside saveLifestyleDay, so nothing is lost if the tab closes first.
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    []
+  );
+
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Get today's existing data or create defaults
-    const todaySleep = data.sleepData.find(d => d.date === today);
-    const todayActivity = data.activityData.find(d => d.date === today);
-    const todayHydration = data.hydrationData.find(d => d.date === today);
+    let cancelled = false;
 
-    if (todaySleep) {
-      setSleepHours(todaySleep.hours);
-      setSleepQuality(todaySleep.type);
-    }
+    const load = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+      if (!user) {
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+      if (!cancelled) setPatientId(user.id);
 
-    if (todayActivity) {
-      setActivities({
-        yoga: todayActivity.yoga,
-        walk: todayActivity.walk,
-        gym: todayActivity.gym
+      // Cached logs render immediately; the Supabase merge lands underneath.
+      try {
+        const { logs: loaded, synced } = await loadLifestyleLogs(user.id);
+        if (!cancelled) {
+          setLogs(loaded);
+          setIsSynced(synced);
+        }
+      } catch (error) {
+        console.error("Error loading lifestyle logs:", error);
+      }
+
+      // Conditions come from two places: what she reported in her profile, and
+      // what the maternal screening flagged. Both feed the exercise picks.
+      try {
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("assessment_data")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const assessment = (patient?.assessment_data as AssessmentData) ?? null;
+        const record = (assessment ?? {}) as Record<string, unknown>;
+
+        const reported: ConditionInput[] = [
+          ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
+          ...(typeof record.currentConditionsOther === "string"
+            ? [record.currentConditionsOther]
+            : []),
+        ]
+          .filter((c): c is string => typeof c === "string" && c.trim() !== "")
+          .map((condition) => ({ condition }));
+
+        if (!cancelled) {
+          setIsPregnant(isPregnantPatient(assessment));
+          setCalorieTarget(
+            getNutritionalTargets(
+              (record.lifeStage as LifeStage) ?? "not_applicable",
+              record.pregnancyTrimester as string | undefined,
+              record.isBreastfeeding as string | undefined,
+              record.menopauseStage as string | undefined
+            ).calories
+          );
+        }
+
+        // Only moderate/high screening findings shape the plan — a low-risk
+        // score is a reassurance, not a condition to train around.
+        let screened: ConditionInput[] = [];
+        try {
+          const screenings = await fetchScreenings(user.id);
+          screened = (screenings[0]?.result.conditions ?? [])
+            .filter((c) => c.risk_level === "moderate" || c.risk_level === "high")
+            .map((c) => ({ condition: c.condition, riskLevel: c.risk_level }));
+        } catch (error) {
+          console.error("Error loading screening results:", error);
+        }
+
+        if (!cancelled) setConditions([...screened, ...reported]);
+      } catch (error) {
+        console.error("Error loading patient profile:", error);
+      }
+
+      // Diet adherence is read from what she logs on the Meal Logging page.
+      try {
+        const rows = await fetchMealTracking(user.id, lastNDates(7, todayIso())[0]);
+        if (!cancelled) setMealTracking(rows);
+      } catch (error) {
+        console.error("Error loading meal tracking:", error);
+      }
+
+      if (!cancelled) setIsLoading(false);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const todayLog = useMemo(
+    () => logs.find((l) => l.date === today) ?? emptyDayLog(today),
+    [logs, today]
+  );
+
+  /** Apply a change to today's entry, then cache + mirror it. */
+  const updateToday = useCallback(
+    (mutate: (log: LifestyleDayLog) => LifestyleDayLog) => {
+      setLogs((previous) => {
+        const existing = previous.find((l) => l.date === today) ?? emptyDayLog(today);
+        const updated = mutate(existing);
+        const next = [...previous.filter((l) => l.date !== today), updated].sort((a, b) =>
+          a.date.localeCompare(b.date)
+        );
+
+        if (patientId) {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(() => {
+            void saveLifestyleDay(patientId, updated).then((persisted) =>
+              setIsSynced(persisted)
+            );
+          }, 600);
+        }
+
+        return next;
       });
-    }
-
-    if (todayHydration) {
-      setTodayWater(todayHydration.glasses);
-    }
-  }, [data]);
-
-  // Update water intake - FIXED: Added parameter type
-  const updateWaterIntake = (change: number) => {
-    const newValue = Math.max(0, Math.min(12, todayWater + change));
-    setTodayWater(newValue);
-    
-    // Update data immediately
-    const today = new Date().toISOString().split('T')[0];
-    setData(prev => {
-      const updatedHydrationData = prev.hydrationData.map(d => 
-        d.date === today ? { ...d, glasses: newValue } : d
-      );
-      
-      // If today's data doesn't exist, add it
-      if (!prev.hydrationData.find(d => d.date === today)) {
-        updatedHydrationData.push({ date: today, glasses: newValue });
-      }
-      
-      return {
-        ...prev,
-        hydrationData: updatedHydrationData
-      };
-    });
-  };
-
-  // Update activity duration - FIXED: Added parameter types
-  const updateActivity = (activityType: string, change: number) => {
-    const newValue = Math.max(0, activities[activityType as keyof typeof activities] + change);
-    const newActivities = { ...activities, [activityType]: newValue };
-    setActivities(newActivities);
-  };
-
-  // Save sleep data
-  const saveSleepData = async () => {
-    setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newSleepEntry = {
-      date: selectedDate,
-      quality: sleepQuality === 'deep' ? 4 : sleepQuality === 'disturbed' ? 2 : 1,
-      hours: parseFloat(sleepHours.toFixed(1)),
-      type: sleepQuality
-    };
-
-    setData(prev => {
-      const updatedSleepData = prev.sleepData.map(d => 
-        d.date === selectedDate ? newSleepEntry : d
-      );
-      
-      // If the date doesn't exist, add new entry
-      if (!prev.sleepData.find(d => d.date === selectedDate)) {
-        updatedSleepData.push(newSleepEntry);
-        // REMOVED: Incorrect line that was causing the error
-        // const newValue = Math.max(0, Math.min(12, Number(todayWater) + Number(change)));
-      }
-      
-      return {
-        ...prev,
-        sleepData: updatedSleepData
-      };
-    });
-
-    setIsLoading(false);
-    alert('Sleep data saved successfully!');
-  };
-
-  // Save activity data
-  const saveActivityData = async () => {
-    setIsLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const today = new Date().toISOString().split('T')[0];
-    const newActivityEntry = {
-      date: today,
-      ...activities
-    };
-
-    setData(prev => {
-      const updatedActivityData = prev.activityData.map(d => 
-        d.date === today ? newActivityEntry : d
-      );
-      
-      // If today's data doesn't exist, add it
-      if (!prev.activityData.find(d => d.date === today)) {
-        updatedActivityData.push(newActivityEntry);
-        // REMOVED: Incorrect line that was causing the error
-        // const newValue = Math.max(0, Number(activities[activityType]) + Number(change));
-      }
-      
-      return {
-        ...prev,
-        activityData: updatedActivityData
-      };
-    });
-
-    setIsLoading(false);
-    alert('Activity data saved successfully!');
-  };
-
-  // Activity types configuration
-  const activityTypes = [
-    { 
-      name: 'Yoga', 
-      icon: TreePine, 
-      color: 'text-green-600', 
-      key: 'yoga',
-      duration: activities.yoga 
     },
-    { 
-      name: 'Walk', 
-      icon: Footprints, 
-      color: 'text-blue-600', 
-      key: 'walk',
-      duration: activities.walk 
-    },
-    { 
-      name: 'Gym', 
-      icon: Dumbbell, 
-      color: 'text-purple-600', 
-      key: 'gym',
-      duration: activities.gym 
-    },
-  ];
+    [patientId, today]
+  );
 
-  // Utility functions
-  const getSleepQualityColor = (quality: string) => {
-    switch (quality) {
-      case 'deep': return 'bg-green-100 text-green-800 border-green-200';
-      case 'disturbed': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'insufficient': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  const recommendation = useMemo(
+    () => recommendExercises({ conditions, isPregnant }),
+    [conditions, isPregnant]
+  );
 
-  const getSleepQualityIcon = (quality: string) => {
-    switch (quality) {
-      case 'deep': return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'disturbed': return <Activity className="w-4 h-4 text-yellow-600" />;
-      case 'insufficient': return <Moon className="w-4 h-4 text-red-600" />;
-      default: return <Moon className="w-4 h-4 text-gray-600" />;
-    }
-  };
+  const activityStreak = useMemo(() => currentStreak(activeDates(logs), today), [logs, today]);
+  const bestActivityStreak = useMemo(() => longestStreak(activeDates(logs)), [logs]);
+  const hydrationStreak = useMemo(
+    () => currentStreak(hydratedDates(logs), today),
+    [logs, today]
+  );
 
-  // Calculate averages dynamically
-  const calculateWeeklyAverage = () => {
-    // Filter data for the last 7 days
-    const today = new Date();
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(today.getDate() - 6);
-    
-    const recentSleepData = data.sleepData.filter(d => {
-      const date = new Date(d.date);
-      return date.getTime() >= sevenDaysAgo.getTime() && date.getTime() <= today.getTime();
+  const averages = useMemo(() => weeklyAverages(logs, today), [logs, today]);
+  const week = useMemo(() => lastNDates(7, today), [today]);
+  const fortnight = useMemo(() => lastNDates(14, today), [today]);
+
+  const logByDate = useMemo(() => new Map(logs.map((l) => [l.date, l])), [logs]);
+
+  const adherence: DietAdherenceDay[] = useMemo(() => {
+    const byDate = new Map(mealTracking.map((m) => [m.date, m]));
+    return week.map((date) => evaluateDay(date, byDate.get(date), calorieTarget));
+  }, [week, mealTracking, calorieTarget]);
+
+  const adherenceSummary = useMemo(() => summarise(adherence), [adherence]);
+  const todayAdherence = adherence[adherence.length - 1];
+
+  const chartData = useMemo(
+    () =>
+      fortnight.map((date) => {
+        const log = logByDate.get(date);
+        return {
+          date,
+          sleep: log?.sleepHours ?? null,
+          activity: totalActivityMinutes(log),
+          water: log?.waterGlasses ?? 0,
+        };
+      }),
+    [fortnight, logByDate]
+  );
+
+  const todayActivityMinutes = totalActivityMinutes(todayLog);
+  const waterGoal = todayLog.waterGoal || DEFAULT_WATER_GOAL;
+  const hydrationMet = isHydrationGoalMet(todayLog);
+
+  const adjustExercise = (exerciseId: string, delta: number) =>
+    updateToday((log) => {
+      const next = Math.max(0, (log.activityMinutes[exerciseId] ?? 0) + delta);
+      const minutes = { ...log.activityMinutes };
+      if (next === 0) delete minutes[exerciseId];
+      else minutes[exerciseId] = next;
+      return { ...log, activityMinutes: minutes };
     });
-    
-    const recentActivityData = data.activityData.filter(d => {
-      const date = new Date(d.date);
-      return date.getTime() >= sevenDaysAgo.getTime() && date.getTime() <= today.getTime();
-    });
-    
-    const recentHydrationData = data.hydrationData.filter(d => {
-      const date = new Date(d.date);
-      return date.getTime() >= sevenDaysAgo.getTime() && date.getTime() <= today.getTime();
-    });
-    
-    // Calculate averages
-    const totalSleep = recentSleepData.reduce((acc, day) => acc + day.hours, 0);
-    const avgSleep = recentSleepData.length > 0 ? (totalSleep / recentSleepData.length).toFixed(1) : '0.0';
-    
-    const totalActivity = recentActivityData.reduce((acc, day) => acc + day.yoga + day.walk + day.gym, 0);
-    const avgActivity = recentActivityData.length > 0 ? Math.round(totalActivity / recentActivityData.length) : 0;
-    
-    const totalHydration = recentHydrationData.reduce((acc, day) => acc + day.glasses, 0);
-    const avgHydration = recentHydrationData.length > 0 ? (totalHydration / recentHydrationData.length).toFixed(1) : '0.0';
 
-    return { avgSleep, avgActivity, avgHydration };
-  };
+  const adjustWater = (delta: number) =>
+    updateToday((log) => ({
+      ...log,
+      waterGlasses: Math.max(0, Math.min(20, log.waterGlasses + delta)),
+    }));
 
-  const { avgSleep, avgActivity, avgHydration } = calculateWeeklyAverage();
+  const setSleep = (hours: number) =>
+    updateToday((log) => ({ ...log, sleepHours: Number(hours.toFixed(1)) }));
 
-  // Custom tooltip formatters
-  const sleepTooltipFormatter = (value: number, name: string) => {
-    if (name === 'hours') {
-      const numValue = typeof value === 'number' ? value : parseFloat(value);
-      return [numValue.toFixed(1) + 'h', 'Hours'];
-    }
-    return [value, name];
-  };
+  const setQuality = (quality: SleepQuality) =>
+    updateToday((log) => ({ ...log, sleepQuality: quality }));
 
-  const activityTooltipFormatter = (value: number, name: string) => {
-    return [`${value} min`, name];
-  };
+  const setWaterGoal = (goal: number) =>
+    updateToday((log) => ({ ...log, waterGoal: Math.max(1, Math.min(20, goal)) }));
 
-  const hydrationTooltipFormatter = (value: number) => {
-    return [`${value} glasses`, 'Water'];
-  };
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-12">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Lifestyle Tracker</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Tracker</h1>
           <p className="text-gray-600">
-            Monitor your sleep, activities, and hydration patterns
+            One daily check-in: sleep, movement, water and your diet plan
           </p>
         </div>
-        <Button variant="outline" className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          className="flex items-center gap-2"
+          onClick={() => navigate("/patient/dashboard")}
+        >
           <ArrowLeft className="w-4 h-4" />
           Back to Dashboard
         </Button>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {!isSynced && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <CloudOff className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Saved on this device only — we couldn't reach the server. Your streak is safe
+            here and will sync when the connection is back.
+          </span>
+        </div>
+      )}
+
+      {/* Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Activity Streak</CardTitle>
+            <Flame className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {activityStreak} day{activityStreak === 1 ? "" : "s"}
+            </div>
+            <p className="text-xs text-gray-600">
+              best: {bestActivityStreak} day{bestActivityStreak === 1 ? "" : "s"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hydration Today</CardTitle>
+            <Droplets className="h-4 w-4 text-cyan-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {todayLog.waterGlasses}/{waterGoal}
+            </div>
+            <p className={`text-xs ${hydrationMet ? "text-green-600" : "text-gray-600"}`}>
+              {hydrationMet ? "Daily target met" : "Target not met yet"}
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Sleep</CardTitle>
             <Moon className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{avgSleep}h</div>
-            <p className="text-xs text-gray-600">
-              per night (last 7 days)
-            </p>
+            <div className="text-2xl font-bold">
+              {averages.avgSleepHours === null ? "—" : `${averages.avgSleepHours.toFixed(1)}h`}
+            </div>
+            <p className="text-xs text-gray-600">per night (last 7 days)</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Daily Activity</CardTitle>
-            <Activity className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Diet Plan Today</CardTitle>
+            <ClipboardCheck className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{avgActivity}min</div>
+            <div className="text-2xl font-bold">
+              {todayAdherence?.hasPlan ? `${todayAdherence.planCompletionPct}%` : "—"}
+            </div>
             <p className="text-xs text-gray-600">
-              average per day (last 7 days)
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hydration</CardTitle>
-            <Droplets className="h-4 w-4 text-cyan-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{avgHydration}</div>
-            <p className="text-xs text-gray-600">
-              glasses per day (last 7 days)
+              {todayAdherence?.hasPlan
+                ? `${todayAdherence.mealsEaten}/${todayAdherence.mealsPlanned} meals eaten`
+                : "no plan logged today"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Tracking */}
-      <Tabs defaultValue="sleep" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="sleep">Sleep Quality</TabsTrigger>
-          <TabsTrigger value="activity">Activity Tracking</TabsTrigger>
-          <TabsTrigger value="hydration">Hydration</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="sleep" className="space-y-6">
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Sleep Logging */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Moon className="w-5 h-5" />
-                  Sleep Quality Log
-                </CardTitle>
-                <CardDescription>
-                  Record your sleep duration and quality
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-transparent border-none outline-none text-sm flex-1"
-                  />
+      {/* ── Activity: recommended exercises + streak ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Movement & Exercise
+              </CardTitle>
+              <CardDescription>
+                {recommendation.isGeneral
+                  ? "A balanced starting week — add your conditions in your health profile to tailor this"
+                  : `Chosen for your ${recommendation.plans
+                      .map((p) => p.label)
+                      .join(", ")}`}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-4 py-2">
+              <Flame className="w-5 h-5 text-orange-500" />
+              <div>
+                <div className="text-xl font-bold leading-none text-orange-600">
+                  {activityStreak}
                 </div>
+                <div className="text-xs text-orange-700">day streak</div>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
+            <span className="text-sm text-gray-600">Logged today</span>
+            <span className="text-sm font-semibold">
+              {todayActivityMinutes} min
+              {todayActivityMinutes > 0 && (
+                <CheckCircle2 className="ml-2 inline h-4 w-4 text-green-600" />
+              )}
+            </span>
+          </div>
 
-                <div className="space-y-3">
-                  <label className="text-sm font-medium">Sleep Duration: {sleepHours.toFixed(1)}h</label>
-                  <input
-                    type="range"
-                    min="4"
-                    max="12"
-                    step="0.1"
-                    value={sleepHours}
-                    onChange={(e) => setSleepHours(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>4h</span>
-                    <span>12h</span>
-                  </div>
-                </div>
+          {todayActivityMinutes === 0 && activityStreak > 0 && (
+            <p className="text-sm text-amber-700">
+              Log any movement today to keep your {activityStreak}-day streak alive.
+            </p>
+          )}
 
-                <div className="space-y-3">
-                  <label className="text-sm font-medium">Sleep Quality</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['deep', 'disturbed', 'insufficient'].map((quality) => (
-                      <Button
-                        key={quality}
-                        variant={sleepQuality === quality ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSleepQuality(quality)}
-                        className="flex items-center gap-2"
-                      >
-                        {getSleepQualityIcon(quality)}
-                        {quality.charAt(0).toUpperCase() + quality.slice(1)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+          {/* Recommended exercises — the only things you can log minutes against,
+              so the log always matches the recommendation. */}
+          <div className="grid gap-3 md:grid-cols-2">
+            {recommendation.exercises.map((exercise: Exercise) => {
+              const Icon = EXERCISE_ICONS[exercise.icon] ?? Activity;
+              const logged = todayLog.activityMinutes[exercise.id] ?? 0;
+              const done = logged >= exercise.minutes;
 
-                <Button 
-                  className="w-full flex items-center gap-2" 
-                  onClick={saveSleepData}
-                  disabled={isLoading}
+              return (
+                <div
+                  key={exercise.id}
+                  className={`rounded-lg border p-4 ${done ? "border-green-200 bg-green-50/50" : ""}`}
                 >
-                  <Save className="w-4 h-4" />
-                  {isLoading ? 'Saving...' : 'Log Sleep'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Sleep Trends */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Sleep Trends</CardTitle>
-                <CardDescription>
-                  Your sleep patterns over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data.sleepData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(value) => new Date(value).getDate().toString()}
-                      />
-                      <YAxis />
-                      <Tooltip 
-                        labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                        formatter={sleepTooltipFormatter}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="hours" 
-                        stroke="#3b82f6" 
-                        strokeWidth={2}
-                        name="hours"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {data.sleepData.slice(-3).map((day, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <span className="text-sm">
-                        {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getSleepQualityColor(day.type)}>
-                          {day.type}
-                        </Badge>
-                        <span className="text-sm font-medium">{day.hours.toFixed(1)}h</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gray-700" />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-medium">{exercise.name}</h4>
+                          <Badge
+                            variant="outline"
+                            className={INTENSITY_STYLES[exercise.intensity]}
+                          >
+                            {exercise.intensity}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">{exercise.how}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Target: {exercise.minutes} min/day
+                        </p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+                    {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />}
+                  </div>
 
-        <TabsContent value="activity" className="space-y-6">
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Activity Logging */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5" />
-                  Activity Tracking
-                </CardTitle>
-                <CardDescription>
-                  Log your daily physical activities
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {activityTypes.map((activity) => {
-                  const IconComponent = activity.icon;
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => adjustExercise(exercise.id, -5)}
+                      disabled={logged === 0}
+                      aria-label={`Remove 5 minutes of ${exercise.name}`}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-16 text-center font-medium">{logged}m</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => adjustExercise(exercise.id, 5)}
+                      aria-label={`Add 5 minutes of ${exercise.name}`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Why these, per condition */}
+          <div className="space-y-3">
+            {recommendation.plans.map((plan) => (
+              <div key={plan.key} className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <h4 className="font-medium text-blue-900">Why this for {plan.label}</h4>
+                </div>
+                <p className="mt-1 text-sm text-blue-900/80">{plan.rationale}</p>
+              </div>
+            ))}
+          </div>
+
+          {recommendation.avoid.length > 0 && (
+            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <h4 className="font-medium text-red-900">Avoid for now</h4>
+              </div>
+              <ul className="mt-2 space-y-1 text-sm text-red-900/80">
+                {recommendation.avoid.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span aria-hidden>•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-xs text-gray-500">
+            General wellness suggestions based on your health profile — check with your
+            doctor before starting anything new.
+          </p>
+
+          {/* Streak calendar */}
+          <div>
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Last 14 days</h4>
+            <div className="grid grid-cols-7 gap-2">
+              {fortnight.map((date) => {
+                const minutes = totalActivityMinutes(logByDate.get(date));
+                return (
+                  <div key={date} className="text-center">
+                    <div className="mb-1 text-xs text-gray-500">{dayNumber(date)}</div>
+                    <div
+                      className={`flex h-9 items-center justify-center rounded text-xs font-medium ${
+                        minutes > 0
+                          ? "bg-orange-100 text-orange-800"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                      title={`${date}: ${minutes} min`}
+                    >
+                      {minutes > 0 ? `${minutes}m` : "—"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Hydration + Sleep ── */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Droplets className="w-5 h-5" />
+              Hydration
+            </CardTitle>
+            <CardDescription>Did you hit your daily water target?</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4 text-center">
+              <div className={`text-6xl font-bold ${hydrationMet ? "text-green-600" : "text-cyan-600"}`}>
+                {todayLog.waterGlasses}
+              </div>
+              <p className="text-gray-600">of {waterGoal} glasses today</p>
+              <Progress
+                value={Math.min(100, (todayLog.waterGlasses / waterGoal) * 100)}
+                className="h-3 w-full"
+              />
+              <Badge
+                variant="outline"
+                className={
+                  hydrationMet
+                    ? "border-green-200 bg-green-100 text-green-800"
+                    : "border-gray-200 bg-gray-100 text-gray-700"
+                }
+              >
+                {hydrationMet
+                  ? "Daily target met"
+                  : `${waterGoal - todayLog.waterGlasses} more to go`}
+              </Badge>
+            </div>
+
+            <div className="flex justify-center gap-4">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => adjustWater(-1)}
+                disabled={todayLog.waterGlasses === 0}
+                className="flex items-center gap-2"
+              >
+                <Minus className="w-4 h-4" />
+                Remove Glass
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => adjustWater(1)}
+                disabled={todayLog.waterGlasses >= 20}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add Glass
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+              <span>Daily target</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setWaterGoal(waterGoal - 1)}
+                disabled={waterGoal <= 1}
+                aria-label="Lower daily water target"
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="font-medium">{waterGoal}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setWaterGoal(waterGoal + 1)}
+                disabled={waterGoal >= 20}
+                aria-label="Raise daily water target"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-700">Last 7 days</h4>
+                <span className="text-xs text-gray-500">
+                  {hydrationStreak} day{hydrationStreak === 1 ? "" : "s"} on target
+                </span>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {week.map((date) => {
+                  const log = logByDate.get(date);
+                  const met = isHydrationGoalMet(log);
                   return (
-                    <div key={activity.name} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <IconComponent className={`w-5 h-5 ${activity.color}`} />
-                        <div>
-                          <h4 className="font-medium">{activity.name}</h4>
-                          <p className="text-sm text-gray-600">{activity.duration} minutes today</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => updateActivity(activity.key, -15)}
-                          disabled={activity.duration === 0}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="font-medium w-16 text-center">{activity.duration}m</span>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => updateActivity(activity.key, 15)}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
+                    <div key={date} className="text-center">
+                      <div className="mb-1 text-xs text-gray-500">{dayLabel(date)}</div>
+                      <div
+                        className={`rounded p-1 text-sm font-medium ${
+                          met
+                            ? "bg-green-100 text-green-800"
+                            : log?.waterGlasses
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-400"
+                        }`}
+                        title={`${date}: ${log?.waterGlasses ?? 0} glasses`}
+                      >
+                        {log?.waterGlasses ?? 0}
                       </div>
                     </div>
                   );
                 })}
-                <Button 
-                  className="w-full flex items-center gap-2" 
-                  onClick={saveActivityData}
-                  disabled={isLoading}
-                >
-                  <Save className="w-4 h-4" />
-                  {isLoading ? 'Saving...' : 'Save Activities'}
-                </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Activity Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Activity Distribution</CardTitle>
-                <CardDescription>
-                  Activity breakdown by type over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.activityData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(value) => new Date(value).getDate().toString()}
-                      />
-                      <YAxis />
-                      <Tooltip 
-                        labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                        formatter={activityTooltipFormatter}
-                      />
-                      <Bar dataKey="yoga" fill="#16a34a" name="Yoga" />
-                      <Bar dataKey="walk" fill="#2563eb" name="Walk" />
-                      <Bar dataKey="gym" fill="#9333ea" name="Gym" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Moon className="w-5 h-5" />
+              Sleep
+            </CardTitle>
+            <CardDescription>How long and how well you slept last night</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <label className="text-sm font-medium" htmlFor="sleep-hours">
+                Sleep duration: {(todayLog.sleepHours ?? 7).toFixed(1)}h
+              </label>
+              <input
+                id="sleep-hours"
+                type="range"
+                min="4"
+                max="12"
+                step="0.5"
+                value={todayLog.sleepHours ?? 7}
+                onChange={(e) => setSleep(Number(e.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200"
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>4h</span>
+                <span>12h</span>
+              </div>
+            </div>
 
-        <TabsContent value="hydration" className="space-y-6">
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Hydration Tracking */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Droplets className="w-5 h-5" />
-                  Hydration Tracker
-                </CardTitle>
-                <CardDescription>
-                  Track your daily water intake
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl font-bold text-cyan-600">{todayWater}</div>
-                  <p className="text-gray-600">glasses today</p>
-                  <Progress value={(todayWater / 8) * 100} className="w-full h-3" />
-                  <p className="text-sm text-gray-600">Goal: 8 glasses per day</p>
-                </div>
-
-                <div className="flex justify-center gap-4">
-                  <Button 
-                    variant="outline" 
-                    size="lg"
-                    onClick={() => updateWaterIntake(-1)}
-                    disabled={todayWater === 0}
-                    className="flex items-center gap-2"
+            <div className="space-y-3">
+              <span className="text-sm font-medium">Sleep quality</span>
+              <div className="grid grid-cols-3 gap-2">
+                {SLEEP_QUALITIES.map((quality) => (
+                  <Button
+                    key={quality}
+                    variant={todayLog.sleepQuality === quality ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setQuality(quality)}
                   >
-                    <Minus className="w-4 h-4" />
-                    Remove Glass
+                    {quality.charAt(0).toUpperCase() + quality.slice(1)}
                   </Button>
-                  <Button 
-                    size="lg"
-                    onClick={() => updateWaterIntake(1)}
-                    disabled={todayWater >= 12}
-                    className="flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Glass
-                  </Button>
-                </div>
+                ))}
+              </div>
+            </div>
 
-                <div className="text-center">
-                  <p className="text-sm text-gray-500">
-                    {todayWater >= 8 ? 
-                      "Great job! You've reached your hydration goal!" : 
-                      `${8 - todayWater} more glasses to reach your goal`
-                    }
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Hydration Trends */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Hydration Trends</CardTitle>
-                <CardDescription>
-                  Your water intake over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data.hydrationData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(value) => new Date(value).getDate().toString()}
-                      />
-                      <YAxis domain={[0, 12]} />
-                      <Tooltip 
-                        labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                        formatter={hydrationTooltipFormatter}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="glasses" 
-                        stroke="#06b6d4" 
-                        strokeWidth={3}
-                        dot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                <div className="mt-4 grid grid-cols-7 gap-1">
-                  {data.hydrationData.slice(-7).map((day, index) => (
-                    <div key={index} className="text-center">
-                      <div className="text-xs text-gray-500 mb-1">
-                        {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                      </div>
-                      <div className={`text-sm font-medium p-1 rounded ${
-                        day.glasses >= 8 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {day.glasses}
-                      </div>
+            <div className="space-y-2">
+              {week
+                .slice()
+                .reverse()
+                .slice(0, 4)
+                .map((date) => {
+                  const log = logByDate.get(date);
+                  return (
+                    <div
+                      key={date}
+                      className="flex items-center justify-between rounded bg-gray-50 p-2"
+                    >
+                      <span className="text-sm">
+                        {dayLabel(date)} {dayNumber(date)}
+                      </span>
+                      {log?.sleepHours ? (
+                        <div className="flex items-center gap-2">
+                          {log.sleepQuality && (
+                            <Badge
+                              variant="outline"
+                              className={SLEEP_QUALITY_STYLES[log.sleepQuality]}
+                            >
+                              {log.sleepQuality}
+                            </Badge>
+                          )}
+                          <span className="text-sm font-medium">
+                            {log.sleepHours.toFixed(1)}h
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">not logged</span>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Diet plan & daily nutrition (no streak — each day stands alone) ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Utensils className="w-5 h-5" />
+            Daily Nutrition & Diet Plan
+          </CardTitle>
+          <CardDescription>
+            Whether you completed your daily nutrition and followed the plan you were given
+            — pulled from what you tick off in Meal Logging
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div
+              className={`rounded-lg border p-4 ${
+                todayAdherence?.nutritionComplete ? "border-green-200 bg-green-50/50" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Daily nutrition complete</h4>
+                {todayAdherence?.nutritionComplete ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <TrendingUp className="h-5 w-5 text-gray-400" />
+                )}
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {todayAdherence?.caloriesConsumed ?? 0}
+                <span className="text-sm font-normal text-gray-600">
+                  {" "}
+                  / {calorieTarget.min}–{calorieTarget.max} kcal
+                </span>
+              </p>
+              <Progress
+                className="mt-2 h-2"
+                value={Math.min(
+                  100,
+                  ((todayAdherence?.caloriesConsumed ?? 0) / calorieTarget.min) * 100
+                )}
+              />
+              <p className="mt-2 text-sm text-gray-600">
+                {todayAdherence?.overTarget
+                  ? `Over your ${calorieTarget.label.toLowerCase()} range — worth mentioning to your doctor.`
+                  : todayAdherence?.nutritionComplete
+                    ? `You've met your ${calorieTarget.label.toLowerCase()} intake for today.`
+                    : `${Math.max(
+                        0,
+                        calorieTarget.min - (todayAdherence?.caloriesConsumed ?? 0)
+                      )} kcal short of your daily minimum.`}
+              </p>
+            </div>
+
+            <div
+              className={`rounded-lg border p-4 ${
+                todayAdherence?.planFollowed ? "border-green-200 bg-green-50/50" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Diet plan followed</h4>
+                {todayAdherence?.planFollowed ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <ClipboardCheck className="h-5 w-5 text-gray-400" />
+                )}
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {todayAdherence?.mealsEaten ?? 0}
+                <span className="text-sm font-normal text-gray-600">
+                  {" "}
+                  / {todayAdherence?.mealsPlanned ?? 0} meals
+                </span>
+              </p>
+              <Progress className="mt-2 h-2" value={todayAdherence?.planCompletionPct ?? 0} />
+              <p className="mt-2 text-sm text-gray-600">
+                {!todayAdherence?.hasPlan
+                  ? "No plan loaded today — open Meal Logging to start one."
+                  : todayAdherence.planFollowed
+                    ? "You're following the plan your doctor provided."
+                    : `${todayAdherence.mealsPlanned - todayAdherence.mealsEaten} meal(s) still to log.`}
+              </p>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          <div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-medium text-gray-700">Last 7 days</h4>
+              <span className="text-xs text-gray-500">
+                nutrition met {adherenceSummary.daysNutritionComplete}/7 · plan followed{" "}
+                {adherenceSummary.daysPlanFollowed}/7
+              </span>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {adherence.map((day) => (
+                <div key={day.date} className="text-center">
+                  <div className="mb-1 text-xs text-gray-500">{dayLabel(day.date)}</div>
+                  <div
+                    className="flex flex-col gap-1"
+                    title={`${day.date}: ${day.caloriesConsumed} kcal, ${day.mealsEaten}/${day.mealsPlanned} meals`}
+                  >
+                    <div
+                      className={`h-5 rounded text-[10px] leading-5 ${
+                        day.nutritionComplete
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      kcal
+                    </div>
+                    <div
+                      className={`h-5 rounded text-[10px] leading-5 ${
+                        day.planFollowed
+                          ? "bg-indigo-100 text-indigo-800"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      plan
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Trends ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Your Trends
+          </CardTitle>
+          <CardDescription>The last 14 days of everything you've logged</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 lg:grid-cols-3">
+          <div>
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Sleep (hours)</h4>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickFormatter={dayNumber} />
+                  <YAxis domain={[0, 12]} />
+                  <Tooltip formatter={(value: number) => [`${value}h`, "Sleep"]} />
+                  <Line
+                    type="monotone"
+                    dataKey="sleep"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Activity (minutes)</h4>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickFormatter={dayNumber} />
+                  <YAxis />
+                  <Tooltip formatter={(value: number) => [`${value} min`, "Activity"]} />
+                  <Bar dataKey="activity" fill="#f97316" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {averages.avgActivityMinutes} min/day average this week
+            </p>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Water (glasses)</h4>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickFormatter={dayNumber} />
+                  <YAxis domain={[0, Math.max(12, waterGoal + 2)]} />
+                  <Tooltip formatter={(value: number) => [`${value} glasses`, "Water"]} />
+                  <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {averages.avgWaterGlasses} glasses/day average this week
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

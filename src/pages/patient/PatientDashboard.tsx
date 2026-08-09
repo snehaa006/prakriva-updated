@@ -369,7 +369,7 @@ const PatientDashboard = () => {
     const meals: TrackedMeal[] = [];
     let counter = 1;
 
-    // Format 1: PersonalizedDietChart days[] format
+    // Format 1: days[] format from Recipe Builder's Personalized Generator
     if (activePlan.days && Array.isArray(activePlan.days)) {
       const todayIndex = new Date().getDay(); // 0=Sun
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -1123,7 +1123,7 @@ const PatientDashboard = () => {
                   <User className="w-4 h-4" /> Consult Doctor
                 </Button>
                 <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/lifestyle-tracker")}>
-                  <Heart className="w-4 h-4" /> Lifestyle Tracker
+                  <Heart className="w-4 h-4" /> Tracker
                 </Button>
               </CardContent>
             </Card>

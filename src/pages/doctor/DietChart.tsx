@@ -32,6 +32,9 @@ import {
 import { toast } from "sonner";
 // Firebase imports
 import { supabase } from "@/lib/supabase";
+import { PatientPicker } from "@/components/patients/PatientPicker";
+import { usePersistentState } from "@/hooks/usePersistentState";
+import { CACHE_KEYS } from "@/lib/localCache";
 
 interface DietPlanRow {
   id: string;
@@ -58,7 +61,16 @@ interface SavedDietPlan {
 
 const DietChart = () => {
   const navigate = useNavigate();
-  const [patientId, setPatientId] = useState("");
+  // The patients.id UUID of the patient whose plans are being viewed; the
+  // P001-style code is display-only. Cached so a refresh keeps the selection.
+  const [patientId, setPatientId] = usePersistentState(
+    CACHE_KEYS.dietChartViewerPatient + ":id",
+    ""
+  );
+  const [patientCode, setPatientCode] = usePersistentState(
+    CACHE_KEYS.dietChartViewerPatient + ":code",
+    ""
+  );
   const [savedPlans, setSavedPlans] = useState<SavedDietPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SavedDietPlan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,7 +100,7 @@ const DietChart = () => {
   };
 
   // Convert Firebase meal plans to DietPlanRow format
-  // Handles both RecipeBuilder format { Daily, Weekly } and PersonalizedDietChart format { days[] }
+  // Handles both the Manual Builder format { Daily, Weekly } and the Personalized Generator format { days[] }
   const convertMealPlanToRows = (plan: any, activeFilter: string = "Daily"): DietPlanRow[] => {
     const rows: DietPlanRow[] = [];
     let rowCounter = 1;
@@ -186,7 +198,7 @@ const DietChart = () => {
   // Fetch saved diet plans for a patient
   const fetchDietPlans = async () => {
     if (!patientId.trim()) {
-      toast.error("Please enter a patient ID");
+      toast.error("Select a patient first");
       return;
     }
 
@@ -209,8 +221,8 @@ const DietChart = () => {
         totalMeals: row.total_meals,
         activeFilter: row.active_filter,
         createdAt: row.created_at,
-        // loadDietPlan also looks for a days[] payload produced by
-        // PersonalizedDietChart, which lives inside the meals document.
+        // loadDietPlan also looks for a days[] payload produced by the
+        // Personalized Generator, which lives inside the meals document.
         ...(row.meals?.days ? { days: row.meals.days } : {}),
       }));
 
@@ -240,7 +252,7 @@ const DietChart = () => {
     let rows: DietPlanRow[] = [];
 
     if (planData.days && Array.isArray(planData.days)) {
-      // PersonalizedDietChart format: days[].meals[]
+      // Personalized Generator format: days[].meals[]
       rows = convertDaysToRows(planData.days);
     } else if (plan.meals) {
       // RecipeBuilder format: { Daily, Weekly }
@@ -365,12 +377,16 @@ const DietChart = () => {
         <CardContent>
           <div className="flex gap-4">
             <div className="flex-1">
-              <Label htmlFor="patient-search">Patient ID</Label>
-              <Input
-                id="patient-search"
+              <PatientPicker
+                label="Patient"
                 value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                placeholder="Enter patient ID to search"
+                onSelect={(patient) => {
+                  setPatientId(patient?.id ?? "");
+                  setPatientCode(patient?.code ?? "");
+                  setSavedPlans([]);
+                  setSelectedPlan(null);
+                  setDietRows([]);
+                }}
               />
             </div>
             <div className="flex items-end">
@@ -397,7 +413,7 @@ const DietChart = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Saved Diet Plans</CardTitle>
-            <CardDescription>Found {savedPlans.length} diet plan(s) for patient ID: {patientId}</CardDescription>
+            <CardDescription>Found {savedPlans.length} diet plan(s) for patient {patientCode || patientId}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

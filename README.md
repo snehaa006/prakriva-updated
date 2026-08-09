@@ -3,8 +3,8 @@
 An Ayurvedic diet/wellness planning app connecting doctors and patients. Doctors
 manage patients, build recipes and diet charts, review dosha/consultation
 data, and run maternal disease-risk screening for their pregnant patients;
-patients complete an Ayurvedic health questionnaire and get a personalized
-diet plan.
+patients complete an Ayurvedic health questionnaire, list the foods in their
+kitchen, and get a personalized diet plan.
 
 ## Tech stack
 
@@ -12,16 +12,14 @@ diet plan.
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, plan storage, and the maternal disease detection
-  pipeline.
+  pipeline (with XGBoost anaemia + pregnancy-risk models).
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
-- **Deployment**: the frontend and backend deploy as **two separate Vercel
-  projects**. The frontend project (Root Directory = repo root, Vite
-  framework preset) serves the static build. A backend Vercel project, if
-  used, would need Root Directory = `backend/` and its own Flask/Python
-  framework preset — see "Deployment (Vercel)" below for why they aren't
-  combined into one project.
+- **Deployment**: the frontend deploys to **Vercel** (Root Directory = repo
+  root, Vite framework preset) and the Flask backend deploys to **Render** from
+  the committed `render.yaml` blueprint. The frontend reaches the backend via
+  `VITE_API_URL`. See "Deployment" below.
 
 ## Project structure
 
@@ -56,9 +54,34 @@ diet plan.
 - `backend/disease_detection/` — the maternal disease detection pipeline:
   input/output models (`schemas.py`), the rule-based baseline detectors
   (`rules.py`), clinical next steps (`recommendations.py`) and the detector
-  registry (`pipeline.py`). See "Disease detection" below.
+  registry (`pipeline.py`). The `ml/` subpackage holds the XGBoost anaemia +
+  pregnancy-risk models, their shared feature transform (`featurize.py`),
+  inference (`inference.py`), detectors (`detectors.py`) and the training script
+  (`train_maternal_models.py`), plus the GDM logistic regression
+  (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`). See "Disease
+  detection" below.
+- `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
-  `disease_screenings.sql` for the screening history table.
+  `disease_screenings.sql` for the screening history table,
+  `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
+  hydration log and `patient_pantry_items.sql` for the patient kitchen list.
+- `src/components/patients/` — shared patient-selection UI:
+  `PatientPicker.tsx` (searchable dropdown over the signed-in doctor's own
+  patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
+  read-only view of a patient's kitchen). Both are backed by
+  `src/hooks/useDoctorPatients.ts`.
+- `src/pages/doctor/RecipeBuilder.tsx` — one screen that combines dosha-based
+  generation with hand editing. Picking a patient shows their dosha profile,
+  nutritional targets and restrictions (via `dietChartService.ts`); hitting
+  Generate calls the FoodOScope API and drops the resulting days straight into
+  the same drag-and-drop Daily/Weekly board used for building a plan by hand,
+  so the doctor can rearrange or leave it as-is before saving. Loading an
+  existing saved plan for editing (from the Diet Chart viewer's Edit button,
+  `?editPlanId=&patientId=`) populates the same board.
+- `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
+  localStorage cache that keeps in-progress work (meal-plan drafts, the food
+  palette, a generated diet chart, the selected patient) across a page refresh.
+  See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
@@ -120,6 +143,19 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/diseaseDetectionService.test.ts` — the questionnaire →
   screening-form mapping, the screening API client, and the Supabase read/write
   of stored screenings (including the missing-table fallback).
+- `src/services/__tests__/pantryService.test.ts` — the pantry row ↔ item
+  mapping, insert defaults, error propagation and ingredient deduplication.
+- `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
+  including a 404 (no recipe matches every ingredient) reading as an empty
+  result rather than a failure.
+- `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
+  unique labels, known categories, normalized search terms and alias lookup.
+- `src/services/__tests__/ingredientCatalogService.test.ts` — building the
+  vocabulary from the API: frequency ordering, de-duplication across
+  categories, alias carry-over, the merged staples, the offline fallback and
+  the week-long cache.
+- `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
+  expiry, corrupted-entry handling and prefix clearing.
 
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
@@ -141,7 +177,8 @@ deliberately not collected here. What the profile stores:
 
 | Group | Fields |
 |---|---|
-| Personal | `name`, `dob` (age is derived, never stored), `gender`, `location` |
+| Personal | `name`, `dob` (age is derived, never stored), `gender`, `location`, `heightCm` |
+| Maternal (once) | `lifeStage` (`pregnancy`/`none`), `dueDate` (estimated due date) |
 | Allergies & avoidances | `allergies`, `allergiesOther`, `foodAvoidances` |
 | Dietary pattern | `dietaryPreferences` |
 | Family history | `familyHistory`, `familyHistoryOther` |
@@ -152,37 +189,54 @@ Fields the profile no longer collects, because they change over time:
 `stressLevels`, `energyLevels`, `waterIntake`, `sleepDuration`,
 `physicalActivity`, `dailyRoutine`, `cravings`, `digestionIssues`,
 `currentConditions`, `medications`, `labReports`, `healthGoals`,
-`mealPrepTime`, `budgetPreference`, and the life-stage block (`lifeStage`,
-`pregnancyTrimester`, `isBreastfeeding`, `menopauseStage`).
+`mealPrepTime`, `budgetPreference`, `pregnancyTrimester`, `isBreastfeeding` and
+`menopauseStage`. (`lifeStage` and `dueDate` *are* collected — they are one-off
+maternal facts; the current gestational week is derived from `dueDate` at
+screening time rather than stored.)
 
 Readers of `assessment_data` treat it as free-form `jsonb` and read every field
-defensively, so profiles saved before this change keep working and the dropped
-keys simply read as absent. Two consequences worth knowing:
+defensively, so profiles saved before this change keep working and any absent
+keys simply read as absent. Worth knowing:
 
 - Features gated on `lifeStage === "pregnancy"` — the patient Health Check page
-  and the doctor's pregnant-patient list — no longer have a source for that
-  value from the profile. See "Disease detection" below.
-- `buildScreeningInputFromAssessment` prefills less of the screening form, so
-  the doctor enters more of it by hand.
+  and the doctor's pregnant-patient list — read it from the onboarding
+  questionnaire. If a profile predates life-stage capture, the Health Check page
+  shows an inline setup card (confirm pregnancy + optional due date/height) that
+  writes the value straight into `assessment_data`, so patients don't have to
+  re-do the whole questionnaire. See "Disease detection" below.
+- `buildScreeningInputFromAssessment` prefills age, gestational week (from
+  `dueDate`), trimester and history; labs and today's measurements stay blank
+  for the patient or doctor to enter.
 
 ## Disease detection
 
-Screens a pregnant patient for seven maternal conditions — anaemia, gestational
-diabetes, preeclampsia, UTI, thyroid disorder, miscarriage risk and perinatal
-mental health. Each condition comes back with a 0-100 risk score, a
-low/moderate/high level, the factors that drove it, and next steps.
+Screens a pregnant patient for eight maternal risks — anaemia, an overall
+**pregnancy risk**, gestational diabetes, preeclampsia, UTI, thyroid disorder,
+miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
+score, a low/moderate/high level, the factors that drove it, and next steps.
+
+Three conditions are scored by trained models (see "Trained models" below) —
+anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a
+**logistic regression** — and the remaining five by the rule-based scorers.
+Because every detector shares the same `(ScreeningInput) -> ConditionRisk`
+contract, the two kinds mix transparently and `ConditionRisk.detector` records
+which one answered.
 
 The form is split across the two roles, because the two halves come from
 different places:
 
-- **Patient → Health Check** (`/patient/health-check`) — she reports her own
-  symptoms, medical history and wellbeing scales (stress, sleep, mood, support,
-  EPDS, PHQ-9), and sees her results immediately. No lab fields are asked for.
-  The page is only offered to patients whose stored `assessment_data` has a
-  life stage of `pregnancy`. **The profile questionnaire no longer asks for life
-  stage** (it is not a constant), so only profiles saved before that change
-  carry the value — new patients need life stage captured somewhere else before
-  this gate opens for them.
+- **Patient → Health Check** (`/patient/health-check`) — asks only for the three
+  trained models' inputs, in three cards: **measurements** (weeks pregnant,
+  weight → BMI using the height captured at onboarding, haemoglobin, blood
+  pressure, iron supplements), **blood test results** (HbA1c, HDL,
+  triglycerides — all optional), and **diabetes risk factors** (prior GDM,
+  prediabetes, family history, PCOS, previous large baby, unexplained loss,
+  inactivity). She sees anaemia, pregnancy risk and gestational diabetes
+  immediately. The rule-only conditions are not run here, since they need
+  clinical findings and lab panels this form deliberately does not ask for.
+  The page is only offered to patients whose stored `assessment_data` has a life
+  stage of `pregnancy` — captured, along with the estimated due date and height,
+  by the onboarding questionnaire (`src/pages/patient/Questionnaire.tsx`).
 - **Doctor → Patient Analysis** (`/doctor/patient-analysis`, legacy
   `/doctor/disease-detection` still resolves) — lists the doctor's accepted
   pregnant patients (the Patients page also links through per patient via
@@ -198,6 +252,13 @@ The patient sees every run in her own History tab. Charts only render for values
 that were actually recorded; laboratory fields left blank mean "not performed" —
 they never score as a normal result.
 
+**Measurement bounds.** `src/lib/screeningValidation.ts` mirrors the
+`Field(ge=..., le=...)` constraints in `backend/disease_detection/schemas.py` so
+an impossible reading (entering `119` instead of `11.9` for haemoglobin) is
+flagged in the form instead of returning a raw pydantic error. The backend
+remains the authority; **if you change a bound in `schemas.py`, update that file
+too** — its unit tests pin the expected ranges and will fail if the two drift.
+
 **Backend.** The pipeline lives in `backend/disease_detection/` and is exposed
 by two endpoints:
 
@@ -206,12 +267,81 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-The scoring today is the rule-based analytics ported from the Neuviaa prototype
-(`rules.py`), registered per condition through `pipeline.register_detector`. A
-detector is any callable of `(ScreeningInput) -> ConditionRisk`, so a trained ML
-model can replace a single condition without touching the API or the frontend;
-`ConditionRisk.detector` records which one produced each result, which keeps a
-mixed rules/ML screening auditable.
+Five conditions are scored by the rule-based analytics ported from the Neuviaa
+prototype (`rules.py`), registered per condition through
+`pipeline.register_detector`. Anaemia, pregnancy risk and gestational diabetes
+are scored by the trained models in `disease_detection/ml/` (see below), which
+register over their rule-based baselines at import. A detector is any callable of
+`(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
+reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
+records which one produced each result, which keeps a mixed run auditable.
+
+### Trained models
+
+**Maternal risk (XGBoost).** Two classifiers trained on a synthetic
+maternal-anaemia cohort (`backend/data/maternal_anemia_dataset.csv`):
+
+- **Anaemia status** — Normal / Mild / Moderate / Severe (essentially the WHO
+  haemoglobin grading).
+- **Pregnancy risk** — Low / Medium / High, combining haemoglobin, blood
+  pressure, maternal age and BMI.
+
+Both read the same nine features (age, gestational week, haemoglobin, iron
+supplement, systolic/diastolic BP, MAP, pulse pressure, BMI) via one shared
+transform (`ml/featurize.py`) used for both training and inference, so they
+cannot drift. Models are stored in XGBoost's version-tolerant native JSON
+format alongside `model_schema.json`. Retrain them with:
+
+```
+cd backend && python -m disease_detection.ml.train_maternal_models
+```
+
+**Gestational diabetes (logistic regression).** A class-balanced logistic
+regression trained on `backend/data/gdm_dataset.csv` (10,500 rows, ~17% GDM
+prevalence). It is a *pre-OGTT early screening* model: fasting glucose and the
+75g OGTT results are deliberately excluded from training, since those are the
+diagnostic test itself and would leak the target.
+
+It uses 15 features (`ml/gdm_featurize.py`), **12 of which the app already
+collects** and maps straight off `ScreeningInput` — age, BMI, blood pressure,
+pregnancies, prior GDM, family history, prior loss, prior macrosomia, PCOS,
+sedentary lifestyle, HbA1c. Only three fields were added for it:
+`known_prediabetes`, `hdl` and `triglycerides`. Three of the source notebook's
+18 features were dropped after checking the cost on held-out data
+(ROC-AUC 0.826 → 0.823):
+
+| Dropped | Why |
+|---|---|
+| `snp_genetic_risk_score` | A genetic score no patient can be expected to know; correlates only +0.067 with the outcome. |
+| `height_cm`, `weight_kg` | Fully redundant with `bmi`, which is derived from them — dropping both moved AUC by <0.0001. |
+
+Held-out performance: **ROC-AUC 0.823, recall 0.733** (recall matters most for
+a screening model, which is why the fit is class-balanced). Risk tiers follow
+the notebook's stratification table: low <35%, moderate 35–60%, high >60%.
+
+The model is stored as **plain JSON** (`gdm_model.json`: feature order, scaler
+mean/scale, coefficients, intercept, per-feature medians) rather than a pickle,
+and inference evaluates the sigmoid directly with numpy. This means it carries
+no scikit-learn version coupling — the notebook's pickle was written with 1.6.1
+while this repo pins 1.7.2, the same drift hazard `CLAUDE.md` flags for
+`dosha_model.pkl` — and the scaler cannot go missing, because it travels in the
+same file as the coefficients it belongs to. The training script asserts the
+hand-rolled sigmoid reproduces `predict_proba` exactly. Retrain with:
+
+```
+cd backend && python -m disease_detection.ml.train_gdm_model
+```
+
+Missing optional labs (HbA1c, HDL, triglycerides) are imputed with the training
+median, and the result says which ones were estimated so a score built partly on
+population averages is never mistaken for one built on the patient's own
+results.
+
+**Fallbacks.** When a model needs an input it does not have — haemoglobin for
+anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM — the
+detector falls back to the rule-based baseline rather than scoring on imputed
+values. If XGBoost or the model files are absent, the whole pipeline runs on the
+rule-based baseline.
 
 **Frontend layout.** The form sections
 (`src/components/health/ScreeningFields.tsx`) and the results rendering
@@ -228,6 +358,141 @@ table is missing the feature still works — results render normally and simply
 are not persisted.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
+
+## Lifestyle Tracker
+
+`/patient/lifestyle-tracker` (`src/pages/patient/LifestyleTracker.tsx`). One
+page, one daily check-in — movement, hydration, sleep and diet-plan adherence
+are sections of a single view rather than separate tabs, because they are all
+answered in the same sitting. Everything logged here is real and persisted.
+
+**Movement & exercise.** The exercises offered are chosen from the patient's
+conditions, not a fixed list: what helps anaemia (gentle, oxygen-conservative
+work) is close to the opposite of what helps PCOS (sustained aerobic plus
+resistance training), and several conditions have movements that are actively
+unsafe.
+
+- `src/lib/exerciseRecommendations.ts` holds the exercise catalog and a plan per
+  condition — the exercises, the reason they suit that condition, and what to
+  avoid. Conditions come from two sources: moderate/high findings on her latest
+  maternal screening (`disease_screenings`) and the conditions in her profile
+  (`patients.assessment_data`). Free text is matched through an alias table, so
+  "Anemia", "PCOD" and "high BP" all land correctly; anything unrecognised is
+  dropped rather than guessed at, and a patient with no known conditions gets a
+  general balanced plan.
+- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins and adds its own
+  "avoid" notes on top of the condition's.
+- Minutes are logged against the recommended exercises themselves, so the log
+  always matches the recommendation.
+
+**Streaks.** The activity streak counts consecutive days with *any* movement
+logged; the hydration section counts days the daily water target was met. Streak
+math lives in `src/lib/lifestyleLog.ts` (pure, Supabase-free, unit tested in
+`src/lib/__tests__/lifestyleLog.test.ts`): an unachieved *today* doesn't break a
+run — the day isn't over — but any earlier missed day does.
+
+**Storage is local-first.** A streak that vanishes on refresh defeats the point,
+so `src/services/lifestyleLogService.ts` writes every entry to `localStorage`
+through the shared `src/lib/localCache.ts` wrapper — with no TTL, unlike the
+in-progress drafts it usually holds — and then mirrors it to the
+`lifestyle_logs` Supabase table (one row
+per patient per day, RLS-scoped to the patient herself —
+`supabase/lifestyle_logs.sql`). Reads merge the two, preferring the server where
+both have a day so a second device wins over a stale cache. A missing table or an
+unreachable server degrades gracefully: the tracker keeps working from the cache
+and shows a banner saying it isn't backed up.
+
+**Daily nutrition & diet plan.** Replaces the old "No Junk Food" streak. Rather
+than a habit game, this reports two facts per day, read from the meal statuses
+she ticks off in Meal Logging (`meal_tracking`, via
+`src/services/mealAdherenceService.ts`): whether she completed her daily
+nutrition (calories against the targets for her life stage, from
+`getNutritionalTargets`) and whether she followed the diet plan she was given
+(share of planned meals eaten). Deliberately *not* a streak — a missed day here
+is dietary information for her doctor, not something to reset. Logic and
+thresholds are in `src/lib/dietAdherence.ts`.
+
+> The old `junk_food_streak_logs` table and its `supabase/junk_food_streak.sql`
+> migration were removed with the feature. If the table exists in an already
+> provisioned project it is now unused and safe to drop.
+
+## Patient kitchen (pantry)
+
+Patients list the food they actually have, so plans are built around what they
+can cook rather than what a generator picked.
+
+- **Patient side** — "My Kitchen" at `/patient/pantry`
+  (`src/pages/patient/Pantry.tsx`). Search the ingredient catalogue, add the
+  food with an optional quantity and note onto either the **At home** or the
+  **Shopping list** tab, and move items between the two. The old
+  `/patient/shopping` placeholder now redirects here.
+- **Ingredient catalogue** — `src/services/ingredientCatalogService.ts`. Foods
+  are picked from a list rather than typed free-hand, because what a patient
+  types ("Dals", "ALL Kinds Of Fruits") is not what the recipe database
+  indexes, and the doctor's ingredient search then matched nothing. The list is
+  **FoodOScope's own ingredient index**: the service sweeps the FlavorDB
+  categories (`/ingredients/flavor/{category}`), keeps each entry's indexed
+  name as the `searchTerm`, its readable `generic_name` as the label, and its
+  `frequency` — how many recipes actually use it — to sort the common foods to
+  the top. The sweep runs at most once a week (localStorage, 4 categories at a
+  time) behind `src/hooks/useIngredientCatalog.ts`.
+  `src/data/ingredients.ts` remains as the bundled fallback shown while the
+  sweep runs or when the API is unreachable, and as the source of local-name
+  aliases ("methi", "bhindi", "jeera", "gur") the API does not carry; curated
+  staples the API omits are merged in.
+  `public/foodDatabase.json` is deliberately not the source here — it lists
+  prepared dishes, not ingredients.
+- **Doctor side** — the **Patient Pantry** panel at the top of the Food Explorer
+  (`src/components/patients/PatientPantryPanel.tsx`). Search one of your own
+  patients and their kitchen list appears as tappable chips; picking one or two
+  pushes their catalogue search terms into the FoodOScope include-ingredients
+  filter. The filter is an AND across everything selected — a recipe must
+  contain every ingredient picked — so the panel selects nothing by default
+  rather than searching a whole pantry, which matches nothing.
+- **Storage** — `patient_pantry_items` (`supabase/patient_pantry_items.sql`,
+  one row per food with both the chosen label and its `search_term`),
+  read and written through `src/services/pantryService.ts`. RLS makes the list
+  the patient's own: they insert/update/delete only their rows, and a treating
+  doctor can read but never write them.
+
+## Patient selection (doctors)
+
+Every doctor-side patient search goes through `PatientPicker`
+(`src/components/patients/PatientPicker.tsx`): a searchable dropdown listing
+**only the signed-in doctor's own patients**, filterable by name or by patient
+code (P001…). It is used by the Recipe Builder, the Diet Chart viewer and the
+Food Explorer's pantry panel, replacing the free-text "enter a patient ID"
+inputs those pages used to have.
+
+The list comes from `src/hooks/useDoctorPatients.ts`, which reads the doctor's
+`consultation_requests` (statuses `pending`/`accepted`/`completed` — the same
+set `public.doctor_treats()` accepts, so anything offered in the picker is
+something the doctor may actually write a plan for) and caches the result in
+React Query.
+
+The picker hands callers the patient's **`patients.id` UUID**, and shows the
+P001-style code as display text only. That distinction matters: `diet_plans`
+(and every other table) keys on the UUID, so saving a plan against the code
+fails on both the column type and the RLS check.
+
+## Caching
+
+Long-running work no longer disappears on a page refresh:
+
+- `src/lib/localCache.ts` is a small namespaced, TTL-aware localStorage wrapper;
+  `src/hooks/usePersistentState.ts` is `useState` mirrored into it.
+- What is cached: the Recipe Builder's meal-plan board (generated, hand-built,
+  or both), its form fields and selected patient, the food palette
+  (`FoodContext.selectedFoods`), the food database JSON, the patient selected
+  in the Diet Chart viewer and the Food Explorer pantry panel, and each
+  patient's pantry list.
+- The Lifestyle Tracker uses the same wrapper but with no TTL
+  (`CACHE_KEYS.lifestyleLogs` + the patient id): its logs are the patient's own
+  history rather than in-progress work, so a streak must not expire on its own.
+  See "Lifestyle Tracker" above.
+- Server reads go through React Query, whose app-wide defaults live in
+  `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
+  focus), so switching pages serves from cache instead of refetching.
 
 ## Environment variables
 
@@ -313,11 +578,38 @@ One exception, unchanged from before: `public/mealCompatibility.html` is a
 standalone static page with no bundler and no Supabase client, so it keeps its
 own `API_TOKENS` array. It is not part of the rotation described above.
 
-## Deployment (Vercel)
+## Deployment
+
+### Frontend (Vercel)
 
 The frontend deploys as its own Vercel project: Root Directory = repo root,
 Framework Preset = Vite. Set the frontend environment variables above in that
-project's settings, then redeploy.
+project's settings, then redeploy. Point `VITE_API_URL` at the deployed backend
+URL (see below) so the disease-detection screening reaches the Flask API.
+
+### Backend (Render)
+
+The Flask backend — including the maternal disease-detection models — deploys to
+Render from the committed blueprint at `render.yaml`. In Render, choose **New +
+→ Blueprint** and select this repo; it builds `backend/requirements.txt`
+(installing XGBoost and the other backend deps) and starts the app with
+`python run.py` (Waitress), health-checked at `/health`. Render injects `PORT`
+automatically; `config.py` reads it.
+
+Set two secrets in the Render dashboard (they are `sync: false` in the
+blueprint, so they are never committed): `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`, both from your free Supabase project (Project
+Settings → API). `OPENAI_API_KEY` is **optional** — the disease-detection models
+and the rest of the API boot without it, so the backend deploys for free; only
+the LLM meal-planning / dosha-chat features need a key, which you can add later
+in the dashboard. Once the service is live, copy its URL into the frontend's
+`VITE_API_URL`.
+
+The model artifacts in `backend/disease_detection/ml/*.json` are committed, so no
+training step runs on deploy; the service loads them at startup and falls back to
+the rule-based baseline if they are missing.
+
+### Backend (Vercel, alternative)
 
 The backend is **not** combined into the same Vercel project as the
 frontend. This was tried (routing backend paths to a Python function under
@@ -328,6 +620,6 @@ prebuilt wheel at all for the Python version Vercel defaults to there, so the
 build fails trying to compile numpy/pandas from source. The backend-only
 build path (Root Directory = `backend/`, Flask framework preset) does not
 have this problem and is known to work — deploy the backend as a separate
-Vercel project using that layout if you need it live. Nothing in the current
-frontend calls the backend in production, so this only matters once a
-feature needs it.
+Vercel project using that layout if you prefer Vercel over Render. Either way,
+the frontend's disease-detection screening calls the backend in production, so
+`VITE_API_URL` must point at whichever backend deployment you use.

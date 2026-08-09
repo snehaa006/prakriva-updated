@@ -12,17 +12,16 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Plus, 
-  Search, 
-  ChefHat, 
+import {
+  LayoutDashboard,
+  Users,
+  Plus,
+  Search,
+  ChefHat,
   FileText,
   Settings,
   User,
   LogOut,
-  Leaf,
   Stethoscope
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
@@ -64,11 +63,6 @@ const navigationItems = [
     title: "Diet Charts",
     url: "/doctor/diet-charts",
     icon: FileText,
-  },
-  {
-    title: "Personalized Diet",
-    url: "/doctor/personalized-diet",
-    icon: Leaf,
   },
 ];
 

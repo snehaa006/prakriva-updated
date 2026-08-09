@@ -77,6 +77,7 @@ import {
   RecipeBasic,
   RecipeOfDay,
 } from "@/services/foodoscopeApi";
+import { PatientPantryPanel } from "@/components/patients/PatientPantryPanel";
 
 // --- Constants ---
 
@@ -1461,6 +1462,20 @@ const FoodExplorer: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Patient pantry — search a patient and cook from what they own */}
+      <PatientPantryPanel
+        onUseIngredients={(names) => {
+          if (names.length === 0) return;
+          // The FoodOScope ingredient filter takes a comma-separated list, and
+          // matches recipes containing all of them.
+          setIncludeIngredients(names.join(","));
+          setPage(1);
+          toast.success(
+            `Searching recipes with ${names.join(", ")}.`
+          );
+        }}
+      />
 
       {/* Recipe of the Day */}
       <RecipeOfDayCard />

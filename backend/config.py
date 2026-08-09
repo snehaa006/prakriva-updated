@@ -24,7 +24,21 @@ class Settings:
         self.DEBUG = os.getenv("DEBUG", "True").lower() == "true"
         self.HOST = os.getenv("HOST", "0.0.0.0")
         self.PORT = int(os.getenv("PORT", 5001))
-        
+
+        # CORS. Comma-separated list of exact origins the frontend is served
+        # from (scheme + host, no trailing slash), e.g.
+        # "https://prakriva.vercel.app,http://localhost:5173". Vite's dev
+        # server defaults are included so local development keeps working
+        # without extra setup.
+        self.ALLOWED_ORIGINS = [
+            origin.strip()
+            for origin in os.getenv(
+                "ALLOWED_ORIGINS",
+                "http://localhost:5173,http://localhost:3000,https://prakriva.vercel.app",
+            ).split(",")
+            if origin.strip()
+        ]
+
         # API Keys
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
