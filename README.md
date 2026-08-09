@@ -4,7 +4,8 @@ An Ayurvedic diet/wellness planning app connecting doctors and patients. Doctors
 manage patients, build recipes and diet charts, review dosha/consultation
 data, and run maternal disease-risk screening for their pregnant patients;
 patients complete an Ayurvedic health questionnaire, list the foods in their
-kitchen, and get a personalized diet plan.
+kitchen, get a personalized diet plan, get exercise suggestions matched to the
+risks their health check flagged, and join peer-support community circles.
 
 ## Tech stack
 
@@ -44,9 +45,11 @@ kitchen, and get a personalized diet plan.
     expertise, practice), with its option lists in `doctorProfileOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
-- `src/test/` — Vitest setup (`setup.ts`) and the Supabase client mock
-  (`supabaseMock.ts`) shared across frontend tests. Tests themselves sit in
-  `__tests__/` folders next to the code they cover.
+- `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
+  (`supabaseMock.ts`) and `renderPage.tsx` (renders a page with the router and
+  a fresh react-query client, which pages need since they load through
+  `useCachedPageData`). Tests themselves sit in `__tests__/` folders next to
+  the code they cover.
 - `backend/` — Flask API (`app.py`) providing dosha estimation
   (`dosha_estimator.py`, `dosha_model.pkl`), calorie calculation
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
@@ -68,7 +71,13 @@ kitchen, and get a personalized diet plan.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
-  hydration log and `patient_pantry_items.sql` for the patient kitchen list.
+  hydration log, `patient_pantry_items.sql` for the patient kitchen list and
+  `community.sql` for the community circles, their memberships and their chat.
+- `src/components/wellness/ExercisePlan.tsx` — the one rendering of an exercise
+  suggestion, shared by the Lifestyle Tracker (where minutes are logged against
+  each exercise), the patient's health-check results and the doctor's Patient
+  Analysis, so the three cannot drift apart. The picks themselves come from
+  `src/lib/exerciseRecommendations.ts`. See "Exercise suggestions" below.
 - `src/components/patients/` — shared patient-selection UI:
   `PatientPicker.tsx` (searchable dropdown over the signed-in doctor's own
   patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
@@ -163,6 +172,17 @@ Coverage is focused on authentication, since that is the gate on both roles:
   the week-long cache.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
+- `src/hooks/__tests__/useCachedPageData.test.tsx` — that a revisited page
+  renders from cache without a spinner and without re-fetching. See
+  "Page loads" under Caching.
+- `src/lib/__tests__/exerciseRecommendations.test.ts` — condition → exercise
+  matching, the screening findings that feed it, the pregnancy substitutions,
+  and a working video link for every recommended exercise.
+- `src/lib/__tests__/community.test.ts` — which circles suit a patient, the
+  browse ordering, display-name defaulting and message validation.
+- `src/services/__tests__/communityService.test.ts` — the community row
+  mapping, that a join request never sends its own status, and the
+  missing-table fallbacks.
 
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
@@ -243,7 +263,10 @@ different places:
   plus the thyroid history flags), and **diabetes risk factors** (prior GDM,
   prediabetes, family history, PCOS, previous large baby, unexplained loss,
   inactivity). She sees anaemia, pregnancy risk, gestational diabetes, thyroid
-  disorder and preeclampsia immediately. The rule-only conditions are not run here, since they need
+  disorder and preeclampsia immediately, and — on the same tab — an **exercise
+  plan built from those results**, grouped by the condition that asked for it
+  (see "Exercise suggestions" below).
+  The rule-only conditions are not run here, since they need
   clinical findings and lab panels this form deliberately does not ask for.
   The page is only offered to patients whose stored `assessment_data` has a life
   stage of `pregnancy` — captured, along with the estimated due date and height,
@@ -255,7 +278,9 @@ different places:
   everything the patient has submitted: trend line charts of her vitals, labs and
   wellbeing scores (hemoglobin, blood pressure, BMI, HbA1c, TSH, PHQ-9, EPDS, …)
   over a selectable 7 / 15 / 30-day or all-time window, a per-condition risk-score
-  trend, and the detected conditions with their current risk. The doctor no
+  trend, the detected conditions with their current risk, and the **exercise
+  plan those conditions imply** — the same suggestions the patient sees, so the
+  doctor can talk through or correct them in the consultation. The doctor no
   longer fills in or re-runs the screening form here — the analysis is built from
   the patient's own Health Check submissions.
 
@@ -504,6 +529,59 @@ in server environment variables rather than a browser-readable Supabase table.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
+## Exercise suggestions
+
+A risk score on its own tells a patient nothing she can act on. Every place a
+risk is shown, the exercise that answers it is shown with it — thyroid risk
+gets brisk walking, resistance work and pranayama; anaemia gets the gentle,
+oxygen-conservative opposite — and each exercise links to a how-to video.
+
+**Where they appear.**
+
+- `/patient/health-check` → **My results** — under the screening results,
+  grouped **per flagged condition** ("Exercise for Thyroid Disorder", with its
+  risk badge, why it is prescribed that way, its videos, and what to avoid).
+  The question on that tab is "my thyroid came back moderate — now what?", and
+  one merged list of ten exercises does not answer it.
+- `/doctor/patient-analysis` — the same plan for the selected patient's latest
+  screening, in clinician wording, so the doctor can talk it through or correct
+  it in the consultation.
+- `/patient/lifestyle-tracker` — merged into one list instead, because the
+  question there is *what to do today*: an exercise two conditions both ask for
+  should appear once, with minute logging attached.
+
+**How the picks are made.** `src/lib/exerciseRecommendations.ts` holds the
+exercise catalog and a plan per condition — the exercises, the reason they suit
+that condition, and what to avoid.
+
+- Conditions come from two sources: **moderate/high findings** on the latest
+  maternal screening (`disease_screenings`, via `conditionsFromScreening()`) and
+  the conditions in her profile (`patients.assessment_data`). A low-risk finding
+  is reassurance, not something to train around, so it is dropped — otherwise
+  the one risk that needs tailoring is buried under four that don't.
+- Free text is matched through an alias table, so "Anemia", "PCOD" and "high BP"
+  all land correctly; anything unrecognised is dropped rather than guessed at,
+  and a patient with no known conditions gets a general balanced plan.
+- Plans are ordered by risk, so the most pressing condition leads.
+- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins (`Surya
+  Namaskar` → prenatal yoga, strength training → light resistance) and adds its
+  own "avoid" notes on top of the condition's. Every patient on the doctor's
+  Patient Analysis page is pregnant, so that view always applies them.
+- `videoUrl()` builds a YouTube **search** URL from the exercise's `videoQuery`
+  rather than embedding a video id: a specific id can be taken down, go private,
+  or be re-uploaded as something else, and a dead or wrong-content link on a page
+  giving health guidance is worse than no link. Swap in
+  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
+
+The module is pure and Supabase-free, and unit tested in
+`src/lib/__tests__/exerciseRecommendations.test.ts` — including that every
+recommended exercise across every condition (pregnant and not) has a working
+video link. Rendering is shared through
+`src/components/wellness/ExercisePlan.tsx`.
+
+*These are general wellness suggestions, not a prescription — every surface says
+so, and says to check with a doctor first.*
+
 ## Lifestyle Tracker
 
 `/patient/lifestyle-tracker` (`src/pages/patient/LifestyleTracker.tsx`). One
@@ -512,29 +590,9 @@ are sections of a single view rather than separate tabs, because they are all
 answered in the same sitting. Everything logged here is real and persisted.
 
 **Movement & exercise.** The exercises offered are chosen from the patient's
-conditions, not a fixed list: what helps anaemia (gentle, oxygen-conservative
-work) is close to the opposite of what helps PCOS (sustained aerobic plus
-resistance training), and several conditions have movements that are actively
-unsafe.
-
-- `src/lib/exerciseRecommendations.ts` holds the exercise catalog and a plan per
-  condition — the exercises, the reason they suit that condition, and what to
-  avoid. Conditions come from two sources: moderate/high findings on her latest
-  maternal screening (`disease_screenings`) and the conditions in her profile
-  (`patients.assessment_data`). Free text is matched through an alias table, so
-  "Anemia", "PCOD" and "high BP" all land correctly; anything unrecognised is
-  dropped rather than guessed at, and a patient with no known conditions gets a
-  general balanced plan.
-- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins and adds its own
-  "avoid" notes on top of the condition's.
-- Minutes are logged against the recommended exercises themselves, so the log
-  always matches the recommendation.
-- Each exercise card links to a how-to video. `videoUrl()` builds a YouTube
-  **search** URL from the exercise's `videoQuery` rather than embedding a video
-  id: a specific id can be taken down, go private, or be re-uploaded as
-  something else, and a dead or wrong-content link on a page giving health
-  guidance is worse than no link. Swap in
-  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
+conditions, not a fixed list — see "Exercise suggestions" below for how they are
+picked. Minutes are logged against the recommended exercises themselves, so the
+log always matches the recommendation.
 
 **Streaks.** The activity streak counts consecutive days with *any* movement
 logged; the hydration section counts days the daily water target was met. Streak
@@ -586,6 +644,62 @@ give a current activity streak of 4 with an earlier best of 6;
 the production streak functions over the generated month, and
 `src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
 checks they reach the UI.
+
+## Community
+
+`/patient/community` (`src/pages/patient/Community.tsx`) — peer support
+circles. **This replaces the old Social Support tab**, whose feed and doctor
+chat were hardcoded mock data; the route `/patient/social-support` now redirects
+here.
+
+Circles are condition-shaped, because that is what women actually want to
+compare notes about: **Pregnancy**, **PCOS & PCOD**, **Thyroid**, **Iron &
+Anaemia**, **Blood Sugar** (gestational and type 2), **New Mothers**, **Mind &
+Mood**, and an open **Women's Wellness** circle. They are seeded by
+`supabase/community.sql`; edit the copy freely, but keep the slugs — the
+matching keys off them.
+
+**Three tabs.**
+
+- **Discover** — every circle, with the ones matching her own profile badged
+  *"Suits your profile"* and sorted to the top. The match runs off her reported
+  conditions, her latest screening findings and her life stage, through the same
+  alias table the exercise plans use (`src/lib/community.ts` →
+  `profileMatchKeys`), so "PCOD" in a questionnaire reaches the PCOS circle.
+  The open circle is deliberately never badged: it suits everyone, so saying so
+  carries no information.
+- **My circles** — the chat. Messages are live where Supabase realtime is
+  enabled on `community_messages`, and still work without it (new messages
+  appear on the next send or reload).
+- **Requests** — who is waiting to be let into her circles.
+
+**Joining is always a request.** She picks a display name (defaulted to a first
+name plus an initial — these are circles about miscarriage, mental health and
+PCOS, so the default should not be her full name) and can add a line about
+herself. The status is the **database's** decision, never the browser's: the
+`community_admit()` trigger forces every insert to `pending`, except into a
+circle with no approved members yet, which would otherwise be un-joinable — that
+founding member is admitted immediately. After that, **existing members approve
+the next person**, which keeps moderation inside the circle rather than needing
+an admin the app does not have.
+
+**Privacy is enforced in Postgres, not in the page.** `public.community_member()`
+(SECURITY DEFINER, so the membership policies don't recurse on their own table)
+gates reads and writes on `community_messages`: a signed-in stranger cannot read
+a circle she has not been approved into. The same guard trigger that admits the
+founding member also restores every column except `status` on an update, so an
+approving member cannot rewrite a peer's display name or move her request to
+another circle, and a pending patient cannot wave herself through. Messages
+cannot be edited after they are read; an author can delete her own.
+
+**Storage** — `community_groups`, `community_memberships` and
+`community_messages` (`supabase/community.sql`), read and written through
+`src/services/communityService.ts`. A missing table degrades gracefully, as
+elsewhere: the page shows "No circles yet" rather than erroring, so a deploy
+that has not applied the SQL does not take the page down. Matching and message
+validation are pure functions in `src/lib/community.ts`, unit tested in
+`src/lib/__tests__/community.test.ts`; the service's row mapping and its
+missing-table fallbacks in `src/services/__tests__/communityService.test.ts`.
 
 ## Patient kitchen (pantry)
 
@@ -768,6 +882,42 @@ Long-running work no longer disappears on a page refresh:
 - Server reads go through React Query, whose app-wide defaults live in
   `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
   focus), so switching pages serves from cache instead of refetching.
+
+### Page loads (why tabs no longer flash a spinner)
+
+Pages used to load themselves in a `useEffect` with their own `isLoading`
+starting at `true`. React Router unmounts the page you leave, so the fresh
+mount knew nothing about what the previous one had fetched: **every** tab
+switch — not just the first visit — put a full-page spinner over data that had
+been on screen a second earlier, and refetched all of it.
+
+Two hooks fix that for good, and both are the pattern to follow for any new
+page:
+
+- `src/hooks/useCachedPageData.ts` wraps `useQuery` for a page's whole
+  snapshot. The query cache lives at the app root and outlives the unmount, so
+  a return visit renders the previous answer in its first frame and
+  revalidates underneath. It hands back `isFirstLoad` — true only when there is
+  genuinely nothing to show — which is the *only* state a page should block
+  on. A query still waiting on `enabled` counts as loading, because rendering
+  the page empty for that beat is the same flicker. `refreshMs` keeps the
+  polling that the doctor's request queue and patient list rely on.
+  Unit tested in `src/hooks/__tests__/useCachedPageData.test.tsx`, including
+  that a second mount neither spins nor re-fetches.
+- `src/hooks/useAuthUserId.ts` is one cached answer for "who is signed in".
+  Eleven call sites each ran their own `supabase.auth.getUser()` — a round trip
+  to the auth server that every page waited on before its first query could
+  even start. `useDoctorPatients` owns the same cache key, so they share it.
+
+Converted so far: the patient's Dashboard, Health Check, Tracker, Community and
+Profile, and the doctor's Patients, Consultation Requests and Patient Analysis.
+Page tests render through `src/test/renderPage.tsx`, which supplies a **fresh**
+query client per test so one test's cache cannot satisfy the next test's query.
+
+Two rules keep the cache honest where a page also owns editable state: seed
+local state from the snapshot **once** (a background refresh must never
+overwrite half-typed input), and after a write, re-read the snapshot rather
+than patching a second copy of it.
 
 ## Environment variables
 

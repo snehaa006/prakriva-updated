@@ -73,8 +73,8 @@ const navigationItems = [
   //   icon: Activity,
   // },
   {
-    title: "Social Support",
-    url: "/patient/social-support",
+    title: "Community",
+    url: "/patient/community",
     icon: Users,
   },
   {

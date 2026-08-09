@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { renderPage } from "@/test/renderPage";
 import {
   CONDITION_LABELS,
   type ConditionKey,
@@ -47,6 +47,17 @@ vi.mock("@/services/diseaseDetectionService", async (importOriginal) => {
   return {
     ...actual,
     fetchScreenings: async () => fetchScreeningsResult,
+    // The page loads itself through this one call (cached by react-query), so
+    // it is what has to be stubbed — the real one would call the real
+    // `fetchScreenings` internally, past the stub above.
+    loadHealthCheck: async () => ({
+      assessment: {
+        lifeStage: "pregnancy",
+        dueDate: "2026-10-01",
+        heightCm: 160,
+      },
+      screenings: fetchScreeningsResult,
+    }),
   };
 });
 
@@ -102,11 +113,7 @@ const FIVE_CHECKS: StoredScreening[] = [
 ];
 
 const renderHistoryTab = async () => {
-  render(
-    <MemoryRouter>
-      <HealthRisks />
-    </MemoryRouter>
-  );
+  renderPage(<HealthRisks />);
   await screen.findByRole("heading", { name: "Pregnancy Health Check" });
   await userEvent.click(screen.getByRole("tab", { name: /past checks/i }));
 };

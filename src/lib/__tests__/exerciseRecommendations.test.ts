@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  conditionsFromScreening,
   GENERAL_PLAN,
   matchConditionKey,
+  planExercises,
+  planForCondition,
   recommendExercises,
   videoUrl,
 } from "../exerciseRecommendations";
@@ -31,6 +34,64 @@ describe("matchConditionKey", () => {
   it("distinguishes gestational diabetes from type 2", () => {
     expect(matchConditionKey("Gestational Diabetes")).toBe("gdm");
     expect(matchConditionKey("Type 2 Diabetes")).toBe("diabetes");
+  });
+});
+
+describe("conditionsFromScreening", () => {
+  const findings = [
+    { condition: "thyroid", risk_level: "high" },
+    { condition: "anaemia", risk_level: "moderate" },
+    { condition: "gdm", risk_level: "low" },
+  ];
+
+  it("keeps the moderate and high findings and drops the low ones", () => {
+    expect(conditionsFromScreening(findings)).toEqual([
+      { condition: "thyroid", riskLevel: "high" },
+      { condition: "anaemia", riskLevel: "moderate" },
+    ]);
+  });
+
+  it("includes low findings only when asked", () => {
+    expect(conditionsFromScreening(findings, { includeLow: true })).toHaveLength(3);
+  });
+
+  it("survives a screening that has not been run yet", () => {
+    expect(conditionsFromScreening(undefined)).toEqual([]);
+    expect(conditionsFromScreening(null)).toEqual([]);
+  });
+
+  it("feeds straight into a recommendation, highest risk first", () => {
+    const result = recommendExercises({ conditions: conditionsFromScreening(findings) });
+    expect(result.plans.map((p) => p.key)).toEqual(["thyroid", "anaemia"]);
+    // The low-risk GDM finding never reached the plan.
+    expect(result.plans.map((p) => p.key)).not.toContain("gdm");
+  });
+});
+
+describe("planForCondition and planExercises", () => {
+  it("resolves a screening key to its plan", () => {
+    expect(planForCondition("thyroid")?.key).toBe("thyroid");
+    expect(planForCondition("Hypothyroidism")?.key).toBe("thyroid");
+    expect(planForCondition("purple spots")).toBeNull();
+  });
+
+  it("returns a single condition's exercises, each with a video", () => {
+    const plan = planForCondition("thyroid");
+    const exercises = planExercises(plan!);
+
+    expect(exercises.map((e) => e.id)).toContain("strength-training");
+    expect(exercises.every((e) => e.videoQuery.trim() !== "")).toBe(true);
+  });
+
+  it("applies the pregnancy substitutions per condition too", () => {
+    const exercises = planExercises(planForCondition("pcos")!, true);
+    expect(exercises.map((e) => e.id)).not.toContain("strength-training");
+    expect(exercises.map((e) => e.id)).toContain("light-resistance");
+  });
+
+  it("agrees with the merged recommendation for a single condition", () => {
+    const merged = recommendExercises({ conditions: [{ condition: "anaemia" }] });
+    expect(planExercises(planForCondition("anaemia")!)).toEqual(merged.exercises);
   });
 });
 

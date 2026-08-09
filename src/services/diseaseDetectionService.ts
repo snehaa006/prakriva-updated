@@ -305,6 +305,31 @@ interface ScreeningRow {
  * "Past Checks" history and its date-range filters see the whole 3+ month
  * window rather than being silently truncated to the most recent 20.
  */
+/** A patient's health-check page in one load: her profile and her screenings. */
+export interface HealthCheckSnapshot {
+  assessment: AssessmentData;
+  screenings: StoredScreening[];
+}
+
+/**
+ * Everything the patient's Health Check needs, gathered so it can be cached as
+ * one snapshot and re-rendered instantly when she returns to the tab.
+ */
+export const loadHealthCheck = async (
+  patientId: string
+): Promise<HealthCheckSnapshot> => {
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("assessment_data")
+    .eq("id", patientId)
+    .maybeSingle();
+
+  return {
+    assessment: (patient?.assessment_data as AssessmentData) ?? null,
+    screenings: await fetchScreenings(patientId),
+  };
+};
+
 export const fetchScreenings = async (
   patientId: string,
   limit = 400

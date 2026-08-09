@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { renderPage } from "@/test/renderPage";
 
 /**
  * Renders the real tracker page against mocked data services.
@@ -53,12 +53,8 @@ vi.mock("@/services/diseaseDetectionService", () => ({
 
 const LifestyleTracker = (await import("../LifestyleTracker")).default;
 
-const renderPage = async () => {
-  render(
-    <MemoryRouter>
-      <LifestyleTracker />
-    </MemoryRouter>
-  );
+const renderTracker = async () => {
+  renderPage(<LifestyleTracker />);
   // Wait out the initial load spinner.
   await screen.findByRole("heading", { name: "Tracker" });
 };
@@ -70,7 +66,7 @@ beforeEach(() => {
 
 describe("the merged tracker page", () => {
   it("shows one page with every section, not four tabs", async () => {
-    await renderPage();
+    await renderTracker();
 
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.getByText("Movement & Exercise")).toBeInTheDocument();
@@ -81,7 +77,7 @@ describe("the merged tracker page", () => {
   });
 
   it("recommends exercises for the patient's reported condition", async () => {
-    await renderPage();
+    await renderTracker();
 
     expect(screen.getByText("Why this for Anaemia")).toBeInTheDocument();
     expect(screen.getByText("Gentle walk")).toBeInTheDocument();
@@ -92,7 +88,7 @@ describe("the merged tracker page", () => {
   });
 
   it("attaches a YouTube link to every recommended exercise", async () => {
-    await renderPage();
+    await renderTracker();
 
     const links = screen.getAllByRole("link", { name: /watch how to do it/i });
     expect(links.length).toBeGreaterThan(0);
@@ -109,13 +105,13 @@ describe("the merged tracker page", () => {
 
 describe("demo data", () => {
   it("starts empty, with a zero streak", async () => {
-    await renderPage();
+    await renderTracker();
     expect(screen.getByText("0 days")).toBeInTheDocument();
   });
 
   it("fills the page with a month of data and a real streak when loaded", async () => {
     const user = userEvent.setup();
-    await renderPage();
+    await renderTracker();
 
     await user.click(screen.getByRole("button", { name: /load 30 days of sample data/i }));
 
@@ -131,7 +127,7 @@ describe("demo data", () => {
 
   it("never writes fabricated data to Supabase", async () => {
     const user = userEvent.setup();
-    await renderPage();
+    await renderTracker();
 
     await user.click(screen.getByRole("button", { name: /load 30 days of sample data/i }));
     await screen.findByText(/showing 30 days of example logs/i);
@@ -148,7 +144,7 @@ describe("demo data", () => {
 
   it("clears back to real data on request", async () => {
     const user = userEvent.setup();
-    await renderPage();
+    await renderTracker();
 
     await user.click(screen.getByRole("button", { name: /load 30 days of sample data/i }));
     await screen.findByText(/showing 30 days of example logs/i);
@@ -170,12 +166,12 @@ describe("demo data across a refresh", () => {
     // the fabricated month was written to the cache, so a reload showed fake
     // data with no banner — and edits then synced it to Supabase as real.
     const user = userEvent.setup();
-    await renderPage();
+    await renderTracker();
     await user.click(screen.getByRole("button", { name: /load 30 days of sample data/i }));
     await screen.findByText(/showing 30 days of example logs/i);
 
     cleanup();
-    await renderPage(); // a fresh mount is what a page reload does
+    await renderTracker(); // a fresh mount is what a page reload does
 
     expect(await screen.findByText(/showing 30 days of example logs/i)).toBeInTheDocument();
     expect(screen.getByText("4 days")).toBeInTheDocument();
@@ -183,13 +179,13 @@ describe("demo data across a refresh", () => {
 
   it("stays off after being cleared", async () => {
     const user = userEvent.setup();
-    await renderPage();
+    await renderTracker();
     await user.click(screen.getByRole("button", { name: /load 30 days of sample data/i }));
     await screen.findByText(/showing 30 days of example logs/i);
     await user.click(screen.getByRole("button", { name: /^clear$/i }));
 
     cleanup();
-    await renderPage();
+    await renderTracker();
 
     expect(screen.queryByText(/showing 30 days of example logs/i)).not.toBeInTheDocument();
     expect(screen.getByText("0 days")).toBeInTheDocument();

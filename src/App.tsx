@@ -18,7 +18,7 @@ import MealLogging from "./pages/patient/MealLogging";
 import FoodCompatibility from "./pages/patient/FoodCompatibility";
 import SymptomTracking from "./pages/patient/SymptomTracking";
 import LifestyleTracker from "./pages/patient/LifestyleTracker";
-import SocialSupport from "./pages/patient/SocialSupport";
+import Community from "./pages/patient/Community";
 import AddPatient from "./pages/doctor/AddPatient";
 import Patients from "./pages/doctor/Patients";
 import AppointmentScheduler from "./pages/doctor/AppointmentScheduler";
@@ -170,7 +170,9 @@ const AppRoutes = () => (
         {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
         <Route path="health-check" element={<HealthRisks />} />
         <Route path="lifestyle-tracker" element={<LifestyleTracker />} />
-        <Route path="social-support" element={<SocialSupport />} />
+        <Route path="community" element={<Community />} />
+        {/* Social Support was replaced by Community; keep old links working. */}
+        <Route path="social-support" element={<Navigate to="/patient/community" replace />} />
         <Route path="consult-doctor" element={<ConsultDoctor />} />
         <Route path="doctor-profile/:doctorId" element={<div className="p-6">Doctor Profile - Coming Soon</div>} />
         <Route path="meal-plan" element={<div className="p-6">Meal Plan - Coming Soon</div>} />
