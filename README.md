@@ -427,6 +427,12 @@ unsafe.
   "avoid" notes on top of the condition's.
 - Minutes are logged against the recommended exercises themselves, so the log
   always matches the recommendation.
+- Each exercise card links to a how-to video. `videoUrl()` builds a YouTube
+  **search** URL from the exercise's `videoQuery` rather than embedding a video
+  id: a specific id can be taken down, go private, or be re-uploaded as
+  something else, and a dead or wrong-content link on a page giving health
+  guidance is worse than no link. Swap in
+  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
 
 **Streaks.** The activity streak counts consecutive days with *any* movement
 logged; the hydration section counts days the daily water target was met. Streak
@@ -458,6 +464,26 @@ thresholds are in `src/lib/dietAdherence.ts`.
 > The old `junk_food_streak_logs` table and its `supabase/junk_food_streak.sql`
 > migration were removed with the feature. If the table exists in an already
 > provisioned project it is now unused and safe to drop.
+
+**Demo data (testing only).** A month of real logs takes a month to accumulate,
+so the tracker can fill itself with 30 days of fabricated data to exercise the
+streaks, calendars, charts and adherence roll-up. Two guards keep it away from
+patients: the controls only appear when `isDemoModeAvailable()` says so
+(`src/lib/demoMode.ts` — local dev, or any build with `?demo=1` in the URL), and
+demo data is **never mirrored to Supabase**, only cached locally, so nothing
+fabricated reaches the database. A banner marks the page while it is loaded, and
+"Clear" wipes the cache and re-reads the real server data.
+
+`src/lib/demoLifestyleData.ts` generates it deterministically (seeded PRNG,
+dates relative to today), so the same day always produces the same month and a
+failure is reproducible. The shape is deliberately uneven — rest days, missed
+water targets, unlogged nights, skipped meals — because data where everything
+succeeds would not prove the streak logic works. The rest days are placed to
+give a current activity streak of 4 with an earlier best of 6;
+`src/lib/__tests__/demoLifestyleData.test.ts` asserts those numbers by running
+the production streak functions over the generated month, and
+`src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
+checks they reach the UI.
 
 ## Patient kitchen (pantry)
 

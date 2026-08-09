@@ -32,6 +32,9 @@ import {
   ArrowLeft,
   Flame,
   Loader2,
+  Youtube,
+  FlaskConical,
+  Trash2,
   AlertTriangle,
   Utensils,
   ClipboardCheck,
@@ -57,10 +60,17 @@ import {
 } from "@/lib/lifestyleLog";
 import {
   recommendExercises,
+  videoUrl,
   type ConditionInput,
   type Exercise,
   type ExerciseIcon,
 } from "@/lib/exerciseRecommendations";
+import { isDemoModeAvailable } from "@/lib/demoMode";
+import {
+  buildDemoLogs,
+  buildDemoMealTracking,
+  DEMO_DAYS,
+} from "@/lib/demoLifestyleData";
 import {
   evaluateDay,
   summarise,
@@ -68,7 +78,13 @@ import {
   type DietAdherenceDay,
   type MealTrackingDay,
 } from "@/lib/dietAdherence";
-import { loadLifestyleLogs, saveLifestyleDay } from "@/services/lifestyleLogService";
+import {
+  cacheLifestyleDay,
+  clearCachedLogs,
+  loadLifestyleLogs,
+  saveLifestyleDay,
+  writeCachedLogs,
+} from "@/services/lifestyleLogService";
 import { fetchMealTracking } from "@/services/mealAdherenceService";
 import {
   fetchScreenings,
@@ -139,6 +155,11 @@ const LifestyleTracker = () => {
     label: "General Adult",
   });
   const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
+
+  // Demo data is local-only and clearly flagged; see src/lib/demoMode.ts.
+  const demoAvailable = useMemo(() => isDemoModeAvailable(), []);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const [demoMealTracking, setDemoMealTracking] = useState<MealTrackingDay[] | null>(null);
 
   // Supabase mirroring is debounced so holding "+" on a water glass doesn't
   // fire an upsert per click; the localStorage cache is written synchronously
@@ -258,24 +279,57 @@ const LifestyleTracker = () => {
         );
 
         if (patientId) {
-          if (saveTimer.current) clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(() => {
-            void saveLifestyleDay(patientId, updated).then((persisted) =>
-              setIsSynced(persisted)
-            );
-          }, 600);
+          if (isDemoData) {
+            // Never mirror fabricated data to Supabase — cache only.
+            cacheLifestyleDay(patientId, updated);
+          } else {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+            saveTimer.current = setTimeout(() => {
+              void saveLifestyleDay(patientId, updated).then((persisted) =>
+                setIsSynced(persisted)
+              );
+            }, 600);
+          }
         }
 
         return next;
       });
     },
-    [patientId, today]
+    [patientId, today, isDemoData]
   );
 
   const recommendation = useMemo(
     () => recommendExercises({ conditions, isPregnant }),
     [conditions, isPregnant]
   );
+
+  /** Fill the tracker with a month of fabricated data, cache-only. */
+  const loadDemoData = useCallback(() => {
+    // Logged against her actual recommended exercises, so the demo month
+    // matches the plan she is being shown.
+    const demoLogs = buildDemoLogs(
+      recommendation.exercises.map((e) => e.id),
+      today
+    );
+    setLogs(demoLogs);
+    setDemoMealTracking(buildDemoMealTracking(today, calorieTarget.min));
+    setIsDemoData(true);
+    if (patientId) writeCachedLogs(patientId, demoLogs);
+  }, [recommendation.exercises, today, calorieTarget.min, patientId]);
+
+  const clearDemoData = useCallback(() => {
+    setIsDemoData(false);
+    setDemoMealTracking(null);
+    setLogs([]);
+    if (patientId) clearCachedLogs(patientId);
+    // Re-read whatever is really on the server.
+    if (patientId) {
+      void loadLifestyleLogs(patientId).then(({ logs: real, synced }) => {
+        setLogs(real);
+        setIsSynced(synced);
+      });
+    }
+  }, [patientId]);
 
   const activityStreak = useMemo(() => currentStreak(activeDates(logs), today), [logs, today]);
   const bestActivityStreak = useMemo(() => longestStreak(activeDates(logs)), [logs]);
@@ -291,9 +345,10 @@ const LifestyleTracker = () => {
   const logByDate = useMemo(() => new Map(logs.map((l) => [l.date, l])), [logs]);
 
   const adherence: DietAdherenceDay[] = useMemo(() => {
-    const byDate = new Map(mealTracking.map((m) => [m.date, m]));
+    const source = demoMealTracking ?? mealTracking;
+    const byDate = new Map(source.map((m) => [m.date, m]));
     return week.map((date) => evaluateDay(date, byDate.get(date), calorieTarget));
-  }, [week, mealTracking, calorieTarget]);
+  }, [week, mealTracking, demoMealTracking, calorieTarget]);
 
   const adherenceSummary = useMemo(() => summarise(adherence), [adherence]);
   const todayAdherence = adherence[adherence.length - 1];
@@ -368,7 +423,49 @@ const LifestyleTracker = () => {
         </Button>
       </div>
 
-      {!isSynced && (
+      {demoAvailable && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm ${
+            isDemoData
+              ? "border-purple-300 bg-purple-100 text-purple-900"
+              : "border-dashed border-gray-300 bg-gray-50 text-gray-600"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {isDemoData ? (
+                <>
+                  <strong>Showing {DEMO_DAYS} days of demo data.</strong> None of this is
+                  real, and none of it is saved to the server — it lives in this browser
+                  only until you clear it.
+                </>
+              ) : (
+                <>Testing tools: load {DEMO_DAYS} days of fake data to see the streaks,
+                calendars and charts populated.</>
+              )}
+            </span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="outline" onClick={loadDemoData}>
+              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of demo data`}
+            </Button>
+            {isDemoData && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearDemoData}
+                className="flex items-center gap-1"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isSynced && !isDemoData && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <CloudOff className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
@@ -516,6 +613,15 @@ const LifestyleTracker = () => {
                         <p className="mt-1 text-xs text-gray-500">
                           Target: {exercise.minutes} min/day
                         </p>
+                        <a
+                          href={videoUrl(exercise)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                        >
+                          <Youtube className="h-3.5 w-3.5" />
+                          Watch how to do it
+                        </a>
                       </div>
                     </div>
                     {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />}

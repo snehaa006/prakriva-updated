@@ -3,6 +3,7 @@ import {
   GENERAL_PLAN,
   matchConditionKey,
   recommendExercises,
+  videoUrl,
 } from "../exerciseRecommendations";
 
 const ids = (result: ReturnType<typeof recommendExercises>) =>
@@ -108,6 +109,56 @@ describe("recommendExercises", () => {
     expect(ids(result)).not.toContain("surya-namaskar");
     expect(ids(result)).toContain("prenatal-yoga");
     expect(result.avoid.join(" ")).toMatch(/first trimester/i);
+  });
+
+  it("gives every recommended exercise a working video link", () => {
+    // Sweep every condition so no catalog entry escapes the check.
+    const conditions = [
+      "anaemia",
+      "gdm",
+      "diabetes",
+      "preeclampsia",
+      "hypertension",
+      "thyroid",
+      "pcos",
+      "mental_health",
+      "uti",
+      "miscarriage",
+      "pregnancy_risk",
+      "obesity",
+      "arthritis",
+      "asthma",
+      "back_pain",
+      "digestive",
+      "heart_disease",
+    ].map((condition) => ({ condition }));
+
+    for (const isPregnant of [false, true]) {
+      for (const exercise of recommendExercises({ conditions, isPregnant }).exercises) {
+        expect(exercise.videoQuery.trim()).not.toBe("");
+
+        const url = new URL(videoUrl(exercise));
+        expect(url.origin).toBe("https://www.youtube.com");
+        expect(url.pathname).toBe("/results");
+        // Round-trips through encoding rather than losing spaces or accents.
+        expect(url.searchParams.get("search_query")).toBe(exercise.videoQuery);
+      }
+    }
+  });
+
+  it("escapes query characters that would otherwise break the URL", () => {
+    const url = new URL(
+      videoUrl({
+        id: "x",
+        name: "x",
+        icon: "walk",
+        intensity: "gentle",
+        minutes: 10,
+        how: "x",
+        videoQuery: "yoga & breathing = calm? #1",
+      })
+    );
+    expect(url.searchParams.get("search_query")).toBe("yoga & breathing = calm? #1");
   });
 
   it("only ever returns exercises that exist in the catalog", () => {
