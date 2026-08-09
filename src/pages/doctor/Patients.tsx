@@ -646,13 +646,13 @@ const Patients: React.FC = () => {
                           size="sm"
                           onClick={() =>
                             navigate(
-                              `/doctor/disease-detection?patientId=${patient.patientId}`
+                              `/doctor/patient-analysis?patientId=${patient.patientId}`
                             )
                           }
                           className="gap-1"
                         >
                           <Stethoscope className="w-3 h-3" />
-                          Risk Screening
+                          Patient Analysis
                         </Button>
                       )}
                       <Button

@@ -183,17 +183,20 @@ different places:
   stage** (it is not a constant), so only profiles saved before that change
   carry the value — new patients need life stage captured somewhere else before
   this gate opens for them.
-- **Doctor → Disease Detection** (`/doctor/disease-detection`) — lists the
-  doctor's accepted pregnant patients (the Patients page also links through per
-  patient via "Risk Screening"). Selecting one loads her latest self-report into
-  the form; the doctor adds the clinical measurements and lab panel and re-runs.
-  Without a self-report the form falls back to her profile, which since the
-  static-only change supplies age and family history but not the symptom,
-  condition or stress fields.
+- **Doctor → Patient Analysis** (`/doctor/patient-analysis`, legacy
+  `/doctor/disease-detection` still resolves) — lists the doctor's accepted
+  pregnant patients (the Patients page also links through per patient via
+  "Patient Analysis"). Selecting one shows a **read-only analytics view** of
+  everything the patient has submitted: trend line charts of her vitals, labs and
+  wellbeing scores (hemoglobin, blood pressure, BMI, HbA1c, TSH, PHQ-9, EPDS, …)
+  over a selectable 7 / 15 / 30-day or all-time window, a per-condition risk-score
+  trend, and the detected conditions with their current risk. The doctor no
+  longer fills in or re-runs the screening form here — the analysis is built from
+  the patient's own Health Check submissions.
 
-Both roles see every run in a History tab, labelled by who submitted it.
-Laboratory fields left blank mean "not performed" — they never score as a normal
-result.
+The patient sees every run in her own History tab. Charts only render for values
+that were actually recorded; laboratory fields left blank mean "not performed" —
+they never score as a normal result.
 
 **Backend.** The pipeline lives in `backend/disease_detection/` and is exposed
 by two endpoints:

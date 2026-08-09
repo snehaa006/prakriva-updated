@@ -46,8 +46,8 @@ const navigationItems = [
     icon: Plus,
   },
   {
-    title: "Disease Detection",
-    url: "/doctor/disease-detection",
+    title: "Patient Analysis",
+    url: "/doctor/patient-analysis",
     icon: Stethoscope,
   },
   {
