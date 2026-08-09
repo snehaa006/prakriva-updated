@@ -11,7 +11,6 @@
 import { supabase } from "@/lib/supabase";
 import { readCache, writeCache } from "@/lib/localCache";
 import type { LanguageCode } from "@/i18n/translations";
-import type { ThemePreference } from "@/context/ThemeContext";
 
 const MISSING_TABLE_CODES = ["42P01", "PGRST205", "PGRST106"];
 const isMissingTable = (error: { code?: string } | null) =>
@@ -23,7 +22,6 @@ export interface UserSettings {
   notifications: Record<string, boolean>;
   preferences: {
     language: LanguageCode;
-    theme: ThemePreference;
     timezone: string;
   };
   privacy: Record<string, boolean>;
@@ -36,7 +34,7 @@ export const PATIENT_DEFAULTS: UserSettings = {
     appointmentReminders: true,
     weeklyReports: false,
   },
-  preferences: { language: "en", theme: "system", timezone: "Asia/Kolkata" },
+  preferences: { language: "en", timezone: "Asia/Kolkata" },
   privacy: {
     shareDataWithDoctor: true,
     allowAnalytics: false,
@@ -51,7 +49,7 @@ export const DOCTOR_DEFAULTS: UserSettings = {
     scheduleChanges: true,
     weeklyReports: false,
   },
-  preferences: { language: "en", theme: "system", timezone: "Asia/Kolkata" },
+  preferences: { language: "en", timezone: "Asia/Kolkata" },
   privacy: {
     listedInDirectory: true,
     allowAnalytics: false,
