@@ -519,6 +519,24 @@ export const ThyroidSection: React.FC<SectionProps> = ({ form, update }) => (
         checked={form.thyroid_tumour}
         onChange={(v) => update("thyroid_tumour", v)}
       />
+      <BoolField
+        id="query_on_thyroxine"
+        label="Unsure whether you take thyroxine"
+        checked={form.query_on_thyroxine}
+        onChange={(v) => update("query_on_thyroxine", v)}
+      />
+      <BoolField
+        id="hypopituitary"
+        label="Pituitary gland condition"
+        checked={form.hypopituitary}
+        onChange={(v) => update("hypopituitary", v)}
+      />
+      <BoolField
+        id="psych_history"
+        label="Psychiatric history"
+        checked={form.psych_history}
+        onChange={(v) => update("psych_history", v)}
+      />
     </div>
     <p className="text-xs text-muted-foreground">
       TSH alone is enough to run the check — the other values sharpen it.
