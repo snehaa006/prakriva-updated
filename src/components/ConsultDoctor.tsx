@@ -72,14 +72,21 @@ const ConsultDoctor: React.FC = () => {
   // Load doctors and notifications on component mount
   useEffect(() => {
     loadDoctors();
-    loadNotifications();
-    
-    // Check for request updates every 30 seconds
-    const interval = setInterval(() => {
-      checkForRequestUpdates();
-      loadNotifications();
-    }, 30000);
-    
+
+    // Reconcile status changes *before* loading notifications, and do it right
+    // away on mount — not only on the 30s timer. A request the doctor accepted
+    // while the patient was off this page turns into a patient notification
+    // here (the doctor can't write to the patient's notifications directly —
+    // row-level security only lets each user insert their own). Running the
+    // check first, then loading, means the acceptance shows up the moment the
+    // patient opens this page instead of a poll later (or never).
+    const sync = async () => {
+      await checkForRequestUpdates();
+      await loadNotifications();
+    };
+    sync();
+
+    const interval = setInterval(sync, 30000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -119,10 +126,11 @@ const ConsultDoctor: React.FC = () => {
         markNotificationAsRead(notification.id);
       });
 
-      // Build acceptedChats set from notifications of type 'consultation_accepted'
+      // Build acceptedChats set from notifications of type 'consultation_accepted'.
+      // Rows come straight from the DB, so the column is snake_case doctor_id.
       const acceptedDoctorIds = notificationsData
         .filter(n => n.type === 'consultation_accepted')
-        .map(n => n.doctorId)
+        .map(n => n.doctor_id)
         .filter(Boolean) as string[];
 
       setAcceptedChats(new Set(acceptedDoctorIds));
@@ -150,11 +158,11 @@ const ConsultDoctor: React.FC = () => {
       );
 
       // If it's an acceptance notification, open chat with that doctor
-      if (notification.type === 'consultation_accepted' && notification.doctorId) {
+      if (notification.type === 'consultation_accepted' && notification.doctor_id) {
         setShowNotifications(false);
         // ensure acceptedChats contains it (keeps local state consistent)
-        setAcceptedChats(prev => new Set(prev).add(notification.doctorId));
-        navigate(`/communication?chatId=${notification.doctorId}`);
+        setAcceptedChats(prev => new Set(prev).add(notification.doctor_id));
+        navigate(`/communication?chatId=${notification.doctor_id}`);
       }
     } catch (err) {
       console.error('Error handling notification click:', err);
@@ -458,7 +466,7 @@ const ConsultDoctor: React.FC = () => {
                               {notification.message}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {formatNotificationTime(notification.createdAt)}
+                              {formatNotificationTime(notification.created_at)}
                             </p>
                           </div>
                           {!notification.read && (

@@ -167,6 +167,11 @@ const currentUserId = async (): Promise<string | null> => {
   return data.user?.id ?? null;
 };
 
+// Doctor names are stored with their title (e.g. "Dr. Rajesh Kumar"), so guard
+// against rendering "Dr. Dr. …" in patient-facing messages.
+export const withDoctorTitle = (name: string): string =>
+  /^\s*dr\.?\s/i.test(name || "") ? name : `Dr. ${name}`;
+
 // Fetch the bookable doctor directory, best rated first.
 //
 // Only verified doctors are listed. The `doctors_select_directory` RLS policy
@@ -301,7 +306,7 @@ export const createConsultationRequest = async (
     user_id: userId,
     type: 'consultation_request_sent',
     title: 'Consultation Request Sent',
-    message: `Your consultation request has been sent to Dr. ${doctorData.name}. You'll receive a response soon.`,
+    message: `Your consultation request has been sent to ${withDoctorTitle(doctorData.name)}. You'll receive a response soon.`,
     doctor_id: requestData.doctorId,
     doctor_name: doctorData.name,
     request_id: requestId,
@@ -386,8 +391,8 @@ export const checkForRequestUpdates = async (): Promise<void> => {
           : 'Consultation Request Update',
       message:
         request.status === 'accepted'
-          ? `Dr. ${request.doctorName} has accepted your consultation request!`
-          : `Dr. ${request.doctorName} is currently unavailable. Please try another doctor.`,
+          ? `${withDoctorTitle(request.doctorName)} has accepted your consultation request!`
+          : `${withDoctorTitle(request.doctorName)} is currently unavailable. Please try another doctor.`,
       doctor_id: request.doctorId,
       doctor_name: request.doctorName,
       request_id: request.id,
