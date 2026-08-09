@@ -42,11 +42,20 @@ class Settings:
         # API Keys
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-        # Gemini — narrative analysis of screening results and the patient
-        # assistant. Server-side only: a VITE_-prefixed key would be readable in
-        # the browser bundle. Absent key disables those features rather than
-        # breaking the API.
-        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+        # Gemini — narrative analysis of screening results, the patient
+        # assistant and diet chart generation. Server-side only: a VITE_-prefixed
+        # key would be readable in the browser bundle. No key at all disables
+        # those features rather than breaking the API.
+        #
+        # Several keys may be supplied so a quota-exhausted or revoked key does
+        # not take the features down: GEMINI_API_KEY plus GEMINI_API_KEY2,
+        # GEMINI_API_KEY3, … (or one comma-separated GEMINI_API_KEY). They are
+        # tried in order, and gemini_service sticks to whichever one last
+        # worked.
+        self.GEMINI_API_KEYS = self._collect_gemini_keys()
+        # The first key, kept as its own setting so existing callers and the
+        # health check keep working unchanged.
+        self.GEMINI_API_KEY = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
         self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.3))
         self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 900))
@@ -95,6 +104,30 @@ class Settings:
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FORMAT = os.getenv("LOG_FORMAT", "{time} | {level} | {message}")
     
+    #: How many numbered spares to look for (GEMINI_API_KEY2 … GEMINI_API_KEY10).
+    GEMINI_KEY_SLOTS = 10
+
+    @staticmethod
+    def _collect_gemini_keys() -> list:
+        """Every configured Gemini key, in the order they should be tried.
+
+        Accepts `GEMINI_API_KEY` (which may itself hold a comma-separated list)
+        followed by `GEMINI_API_KEY2` … `GEMINI_API_KEY10`. Blanks and repeats
+        are dropped so a duplicated key can't burn two attempts of the same
+        quota during rotation.
+        """
+        names = ["GEMINI_API_KEY"] + [
+            f"GEMINI_API_KEY{n}" for n in range(2, Settings.GEMINI_KEY_SLOTS + 1)
+        ]
+
+        keys = []
+        for name in names:
+            for candidate in os.getenv(name, "").split(","):
+                candidate = candidate.strip()
+                if candidate and candidate not in keys:
+                    keys.append(candidate)
+        return keys
+
     def validate_openai_key(self):
         """Validate OpenAI API key"""
         if not self.OPENAI_API_KEY:

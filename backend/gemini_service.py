@@ -108,41 +108,93 @@ class GeminiUnavailable(RuntimeError):
 
 def is_configured() -> bool:
     """True when an API key is present, so callers can degrade gracefully."""
-    return bool(settings.GEMINI_API_KEY)
+    return bool(settings.GEMINI_API_KEYS)
 
 
-def generate(prompt: str, system_rules: str, *, max_tokens: Optional[int] = None) -> str:
-    """Send one prompt to Gemini and return the text response."""
-    if not is_configured():
+# ---------------------------------------------------------------------------
+# Key rotation
+# ---------------------------------------------------------------------------
+#
+# A single free-tier key runs out of daily quota quickly, and a whole feature
+# going dark because of one exhausted key is not acceptable for the diet chart.
+# Several keys can therefore be configured (see config.GEMINI_API_KEYS); a
+# request walks the list until one answers.
+
+#: Index of the key that last succeeded. Tried first so a healthy key isn't
+#: abandoned after one rotation, and so an exhausted key isn't re-tried on
+#: every request for the rest of the day.
+_active_key_index = 0
+
+
+def _should_rotate(status_code: int, body_text: str) -> bool:
+    """Whether this failure is the key's fault rather than the request's.
+
+    Quota (429), revoked/blocked keys (401/403) and Google-side outages (5xx)
+    are all worth retrying with a different key. A 400 usually means a
+    malformed request — the same on every key — except when the message names
+    the API key itself, which is what an invalid key returns.
+    """
+    if status_code in (401, 403, 429) or status_code >= 500:
+        return True
+    return status_code == 400 and "api key" in body_text.lower()
+
+
+def _post(payload: Dict[str, Any], *, timeout: Optional[int] = None) -> Dict[str, Any]:
+    """POST to Gemini, moving to the next key while failures look key-related.
+
+    Returns the decoded response body. Raises `GeminiUnavailable` when every
+    configured key has been tried, or as soon as a failure is clearly the
+    request's fault rather than the key's.
+    """
+    global _active_key_index
+
+    keys = settings.GEMINI_API_KEYS
+    if not keys:
         raise GeminiUnavailable("GEMINI_API_KEY is not set")
 
     url = GEMINI_URL.format(model=settings.GEMINI_MODEL)
-    payload = {
-        "systemInstruction": {"parts": [{"text": system_rules}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": settings.GEMINI_TEMPERATURE,
-            "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
-        },
-    }
+    last_error = "no attempt was made"
 
-    try:
-        response = requests.post(
-            url,
-            json=payload,
-            params={"key": settings.GEMINI_API_KEY},
-            timeout=settings.GEMINI_TIMEOUT_SECONDS,
+    for offset in range(len(keys)):
+        index = (_active_key_index + offset) % len(keys)
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                params={"key": keys[index]},
+                timeout=timeout or settings.GEMINI_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as exc:
+            # A timeout or DNS failure isn't the key's fault, but retrying costs
+            # nothing and the next attempt may land on a healthier path.
+            last_error = f"could not reach Gemini ({exc.__class__.__name__})"
+            logger.warning(f"Gemini key #{index + 1}: {last_error}")
+            continue
+
+        if response.status_code == 200:
+            # Stick with whatever worked; rotation is the exception, not the norm.
+            _active_key_index = index
+            return response.json()
+
+        # The body can echo the key back in an error message, so only the
+        # status reaches the logs — never the response text.
+        last_error = f"HTTP {response.status_code}"
+        if not _should_rotate(response.status_code, response.text):
+            logger.error(f"Gemini returned {last_error}")
+            raise GeminiUnavailable(f"Gemini returned {last_error}")
+
+        logger.warning(
+            f"Gemini key #{index + 1} of {len(keys)} failed with {last_error}; "
+            "trying the next key"
         )
-    except requests.RequestException as exc:
-        raise GeminiUnavailable(f"Could not reach Gemini: {exc}") from exc
 
-    if response.status_code != 200:
-        # The body can echo the key back in an error message, so log the status
-        # only and keep the response out of the logs.
-        logger.error(f"Gemini returned HTTP {response.status_code}")
-        raise GeminiUnavailable(f"Gemini returned HTTP {response.status_code}")
+    raise GeminiUnavailable(
+        f"All {len(keys)} Gemini API keys failed (last: {last_error})"
+    )
 
-    body = response.json()
+
+def _first_text(body: Dict[str, Any]) -> str:
+    """The text of the first candidate, or a useful failure."""
     candidates = body.get("candidates") or []
     if not candidates:
         # Usually a safety block; surface it as unavailable rather than empty.
@@ -153,6 +205,53 @@ def generate(prompt: str, system_rules: str, *, max_tokens: Optional[int] = None
     if not text:
         raise GeminiUnavailable("Gemini returned an empty response")
     return text
+
+
+def generate(prompt: str, system_rules: str, *, max_tokens: Optional[int] = None) -> str:
+    """Send one prompt to Gemini and return the text response."""
+    return _first_text(_post({
+        "systemInstruction": {"parts": [{"text": system_rules}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": settings.GEMINI_TEMPERATURE,
+            "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
+        },
+    }))
+
+
+def generate_json(
+    prompt: str,
+    system_rules: str,
+    *,
+    max_tokens: Optional[int] = None,
+    temperature: float = 0.4,
+    timeout: Optional[int] = None,
+) -> Any:
+    """Send one prompt and parse the reply as JSON.
+
+    `responseMimeType` makes Gemini emit bare JSON, but a truncated reply is
+    still possible on a long plan, so the decode failure is reported as an
+    unavailability rather than crashing the request.
+    """
+    body = _post(
+        {
+            "systemInstruction": {"parts": [{"text": system_rules}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
+                "responseMimeType": "application/json",
+            },
+        },
+        timeout=timeout,
+    )
+
+    text = _first_text(body)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Gemini returned unparseable JSON: {exc}")
+        raise GeminiUnavailable("Gemini returned an unreadable response") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -194,11 +293,7 @@ def extract_report_values(image_base64: str, mime_type: str) -> Dict[str, float]
     failure is a lost decimal point, and a haemoglobin of 119 quietly reaching
     the anaemia model is worse than returning nothing for that field.
     """
-    if not is_configured():
-        raise GeminiUnavailable("GEMINI_API_KEY is not set")
-
-    url = GEMINI_URL.format(model=settings.GEMINI_MODEL)
-    payload = {
+    body = _post({
         "systemInstruction": {"parts": [{"text": EXTRACTION_RULES}]},
         "contents": [
             {
@@ -215,31 +310,9 @@ def extract_report_values(image_base64: str, mime_type: str) -> Dict[str, float]
             "maxOutputTokens": 800,
             "responseMimeType": "application/json",
         },
-    }
+    })
 
-    try:
-        response = requests.post(
-            url,
-            json=payload,
-            params={"key": settings.GEMINI_API_KEY},
-            timeout=settings.GEMINI_TIMEOUT_SECONDS,
-        )
-    except requests.RequestException as exc:
-        raise GeminiUnavailable(f"Could not reach Gemini: {exc}") from exc
-
-    if response.status_code != 200:
-        logger.error(f"Gemini extraction returned HTTP {response.status_code}")
-        raise GeminiUnavailable(f"Gemini returned HTTP {response.status_code}")
-
-    candidates = response.json().get("candidates") or []
-    if not candidates:
-        raise GeminiUnavailable("Gemini could not read the report")
-
-    text = "".join(
-        part.get("text", "")
-        for part in candidates[0].get("content", {}).get("parts") or []
-    ).strip()
-
+    text = _first_text(body)
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:

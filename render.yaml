@@ -32,9 +32,16 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      # Powers the written analysis and the patient assistant. Optional — both
-      # features hide themselves when it is unset.
+      # Powers diet chart generation, the written analysis and the patient
+      # assistant. Optional — the analysis panels hide themselves when it is
+      # unset, and diet charts fall back to the FoodOScope recipe path.
+      # GEMINI_API_KEY2/3 are spare keys, used when an earlier one is out of
+      # quota; leave them unset in the dashboard if you only have one key.
       - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY2
+        sync: false
+      - key: GEMINI_API_KEY3
         sync: false
       # OPENAI_API_KEY is optional — only the LLM meal-planning / dosha-chat
       # features use it; disease detection works without it. Add it later in the

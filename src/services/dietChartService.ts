@@ -803,9 +803,19 @@ export interface GeneratedDietChart {
   medicalNotes: string[];
   excludedIngredients: string[];
   generatedAt: string;
+  /** Which generator produced this chart. */
+  source: "gemini" | "foodoscope";
+  /** How the disease screening results shaped the plan (Gemini only). */
+  clinicalFocus?: string[];
+  /** Ingredients the plan needs that aren't in the patient's kitchen yet. */
+  pantryGaps?: string[];
+  /** Meals dropped because they named an excluded ingredient. */
+  rejectedMeals?: string[];
+  /** A short read of the plan for the doctor (Gemini only). */
+  summary?: string;
 }
 
-export async function generateDietChart(
+async function generateDietChartFromRecipes(
   profile: PatientProfile,
   numDays: number = 7
 ): Promise<GeneratedDietChart> {
@@ -940,5 +950,178 @@ export async function generateDietChart(
     medicalNotes: targets.notes,
     excludedIngredients: excludeIngredients,
     generatedAt: new Date().toISOString(),
+    source: "foodoscope",
   };
+}
+
+// --- Gemini-backed generation (preferred) ---
+//
+// The recipe-database path above can only shuffle whatever FoodOScope returns:
+// it cannot look at what the patient has in her kitchen, and it cannot react to
+// a disease screening. Gemini can do both, so it is tried first and the recipe
+// path becomes the fallback for when the backend is down or has no key.
+//
+// The key itself is server-side (a VITE_ variable ends up in the browser
+// bundle), so this posts the context to Flask rather than calling Gemini.
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+/** What the patient has at home and what she already plans to buy. */
+export interface PantryContext {
+  atHome: { name: string; quantity?: string; category?: string }[];
+  toBuy: { name: string; quantity?: string; category?: string }[];
+}
+
+/** The disease screening rows the caller already holds for this patient. */
+export interface ScreeningContext {
+  createdAt: string;
+  result: unknown;
+}
+
+export interface DietChartContext {
+  pantry?: PantryContext;
+  screenings?: ScreeningContext[];
+}
+
+interface AiPlanResponse {
+  days: DietChartDay[];
+  clinicalFocus?: string[];
+  pantryGaps?: string[];
+  rejectedMeals?: string[];
+  summary?: string;
+  dailyCalorieTarget?: number;
+}
+
+/** Age in whole years, or null when no usable date of birth is on file. */
+function ageFromDob(dob: string): number | null {
+  if (!dob) return null;
+  const born = new Date(dob);
+  if (Number.isNaN(born.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  const monthDelta = now.getMonth() - born.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < born.getDate())) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+/**
+ * Ask the backend to compose the chart with Gemini.
+ *
+ * Deliberately sends no name, email or patient id — the prompt gets clinical and
+ * dietary values only, and the caller re-attaches the name to the result.
+ */
+export async function generateDietChartWithAI(
+  profile: PatientProfile,
+  numDays: number,
+  context: DietChartContext = {}
+): Promise<GeneratedDietChart> {
+  const dosha = determinePrimaryDosha(profile);
+  const targets = getNutritionalTargets(
+    profile.lifeStage as LifeStage,
+    profile.pregnancyTrimester,
+    profile.isBreastfeeding,
+    profile.menopauseStage
+  );
+  const doshaPrefs =
+    DOSHA_FOOD_PREFERENCES[dosha.primary] || DOSHA_FOOD_PREFERENCES.vata;
+  const excludeIngredients = buildExcludeIngredients(profile);
+  const includeIngredients = buildIncludeIngredients(profile);
+
+  const lifeStageLabels: Record<string, string> = {
+    not_applicable: "General",
+    pregnancy: `Pregnancy${
+      profile.pregnancyTrimester ? ` (${profile.pregnancyTrimester} trimester)` : ""
+    }`,
+    postpartum: `Postpartum${profile.isBreastfeeding === "yes" ? " (Breastfeeding)" : ""}`,
+    menopause: `Menopause${profile.menopauseStage ? ` (${profile.menopauseStage})` : ""}`,
+  };
+  const lifeStageLabel = lifeStageLabels[profile.lifeStage] || "General";
+
+  const response = await fetch(`${API_BASE}/diet-chart/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      days: numDays,
+      profile: {
+        ageYears: ageFromDob(profile.dob),
+        lifeStage: profile.lifeStage,
+        lifeStageLabel,
+        dietaryPreferences: profile.dietaryPreferences,
+        healthGoals: profile.healthGoals,
+        currentConditions: profile.currentConditions,
+        digestionIssues: profile.digestionIssues,
+        appetitePattern: profile.appetitePattern,
+        physicalActivity: profile.physicalActivity,
+        sleepDuration: profile.sleepDuration,
+      },
+      dosha: {
+        primary: dosha.primary,
+        scores: dosha.scores,
+        description: doshaPrefs.description,
+        spices: doshaPrefs.spices,
+        cookingMethods: doshaPrefs.cookingMethods,
+      },
+      targets,
+      excludeIngredients,
+      focusIngredients: includeIngredients,
+      pantry: context.pantry ?? { atHome: [], toBuy: [] },
+      screenings: context.screenings ?? [],
+      mealStructure: MEAL_STRUCTURE,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: AiPlanResponse;
+    error?: string;
+  } | null;
+
+  if (!response.ok || !payload?.success || !payload.data) {
+    throw new Error(payload?.error ?? `Diet chart generation failed (${response.status})`);
+  }
+
+  return {
+    patientName: profile.name,
+    primaryDosha: dosha.primary,
+    doshaScores: dosha.scores,
+    lifeStage: profile.lifeStage,
+    lifeStageLabel,
+    nutritionalTargets: targets,
+    days: payload.data.days,
+    doshaRecommendations: {
+      description: doshaPrefs.description,
+      spices: doshaPrefs.spices,
+      cookingMethods: doshaPrefs.cookingMethods,
+      avoidFoods: doshaPrefs.avoidIngredients,
+    },
+    medicalNotes: targets.notes,
+    excludedIngredients: excludeIngredients,
+    generatedAt: new Date().toISOString(),
+    source: "gemini",
+    clinicalFocus: payload.data.clinicalFocus ?? [],
+    pantryGaps: payload.data.pantryGaps ?? [],
+    rejectedMeals: payload.data.rejectedMeals ?? [],
+    summary: payload.data.summary ?? "",
+  };
+}
+
+/**
+ * The one entry point callers should use.
+ *
+ * Gemini first — it is the only path that can use the patient's kitchen and her
+ * screening results. If the backend is unreachable, has no Gemini key, or every
+ * key is exhausted, this falls back to the FoodOScope recipe path so the doctor
+ * still gets a chart rather than an error.
+ */
+export async function generateDietChart(
+  profile: PatientProfile,
+  numDays: number = 7,
+  context: DietChartContext = {}
+): Promise<GeneratedDietChart> {
+  try {
+    return await generateDietChartWithAI(profile, numDays, context);
+  } catch (err) {
+    console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
+    return generateDietChartFromRecipes(profile, numDays);
+  }
 }
