@@ -1,0 +1,262 @@
+// Translation dictionaries.
+//
+// Scope, stated plainly: English and Hindi are complete for the app *chrome* —
+// navigation, settings, profile labels and the shared actions. Page body copy
+// (clinical guidance, exercise instructions, screening questions) is not
+// translated. Machine-translating medical instructions into languages nobody on
+// the team reads would be worse than leaving them in English, so those strings
+// stay English until a speaker reviews them.
+//
+// `LANGUAGES` below marks which options are actually available; the Settings
+// dropdown disables the rest rather than silently showing English and looking
+// broken.
+
+export type LanguageCode = "en" | "hi" | "mr" | "gu" | "bn" | "ta";
+
+export interface LanguageOption {
+  code: LanguageCode;
+  /** Shown in the picker, in the language itself. */
+  label: string;
+  /** False when there is no dictionary yet — the picker disables it. */
+  available: boolean;
+}
+
+export const LANGUAGES: LanguageOption[] = [
+  { code: "en", label: "English", available: true },
+  { code: "hi", label: "हिंदी (Hindi)", available: true },
+  { code: "mr", label: "मराठी (Marathi)", available: false },
+  { code: "gu", label: "ગુજરાતી (Gujarati)", available: false },
+  { code: "bn", label: "বাংলা (Bengali)", available: false },
+  { code: "ta", label: "தமிழ் (Tamil)", available: false },
+];
+
+export const DEFAULT_LANGUAGE: LanguageCode = "en";
+
+/** Every translatable key. English doubles as the fallback. */
+const en = {
+  // --- navigation ---------------------------------------------------------
+  "nav.mainMenu": "Main Menu",
+  "nav.account": "Account",
+  "nav.dashboard": "Dashboard",
+  "nav.consultDoctor": "Consult Doctor",
+  "nav.mealLogging": "Meal Logging",
+  "nav.myKitchen": "My Kitchen",
+  "nav.healthCheck": "Health Check",
+  "nav.socialSupport": "Social Support",
+  "nav.reminders": "Reminders",
+  "nav.tracker": "Tracker",
+  "nav.profile": "Profile",
+  "nav.settings": "Settings",
+  "nav.logout": "Logout",
+  "nav.patients": "Patients",
+  "nav.addPatient": "Add Patient",
+  "nav.patientAnalysis": "Patient Analysis",
+  "nav.foodExplorer": "Food Explorer",
+  "nav.recipeBuilder": "Recipe Builder",
+  "nav.dietCharts": "Diet Charts",
+
+  // --- shared actions -----------------------------------------------------
+  "action.save": "Save",
+  "action.saving": "Saving…",
+  "action.cancel": "Cancel",
+  "action.edit": "Edit",
+  "action.delete": "Delete",
+  "action.close": "Close",
+  "action.retry": "Retry",
+  "action.saveChanges": "Save Changes",
+
+  // --- settings -----------------------------------------------------------
+  "settings.title": "Settings",
+  "settings.subtitle": "Manage your account preferences and privacy",
+  "settings.notifications": "Notifications",
+  "settings.notifications.desc": "Choose what you want to be told about",
+  "settings.notif.meal": "Meal reminders",
+  "settings.notif.meal.desc": "Reminders at your usual meal times",
+  "settings.notif.medicine": "Medicine reminders",
+  "settings.notif.medicine.desc": "Reminders to take your prescribed medicines",
+  "settings.notif.appointment": "Appointment reminders",
+  "settings.notif.appointment.desc": "Before an upcoming consultation",
+  "settings.notif.weekly": "Weekly reports",
+  "settings.notif.weekly.desc": "A summary of your week, every Sunday",
+  "settings.notif.newRequest": "New consultation requests",
+  "settings.notif.newRequest.desc": "When a patient asks to consult you",
+  "settings.notif.patientAlerts": "Patient alerts",
+  "settings.notif.patientAlerts.desc": "When a patient's adherence or risk changes",
+  "settings.notif.schedule": "Schedule changes",
+  "settings.notif.schedule.desc": "When an appointment is booked or cancelled",
+
+  "settings.preferences": "App Preferences",
+  "settings.preferences.desc": "Customize your app experience",
+  "settings.language": "Preferred Language",
+  "settings.language.partial":
+    "Menus and settings are translated. Clinical guidance stays in English until a speaker reviews it.",
+  "settings.language.unavailable": "coming soon",
+  "settings.theme": "Theme",
+  "settings.theme.light": "Light",
+  "settings.theme.dark": "Dark",
+  "settings.theme.system": "System",
+  "settings.timezone": "Timezone",
+
+  "settings.privacy": "Privacy",
+  "settings.privacy.desc": "Control who sees what",
+  "settings.privacy.shareDoctor": "Share my data with my doctor",
+  "settings.privacy.shareDoctor.desc":
+    "Lets your treating doctor see your logs and screening results",
+  "settings.privacy.analytics": "Allow anonymous analytics",
+  "settings.privacy.analytics.desc": "Helps improve the app; never includes health data",
+  "settings.privacy.onlineStatus": "Show my online status",
+  "settings.privacy.onlineStatus.desc": "Others can see when you are active",
+  "settings.privacy.directory": "List me in the doctor directory",
+  "settings.privacy.directory.desc": "Patients can find and request a consultation with you",
+
+  "settings.account": "Account",
+  "settings.account.desc": "Your data and your account",
+  "settings.export": "Export my data",
+  "settings.export.desc": "Download everything stored about you as a JSON file",
+  "settings.delete": "Delete my account",
+  "settings.delete.desc": "This cannot be undone",
+  "settings.saved": "Settings saved",
+  "settings.savedLocal": "Saved on this device",
+  "settings.savedLocal.desc": "We couldn't reach the server, so this is not synced yet.",
+  "settings.saveFailed": "Could not save settings",
+
+  // --- profile ------------------------------------------------------------
+  "profile.title": "Profile",
+  "profile.personalInfo": "Personal Information",
+  "profile.name": "Name",
+  "profile.email": "Email",
+  "profile.phone": "Phone",
+  "profile.notProvided": "Not provided",
+  "profile.specialization": "Specialization",
+  "profile.qualification": "Qualification",
+  "profile.experience": "Experience",
+  "profile.clinic": "Clinic",
+  "profile.registration": "Registration",
+  "profile.verification": "Verification",
+  "profile.verified": "Verified",
+  "profile.pending": "Pending verification",
+  "profile.years": "years",
+  "profile.loadFailed": "Could not load your profile",
+} as const;
+
+export type TranslationKey = keyof typeof en;
+
+/**
+ * Hindi. Keys absent here fall back to English rather than rendering blank —
+ * a missing translation should degrade to readable, not to empty.
+ */
+const hi: Partial<Record<TranslationKey, string>> = {
+  "nav.mainMenu": "मुख्य मेन्यू",
+  "nav.account": "खाता",
+  "nav.dashboard": "डैशबोर्ड",
+  "nav.consultDoctor": "डॉक्टर से परामर्श",
+  "nav.mealLogging": "भोजन लॉग",
+  "nav.myKitchen": "मेरी रसोई",
+  "nav.healthCheck": "स्वास्थ्य जाँच",
+  "nav.socialSupport": "सामाजिक सहयोग",
+  "nav.reminders": "अनुस्मारक",
+  "nav.tracker": "ट्रैकर",
+  "nav.profile": "प्रोफ़ाइल",
+  "nav.settings": "सेटिंग्स",
+  "nav.logout": "लॉग आउट",
+  "nav.patients": "मरीज़",
+  "nav.addPatient": "मरीज़ जोड़ें",
+  "nav.patientAnalysis": "मरीज़ विश्लेषण",
+  "nav.foodExplorer": "भोजन खोज",
+  "nav.recipeBuilder": "रेसिपी बिल्डर",
+  "nav.dietCharts": "आहार चार्ट",
+
+  "action.save": "सहेजें",
+  "action.saving": "सहेजा जा रहा है…",
+  "action.cancel": "रद्द करें",
+  "action.edit": "संपादित करें",
+  "action.delete": "हटाएँ",
+  "action.close": "बंद करें",
+  "action.retry": "पुनः प्रयास करें",
+  "action.saveChanges": "परिवर्तन सहेजें",
+
+  "settings.title": "सेटिंग्स",
+  "settings.subtitle": "अपने खाते की प्राथमिकताएँ और निजता प्रबंधित करें",
+  "settings.notifications": "सूचनाएँ",
+  "settings.notifications.desc": "चुनें कि आपको किस बारे में बताया जाए",
+  "settings.notif.meal": "भोजन अनुस्मारक",
+  "settings.notif.meal.desc": "आपके सामान्य भोजन समय पर अनुस्मारक",
+  "settings.notif.medicine": "दवा अनुस्मारक",
+  "settings.notif.medicine.desc": "निर्धारित दवाएँ लेने के अनुस्मारक",
+  "settings.notif.appointment": "अपॉइंटमेंट अनुस्मारक",
+  "settings.notif.appointment.desc": "आगामी परामर्श से पहले",
+  "settings.notif.weekly": "साप्ताहिक रिपोर्ट",
+  "settings.notif.weekly.desc": "हर रविवार आपके सप्ताह का सारांश",
+  "settings.notif.newRequest": "नए परामर्श अनुरोध",
+  "settings.notif.newRequest.desc": "जब कोई मरीज़ आपसे परामर्श माँगे",
+  "settings.notif.patientAlerts": "मरीज़ अलर्ट",
+  "settings.notif.patientAlerts.desc": "जब किसी मरीज़ का पालन या जोखिम बदले",
+  "settings.notif.schedule": "समय-सारणी परिवर्तन",
+  "settings.notif.schedule.desc": "जब कोई अपॉइंटमेंट बुक या रद्द हो",
+
+  "settings.preferences": "ऐप प्राथमिकताएँ",
+  "settings.preferences.desc": "अपने ऐप अनुभव को अनुकूलित करें",
+  "settings.language": "पसंदीदा भाषा",
+  "settings.language.partial":
+    "मेन्यू और सेटिंग्स अनुवादित हैं। चिकित्सा संबंधी मार्गदर्शन तब तक अंग्रेज़ी में रहेगा जब तक कोई जानकार उसकी समीक्षा न कर ले।",
+  "settings.language.unavailable": "जल्द आ रहा है",
+  "settings.theme": "थीम",
+  "settings.theme.light": "हल्का",
+  "settings.theme.dark": "गहरा",
+  "settings.theme.system": "सिस्टम",
+  "settings.timezone": "समय क्षेत्र",
+
+  "settings.privacy": "निजता",
+  "settings.privacy.desc": "नियंत्रित करें कि कौन क्या देखे",
+  "settings.privacy.shareDoctor": "मेरा डेटा मेरे डॉक्टर के साथ साझा करें",
+  "settings.privacy.shareDoctor.desc":
+    "आपके इलाज करने वाले डॉक्टर को आपके लॉग और जाँच परिणाम दिखते हैं",
+  "settings.privacy.analytics": "गुमनाम विश्लेषण की अनुमति दें",
+  "settings.privacy.analytics.desc":
+    "ऐप सुधारने में मदद करता है; इसमें स्वास्थ्य डेटा कभी शामिल नहीं होता",
+  "settings.privacy.onlineStatus": "मेरी ऑनलाइन स्थिति दिखाएँ",
+  "settings.privacy.onlineStatus.desc": "दूसरे देख सकते हैं कि आप कब सक्रिय हैं",
+  "settings.privacy.directory": "मुझे डॉक्टर निर्देशिका में सूचीबद्ध करें",
+  "settings.privacy.directory.desc": "मरीज़ आपको ढूँढ़कर परामर्श का अनुरोध कर सकते हैं",
+
+  "settings.account": "खाता",
+  "settings.account.desc": "आपका डेटा और आपका खाता",
+  "settings.export": "मेरा डेटा निर्यात करें",
+  "settings.export.desc": "आपके बारे में संग्रहीत सब कुछ JSON फ़ाइल में डाउनलोड करें",
+  "settings.delete": "मेरा खाता हटाएँ",
+  "settings.delete.desc": "इसे वापस नहीं लिया जा सकता",
+  "settings.saved": "सेटिंग्स सहेजी गईं",
+  "settings.savedLocal": "इस डिवाइस पर सहेजा गया",
+  "settings.savedLocal.desc": "हम सर्वर तक नहीं पहुँच सके, इसलिए यह अभी सिंक नहीं हुआ है।",
+  "settings.saveFailed": "सेटिंग्स सहेजी नहीं जा सकीं",
+
+  "profile.title": "प्रोफ़ाइल",
+  "profile.personalInfo": "व्यक्तिगत जानकारी",
+  "profile.name": "नाम",
+  "profile.email": "ईमेल",
+  "profile.phone": "फ़ोन",
+  "profile.notProvided": "उपलब्ध नहीं",
+  "profile.specialization": "विशेषज्ञता",
+  "profile.qualification": "योग्यता",
+  "profile.experience": "अनुभव",
+  "profile.clinic": "क्लिनिक",
+  "profile.registration": "पंजीकरण",
+  "profile.verification": "सत्यापन",
+  "profile.verified": "सत्यापित",
+  "profile.pending": "सत्यापन लंबित",
+  "profile.years": "वर्ष",
+  "profile.loadFailed": "आपकी प्रोफ़ाइल लोड नहीं हो सकी",
+};
+
+export const DICTIONARIES: Record<LanguageCode, Partial<Record<TranslationKey, string>>> = {
+  en,
+  hi,
+  mr: {},
+  gu: {},
+  bn: {},
+  ta: {},
+};
+
+/** Translate `key`, falling back to English, then to the key itself. */
+export const translate = (language: LanguageCode, key: TranslationKey): string =>
+  DICTIONARIES[language]?.[key] ?? en[key] ?? key;

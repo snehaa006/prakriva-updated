@@ -10,6 +10,30 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
 
+    <!--
+      Apply the saved theme before the first paint. Without this, a dark-mode
+      user gets a flash of the light cream background on every page load, while
+      React boots and ThemeContext gets a chance to add the class.
+      Keep the storage key in step with CACHE_KEY in src/context/ThemeContext.tsx
+      and the PREFIX in src/lib/localCache.ts.
+    -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("prakriva:theme");
+          var pref = raw ? JSON.parse(raw).value : "system";
+          var dark =
+            pref === "dark" ||
+            (pref === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {
+          /* storage blocked — React applies the theme a moment later */
+        }
+      })();
+    </script>
+
     <meta property="og:title" content="Prakriva — Ayurvedic Diet Management Platform" />
     <meta property="og:description" content="Transform your health with personalized Ayurvedic nutrition plans powered by AI" />
     <meta property="og:type" content="website" />
