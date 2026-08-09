@@ -42,6 +42,16 @@ class Settings:
         # API Keys
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
+        # Gemini — narrative analysis of screening results and the patient
+        # assistant. Server-side only: a VITE_-prefixed key would be readable in
+        # the browser bundle. Absent key disables those features rather than
+        # breaking the API.
+        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+        self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.3))
+        self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 900))
+        self.GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", 30))
+
         # Supabase. The service-role key bypasses RLS, so it must never be
         # exposed to the browser — server-side only.
         # Falls back to the VITE_-prefixed frontend vars when the

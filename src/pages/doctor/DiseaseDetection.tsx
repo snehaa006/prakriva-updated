@@ -19,6 +19,7 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
 } from "lucide-react";
 import {
@@ -34,6 +35,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import {
+  AnalysisUnavailableError,
+  analyseScreenings,
+  isAnalysisEnabled,
+} from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
 import {
   AssessmentData,
@@ -166,6 +172,14 @@ const DiseaseDetection: React.FC = () => {
   const [history, setHistory] = useState<StoredScreening[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [rangeDays, setRangeDays] = useState<number>(30);
+
+  // Gemini-written read of the history. Kept opt-in per patient rather than
+  // generated on load: it is a paid call, and the doctor may only want it for
+  // the cases that look unclear.
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [isAnalysing, setIsAnalysing] = useState(false);
 
   const selectedPatient = useMemo(
     () => patients.find((p) => p.patientId === selectedPatientId) ?? null,
@@ -335,6 +349,43 @@ const DiseaseDetection: React.FC = () => {
   }, [latest, screeningsInRange]);
 
   const rangeLabel = rangeDays === 0 ? "all recorded screenings" : `the last ${rangeDays} days`;
+
+  // Hide the panel entirely when the backend has no Gemini key, rather than
+  // offering a button that can only fail.
+  useEffect(() => {
+    let cancelled = false;
+    isAnalysisEnabled().then((enabled) => {
+      if (!cancelled) setAiEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A written analysis belongs to one patient over one range; showing a stale
+  // one against different data would be worse than showing none.
+  useEffect(() => {
+    setAiAnalysis(null);
+    setAiError(null);
+  }, [selectedPatientId, rangeDays]);
+
+  const generateAnalysis = async () => {
+    setIsAnalysing(true);
+    setAiError(null);
+    try {
+      setAiAnalysis(await analyseScreenings(screeningsInRange, rangeLabel));
+    } catch (error) {
+      const message =
+        error instanceof AnalysisUnavailableError
+          ? "The analysis service is not available right now. Your charts and risk scores are unaffected."
+          : error instanceof Error
+            ? error.message
+            : "Could not generate the analysis.";
+      setAiError(message);
+    } finally {
+      setIsAnalysing(false);
+    }
+  };
 
   return (
     <div className="flex-1 space-y-6 p-6">
@@ -573,6 +624,62 @@ const DiseaseDetection: React.FC = () => {
                     }
                   />
                 </div>
+
+                {/* --- Written analysis (Gemini) --- */}
+                {aiEnabled && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Sparkles className="w-5 h-5" />
+                            Written analysis
+                          </CardTitle>
+                          <CardDescription>
+                            An AI read of the screenings below over {rangeLabel} —
+                            what the trend shows and what to consider next. The
+                            risk scores themselves are unchanged.
+                          </CardDescription>
+                        </div>
+                        <Button
+                          onClick={generateAnalysis}
+                          disabled={isAnalysing}
+                          variant={aiAnalysis ? "outline" : "default"}
+                          className="gap-2 shrink-0"
+                        >
+                          {isAnalysing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Analysing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              {aiAnalysis ? "Regenerate" : "Analyse this history"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    {(aiAnalysis || aiError) && (
+                      <CardContent>
+                        {aiError ? (
+                          <p className="text-sm text-muted-foreground">{aiError}</p>
+                        ) : (
+                          <>
+                            <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                              {aiAnalysis}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-4 pt-3 border-t">
+                              AI-generated from this patient's recorded screenings.
+                              Clinical judgement remains yours.
+                            </p>
+                          </>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+                )}
 
                 {/* --- Vital / lab trends --- */}
                 <Card>

@@ -400,6 +400,35 @@ only her own checks, and a doctor read and file for patients they treat. If the
 table is missing the feature still works — results render normally and simply
 are not persisted.
 
+### Written analysis (Gemini)
+
+Two features read the screening data through Google's Gemini, both proxied by
+Flask (`backend/gemini_service.py`, endpoints `/analysis/screening` and
+`/assistant/ask`):
+
+- **Doctor → Patient Analysis** — a "Write analysis" panel that turns the
+  selected patient's screening history into prose: how the risk picture has
+  moved, which measurements drive it, what to check next.
+- **Patient → chatbot** — questions about her own results ("is my haemoglobin
+  ok?") are answered from her stored screenings instead of the scripted
+  nutrition replies.
+
+Three things are deliberate here:
+
+1. **The key is backend-only.** `VITE_`-prefixed variables are compiled into the
+   browser bundle, so a frontend Gemini key could be lifted from devtools and
+   spent by anyone. Only the Flask process ever sees it.
+2. **Gemini explains, it does not score.** Risk levels stay with the trained
+   models and rules. The prompt shows Gemini those results and forbids
+   recalculating or contradicting them — a screening tool whose risk level
+   changed between identical runs would be neither auditable nor safe.
+3. **No identifiers leave the app.** The prompt builders take clinical values
+   only; name, email and patient ID are never included.
+
+Both features hide themselves when `GEMINI_API_KEY` is unset (the frontend asks
+`/analysis/status` first), and a Gemini outage degrades to the existing
+behaviour rather than an error state.
+
 *These scores are decision aids for a clinician, not a diagnosis.*
 
 ## Lifestyle Tracker
@@ -551,6 +580,8 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
+| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis and the chatbot's assistant. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables both features cleanly. |
+| `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 

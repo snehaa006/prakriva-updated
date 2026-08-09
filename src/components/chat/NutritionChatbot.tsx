@@ -62,6 +62,11 @@ type ConversationStep =
   | "done"
   | "free_chat";
 
+import { supabase } from "@/lib/supabase";
+import { fetchScreenings } from "@/services/diseaseDetectionService";
+import { askAssistant, isAnalysisEnabled } from "@/services/analysisService";
+import type { StoredScreening } from "@/types/diseaseDetection";
+
 const STORAGE_KEY = "nourish_chatbot_history";
 const PROFILE_KEY = "nourish_chatbot_profile";
 
@@ -340,6 +345,12 @@ const NutritionChatbot: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [step, setStep] = useState<ConversationStep>("idle");
+
+  // Her own screening results, so questions about "my report" are answered from
+  // her data rather than generic advice. Loaded once; the assistant is only
+  // offered when the backend actually has Gemini configured.
+  const [screenings, setScreenings] = useState<StoredScreening[]>([]);
+  const [assistantEnabled, setAssistantEnabled] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
     lifeStage: "",
     diet: "",
@@ -352,6 +363,32 @@ const NutritionChatbot: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Load from localStorage on mount
+  // Pull her screenings and check the assistant is available. Both failures are
+  // silent: the chatbot's scripted answers still work without either.
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const enabled = await isAnalysisEnabled();
+      if (!cancelled) setAssistantEnabled(enabled);
+      if (!enabled) return;
+
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) return;
+        const stored = await fetchScreenings(data.user.id);
+        if (!cancelled) setScreenings(stored);
+      } catch (error) {
+        console.error("Could not load screenings for the assistant:", error);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     try {
       const savedMessages = localStorage.getItem(STORAGE_KEY);
@@ -602,7 +639,7 @@ const NutritionChatbot: React.FC = () => {
 
   // ── Process user input through conversation flow ──
   const processInput = useCallback(
-    (input: string) => {
+    async (input: string) => {
       const value = input.trim();
       if (!value) return;
 
@@ -752,8 +789,33 @@ const NutritionChatbot: React.FC = () => {
             }
             return;
           }
-          // Pattern matching
+          // A question about her own results goes straight to the assistant —
+          // the scripted answers are generic nutrition advice and cannot speak
+          // to her haemoglobin or her risk scores.
+          const asksAboutOwnData =
+            /\b(my|mine|i have|am i)\b/i.test(value) &&
+            /\b(report|result|screening|risk|analysis|anaemia|anemia|diabetes|gdm|thyroid|h(a)?emoglobin|bp|blood pressure|sugar|tsh|level)\b/i.test(
+              value
+            );
+
           const matched = matchFreeChat(value);
+
+          if (assistantEnabled && (asksAboutOwnData || !matched)) {
+            addBotMessage("Let me look at your results...");
+            try {
+              addBotMessage(await askAssistant(value, screenings));
+            } catch {
+              // Fall back to whatever the scripted matcher had, so a Gemini
+              // outage degrades to the old behaviour rather than a dead end.
+              addBotMessage(
+                matched ??
+                  "I could not reach your results just now. Please try again in a moment, or ask your doctor."
+              );
+            }
+            setStep("free_chat");
+            break;
+          }
+
           if (matched) {
             addBotMessage(matched);
             // If they said hi/recipe-related, and want to start flow
@@ -774,7 +836,16 @@ const NutritionChatbot: React.FC = () => {
         }
       }
     },
-    [step, profile, addUserMessage, addBotMessage, startConversation, fetchRecipe]
+    [
+      step,
+      profile,
+      addUserMessage,
+      addBotMessage,
+      startConversation,
+      fetchRecipe,
+      assistantEnabled,
+      screenings,
+    ]
   );
 
   // ── Handle send ──
