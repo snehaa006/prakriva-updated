@@ -805,6 +805,72 @@ def assistant_ask():
         raise ModelError(f"Assistant question failed: {e}")
 
 
+#: Turns kept per request — enough for a real back-and-forth (e.g. "do you
+#: have cardamom?" / "yes" / <recipe>) without the payload growing unbounded.
+_MAX_CHAT_HISTORY_TURNS = 12
+_MAX_CHAT_MESSAGE_CHARS = 2000
+
+
+@app.route("/assistant/chat", methods=["POST"])
+@app.limiter.limit("60 per hour")
+def assistant_chat():
+    """Open-ended chat with the patient's full context, not just screenings.
+
+    Body: `{"message": "...", "history": [{"role": "user"|"model", "text":
+    "..."}, ...], "context": {...}}`. As with `/assistant/ask`, the caller —
+    already scoped by Supabase RLS to her own rows — assembles and passes in
+    everything (profile, active diet plan, pantry, tracking history,
+    screenings, optional FoodOScope recipe candidates); this endpoint never
+    looks up a patient itself, so it cannot leak another patient's data.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        message = str(payload.get("message") or "").strip()
+        if not message:
+            raise ValidationError("A message is required")
+        if len(message) > _MAX_CHAT_MESSAGE_CHARS:
+            raise ValidationError("Message is too long")
+
+        history = []
+        raw_history = payload.get("history")
+        if isinstance(raw_history, list):
+            for turn in raw_history[-_MAX_CHAT_HISTORY_TURNS:]:
+                if not isinstance(turn, dict):
+                    continue
+                role = turn.get("role")
+                text = str(turn.get("text") or "").strip()
+                if role in ("user", "model") and text:
+                    history.append({"role": role, "text": text[:_MAX_CHAT_MESSAGE_CHARS]})
+
+        context = payload.get("context")
+        if not isinstance(context, dict):
+            context = {}
+
+        prompt = gemini_service.build_chat_prompt(message, context)
+        answer = gemini_service.generate(
+            prompt, gemini_service.CHAT_RULES, max_tokens=700, history=history
+        )
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"answer": answer},
+            message="Answer generated successfully",
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Gemini chat unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Assistant unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Assistant chat failed: {e}")
+        raise ModelError(f"Assistant chat failed: {e}")
+
+
 #: Report uploads are photos or scans; anything else is a mistake or an attack.
 _ALLOWED_REPORT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
                          "image/heif", "application/pdf"}
