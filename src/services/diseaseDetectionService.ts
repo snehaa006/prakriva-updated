@@ -294,16 +294,23 @@ interface ScreeningRow {
   result: ScreeningResult;
 }
 
-/** Past screenings for a patient, newest first. Empty when the table is absent. */
+/**
+ * Past screenings for a patient, newest first. Empty when the table is absent.
+ *
+ * Defaults to a year's worth of daily checks — high enough that the patient's
+ * "Past Checks" history and its date-range filters see the whole 3+ month
+ * window rather than being silently truncated to the most recent 20.
+ */
 export const fetchScreenings = async (
-  patientId: string
+  patientId: string,
+  limit = 400
 ): Promise<StoredScreening[]> => {
   const { data, error } = await supabase
     .from("disease_screenings")
     .select("id, patient_id, doctor_id, submitted_by, created_at, inputs, result")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(limit);
 
   if (error) {
     if (isMissingTable(error)) return [];
