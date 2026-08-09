@@ -24,10 +24,12 @@ SCHEMA_PATH = os.path.join(HERE, "model_schema.json")
 GDM_MODEL_PATH = os.path.join(HERE, "gdm_model.json")
 THYROID_MODEL_PATH = os.path.join(HERE, "thyroid_model.npz")
 THYROID_SCHEMA_PATH = os.path.join(HERE, "thyroid_schema.json")
+PREECLAMPSIA_MODEL_PATH = os.path.join(HERE, "preeclampsia_model.json")
 
 _STATE: dict = {}
 _GDM_STATE: dict = {}
 _THYROID_STATE: dict = {}
+_PREECLAMPSIA_STATE: dict = {}
 
 
 @dataclass
@@ -47,6 +49,16 @@ class GdmPrediction:
     probability: float
     risk_level: str
     #: Features the patient had no value for, filled with the training median.
+    imputed_features: List[str]
+
+
+@dataclass
+class PreeclampsiaPrediction:
+    """Preeclampsia risk output for one patient."""
+
+    probability: float
+    risk_level: str
+    #: Continuous inputs that were absent and so were median-imputed.
     imputed_features: List[str]
 
 
@@ -248,11 +260,96 @@ def predict_thyroid(inputs: ScreeningInput) -> ThyroidPrediction:
     )
 
 
+def _load_preeclampsia() -> dict:
+    """Load the preeclampsia coefficients and preprocessing stats once."""
+    if _PREECLAMPSIA_STATE:
+        return _PREECLAMPSIA_STATE
+
+    if not os.path.exists(PREECLAMPSIA_MODEL_PATH):
+        raise FileNotFoundError(
+            f"Preeclampsia model artifact missing: {PREECLAMPSIA_MODEL_PATH}. Run "
+            "`python -m disease_detection.ml.convert_preeclampsia_model`."
+        )
+
+    with open(PREECLAMPSIA_MODEL_PATH) as f:
+        artifact = json.load(f)
+
+    _PREECLAMPSIA_STATE.update(
+        continuous_features=artifact["continuous_features"],
+        binary_features=artifact["binary_features"],
+        medians=np.array(artifact["continuous_medians"], dtype=float),
+        mean=np.array(artifact["scaler_mean"], dtype=float),
+        scale=np.array(artifact["scaler_scale"], dtype=float),
+        binary_defaults=artifact["binary_most_frequent"],
+        coefficients=np.array(artifact["coefficients"], dtype=float),
+        intercept=float(artifact["intercept"]),
+    )
+    return _PREECLAMPSIA_STATE
+
+
+def predict_preeclampsia(inputs: ScreeningInput) -> PreeclampsiaPrediction:
+    """Preeclampsia probability for one screening input."""
+    from .preeclampsia_featurize import risk_level_for
+
+    state = _load_preeclampsia()
+
+    # Nine of the thirteen features already exist on the screening form; the
+    # four added for this model are diabetes, hypertension history, fetal weight
+    # and amniotic fluid.
+    raw_continuous = {
+        "gravida": inputs.gravida,
+        "parity": inputs.parity,
+        "gestational age (weeks)": inputs.gestational_week,
+        "Age (yrs)": inputs.age,
+        "BMI  [kg/m\u00b2]": inputs.bmi,
+        "Systolic BP": inputs.bp_systolic,
+        "Diastolic BP": inputs.bp_diastolic,
+        "HB": inputs.hemoglobin,
+        "fetal weight(kgs)": inputs.fetal_weight_kg,
+        "amniotic fluid levels(cm)": inputs.amniotic_fluid_cm,
+    }
+
+    imputed: List[str] = []
+    values = []
+    for i, name in enumerate(state["continuous_features"]):
+        value = raw_continuous.get(name)
+        if value is None:
+            value = state["medians"][i]
+            imputed.append(name)
+        values.append(float(value))
+    continuous = (np.array(values) - state["mean"]) / state["scale"]
+
+    # Proteinuria is a three-way field: "unknown" means the test was not run, so
+    # it falls back to the training-set default rather than being read as a
+    # negative result the patient never had.
+    proteinuria = (
+        1.0
+        if inputs.proteinuria == "positive"
+        else 0.0
+        if inputs.proteinuria == "negative"
+        else float(state["binary_defaults"][2])
+    )
+    binary = np.array(
+        [float(inputs.diabetes), float(inputs.hypertension_history), proteinuria]
+    )
+
+    x = np.concatenate([continuous, binary])
+    logit = float(x @ state["coefficients"] + state["intercept"])
+    probability = 1.0 / (1.0 + np.exp(-logit))
+
+    return PreeclampsiaPrediction(
+        probability=round(probability, 4),
+        risk_level=risk_level_for(probability),
+        imputed_features=imputed,
+    )
+
+
 def warm_up() -> None:
     """Force the models to load now (raises if artifacts are missing)."""
     _load()
     _load_gdm()
     _load_thyroid()
+    _load_preeclampsia()
 
 
 def _gdm_raw_values(inputs: ScreeningInput) -> dict:

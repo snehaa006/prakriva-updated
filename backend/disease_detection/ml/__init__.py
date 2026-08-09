@@ -18,6 +18,7 @@ def register_ml_detectors(replace: bool = True) -> bool:
         from .detectors import (
             detect_anaemia_ml,
             detect_gdm_ml,
+            detect_preeclampsia_ml,
             detect_pregnancy_risk_ml,
             detect_thyroid_ml,
         )
@@ -32,6 +33,7 @@ def register_ml_detectors(replace: bool = True) -> bool:
         register_detector("pregnancy_risk", detect_pregnancy_risk_ml, replace=replace)
         register_detector("gdm", detect_gdm_ml, replace=replace)
         register_detector("thyroid", detect_thyroid_ml, replace=replace)
+        register_detector("preeclampsia", detect_preeclampsia_ml, replace=replace)
         return True
     except Exception as exc:  # noqa: BLE001 - fall back to rules on any failure
         try:
