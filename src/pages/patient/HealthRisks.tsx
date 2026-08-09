@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
+import { endOfDay, format, isSameDay, startOfDay } from "date-fns";
 import {
   Card,
   CardContent,
@@ -10,8 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Baby, ClipboardList, HeartPulse, History, Loader2 } from "lucide-react";
+import {
+  Activity,
+  Baby,
+  CalendarRange,
+  ClipboardList,
+  HeartPulse,
+  History,
+  Loader2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import {
@@ -22,6 +34,7 @@ import {
   ThyroidSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
 import { ReportUploadCard } from "@/components/health/ReportUploadCard";
 import { isAnalysisEnabled } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -42,6 +55,15 @@ import {
   StoredScreening,
 } from "@/types/diseaseDetection";
 
+/** Date-range presets for the patient's own history. `0` means "all recorded". */
+const RANGE_PRESETS = [
+  { value: 1, label: "Today" },
+  { value: 7, label: "7 days" },
+  { value: 30, label: "30 days" },
+  { value: 90, label: "90 days" },
+  { value: 0, label: "All" },
+] as const;
+
 /**
  * The patient's own maternal health check.
  *
@@ -59,6 +81,13 @@ const HealthRisks: React.FC = () => {
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [result, setResult] = useState<ScreeningResult | null>(null);
   const [history, setHistory] = useState<StoredScreening[]>([]);
+
+  // History filter — defaults to "All" so nothing is hidden the first time
+  // this tab opens, regardless of how sparse or dense her check history is.
+  const [rangeDays, setRangeDays] = useState<number>(0);
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
+  const [useCustomRange, setUseCustomRange] = useState(false);
+
   const [isPregnant, setIsPregnant] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isScreening, setIsScreening] = useState(false);
@@ -140,6 +169,38 @@ const HealthRisks: React.FC = () => {
 
   const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  const selectPreset = (days: number) => {
+    setUseCustomRange(false);
+    setRangeDays(days);
+  };
+
+  const filteredHistory = useMemo(() => {
+    if (useCustomRange && customRange?.from) {
+      const from = startOfDay(customRange.from).getTime();
+      const to = endOfDay(customRange.to ?? customRange.from).getTime();
+      return history.filter((entry) => {
+        const t = new Date(entry.createdAt).getTime();
+        return t >= from && t <= to;
+      });
+    }
+    if (rangeDays === 0) return history;
+    const cutoff = Date.now() - rangeDays * 86_400_000;
+    return history.filter((entry) => new Date(entry.createdAt).getTime() >= cutoff);
+  }, [history, useCustomRange, customRange, rangeDays]);
+
+  // How the active range reads in a sentence, e.g. "the last 30 days".
+  const rangeLabel = useMemo(() => {
+    if (useCustomRange && customRange?.from) {
+      const to = customRange.to ?? customRange.from;
+      return isSameDay(customRange.from, to)
+        ? format(customRange.from, "MMM d, yyyy")
+        : `${format(customRange.from, "MMM d, yyyy")} – ${format(to, "MMM d, yyyy")}`;
+    }
+    if (rangeDays === 0) return "all your recorded checks";
+    if (rangeDays === 1) return "today";
+    return `the last ${rangeDays} days`;
+  }, [useCustomRange, customRange, rangeDays]);
 
   /**
    * Record pregnancy (plus optional due date and height) straight from this
@@ -466,54 +527,133 @@ const HealthRisks: React.FC = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Past Checks</CardTitle>
-              <CardDescription>
+        <TabsContent value="history" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">Past Checks</h3>
+              <p className="text-sm text-muted-foreground">
                 Checks you have completed, and screenings your doctor has run.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {history.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">
+              </p>
+            </div>
+
+            {history.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 rounded-lg border p-1">
+                {RANGE_PRESETS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={!useCustomRange && rangeDays === opt.value ? "default" : "ghost"}
+                    onClick={() => selectPreset(opt.value)}
+                    className="h-8 px-3"
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={useCustomRange ? "default" : "ghost"}
+                      className="h-8 px-3 gap-1.5"
+                    >
+                      <CalendarRange className="w-3.5 h-3.5" />
+                      {useCustomRange && customRange?.from ? rangeLabel : "Custom"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="range"
+                      selected={customRange}
+                      defaultMonth={customRange?.from}
+                      onSelect={(range) => {
+                        setCustomRange(range);
+                        setUseCustomRange(!!range?.from);
+                      }}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </div>
+
+          {history.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <History className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <h3 className="text-xl font-semibold mb-2">No checks yet</h3>
+                <p className="text-muted-foreground">
                   You have not completed a health check yet.
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {history.map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => {
-                        setResult(entry.result);
-                        setForm(entry.inputs);
-                        setActiveTab("results");
-                      }}
-                      className="w-full flex items-center justify-between gap-4 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {new Date(entry.createdAt).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {entry.submittedBy === "patient"
-                            ? "Your health check"
-                            : "Screening by your doctor"}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={RISK_STYLES[entry.result.overall_risk_level].badge}
+              </CardContent>
+            </Card>
+          ) : filteredHistory.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <History className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <h3 className="text-xl font-semibold mb-2">Nothing found for {rangeLabel}</h3>
+                <p className="text-muted-foreground">
+                  You have {history.length} recorded check{history.length === 1 ? "" : "s"},
+                  but none within this window.
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => selectPreset(0)}>
+                  Show all
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <RiskScoreTrend screenings={filteredHistory} rangeLabel={rangeLabel} />
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {filteredHistory.length === history.length
+                      ? `All ${history.length} check${history.length === 1 ? "" : "s"}`
+                      : `${filteredHistory.length} of ${history.length} checks`}
+                  </CardTitle>
+                  <CardDescription>
+                    Showing {rangeLabel}. Tap any check to reopen its results.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {filteredHistory.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => {
+                          setResult(entry.result);
+                          setForm(entry.inputs);
+                          setActiveTab("results");
+                        }}
+                        className="w-full flex items-center justify-between gap-4 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
                       >
-                        {RISK_STYLES[entry.result.overall_risk_level].label}
-                      </Badge>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        <div>
+                          <p className="font-medium">
+                            {new Date(entry.createdAt).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.submittedBy === "patient"
+                              ? "Your health check"
+                              : "Screening by your doctor"}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={RISK_STYLES[entry.result.overall_risk_level].badge}
+                        >
+                          {RISK_STYLES[entry.result.overall_risk_level].label}
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>

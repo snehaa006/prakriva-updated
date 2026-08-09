@@ -252,9 +252,14 @@ different places:
   longer fills in or re-runs the screening form here — the analysis is built from
   the patient's own Health Check submissions.
 
-The patient sees every run in her own History tab. Charts only render for values
-that were actually recorded; laboratory fields left blank mean "not performed" —
-they never score as a normal result.
+The patient sees her full history in a **Past Checks** tab: date-range presets
+(today, 7/30/90 days, all) plus a custom start/end range via a calendar picker,
+scoping both a per-condition risk-score trend chart and the list beneath it
+together. The trend chart (`RiskScoreTrend.tsx`, the same component the
+doctor's Patient Analysis page uses) only appears once at least two checks fall
+in the selected range — a single point has nothing to trend. Charts only render
+for values that were actually recorded; laboratory fields left blank mean "not
+performed" — they never score as a normal result.
 
 **Measurement bounds.** `src/lib/screeningValidation.ts` mirrors the
 `Field(ge=..., le=...)` constraints in `backend/disease_detection/schemas.py` so
@@ -387,8 +392,9 @@ values. If XGBoost or the model files are absent, the whole pipeline runs on the
 rule-based baseline.
 
 **Frontend layout.** The form sections
-(`src/components/health/ScreeningFields.tsx`) and the results rendering
-(`ScreeningResults.tsx`) are shared by both pages; only the sections each role
+(`src/components/health/ScreeningFields.tsx`), the results rendering
+(`ScreeningResults.tsx`) and the per-condition risk-score trend
+(`RiskScoreTrend.tsx`) are shared by both pages; only the sections each role
 gets and the wording differ. Risk-level styling lives in `src/lib/riskLevels.ts`.
 
 **Storage.** Screening runs are recorded in the `disease_screenings` Supabase

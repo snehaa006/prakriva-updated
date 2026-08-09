@@ -35,23 +35,20 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
 import {
   AnalysisUnavailableError,
   analyseScreenings,
   isAnalysisEnabled,
 } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
-import { CHART_COLORS, CHART_NEUTRALS, CHART_RISK } from "@/lib/chartColors";
+import { CHART_COLORS, CHART_NEUTRALS } from "@/lib/chartColors";
 import {
   AssessmentData,
   fetchScreenings,
   isPregnantPatient,
 } from "@/services/diseaseDetectionService";
-import {
-  RiskLevel,
-  ScreeningInput,
-  StoredScreening,
-} from "@/types/diseaseDetection";
+import { ScreeningInput, StoredScreening } from "@/types/diseaseDetection";
 
 interface PregnantPatient {
   patientId: string;
@@ -98,9 +95,6 @@ const CHART = {
   primary: CHART_COLORS.primary,
   secondary: CHART_COLORS.activity,
 };
-
-/** Risk hues for the trend lines, matching the badges in `RISK_STYLES`. */
-const RISK_HEX: Record<RiskLevel, string> = CHART_RISK;
 
 /** Numeric vitals we can trend from a screening's inputs. */
 interface VitalMetric {
@@ -329,22 +323,6 @@ const DiseaseDetection: React.FC = () => {
   const hasData = (key: string) => chartRows.some((r) => r[key] != null);
   const availableVitals = VITAL_METRICS.filter((m) => hasData(m.key as string));
   const hasBP = hasData("bp_systolic") || hasData("bp_diastolic");
-
-  // Per-condition score series for the risk trend (needs ≥2 points to trend).
-  const riskSeries = useMemo(() => {
-    if (!latest || screeningsInRange.length < 2) return [];
-    return latest.result.conditions.map((c) => ({
-      condition: c.condition,
-      label: c.label,
-      riskLevel: c.risk_level,
-      currentScore: c.score,
-      data: screeningsInRange.map((s) => ({
-        label: dayLabel(s.createdAt),
-        score:
-          s.result.conditions.find((x) => x.condition === c.condition)?.score ?? null,
-      })),
-    }));
-  }, [latest, screeningsInRange]);
 
   const rangeLabel = rangeDays === 0 ? "all recorded screenings" : `the last ${rangeDays} days`;
 
@@ -813,72 +791,7 @@ const DiseaseDetection: React.FC = () => {
                 </Card>
 
                 {/* --- Risk score trend (small multiples) --- */}
-                {riskSeries.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        Risk score trend
-                      </CardTitle>
-                      <CardDescription>
-                        How each condition's 0–100 risk score has moved over{" "}
-                        {rangeLabel}. Line colour is the latest risk level.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {riskSeries.map((s) => (
-                          <div key={s.condition} className="rounded-lg border p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-medium">{s.label}</h4>
-                              <Badge
-                                variant="outline"
-                                className={RISK_STYLES[s.riskLevel].badge}
-                              >
-                                {s.currentScore}%
-                              </Badge>
-                            </div>
-                            <ResponsiveContainer width="100%" height={120}>
-                              <LineChart
-                                data={s.data}
-                                margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
-                              >
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke={CHART.grid}
-                                  vertical={false}
-                                />
-                                <XAxis
-                                  dataKey="label"
-                                  tick={{ fontSize: 10, fill: CHART.axis }}
-                                  tickLine={false}
-                                  axisLine={{ stroke: CHART.grid }}
-                                />
-                                <YAxis
-                                  domain={[0, 100]}
-                                  tick={{ fontSize: 10, fill: CHART.axis }}
-                                  tickLine={false}
-                                  axisLine={false}
-                                  width={32}
-                                />
-                                <Tooltip {...tooltipProps} />
-                                <Line
-                                  name="Risk score"
-                                  type="monotone"
-                                  dataKey="score"
-                                  stroke={RISK_HEX[s.riskLevel]}
-                                  strokeWidth={2}
-                                  dot={{ r: 3 }}
-                                  connectNulls
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <RiskScoreTrend screenings={screeningsInRange} rangeLabel={rangeLabel} />
 
                 {/* --- Detected conditions & risk (latest screening) --- */}
                 {latest && (
