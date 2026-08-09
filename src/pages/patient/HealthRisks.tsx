@@ -22,6 +22,8 @@ import {
   ThyroidSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { ReportUploadCard } from "@/components/health/ReportUploadCard";
+import { isAnalysisEnabled } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
 import { validateMeasurements } from "@/lib/screeningValidation";
 import {
@@ -69,6 +71,20 @@ const HealthRisks: React.FC = () => {
   const [setupDueDate, setSetupDueDate] = useState("");
   const [setupHeightCm, setSetupHeightCm] = useState("");
   const [savingSetup, setSavingSetup] = useState(false);
+
+  // Report reading needs Gemini; hide the card entirely when it is unconfigured
+  // rather than offer an upload that can only fail.
+  const [canReadReports, setCanReadReports] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    isAnalysisEnabled().then((enabled) => {
+      if (!cancelled) setCanReadReports(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -348,6 +364,8 @@ const HealthRisks: React.FC = () => {
         </TabsList>
 
         <TabsContent value="check" className="space-y-4">
+          {canReadReports && <ReportUploadCard onApply={update} />}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Your latest measurements</CardTitle>

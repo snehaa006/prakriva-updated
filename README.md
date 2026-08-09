@@ -412,6 +412,14 @@ Flask (`backend/gemini_service.py`, endpoints `/analysis/screening` and
 - **Patient → chatbot** — questions about her own results ("is my haemoglobin
   ok?") are answered from her stored screenings instead of the scripted
   nutrition replies.
+- **Patient → Health Check** — "Fill from your report" reads a photographed or
+  uploaded lab report (`/analysis/extract-report`) and offers the values it
+  found. They are shown for confirmation and only written into the form when
+  she accepts them: OCR's characteristic failure is a lost decimal point
+  (haemoglobin 11.9 read as 119), and a wrong number reaching a risk model
+  silently is worse than typing it by hand. The backend additionally discards
+  anything outside the field's clinically plausible range before it is ever
+  offered.
 
 Three things are deliberate here:
 

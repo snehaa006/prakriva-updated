@@ -805,6 +805,63 @@ def assistant_ask():
         raise ModelError(f"Assistant question failed: {e}")
 
 
+#: Report uploads are photos or scans; anything else is a mistake or an attack.
+_ALLOWED_REPORT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
+                         "image/heif", "application/pdf"}
+#: ~8 MB of base64, comfortably above a phone photo and below anything abusive.
+_MAX_REPORT_BASE64_CHARS = 11_000_000
+
+
+@app.route("/analysis/extract-report", methods=["POST"])
+@app.limiter.limit("20 per hour")
+def extract_report():
+    """Read lab values off a photographed or scanned report.
+
+    Body: `{"image": "<base64>", "mime_type": "image/jpeg"}`. Returns only the
+    fields the screening form uses, and only those that read as clinically
+    plausible — the caller is expected to show them for confirmation rather
+    than apply them silently.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        image = payload.get("image")
+        mime_type = str(payload.get("mime_type") or "").lower()
+
+        if not isinstance(image, str) or not image:
+            raise ValidationError("An image is required")
+        if len(image) > _MAX_REPORT_BASE64_CHARS:
+            raise ValidationError("That file is too large — try a photo under 8 MB")
+        if mime_type not in _ALLOWED_REPORT_TYPES:
+            raise ValidationError(
+                "Upload a photo (JPEG, PNG, WEBP, HEIC) or a PDF of the report"
+            )
+
+        values = gemini_service.extract_report_values(image, mime_type)
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"values": values},
+            message=(
+                f"Read {len(values)} value(s) from the report"
+                if values
+                else "No recognisable values were found"
+            ),
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Report extraction unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Report reading unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Report extraction failed: {e}")
+        raise ModelError(f"Report extraction failed: {e}")
+
+
 @app.route("/analytics", methods=["GET"])
 @app.limiter.limit("10 per minute")
 def get_analytics():

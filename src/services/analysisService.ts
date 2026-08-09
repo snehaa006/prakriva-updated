@@ -67,6 +67,58 @@ export const analyseScreenings = async (
   return analysis;
 };
 
+/** Screening fields a report can fill in. */
+export type ExtractedValues = Partial<
+  Record<
+    | "hemoglobin"
+    | "hba1c"
+    | "hdl"
+    | "triglycerides"
+    | "tsh"
+    | "t3"
+    | "tt4"
+    | "t4u"
+    | "fti"
+    | "bp_systolic"
+    | "bp_diastolic",
+    number
+  >
+>;
+
+/** Largest file we will try to send, matching the backend's own limit. */
+export const MAX_REPORT_BYTES = 8 * 1024 * 1024;
+
+/** Read a File as bare base64 (without the `data:...;base64,` prefix). */
+const toBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read that file"));
+    reader.onload = () => {
+      const result = String(reader.result);
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+/**
+ * Read lab values off a photographed or scanned report.
+ *
+ * Returns only values the backend judged clinically plausible. The caller is
+ * expected to show them for confirmation — OCR misreading a decimal point
+ * (11.9 as 119) must not silently reach a risk model.
+ */
+export const extractReport = async (file: File): Promise<ExtractedValues> => {
+  if (file.size > MAX_REPORT_BYTES) {
+    throw new Error("That file is too large — try a photo under 8 MB.");
+  }
+  const { values } = await post<{ values: ExtractedValues }>(
+    "/analysis/extract-report",
+    { image: await toBase64(file), mime_type: file.type || "image/jpeg" }
+  );
+  return values;
+};
+
 /** Answer a patient's question about her own results. */
 export const askAssistant = async (
   question: string,
