@@ -213,9 +213,9 @@ const DoshaRadial: React.FC<{
 }> = ({ scores, primary }) => {
   const total = scores.vata + scores.pitta + scores.kapha || 1;
   const doshaInfo: Record<string, { bgColor: string; label: string }> = {
-    vata: { bgColor: "bg-sky-500", label: "Vata" },
+    vata: { bgColor: "bgplum-500", label: "Vata" },
     pitta: { bgColor: "bg-rose-500", label: "Pitta" },
-    kapha: { bgColor: "bg-emerald-500", label: "Kapha" },
+    kapha: { bgColor: "bgrose-500", label: "Kapha" },
   };
 
   return (
@@ -683,7 +683,7 @@ const RecipeBuilder = () => {
       {isLoadingDraft && (
         <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
           <div className="text-center space-y-3">
-            <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto" />
+            <Loader2 className="w-8 h-8 animate-spin textrose-600 mx-auto" />
             <p className="text-sm font-medium text-gray-700">Loading diet plan draft...</p>
           </div>
         </div>
@@ -751,7 +751,7 @@ const RecipeBuilder = () => {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Spices</p>
                   <div className="flex flex-wrap gap-1">
                     {profileAnalysis.doshaPrefs.spices.map((s) => (
-                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{s}</span>
+                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bgcoral-50 textcoral-700 border bordercoral-100">{s}</span>
                     ))}
                   </div>
                 </div>
@@ -832,7 +832,7 @@ const RecipeBuilder = () => {
                   </div>
                 )}
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 mb-1">Excluded ({profileAnalysis.excludes.length})</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider textcoral-600 mb-1">Excluded ({profileAnalysis.excludes.length})</p>
                   <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
                     {profileAnalysis.excludes.slice(0, 15).map((e) => (
                       <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-100">{e}</span>
@@ -843,10 +843,10 @@ const RecipeBuilder = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-green-600 mb-1">Focus ({profileAnalysis.includes.length})</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider textrose-600 mb-1">Focus ({profileAnalysis.includes.length})</p>
                   <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
                     {profileAnalysis.includes.slice(0, 12).map((i) => (
-                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-100">{i}</span>
+                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bgrose-50 textrose-600 border borderrose-100">{i}</span>
                     ))}
                     {profileAnalysis.includes.length > 12 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">+{profileAnalysis.includes.length - 12}</span>
@@ -855,7 +855,7 @@ const RecipeBuilder = () => {
                 </div>
                 {patientProfile.dietaryPreferences && (
                   <div className="flex items-center gap-1.5 pt-1">
-                    <Apple className="w-3 h-3 text-green-600" />
+                    <Apple className="w-3 h-3 textrose-600" />
                     <span className="text-xs capitalize font-medium">{patientProfile.dietaryPreferences}</span>
                   </div>
                 )}
@@ -865,16 +865,16 @@ const RecipeBuilder = () => {
 
           {/* Medical Notes */}
           {profileAnalysis.targets.notes.length > 0 && (
-            <Card className="shadow-sm border-blue-100 bg-blue-50/30">
+            <Card className="shadow-sm borderplum-100 bgplum-50/30">
               <CardContent className="py-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-semibold text-blue-900">Clinical Guidelines</span>
+                  <BookOpen className="w-4 h-4 textplum-600" />
+                  <span className="text-sm font-semibold textplum-900">Clinical Guidelines</span>
                 </div>
                 <div className="grid md:grid-cols-2 gap-x-6 gap-y-1.5">
                   {profileAnalysis.targets.notes.map((note, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs text-blue-800">
-                      <CircleDot className="w-3 h-3 text-blue-400 shrink-0 mt-0.5" />
+                    <div key={idx} className="flex items-start gap-2 text-xs textplum-800">
+                      <CircleDot className="w-3 h-3 textplum-400 shrink-0 mt-0.5" />
                       {note}
                     </div>
                   ))}
@@ -925,19 +925,19 @@ const RecipeBuilder = () => {
 
       {/* ===== GENERATED / EDITING BANNER ===== */}
       {planMeta && !isLoadingDraft && (
-        <Card className="border-green-200 bg-green-50/50">
+        <Card className="borderrose-200 bgrose-50/50">
           <CardContent className="py-3 px-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                <FileEdit className="w-4 h-4 text-green-700" />
+              <div className="w-8 h-8 rounded-lg bgrose-100 flex items-center justify-center">
+                <FileEdit className="w-4 h-4 textrose-700" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-green-900">
+                <p className="text-sm font-semibold textrose-900">
                   {editingDraftId ? "Editing a saved diet plan" : "Personalized plan generated"}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5 text-xs text-green-700">
+                <div className="flex items-center gap-2 mt-0.5 text-xs textrose-700">
                   {!!planMeta.primaryDosha && (
-                    <Badge variant="outline" className="text-[10px] h-4 bg-white border-green-300 text-green-700 capitalize">
+                    <Badge variant="outline" className="text-[10px] h-4 bg-white borderrose-300 textrose-700 capitalize">
                       {String(planMeta.primaryDosha)} Dosha
                     </Badge>
                   )}
@@ -946,13 +946,13 @@ const RecipeBuilder = () => {
                       {String(planMeta.lifeStageLabel)}
                     </Badge>
                   )}
-                  <span className="text-green-600">Drag & drop meals below to adjust, then save.</span>
+                  <span className="textrose-600">Drag & drop meals below to adjust, then save.</span>
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100"
+                className="gap-1.5 borderrose-300 textrose-700 hover:bgrose-100"
                 onClick={handleClearBoard}
               >
                 <AlertCircle className="w-3 h-3" />
@@ -1008,7 +1008,7 @@ const RecipeBuilder = () => {
               <Button
                 onClick={saveMealPlan}
                 disabled={saving}
-                className={`w-full gap-2 ${editingDraftId ? "bg-green-600 hover:bg-green-700" : ""}`}
+                className={`w-full gap-2 ${editingDraftId ? "bgrose-600 hover:bgrose-700" : ""}`}
               >
                 {saving ? (
                   <>
@@ -1064,7 +1064,7 @@ const RecipeBuilder = () => {
                   key={option}
                   className={`px-4 py-2 rounded ${
                     activeFilter === option
-                      ? "bg-green-500 text-white"
+                      ? "bgrose-500 text-white"
                       : "bg-gray-200"
                   }`}
                   onClick={() => setActiveFilter(option)}
@@ -1141,31 +1141,31 @@ const RecipeBuilder = () => {
             )}
 
             {/* Nutrition Summary */}
-            <div className="mt-6 p-4 bg-green-50 border rounded">
+            <div className="mt-6 p-4 bgrose-50 border rounded">
               <h2 className="text-lg font-bold mb-2">
                 Nutrition Totals ({activeFilter})
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-2xl font-bold textrose-600">
                     {Math.round(nutritionTotals.Calories)}
                   </p>
                   <p className="text-sm text-gray-600">Calories</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold textplum-600">
                     {Math.round(nutritionTotals.Protein)}
                   </p>
                   <p className="text-sm text-gray-600">Protein (g)</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-yellow-600">
+                  <p className="text-2xl font-bold textcoral-600">
                     {Math.round(nutritionTotals.Fat)}
                   </p>
                   <p className="text-sm text-gray-600">Fat (g)</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">
+                  <p className="text-2xl font-bold textplum-600">
                     {Math.round(nutritionTotals.Carbs)}
                   </p>
                   <p className="text-sm text-gray-600">Carbs (g)</p>

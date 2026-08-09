@@ -330,7 +330,7 @@ const ConsultationRequests: React.FC = () => {
       case 'emergency':
         return <Badge className="bg-red-100 text-red-800 border-red-200">High Priority</Badge>;
       case 'medium':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">Medium Priority</Badge>;
+        return <Badge variant="outline" className="bg-coral-100 text-coral-800 border-coral-200">Medium Priority</Badge>;
       case 'low':
         return <Badge variant="secondary">Low Priority</Badge>;
       default:
@@ -341,9 +341,9 @@ const ConsultationRequests: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
+        return <Badge variant="outline" className="bg-coral-100 text-coral-800 border-coral-200">Pending</Badge>;
       case 'accepted':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Accepted</Badge>;
+        return <Badge className="bg-rose-100 text-rose-800 border-rose-200">Accepted</Badge>;
       case 'rejected':
         return <Badge className="bg-red-100 text-red-800 border-red-200">Declined</Badge>;
       case 'completed':
@@ -372,7 +372,7 @@ const ConsultationRequests: React.FC = () => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-blue-100 text-blue-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Activity className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.energyLevels || 'N/A'}/5</div>
@@ -386,14 +386,14 @@ const ConsultationRequests: React.FC = () => {
           <div className="text-xs text-muted-foreground">Stress</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-blue-100 text-blue-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Droplet className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.waterIntake || 'N/A'}L</div>
           <div className="text-xs text-muted-foreground">Water/Day</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-purple-100 text-purple-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Clock className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.sleepDuration || 'N/A'}</div>
@@ -580,7 +580,7 @@ const ConsultationRequests: React.FC = () => {
                           <Button
                             size="sm"
                             onClick={() => handleRequestAction(request, 'accept')}
-                            className="gap-1 bg-green-600 hover:bg-green-700"
+                            className="gap-1 bg-rose-600 hover:bg-rose-700"
                           >
                             <Check className="w-3 h-3" />
                             Accept
@@ -803,7 +803,7 @@ const ConsultationRequests: React.FC = () => {
                           <Label className="text-xs text-muted-foreground">Digestion Issues</Label>
                           <div className="flex flex-wrap gap-2 mt-1">
                             {selectedRequest.fullPatientProfile.assessmentData.digestionIssues.map((issue, index) => (
-                              <Badge key={index} variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">{issue}</Badge>
+                              <Badge key={index} variant="outline" className="bg-coral-50 text-coral-700 border-coral-200">{issue}</Badge>
                             ))}
                           </div>
                         </div>
@@ -864,7 +864,7 @@ const ConsultationRequests: React.FC = () => {
                       <CardContent>
                         <div className="flex flex-wrap gap-2">
                           {selectedRequest.fullPatientProfile.assessmentData.familyHistory.map((condition, index) => (
-                            <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">{condition}</Badge>
+                            <Badge key={index} variant="outline" className="bg-plum-50 text-plum-700 border-plum-200">{condition}</Badge>
                           ))}
                         </div>
                       </CardContent>
@@ -880,7 +880,7 @@ const ConsultationRequests: React.FC = () => {
                       <CardContent>
                         <div className="flex flex-wrap gap-2">
                           {selectedRequest.fullPatientProfile.assessmentData.healthGoals.map((goal, index) => (
-                            <Badge key={index} variant="outline" className="bg-green-50 text-green-700 border-green-200">{goal}</Badge>
+                            <Badge key={index} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{goal}</Badge>
                           ))}
                         </div>
                       </CardContent>
@@ -951,7 +951,7 @@ const ConsultationRequests: React.FC = () => {
             <Button 
               onClick={submitResponse}
               disabled={submitting}
-              className={responseType === 'accept' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+              className={responseType === 'accept' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-red-600 hover:bg-red-700'}
             >
               {submitting ? (
                 <>

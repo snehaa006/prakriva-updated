@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
+import { CHART_COLORS } from "@/lib/chartColors";
 interface DoshaBalanceChartProps {
   vata: number;
   pitta: number;
@@ -55,7 +56,7 @@ export const DoshaBalanceChart = ({
             labelLine={false}
             label={renderCustomizedLabel}
             outerRadius={size / 5}
-            fill="#8884d8"
+            fill={CHART_COLORS.primary}
             dataKey="value"
           >
             {data.map((entry, index) => (

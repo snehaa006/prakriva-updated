@@ -802,8 +802,8 @@ const NutritionChatbot: React.FC = () => {
 
   // ── Render recipe card ──
   const renderRecipeCard = (recipe: FormattedRecipe) => (
-    <div className="mt-2 rounded-lg border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 text-sm">
-      <h4 className="font-semibold text-emerald-800 text-base mb-2">
+    <div className="mt-2 rounded-lg border border-rose-200 bg-gradient-to-br from-rose-50 to-rose-50 p-3 text-sm">
+      <h4 className="font-semibold text-rose-800 text-base mb-2">
         {recipe.name}
       </h4>
 
@@ -826,7 +826,7 @@ const NutritionChatbot: React.FC = () => {
 
       {recipe.substitutions.length > 0 && (
         <div className="mt-2">
-          <p className="text-xs font-medium text-emerald-700 mb-1">Substitutions:</p>
+          <p className="text-xs font-medium text-rose-700 mb-1">Substitutions:</p>
           {recipe.substitutions.map((sub, i) => (
             <p key={i} className="text-xs text-gray-600 ml-2">- {sub}</p>
           ))}
@@ -834,10 +834,10 @@ const NutritionChatbot: React.FC = () => {
       )}
 
       {recipe.healthTips.length > 0 && (
-        <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded">
-          <p className="text-xs font-medium text-blue-700 mb-1">Health Tips:</p>
+        <div className="mt-2 p-2 bg-plum-50 border border-plum-100 rounded">
+          <p className="text-xs font-medium text-plum-700 mb-1">Health Tips:</p>
           {recipe.healthTips.map((tip, i) => (
-            <p key={i} className="text-xs text-blue-600">{tip}</p>
+            <p key={i} className="text-xs text-plum-600">{tip}</p>
           ))}
         </div>
       )}
@@ -850,11 +850,11 @@ const NutritionChatbot: React.FC = () => {
       {!isOpen && (
         <button
           onClick={handleOpen}
-          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center group"
+          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center group"
           aria-label="Open nutrition chatbot"
         >
           <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-orange-400 border-2 border-white animate-pulse" />
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-coral-400 border-2 border-white animate-pulse" />
         </button>
       )}
 
@@ -862,14 +862,14 @@ const NutritionChatbot: React.FC = () => {
       {isOpen && (
         <div className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-4rem)] flex flex-col rounded-2xl shadow-2xl border border-gray-200 bg-white overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-600 text-white shrink-0">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
                 <MessageCircle className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm leading-tight">Nourish Assistant</h3>
-                <p className="text-[10px] text-emerald-100">Maternal Nutrition Guide</p>
+                <p className="text-[10px] text-rose-100">Maternal Nutrition Guide</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -913,7 +913,7 @@ const NutritionChatbot: React.FC = () => {
                   <div
                     className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                       msg.role === "user"
-                        ? "bg-emerald-600 text-white rounded-br-md"
+                        ? "bg-rose-600 text-white rounded-br-md"
                         : "bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-md"
                     }`}
                   >
@@ -937,7 +937,7 @@ const NutritionChatbot: React.FC = () => {
                         key={opt.value}
                         onClick={() => handleQuickOption(opt.value)}
                         disabled={isLoading}
-                        className="text-xs px-3 py-1.5 rounded-full border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors disabled:opacity-50"
+                        className="text-xs px-3 py-1.5 rounded-full border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition-colors disabled:opacity-50"
                       >
                         {opt.label}
                       </button>
@@ -983,13 +983,13 @@ const NutritionChatbot: React.FC = () => {
                     : "Type a message..."
                 }
                 disabled={isLoading}
-                className="flex-1 text-sm rounded-full border border-gray-200 bg-gray-50 px-4 py-2 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 disabled:opacity-50 transition-colors"
+                className="flex-1 text-sm rounded-full border border-gray-200 bg-gray-50 px-4 py-2 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 disabled:opacity-50 transition-colors"
               />
               <Button
                 onClick={handleSend}
                 disabled={!inputText.trim() || isLoading}
                 size="sm"
-                className="rounded-full h-9 w-9 p-0 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+                className="rounded-full h-9 w-9 p-0 bg-rose-600 hover:bg-rose-700 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
               </Button>

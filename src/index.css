@@ -49,13 +49,19 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    /* Ayurvedic-specific colors (status/meaning, not brand - kept distinct) */
-    --vata: 200 60% 65%;        /* Cool blue for Vata */
-    --pitta: 25 85% 60%;        /* Warm orange-red for Pitta */
-    --kapha: 120 40% 50%;       /* Earth green for Kapha */
-    --success: 135 50% 55%;     /* Natural green */
-    --warning: 45 85% 60%;      /* Golden yellow */
-    --info: 200 80% 65%;        /* Calming blue */
+    /* Dosha and status colors.
+       These used to sit outside the brand palette (blue/orange/green) so they
+       could carry meaning independently. The brand is pink end to end, so they
+       now live inside the pink family too, separated by hue (~30° apart) and
+       lightness rather than by leaving the palette. Every place they signal
+       something also carries a text label or an icon, so meaning never rests
+       on hue alone. See the `plum`/`rose`/`coral` ramps in tailwind.config.ts. */
+    --vata: 318 46% 64%;        /* Cool plum-pink for Vata */
+    --pitta: 12 48% 58%;        /* Warm coral-pink for Pitta */
+    --kapha: 345 40% 44%;       /* Deep rose for Kapha */
+    --success: 345 46% 48%;     /* Brand rose */
+    --warning: 12 50% 56%;      /* Warm coral */
+    --info: 318 46% 54%;        /* Cool plum */
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(345, 50%, 22%), hsl(344, 49%, 34%));
@@ -74,42 +80,58 @@ All colors MUST be HSL.
     --sidebar-ring: 345 50% 24%;
   }
 
+  /* Dark mode is not reachable from the UI today (there is no theme toggle),
+     but these were still stock blue-slate from the shadcn starter, so a class
+     toggle would have dropped the app into a completely different palette.
+     Re-tinted onto the brand hue so it stays Prakriva if it is ever enabled. */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 345 25% 8%;
+    --foreground: 30 30% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 345 22% 11%;
+    --card-foreground: 30 30% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 345 22% 11%;
+    --popover-foreground: 30 30% 96%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 345 45% 70%;
+    --primary-foreground: 345 40% 12%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 345 18% 18%;
+    --secondary-foreground: 30 30% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 345 15% 18%;
+    --muted-foreground: 345 12% 68%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 12 25% 22%;
+    --accent-foreground: 30 30% 96%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 30 30% 96%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 345 15% 22%;
+    --input: 345 15% 22%;
+    --ring: 345 45% 70%;
+
+    --vata: 318 40% 68%;
+    --pitta: 12 45% 62%;
+    --kapha: 345 38% 58%;
+    --success: 345 42% 62%;
+    --warning: 12 46% 62%;
+    --info: 318 42% 64%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(345, 40%, 18%), hsl(344, 38%, 28%));
+    --gradient-secondary: linear-gradient(135deg, hsl(345, 18%, 18%), hsl(12, 22%, 20%));
+    --gradient-hero: linear-gradient(135deg, hsl(345, 40%, 14%), hsl(344, 38%, 26%), hsl(318, 30%, 24%));
+
+    --sidebar-background: 345 24% 10%;
+    --sidebar-foreground: 30 28% 94%;
+    --sidebar-primary: 345 45% 70%;
+    --sidebar-primary-foreground: 345 40% 12%;
+    --sidebar-accent: 345 16% 18%;
+    --sidebar-accent-foreground: 30 28% 94%;
+    --sidebar-border: 345 15% 22%;
+    --sidebar-ring: 345 45% 70%;
   }
 }
 
@@ -120,6 +142,24 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground font-sans;
+  }
+
+  /* Native form controls paint their own accent — a browser-default blue that
+     no Tailwind class on the element can reach. Without this the sleep slider
+     and the questionnaire's radios/checkboxes render blue on an otherwise pink
+     page. Shadcn's own Checkbox/Radio primitives are styled components and are
+     unaffected; these are the hand-rolled `<input>`s. */
+  input[type="range"],
+  input[type="checkbox"],
+  input[type="radio"],
+  progress {
+    accent-color: hsl(var(--primary));
+  }
+
+  /* Focus rings and text selection are also brand surfaces. */
+  ::selection {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
   }
 }
 

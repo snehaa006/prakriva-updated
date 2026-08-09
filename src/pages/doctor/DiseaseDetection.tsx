@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { RISK_STYLES } from "@/lib/riskLevels";
+import { CHART_COLORS, CHART_NEUTRALS, CHART_RISK } from "@/lib/chartColors";
 import {
   AssessmentData,
   fetchScreenings,
@@ -82,21 +83,18 @@ const RANGE_OPTIONS = [
   { value: 0, label: "All" },
 ] as const;
 
-// Chart chrome — fixed hues validated by the data-viz palette. Grid/axis are
-// recessive; the single vital series is blue, the second (diastolic) is orange.
+// Chart chrome. Grid/axis are recessive; the vital series and its second line
+// (diastolic) come from the shared brand palette rather than fixed hues, so
+// this dashboard stays in step with every other chart in the app.
 const CHART = {
-  grid: "#e1e0d9",
-  axis: "#898781",
-  primary: "#2a78d6",
-  secondary: "#eb6834",
+  grid: CHART_NEUTRALS.grid,
+  axis: CHART_NEUTRALS.axis,
+  primary: CHART_COLORS.primary,
+  secondary: CHART_COLORS.activity,
 };
 
-/** Status hues (good / warning / critical) reused for risk trend lines. */
-const RISK_HEX: Record<RiskLevel, string> = {
-  low: "#0ca30c",
-  moderate: "#fab219",
-  high: "#d03b3b",
-};
+/** Risk hues for the trend lines, matching the badges in `RISK_STYLES`. */
+const RISK_HEX: Record<RiskLevel, string> = CHART_RISK;
 
 /** Numeric vitals we can trend from a screening's inputs. */
 interface VitalMetric {
@@ -128,11 +126,11 @@ const dayLabel = (iso: string) =>
 const tooltipProps = {
   contentStyle: {
     borderRadius: 8,
-    border: "1px solid #e1e0d9",
+    border: `1px solid ${CHART_NEUTRALS.tooltipBorder}`,
     fontSize: 12,
     padding: "6px 10px",
   },
-  labelStyle: { color: "#52514e", fontWeight: 600 },
+  labelStyle: { color: CHART_NEUTRALS.tick, fontWeight: 600 },
 } as const;
 
 /** A compact stat tile for the headline numbers above the charts. */

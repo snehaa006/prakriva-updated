@@ -374,18 +374,18 @@ const MealLogging = () => {
 
   const getStatusIcon = (status: Meal["status"]) => {
     switch (status) {
-      case 'eaten': return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'eaten': return <CheckCircle className="w-5 h-5 text-rose-600" />;
       case 'skipped': return <XCircle className="w-5 h-5 text-red-600" />;
-      case 'pending': return <Clock className="w-5 h-5 text-yellow-600" />;
+      case 'pending': return <Clock className="w-5 h-5 text-coral-600" />;
       default: return <Clock className="w-5 h-5 text-gray-400" />;
     }
   };
 
   const getStatusColor = (status: Meal["status"]) => {
     switch (status) {
-      case 'eaten': return 'bg-green-50 border-green-200';
+      case 'eaten': return 'bg-rose-50 border-rose-200';
       case 'skipped': return 'bg-red-50 border-red-200';
-      case 'pending': return 'bg-yellow-50 border-yellow-200';
+      case 'pending': return 'bg-coral-50 border-coral-200';
       default: return 'bg-gray-50 border-gray-200';
     }
   };
@@ -505,12 +505,12 @@ const MealLogging = () => {
 
           {/* Current Plan Info */}
           {selectedPlan && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 text-blue-700">
+            <div className="mt-4 p-3 bg-plum-50 border border-plum-200 rounded-lg">
+              <div className="flex items-center gap-2 text-plum-700">
                 <AlertCircle className="w-4 h-4" />
                 <span className="font-medium">Loaded Plan:</span>
               </div>
-              <p className="text-sm text-blue-600 mt-1">
+              <p className="text-sm text-plum-600 mt-1">
                 {selectedPlan.patientName} • {selectedPlan.planDuration} • {selectedPlan.planType.replace('-', ' ')} 
                 • Created: {new Date(selectedPlan.createdAt).toLocaleDateString()}
               </p>
@@ -780,16 +780,16 @@ const MealLogging = () => {
             )}
             
             {recipeData.recipe && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <h4 className="font-medium text-green-800 mb-1">Recipe Instructions:</h4>
-                <p className="text-green-700">{recipeData.recipe}</p>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                <h4 className="font-medium text-rose-800 mb-1">Recipe Instructions:</h4>
+                <p className="text-rose-700">{recipeData.recipe}</p>
               </div>
             )}
             
             {recipeData.youtube && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-3 bg-plum-50 border border-plum-200 rounded-lg">
                 <a 
-                  className="text-blue-600 hover:text-blue-800 underline font-medium" 
+                  className="text-plum-600 hover:text-plum-800 underline font-medium" 
                   href={recipeData.youtube} 
                   target="_blank" 
                   rel="noopener noreferrer"
@@ -820,7 +820,7 @@ const MealLogging = () => {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-rose-600" />
                 <div>
                   <div className="font-medium">Completed</div>
                   <div className="text-2xl font-bold">
@@ -834,7 +834,7 @@ const MealLogging = () => {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-yellow-600" />
+                <Clock className="w-5 h-5 text-coral-600" />
                 <div>
                   <div className="font-medium">Pending</div>
                   <div className="text-2xl font-bold">

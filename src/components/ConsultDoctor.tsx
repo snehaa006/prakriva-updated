@@ -349,9 +349,9 @@ const ConsultDoctor: React.FC = () => {
   const getVerificationIcon = (status: string) => {
     switch (status) {
       case 'verified':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-4 h-4 text-rose-500" />;
       case 'pending':
-        return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+        return <AlertCircle className="w-4 h-4 text-coral-500" />;
       default:
         return <AlertCircle className="w-4 h-4 text-red-500" />;
     }
@@ -360,9 +360,9 @@ const ConsultDoctor: React.FC = () => {
   const getVerificationBadgeColor = (status: string) => {
     switch (status) {
       case 'verified':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-rose-100 text-rose-800 border-rose-200';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-coral-100 text-coral-800 border-coral-200';
       default:
         return 'bg-red-100 text-red-800 border-red-200';
     }
@@ -440,17 +440,17 @@ const ConsultDoctor: React.FC = () => {
                       <div
                         key={notification.id}
                         className={`p-3 hover:bg-muted/50 cursor-pointer transition-colors ${
-                          !notification.read ? 'bg-blue-50/50 border-l-2 border-l-blue-500' : ''
+                          !notification.read ? 'bg-plum-50/50 border-l-2 border-l-plum-500' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
                       >
                         <div className="flex items-start gap-2">
                           <div className={`w-2 h-2 rounded-full mt-2 ${
                             notification.type === 'consultation_accepted' 
-                              ? 'bg-green-500' 
+                              ? 'bg-rose-500' 
                               : notification.type === 'consultation_rejected'
                               ? 'bg-red-500'
-                              : 'bg-blue-500'
+                              : 'bg-plum-500'
                           }`} />
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-sm">{notification.title}</h4>
@@ -462,7 +462,7 @@ const ConsultDoctor: React.FC = () => {
                             </p>
                           </div>
                           {!notification.read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+                            <div className="w-2 h-2 bg-plum-500 rounded-full flex-shrink-0 mt-1" />
                           )}
                         </div>
                       </div>
@@ -677,7 +677,7 @@ const ConsultDoctor: React.FC = () => {
                       {/* Rating */}
                       {doctor.rating && (
                         <div className="flex items-center gap-1 text-sm">
-                          <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                          <Star className="w-4 h-4 text-coral-500 fill-current" />
                           <span className="font-medium">{doctor.rating.toFixed(1)}</span>
                           {doctor.totalReviews && (
                             <span className="text-muted-foreground">({doctor.totalReviews})</span>
@@ -827,7 +827,7 @@ const ConsultDoctor: React.FC = () => {
                 <div>
                   <h4 className="font-semibold mb-1">Rating</h4>
                   <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                    <Star className="w-4 h-4 text-coral-500 fill-current" />
                     <span className="text-muted-foreground">{selectedDoctor.rating} ({selectedDoctor.totalReviews} reviews)</span>
                   </div>
                 </div>

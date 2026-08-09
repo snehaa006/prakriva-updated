@@ -92,10 +92,10 @@ export default function Reminders() {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "medicine": return "bg-blue-100 text-blue-800 border-blue-200";
-      case "meal": return "bg-green-100 text-green-800 border-green-200";
-      case "appointment": return "bg-purple-100 text-purple-800 border-purple-200";
-      case "exercise": return "bg-orange-100 text-orange-800 border-orange-200";
+      case "medicine": return "bg-plum-100 text-plum-800 border-plum-200";
+      case "meal": return "bg-rose-100 text-rose-800 border-rose-200";
+      case "appointment": return "bg-plum-100 text-plum-800 border-plum-200";
+      case "exercise": return "bg-coral-100 text-coral-800 border-coral-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
@@ -267,8 +267,8 @@ export default function Reminders() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-green-100 rounded-full">
-                <Bell className="w-4 h-4 text-green-600" />
+              <div className="p-2 bg-rose-100 rounded-full">
+                <Bell className="w-4 h-4 text-rose-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{activeReminders.length}</p>
@@ -281,8 +281,8 @@ export default function Reminders() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-blue-100 rounded-full">
-                <Pill className="w-4 h-4 text-blue-600" />
+              <div className="p-2 bg-plum-100 rounded-full">
+                <Pill className="w-4 h-4 text-plum-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">
@@ -297,8 +297,8 @@ export default function Reminders() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-orange-100 rounded-full">
-                <Utensils className="w-4 h-4 text-orange-600" />
+              <div className="p-2 bg-coral-100 rounded-full">
+                <Utensils className="w-4 h-4 text-coral-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">

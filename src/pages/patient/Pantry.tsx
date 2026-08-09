@@ -325,7 +325,7 @@ const Pantry: React.FC = () => {
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-600">
           <Refrigerator className="h-5 w-5 text-white" />
         </div>
         <div>
@@ -352,7 +352,7 @@ const Pantry: React.FC = () => {
             dairy. The list is every ingredient the recipe database knows, so
             whatever you pick, your doctor can find recipes that use it.
             {catalogSource === "fallback" && !isLoadingCatalog && (
-              <span className="mt-1 block text-amber-700">
+              <span className="mt-1 block textcoral-700">
                 Showing the offline food list — the full one will load when the
                 connection is back.
               </span>

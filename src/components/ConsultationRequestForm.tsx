@@ -100,7 +100,7 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
                   <p className="text-sm text-muted-foreground">{doctor.clinicName}</p>
                 </div>
                 {doctor.verificationStatus === 'verified' && (
-                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <CheckCircle className="w-5 h-5 text-rose-500" />
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -205,11 +205,11 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
             </div>
 
             {/* Info Card */}
-            <Card className="bg-blue-50 border-blue-200">
+            <Card className="bg-plum-50 border-plum-200">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-800">
+                  <AlertCircle className="w-5 h-5 text-plum-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-plum-800">
                     <p className="font-medium mb-2">What happens next?</p>
                     <ul className="space-y-1 text-sm">
                       <li>• Your complete patient profile will be securely shared with the doctor</li>

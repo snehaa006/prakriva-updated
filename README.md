@@ -88,10 +88,10 @@ kitchen, and get a personalized diet plan.
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
   `public/logo.png`). Dosha colors (`--vata`/`--pitta`/`--kapha`) and status
-  colors (`--success`/`--warning`/`--info`, plus the ad hoc green/red/amber
-  used for risk levels and meal/reminder status across `src/pages`) are kept
-  separate from the brand palette on purpose — they carry meaning and aren't
-  restyled when the brand colors change.
+  colors (`--success`/`--warning`/`--info`) now sit **inside** that palette
+  too — see "Color" below.
+- `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
+  strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
   standalone `mealCompatibility.html` visualisation (reachable at
@@ -605,6 +605,48 @@ AYUSH / NCISM and their state Board of Indian Medicine — not the MCI or NMC,
 which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
+
+## Color
+
+The app is pink end to end. It used to mix in the stock Tailwind ramps —
+green "success" badges, blue chart lines, amber warnings — which read as three
+palettes fighting on one warm cream page. Everything now lives in one family.
+
+**Three brand ramps** (`tailwind.config.ts`), hues ~30° apart so states stay
+tellable apart while still reading as one palette:
+
+| Ramp | Hue | Role | Replaced |
+|---|---|---|---|
+| `plum` | 318° | informational, neutral emphasis | blue, sky, cyan, indigo, violet, purple |
+| `rose` | 345° | positive, on track, goal met | green, emerald, teal, lime |
+| `coral` | 8° | attention, partial, needs a nudge | yellow, amber, orange |
+
+They follow Tailwind's own lightness curve, so the swap kept shade numbers
+(`bg-green-100` → `bg-rose-100`) and with them the contrast each layout was
+built around. `red` keeps its native hue: it already sits inside this family
+(0°, between coral and rose) and carries the clinical high-risk signal.
+`gray`/`slate` are overridden to warm, brand-tinted neutrals — Tailwind's stock
+greys are blue-tinted and read cold against the cream background.
+
+Two rules follow from having one hue family, both learned from looking at the
+rendered pages rather than the code:
+
+- **Binary states are filled vs. tinted, not two tints.** Two 100-level tints of
+  the same family look identical at a glance, which defeats a "did I hit my
+  target?" strip. Achieved days are solid (`bg-rose-600 text-white`), missed
+  ones are pale and outlined.
+- **Colour never carries meaning alone.** Risk levels escalate in *intensity*
+  as well as hue (pale rose → coral → saturated red), so the ordering survives
+  greyscale and colour vision deficiency, and high risk is the only filled
+  badge. Every level also renders its `label` in words.
+
+Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
+blue that no class on the element can reach; `src/index.css` sets `accent-color`
+globally to fix that.
+
+`src/lib/__tests__/brandPalette.test.ts` fails the build if an off-brand
+utility or a hardcoded chart hex reappears — the drift happened once already,
+one reasonable-looking green badge at a time.
 
 ## Caching
 

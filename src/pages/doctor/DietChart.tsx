@@ -93,10 +93,10 @@ const DietChart = () => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
 
   const doshaColors = {
-    vata: "bg-blue-100 text-blue-800",
+    vata: "bg-plum-100 text-plum-800",
     pitta: "bg-red-100 text-red-800", 
-    kapha: "bg-green-100 text-green-800",
-    tridosh: "bg-yellow-100 text-yellow-800"
+    kapha: "bg-rose-100 text-rose-800",
+    tridosh: "bg-coral-100 text-coral-800"
   };
 
   // Convert Firebase meal plans to DietPlanRow format
@@ -511,8 +511,8 @@ const DietChart = () => {
             </div>
           </div>
           {selectedPlan && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-700">
+            <div className="mt-4 p-3 bg-plum-50 rounded-lg">
+              <p className="text-sm text-plum-700">
                 <AlertCircle className="w-4 h-4 inline mr-1" />
                 Viewing saved plan from {new Date(selectedPlan.createdAt).toLocaleDateString()}. 
                 Plan details are read-only.
@@ -628,7 +628,7 @@ const DietChart = () => {
               <CardDescription>
                 Duration: {planDuration} • Type: {planType.replace('-', ' ')}
                 {selectedPlan && (
-                  <span className="ml-2 text-blue-600">
+                  <span className="ml-2 text-plum-600">
                     (Loaded from {new Date(selectedPlan.createdAt).toLocaleDateString()})
                   </span>
                 )}
@@ -799,7 +799,7 @@ const DietChart = () => {
               <AlertCircle className="w-5 h-5 text-primary" />
               <div>
                 <div className="font-medium">Plan Status</div>
-                <div className="text-sm font-medium text-green-600">
+                <div className="text-sm font-medium text-rose-600">
                   {selectedPlan ? "Loaded from Firebase" : "Ready for Patient"}
                 </div>
               </div>

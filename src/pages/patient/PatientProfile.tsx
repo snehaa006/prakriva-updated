@@ -322,7 +322,7 @@ export default function Profile() {
                     {patientData.name.split(' ').map(n => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-background flex items-center justify-center">
+                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-rose-500 rounded-full border-4 border-background flex items-center justify-center">
                   <div className="w-2 h-2 bg-white rounded-full"></div>
                 </div>
               </div>
@@ -343,7 +343,7 @@ export default function Profile() {
                           onClick={handleCopyPatientId}
                         >
                           {patientIdCopied ? (
-                            <Check className="w-3 h-3 text-green-600" />
+                            <Check className="w-3 h-3 text-rose-600" />
                           ) : (
                             <Copy className="w-3 h-3" />
                           )}
@@ -400,8 +400,8 @@ export default function Profile() {
         <Card className="border-primary/20 shadow-lg">
           <CardHeader className="pb-6">
             <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 rounded-full bg-blue-100">
-                <IdCard className="w-6 h-6 text-blue-600" />
+              <div className="p-2 rounded-full bg-plum-100">
+                <IdCard className="w-6 h-6 text-plum-600" />
               </div>
               Patient Information
             </CardTitle>
@@ -437,7 +437,7 @@ export default function Profile() {
               <div className="p-4 bg-muted/30 rounded-lg">
                 <p className="font-medium">Account Status</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
                   <Badge variant="outline" className="capitalize">
                     {patientData.status || 'Active'}
                   </Badge>
@@ -447,7 +447,7 @@ export default function Profile() {
               <div className="p-4 bg-muted/30 rounded-lg">
                 <p className="font-medium">Profile Status</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className={`w-2 h-2 rounded-full ${patientData.profileCompleted ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                  <div className={`w-2 h-2 rounded-full ${patientData.profileCompleted ? 'bg-rose-500' : 'bg-coral-500'}`}></div>
                   <Badge variant="outline" className="capitalize">
                     {patientData.profileCompleted ? 'Complete' : 'Incomplete'}
                   </Badge>
@@ -455,8 +455,8 @@ export default function Profile() {
               </div>
             </div>
             
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
+            <div className="p-3 bg-plum-50 border border-plum-200 rounded-lg">
+              <p className="text-sm text-plum-700">
                 <strong>Note:</strong> Please keep your Patient ID safe. You'll need it for appointments, 
                 medical records, and when contacting support.
               </p>
@@ -467,10 +467,10 @@ export default function Profile() {
 
       {/* Show message if no assessment data */}
       {!assessmentData ? (
-        <Card className="border-yellow-200 bg-yellow-50">
+        <Card className="border-coral-200 bg-coral-50">
           <CardContent className="pt-6">
             <div className="text-center">
-              <HeartPulse className="w-16 h-16 text-yellow-600 mx-auto mb-4" />
+              <HeartPulse className="w-16 h-16 text-coral-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Complete Your Health Assessment</h3>
               <p className="text-muted-foreground mb-4">
                 To get personalized recommendations, please complete your health assessment questionnaire.
@@ -582,8 +582,8 @@ export default function Profile() {
             <Card className="border-primary/20 shadow-lg">
               <CardHeader className="pb-6">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 rounded-full bg-green-100">
-                    <Apple className="w-6 h-6 text-green-600" />
+                  <div className="p-2 rounded-full bg-rose-100">
+                    <Apple className="w-6 h-6 text-rose-600" />
                   </div>
                   Allergies & Dietary Pattern
                 </CardTitle>
@@ -629,8 +629,8 @@ export default function Profile() {
           <Card className="border-primary/20 shadow-lg">
             <CardHeader className="pb-6">
               <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-purple-100">
-                  <Heart className="w-6 h-6 text-purple-600" />
+                <div className="p-2 rounded-full bg-plum-100">
+                  <Heart className="w-6 h-6 text-plum-600" />
                 </div>
                 Ayurvedic Constitution Assessment
               </CardTitle>
@@ -707,8 +707,8 @@ export default function Profile() {
           <Card className="border-primary/20 shadow-lg">
             <CardHeader className="pb-6">
               <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-blue-100">
-                  <Target className="w-6 h-6 text-blue-600" />
+                <div className="p-2 rounded-full bg-plum-100">
+                  <Target className="w-6 h-6 text-plum-600" />
                 </div>
                 Additional Notes
               </CardTitle>
@@ -727,8 +727,8 @@ export default function Profile() {
       <Card className="border-primary/20 shadow-lg">
         <CardHeader className="pb-6">
           <CardTitle className="flex items-center gap-3 text-xl">
-            <div className="p-2 rounded-full bg-green-100">
-              <MessageSquare className="w-6 h-6 text-green-600" />
+            <div className="p-2 rounded-full bg-rose-100">
+              <MessageSquare className="w-6 h-6 text-rose-600" />
             </div>
             Share Your Feedback
           </CardTitle>
@@ -748,8 +748,8 @@ export default function Profile() {
                     <Star 
                       className={`w-8 h-8 ${
                         star <= feedbackData.rating 
-                          ? 'fill-yellow-400 text-yellow-400' 
-                          : 'text-gray-300 hover:text-yellow-200'
+                          ? 'fill-coral-400 text-coral-400' 
+                          : 'text-gray-300 hover:text-coral-200'
                       }`} 
                     />
                   </button>
@@ -800,8 +800,8 @@ export default function Profile() {
       <Card className="border-primary/20 shadow-lg">
         <CardHeader className="pb-6">
           <CardTitle className="flex items-center gap-3 text-xl">
-            <div className="p-2 rounded-full bg-blue-100">
-              <Phone className="w-6 h-6 text-blue-600" />
+            <div className="p-2 rounded-full bg-plum-100">
+              <Phone className="w-6 h-6 text-plum-600" />
             </div>
             Contact & Support
           </CardTitle>
