@@ -13,8 +13,8 @@ risks their health check flagged, and join peer-support community circles.
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, plan storage, and the maternal disease detection
-  pipeline (XGBoost anaemia + pregnancy-risk, a GDM logistic regression, and a
-  thyroid neural network run in numpy).
+  pipeline (XGBoost anaemia + pregnancy-risk, GDM and preeclampsia logistic
+  regressions, and a thyroid neural network — all run in numpy).
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
@@ -62,7 +62,9 @@ risks their health check flagged, and join peer-support community circles.
   (`train_maternal_models.py`), plus the GDM logistic regression
   (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`) and the thyroid
   network (`thyroid_featurize.py`, `convert_thyroid_model.py`,
-  `thyroid_model.npz`). See "Disease detection" below.
+  `thyroid_model.npz`) and the preeclampsia logistic regression
+  (`preeclampsia_featurize.py`, `convert_preeclampsia_model.py`,
+  `preeclampsia_model.json`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,
@@ -101,8 +103,11 @@ risks their health check flagged, and join peer-support community circles.
   strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
-  standalone `mealCompatibility.html` visualisation (reachable at
-  `/mealCompatibility.html`; it is not a React route).
+  standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
+  viruddha ahara / incompatible-combination checker). It is served directly at
+  `/mealCompatibility.html`, and the patient **Food Compatibility** page
+  (`/patient/food-compatibility`, `src/pages/patient/FoodCompatibility.tsx`)
+  embeds it in an iframe so it is reachable from the patient sidebar.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
 
@@ -232,10 +237,10 @@ Screens a pregnant patient for eight maternal risks — anaemia, an overall
 miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
 score, a low/moderate/high level, the factors that drove it, and next steps.
 
-Four conditions are scored by trained models (see "Trained models" below) —
-anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a **logistic
-regression**, thyroid disorder by a **neural network** — and the remaining four
-by the rule-based scorers.
+Five conditions are scored by trained models (see "Trained models" below) —
+anaemia and pregnancy risk by **XGBoost**, gestational diabetes and preeclampsia
+by **logistic regressions**, thyroid disorder by a **neural network** — and the
+remaining three by the rule-based scorers.
 Because every detector shares the same `(ScreeningInput) -> ConditionRisk`
 contract, the two kinds mix transparently and `ConditionRisk.detector` records
 which one answered.
@@ -247,13 +252,15 @@ different places:
   trained models' inputs, in three cards: **measurements** (weeks pregnant,
   weight → BMI using the height captured at onboarding, haemoglobin, blood
   pressure, iron supplements), **blood test results** (HbA1c, HDL,
-  triglycerides — all optional), **thyroid** (TSH, T3, total T4, T4 uptake, FTI
+  triglycerides — all optional), **blood pressure & scan** (fetal weight,
+  amniotic fluid, urine protein, hypertension and diabetes history),
+  **thyroid** (TSH, T3, total T4, T4 uptake, FTI
   plus the thyroid history flags), and **diabetes risk factors** (prior GDM,
   prediabetes, family history, PCOS, previous large baby, unexplained loss,
-  inactivity). She sees anaemia, pregnancy risk, gestational diabetes and
-  thyroid disorder immediately, and — on the same tab — an **exercise plan built
-  from those results**, grouped by the condition that asked for it (see
-  "Exercise suggestions" below).
+  inactivity). She sees anaemia, pregnancy risk, gestational diabetes, thyroid
+  disorder and preeclampsia immediately, and — on the same tab — an **exercise
+  plan built from those results**, grouped by the condition that asked for it
+  (see "Exercise suggestions" below).
   The rule-only conditions are not run here, since they need
   clinical findings and lab panels this form deliberately does not ask for.
   The page is only offered to patients whose stored `assessment_data` has a life
@@ -272,9 +279,14 @@ different places:
   longer fills in or re-runs the screening form here — the analysis is built from
   the patient's own Health Check submissions.
 
-The patient sees every run in her own History tab. Charts only render for values
-that were actually recorded; laboratory fields left blank mean "not performed" —
-they never score as a normal result.
+The patient sees her full history in a **Past Checks** tab: date-range presets
+(today, 7/30/90 days, all) plus a custom start/end range via a calendar picker,
+scoping both a per-condition risk-score trend chart and the list beneath it
+together. The trend chart (`RiskScoreTrend.tsx`, the same component the
+doctor's Patient Analysis page uses) only appears once at least two checks fall
+in the selected range — a single point has nothing to trend. Charts only render
+for values that were actually recorded; laboratory fields left blank mean "not
+performed" — they never score as a normal result.
 
 **Measurement bounds.** `src/lib/screeningValidation.ts` mirrors the
 `Field(ge=..., le=...)` constraints in `backend/disease_detection/schemas.py` so
@@ -291,10 +303,10 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-Four conditions are scored by the rule-based analytics ported from the Neuviaa
+Three conditions are scored by the rule-based analytics ported from the Neuviaa
 prototype (`rules.py`), registered per condition through
-`pipeline.register_detector`. Anaemia, pregnancy risk, gestational diabetes and
-thyroid disorder are scored by the trained models in `disease_detection/ml/`
+`pipeline.register_detector`. Anaemia, pregnancy risk, gestational diabetes,
+thyroid disorder and preeclampsia are scored by the trained models in `disease_detection/ml/`
 (see below), which register over their rule-based baselines at import. A detector is any callable of
 `(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
 reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
@@ -399,16 +411,37 @@ The conversion asserts the numpy forward pass reproduces Keras (max drift
 cd backend && python -m disease_detection.ml.convert_thyroid_model
 ```
 
+**Preeclampsia (logistic regression).** A class-balanced logistic regression over
+13 antenatal features, converted from its pickled scikit-learn Pipeline the same
+way (`convert_preeclampsia_model.py` → `preeclampsia_model.json`, verified to
+reproduce the pipeline exactly, drift 0).
+
+Nine of the thirteen already existed on the screening form. The four added for
+it are **diabetes**, **history of hypertension**, and the two ultrasound values
+**estimated fetal weight** and **amniotic fluid index**.
+
+Proteinuria is deliberately three-way here: "not tested" falls back to the
+training-set default rather than being scored as a negative result the patient
+never had.
+
+That pickle is the sharpest illustration of why none of these models are shipped
+as pickles. Under a newer scikit-learn it fails twice — `_RemainderColsList` no
+longer exists (so it will not unpickle), and `SimpleImputer._fit_dtype` was
+renamed (so it loads but raises the moment it transforms). The conversion script
+shims both to read the parameters out once; the deployed backend never unpickles
+anything.
+
 **Fallbacks.** When a model needs an input it does not have — haemoglobin for
 anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM, TSH for
-thyroid — the
+thyroid, blood pressure for preeclampsia — the
 detector falls back to the rule-based baseline rather than scoring on imputed
 values. If XGBoost or the model files are absent, the whole pipeline runs on the
 rule-based baseline.
 
 **Frontend layout.** The form sections
-(`src/components/health/ScreeningFields.tsx`) and the results rendering
-(`ScreeningResults.tsx`) are shared by both pages; only the sections each role
+(`src/components/health/ScreeningFields.tsx`), the results rendering
+(`ScreeningResults.tsx`) and the per-condition risk-score trend
+(`RiskScoreTrend.tsx`) are shared by both pages; only the sections each role
 gets and the wording differ. Risk-level styling lives in `src/lib/riskLevels.ts`.
 
 **Storage.** Screening runs are recorded in the `disease_screenings` Supabase

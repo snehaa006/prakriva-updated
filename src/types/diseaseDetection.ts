@@ -60,6 +60,8 @@ export interface ScreeningInput {
   previous_uti: boolean;
   gestational_diabetes_previous: boolean;
   known_prediabetes: boolean;
+  diabetes: boolean;
+  hypertension_history: boolean;
   unexplained_prenatal_loss: boolean;
   large_baby_previous: boolean;
   history_depression: boolean;
@@ -104,6 +106,9 @@ export interface ScreeningInput {
   hemoglobin?: number | null;
   hba1c?: number | null;
   ogtt_1hr?: number | null;
+  /** Ultrasound findings — used by the preeclampsia model. */
+  fetal_weight_kg?: number | null;
+  amniotic_fluid_cm?: number | null;
   /** Lipids — used by the GDM early-screening model. */
   hdl?: number | null;
   triglycerides?: number | null;

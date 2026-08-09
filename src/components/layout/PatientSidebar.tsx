@@ -25,7 +25,8 @@ import {
   Activity,
   Users,
   Stethoscope,
-  HeartPulse
+  HeartPulse,
+  Utensils
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { useApp } from "@/context/AppContext";
@@ -55,6 +56,11 @@ const navigationItems = [
     title: "My Kitchen",
     url: "/patient/pantry",
     icon: ShoppingCart,
+  },
+  {
+    title: "Food Compatibility",
+    url: "/patient/food-compatibility",
+    icon: Utensils,
   },
   {
     title: "Health Check",
