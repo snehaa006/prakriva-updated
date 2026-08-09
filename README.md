@@ -400,18 +400,28 @@ only her own checks, and a doctor read and file for patients they treat. If the
 table is missing the feature still works — results render normally and simply
 are not persisted.
 
-### Written analysis (Gemini)
+### Written analysis and the patient chatbot (Gemini)
 
-Two features read the screening data through Google's Gemini, both proxied by
-Flask (`backend/gemini_service.py`, endpoints `/analysis/screening` and
-`/assistant/ask`):
+Several features read patient data through Google's Gemini, all proxied by
+Flask (`backend/gemini_service.py`):
 
-- **Doctor → Patient Analysis** — a "Write analysis" panel that turns the
-  selected patient's screening history into prose: how the risk picture has
-  moved, which measurements drive it, what to check next.
-- **Patient → chatbot** — questions about her own results ("is my haemoglobin
-  ok?") are answered from her stored screenings instead of the scripted
-  nutrition replies.
+- **Patient → chatbot** (`/assistant/chat`, `src/components/chat/NutritionChatbot.tsx`) —
+  a free-form assistant, not a scripted decision tree: she can ask literally
+  anything ("insights for the last 7 days", "am I improving?", "I'm craving
+  something sweet, what can I make?"). `src/services/chatAssistantService.ts`
+  assembles her own data — dosha, active diet plan, pantry, meal
+  adherence/feedback, sleep/water/activity logs, and her disease-screening
+  trend — and hands it to Gemini as context, so answers are grounded in what
+  she's actually tracked rather than generic advice. A recipe question is
+  additionally grounded in real FoodOScope dishes matched against her pantry
+  (flavour-word lookup, e.g. "sweet", intersected with what's marked
+  "at home") rather than an invented dish. Conversation history is kept
+  client-side and replayed on each turn, so a follow-up like "yes I have
+  that" is understood in context.
+- **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
+  panel that turns the selected patient's screening history into prose: how
+  the risk picture has moved, which measurements drive it, what to check
+  next.
 - **Patient → Health Check** — "Fill from your report" reads a photographed or
   uploaded lab report (`/analysis/extract-report`) and offers the values it
   found. They are shown for confirmation and only written into the form when
@@ -420,8 +430,12 @@ Flask (`backend/gemini_service.py`, endpoints `/analysis/screening` and
   silently is worse than typing it by hand. The backend additionally discards
   anything outside the field's clinically plausible range before it is ever
   offered.
+- `/assistant/ask` — the chatbot's original, narrower endpoint (screening
+  results only). No longer called by the UI now that the chatbot has full
+  context, but left in place as a lighter-weight "ask about just my
+  screenings" endpoint.
 
-Three things are deliberate here:
+Four things are deliberate here:
 
 1. **The key is backend-only.** `VITE_`-prefixed variables are compiled into the
    browser bundle, so a frontend Gemini key could be lifted from devtools and
@@ -430,12 +444,30 @@ Three things are deliberate here:
    models and rules. The prompt shows Gemini those results and forbids
    recalculating or contradicting them — a screening tool whose risk level
    changed between identical runs would be neither auditable nor safe.
-3. **No identifiers leave the app.** The prompt builders take clinical values
-   only; name, email and patient ID are never included.
+3. **No identifiers leave the app.** The prompt builders take clinical,
+   dietary and tracking values only; name, email and patient ID are never
+   included, even in the chatbot's much richer context.
+4. **The backend never looks a patient up.** Every Gemini-backed endpoint is
+   handed already-fetched data by the caller (itself scoped by Supabase RLS to
+   the signed-in patient's own rows) rather than querying Supabase itself, so
+   none of them can leak another patient's data even without their own auth
+   check.
 
-Both features hide themselves when `GEMINI_API_KEY` is unset (the frontend asks
+All Gemini features hide themselves when no key is set (the frontend asks
 `/analysis/status` first), and a Gemini outage degrades to the existing
 behaviour rather than an error state.
+
+#### Gemini key rotation
+
+Up to three keys — `GEMINI_API_KEY`, `GEMINI_API_KEY2`, `GEMINI_API_KEY3` — can
+be set. Only the first is required; the extra two exist so the chatbot (used
+far more than the occasional screening write-up) can roll over to the next key
+instead of hard-failing when one hits its rate limit or quota. The pool lives
+in `backend/gemini_service.py`: the last-successful key is tried first, a
+failed key is parked for 60 seconds (rate limited) to 15 minutes
+(invalid/revoked/suspended) before being retried, and state is in-memory only
+— unlike the FoodOScope rotation below, these are real secrets, so they stay
+in server environment variables rather than a browser-readable Supabase table.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
@@ -718,7 +750,8 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
-| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis and the chatbot's assistant. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables both features cleanly. |
+| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis and the patient chatbot. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables both features cleanly. |
+| `GEMINI_API_KEY2`, `GEMINI_API_KEY3` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" below. Only `GEMINI_API_KEY` is required. |
 | `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |

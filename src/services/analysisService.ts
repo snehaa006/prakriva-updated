@@ -130,3 +130,29 @@ export const askAssistant = async (
   });
   return answer;
 };
+
+/** One turn of prior conversation, in the order Gemini expects. */
+export interface ChatTurn {
+  role: "user" | "model";
+  text: string;
+}
+
+/**
+ * Open-ended chat backed by the patient's full context (diet plan, pantry,
+ * tracking history, screenings — see `chatAssistantService.ts`), not just her
+ * screening results. `context` is caller-assembled the same way `screenings`
+ * is above: already scoped to her own rows by Supabase RLS before it ever
+ * reaches this call.
+ */
+export const askChat = async (
+  message: string,
+  history: ChatTurn[],
+  context: Record<string, unknown>
+): Promise<string> => {
+  const { answer } = await post<{ answer: string }>("/assistant/chat", {
+    message,
+    history,
+    context,
+  });
+  return answer;
+};

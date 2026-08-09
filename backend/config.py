@@ -46,7 +46,21 @@ class Settings:
         # assistant. Server-side only: a VITE_-prefixed key would be readable in
         # the browser bundle. Absent key disables those features rather than
         # breaking the API.
+        #
+        # Up to three keys are supported so the chatbot (now used far more than
+        # the occasional screening write-up) can roll over to the next key
+        # instead of hard-failing when one hits its rate limit or quota.
+        # GEMINI_API_KEY stays the primary/first key for backward compatibility.
         self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+        self.GEMINI_API_KEYS = [
+            key
+            for key in (
+                self.GEMINI_API_KEY,
+                os.getenv("GEMINI_API_KEY2", ""),
+                os.getenv("GEMINI_API_KEY3", ""),
+            )
+            if key
+        ]
         self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.3))
         self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 900))
