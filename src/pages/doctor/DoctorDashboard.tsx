@@ -833,9 +833,6 @@ const DoctorDashboard = () => {
               <CardTitle className="text-sm">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/doctor/personalized-diet")}>
-                <Utensils className="w-4 h-4" /> Create Diet Chart
-              </Button>
               <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/doctor/recipes")}>
                 <Activity className="w-4 h-4" /> Recipe Builder
               </Button>

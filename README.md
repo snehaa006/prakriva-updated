@@ -70,6 +70,14 @@ kitchen, and get a personalized diet plan.
   patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
   read-only view of a patient's kitchen). Both are backed by
   `src/hooks/useDoctorPatients.ts`.
+- `src/pages/doctor/RecipeBuilder.tsx` — one screen that combines dosha-based
+  generation with hand editing. Picking a patient shows their dosha profile,
+  nutritional targets and restrictions (via `dietChartService.ts`); hitting
+  Generate calls the FoodOScope API and drops the resulting days straight into
+  the same drag-and-drop Daily/Weekly board used for building a plan by hand,
+  so the doctor can rearrange or leave it as-is before saving. Loading an
+  existing saved plan for editing (from the Diet Chart viewer's Edit button,
+  `?editPlanId=&patientId=`) populates the same board.
 - `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
   localStorage cache that keeps in-progress work (meal-plan drafts, the food
   palette, a generated diet chart, the selected patient) across a page refresh.
@@ -446,9 +454,9 @@ can cook rather than what a generator picked.
 Every doctor-side patient search goes through `PatientPicker`
 (`src/components/patients/PatientPicker.tsx`): a searchable dropdown listing
 **only the signed-in doctor's own patients**, filterable by name or by patient
-code (P001…). It is used by the Personalized Diet Chart, the Recipe Builder, the
-Diet Chart viewer and the Food Explorer's pantry panel, replacing the free-text
-"enter a patient ID" inputs those pages used to have.
+code (P001…). It is used by the Recipe Builder, the Diet Chart viewer and the
+Food Explorer's pantry panel, replacing the free-text "enter a patient ID"
+inputs those pages used to have.
 
 The list comes from `src/hooks/useDoctorPatients.ts`, which reads the doctor's
 `consultation_requests` (statuses `pending`/`accepted`/`completed` — the same
@@ -467,11 +475,11 @@ Long-running work no longer disappears on a page refresh:
 
 - `src/lib/localCache.ts` is a small namespaced, TTL-aware localStorage wrapper;
   `src/hooks/usePersistentState.ts` is `useState` mirrored into it.
-- What is cached: the Recipe Builder's meal-plan draft and its form fields, the
-  food palette (`FoodContext.selectedFoods`), the food database JSON, the
-  generated diet chart and selected patient on the Personalized Diet Chart, the
-  patient selected in the Diet Chart viewer and the Food Explorer pantry panel,
-  and each patient's pantry list.
+- What is cached: the Recipe Builder's meal-plan board (generated, hand-built,
+  or both), its form fields and selected patient, the food palette
+  (`FoodContext.selectedFoods`), the food database JSON, the patient selected
+  in the Diet Chart viewer and the Food Explorer pantry panel, and each
+  patient's pantry list.
 - The Lifestyle Tracker uses the same wrapper but with no TTL
   (`CACHE_KEYS.lifestyleLogs` + the patient id): its logs are the patient's own
   history rather than in-progress work, so a streak must not expire on its own.

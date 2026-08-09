@@ -144,7 +144,7 @@ const MealLogging = () => {
       });
     }
 
-    // Also handle PersonalizedDietChart days[] format
+    // Also handle the days[] format from Recipe Builder's Personalized Generator
     if (mealPlans.days && Array.isArray(mealPlans.days)) {
       const todayIndex = new Date().getDay();
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -243,7 +243,7 @@ const MealLogging = () => {
     setSelectedPlan(plan);
     setPatientName(plan.patientName || user?.name || "");
 
-    // Handle both formats: days[] from PersonalizedDietChart and meals from RecipeBuilder
+    // Handle both formats: days[] from the Personalized Generator and meals from the Manual Builder
     const planData = (plan as any);
     const dataToConvert = planData.days ? { days: planData.days } : plan.meals;
     const meals = convertDietPlanToMeals(dataToConvert, plan.activeFilter);
