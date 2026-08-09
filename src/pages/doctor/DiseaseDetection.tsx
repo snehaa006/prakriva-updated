@@ -35,6 +35,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
 import {
   AnalysisUnavailableError,
   analyseScreenings,
@@ -898,6 +899,16 @@ const DiseaseDetection: React.FC = () => {
                       </p>
                     </div>
                     <ScreeningResultsView result={latest.result} audience="clinician" />
+
+                    {/* Movement is the intervention the doctor hands over at the
+                        end of the consultation, so the plan for the conditions
+                        just flagged sits with them. Every patient on this page
+                        is pregnant, so the pregnancy-safe substitutions apply. */}
+                    <ScreeningExercisePlan
+                      result={latest.result}
+                      isPregnant
+                      audience="clinician"
+                    />
                   </div>
                 )}
               </>

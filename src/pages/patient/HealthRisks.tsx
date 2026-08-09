@@ -22,6 +22,7 @@ import {
   ThyroidSection,
 } from "@/components/health/ScreeningFields";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
 import { ReportUploadCard } from "@/components/health/ReportUploadCard";
 import { isAnalysisEnabled } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -462,6 +463,17 @@ const HealthRisks: React.FC = () => {
                 </CardContent>
               </Card>
               <ScreeningResultsView result={result} audience="patient" />
+
+              {/* What to *do* about the risks above. Kept on the same tab as the
+                  results so a flagged condition and its exercises are read
+                  together rather than a page apart. */}
+              <div className="mt-4">
+                <ScreeningExercisePlan
+                  result={result}
+                  isPregnant={isPregnant}
+                  audience="patient"
+                />
+              </div>
             </>
           )}
         </TabsContent>

@@ -18,13 +18,6 @@ import {
   Moon,
   Activity,
   Droplets,
-  Dumbbell,
-  Wind,
-  Waves,
-  Bike,
-  StretchHorizontal,
-  Footprints,
-  Heart,
   TrendingUp,
   Plus,
   Minus,
@@ -32,14 +25,11 @@ import {
   ArrowLeft,
   Flame,
   Loader2,
-  Youtube,
   FlaskConical,
   Trash2,
-  AlertTriangle,
   Utensils,
   ClipboardCheck,
   CloudOff,
-  Info,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -59,12 +49,13 @@ import {
   type SleepQuality,
 } from "@/lib/lifestyleLog";
 import {
+  conditionsFromScreening,
+  EXERCISE_DISCLAIMER,
   recommendExercises,
-  videoUrl,
   type ConditionInput,
   type Exercise,
-  type ExerciseIcon,
 } from "@/lib/exerciseRecommendations";
+import { ExerciseSuggestions } from "@/components/wellness/ExercisePlan";
 import { isDemoModeAvailable } from "@/lib/demoMode";
 import {
   buildDemoLogs,
@@ -95,25 +86,6 @@ import { getNutritionalTargets, type LifeStage } from "@/services/dietChartServi
 
 import { CHART_COLORS } from "@/lib/chartColors";
 const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
-
-const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
-  walk: Footprints,
-  yoga: StretchHorizontal,
-  breathing: Wind,
-  strength: Dumbbell,
-  swim: Waves,
-  cycle: Bike,
-  stretch: StretchHorizontal,
-  heart: Heart,
-};
-
-// One ramp per intensity so the three stay tellable apart at a glance; the
-// badge also spells the word out, so hue is never the only cue.
-const INTENSITY_STYLES: Record<string, string> = {
-  gentle: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-coral-100 text-coral-800 border-coral-200",
-  brisk: "bg-plum-100 text-plum-800 border-plum-200",
-};
 
 const SLEEP_QUALITY_STYLES: Record<string, string> = {
   deep: "bg-rose-100 text-rose-800 border-rose-200",
@@ -237,9 +209,7 @@ const LifestyleTracker = () => {
         let screened: ConditionInput[] = [];
         try {
           const screenings = await fetchScreenings(user.id);
-          screened = (screenings[0]?.result.conditions ?? [])
-            .filter((c) => c.risk_level === "moderate" || c.risk_level === "high")
-            .map((c) => ({ condition: c.condition, riskLevel: c.risk_level }));
+          screened = conditionsFromScreening(screenings[0]?.result.conditions);
         } catch (error) {
           console.error("Error loading screening results:", error);
         }
@@ -588,107 +558,39 @@ const LifestyleTracker = () => {
 
           {/* Recommended exercises — the only things you can log minutes against,
               so the log always matches the recommendation. */}
-          <div className="grid gap-3 md:grid-cols-2">
-            {recommendation.exercises.map((exercise: Exercise) => {
-              const Icon = EXERCISE_ICONS[exercise.icon] ?? Activity;
+          <ExerciseSuggestions
+            recommendation={recommendation}
+            isDone={(exercise) =>
+              (todayLog.activityMinutes[exercise.id] ?? 0) >= exercise.minutes
+            }
+            renderAction={(exercise: Exercise) => {
               const logged = todayLog.activityMinutes[exercise.id] ?? 0;
-              const done = logged >= exercise.minutes;
-
               return (
-                <div
-                  key={exercise.id}
-                  className={`rounded-lg border p-4 ${done ? "border-rose-200 bg-rose-50/50" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gray-700" />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-medium">{exercise.name}</h4>
-                          <Badge
-                            variant="outline"
-                            className={INTENSITY_STYLES[exercise.intensity]}
-                          >
-                            {exercise.intensity}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600">{exercise.how}</p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Target: {exercise.minutes} min/day
-                        </p>
-                        <a
-                          href={videoUrl(exercise)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
-                        >
-                          <Youtube className="h-3.5 w-3.5" />
-                          Watch how to do it
-                        </a>
-                      </div>
-                    </div>
-                    {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-rose-600" />}
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => adjustExercise(exercise.id, -5)}
-                      disabled={logged === 0}
-                      aria-label={`Remove 5 minutes of ${exercise.name}`}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-16 text-center font-medium">{logged}m</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => adjustExercise(exercise.id, 5)}
-                      aria-label={`Add 5 minutes of ${exercise.name}`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustExercise(exercise.id, -5)}
+                    disabled={logged === 0}
+                    aria-label={`Remove 5 minutes of ${exercise.name}`}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-16 text-center font-medium">{logged}m</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustExercise(exercise.id, 5)}
+                    aria-label={`Add 5 minutes of ${exercise.name}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
               );
-            })}
-          </div>
+            }}
+          />
 
-          {/* Why these, per condition */}
-          <div className="space-y-3">
-            {recommendation.plans.map((plan) => (
-              <div key={plan.key} className="rounded-lg border border-plum-100 bg-plum-50/50 p-4">
-                <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-plum-600" />
-                  <h4 className="font-medium text-plum-900">Why this for {plan.label}</h4>
-                </div>
-                <p className="mt-1 text-sm text-plum-900/80">{plan.rationale}</p>
-              </div>
-            ))}
-          </div>
-
-          {recommendation.avoid.length > 0 && (
-            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <h4 className="font-medium text-red-900">Avoid for now</h4>
-              </div>
-              <ul className="mt-2 space-y-1 text-sm text-red-900/80">
-                {recommendation.avoid.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span aria-hidden>•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <p className="text-xs text-gray-500">
-            General wellness suggestions based on your health profile — check with your
-            doctor before starting anything new.
-          </p>
+          <p className="text-xs text-gray-500">{EXERCISE_DISCLAIMER.patient}</p>
 
           {/* Streak calendar */}
           <div>
