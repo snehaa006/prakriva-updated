@@ -38,13 +38,13 @@ export const ScreeningResultsView: React.FC<{
       <CardContent className="p-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {result.overall_risk_level === "low" ? (
-            <ShieldCheck className="w-8 h-8 text-green-600" />
+            <ShieldCheck className="w-8 h-8 text-rose-600" />
           ) : (
             <AlertTriangle
               className={
                 result.overall_risk_level === "high"
                   ? "w-8 h-8 text-red-600"
-                  : "w-8 h-8 text-amber-600"
+                  : "w-8 h-8 text-coral-600"
               }
             />
           )}

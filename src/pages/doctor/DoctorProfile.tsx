@@ -161,7 +161,7 @@ const DynamicDoctorDashboard = () => {
                       quickActionsHovered === index ? 'scale-105' : ''
                     } ${
                       action.color === 'success' ? 'hover:bg-success/10 hover:border-success' :
-                      action.color === 'purple' ? 'hover:bg-purple-50 hover:border-purple-300' :
+                      action.color === 'purple' ? 'hover:bg-plum-50 hover:border-plum-300' :
                       action.color === 'warning' ? 'hover:bg-warning/10 hover:border-warning' : ''
                     }`}
                     onMouseEnter={() => setQuickActionsHovered(index)}
@@ -205,7 +205,7 @@ const DynamicDoctorDashboard = () => {
             <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handleFoodExplorer}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Search className="w-5 h-5 text-purple-600" />
+                  <Search className="w-5 h-5 text-plum-600" />
                   Food Explorer
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -217,7 +217,7 @@ const DynamicDoctorDashboard = () => {
             <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handleCommunication}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <MessageCircle className="w-5 h-5 text-blue-600" />
+                  <MessageCircle className="w-5 h-5 text-plum-600" />
                   Communication
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -439,7 +439,7 @@ const DynamicDoctorDashboard = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <Plus className="h-5 w-5 text-green-600" />
+                    <Plus className="h-5 w-5 text-rose-600" />
                     <span className="font-medium">Recipe Builder</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -451,7 +451,7 @@ const DynamicDoctorDashboard = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <Users className="h-5 w-5 text-blue-600" />
+                    <Users className="h-5 w-5 text-plum-600" />
                     <span className="font-medium">Team Management</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -463,7 +463,7 @@ const DynamicDoctorDashboard = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <Star className="h-5 w-5 text-yellow-600" />
+                    <Star className="h-5 w-5 text-coral-600" />
                     <span className="font-medium">Patient Feedback</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />

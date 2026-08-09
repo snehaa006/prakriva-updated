@@ -11,7 +11,7 @@
 // from the cache rather than erroring.
 
 import { supabase } from "@/lib/supabase";
-import { CACHE_KEYS, readCache, writeCache } from "@/lib/localCache";
+import { CACHE_KEYS, clearCache, readCache, writeCache } from "@/lib/localCache";
 import {
   DEFAULT_WATER_GOAL,
   type LifestyleDayLog,
@@ -75,6 +75,24 @@ export const readCachedLogs = (patientId: string): LifestyleDayLog[] => {
 /** Overwrite the cache. Silently no-ops when storage is unavailable/full. */
 export const writeCachedLogs = (patientId: string, logs: LifestyleDayLog[]): void =>
   writeCache(cacheKey(patientId), logs);
+
+/** Drop this patient's cached logs entirely (used to clear demo data). */
+export const clearCachedLogs = (patientId: string): void =>
+  clearCache(cacheKey(patientId));
+
+/**
+ * Merge one day into the cache and return the new list — the local half of
+ * `saveLifestyleDay`, exposed so demo mode can log days without ever writing
+ * fabricated data to Supabase.
+ */
+export const cacheLifestyleDay = (
+  patientId: string,
+  log: LifestyleDayLog
+): LifestyleDayLog[] => {
+  const merged = mergeLogs(readCachedLogs(patientId), [log]);
+  writeCachedLogs(patientId, merged);
+  return merged;
+};
 
 interface LifestyleLogRow {
   log_date: string;
@@ -162,8 +180,7 @@ export const saveLifestyleDay = async (
   patientId: string,
   log: LifestyleDayLog
 ): Promise<boolean> => {
-  const merged = mergeLogs(readCachedLogs(patientId), [log]);
-  writeCachedLogs(patientId, merged);
+  cacheLifestyleDay(patientId, log);
 
   try {
     const { error } = await supabase.from("lifestyle_logs").upsert(

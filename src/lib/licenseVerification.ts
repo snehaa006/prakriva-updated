@@ -246,16 +246,16 @@ export const getVerificationBadge = (
   licenseVerified: boolean
 ): VerificationBadge => {
   if (licenseVerified && score >= 85) {
-    return { text: "Verified Ayurvedic Expert", color: "bg-green-600", tone: "expert" };
+    return { text: "Verified Ayurvedic Expert", color: "bg-rose-600", tone: "expert" };
   }
   if (licenseVerified && score >= 70) {
-    return { text: "Verified Doctor", color: "bg-blue-600", tone: "verified" };
+    return { text: "Verified Doctor", color: "bg-plum-600", tone: "verified" };
   }
   if (licenseVerified) {
-    return { text: "License Verified", color: "bg-green-500", tone: "license" };
+    return { text: "License Verified", color: "bg-rose-500", tone: "license" };
   }
   if (score >= 50) {
-    return { text: "Pending Verification", color: "bg-yellow-600", tone: "pending" };
+    return { text: "Pending Verification", color: "bg-coral-600", tone: "pending" };
   }
   return { text: "Verification Required", color: "bg-red-600", tone: "required" };
 };

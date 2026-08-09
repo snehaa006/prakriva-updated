@@ -32,6 +32,9 @@ import {
   ArrowLeft,
   Flame,
   Loader2,
+  Youtube,
+  FlaskConical,
+  Trash2,
   AlertTriangle,
   Utensils,
   ClipboardCheck,
@@ -57,10 +60,17 @@ import {
 } from "@/lib/lifestyleLog";
 import {
   recommendExercises,
+  videoUrl,
   type ConditionInput,
   type Exercise,
   type ExerciseIcon,
 } from "@/lib/exerciseRecommendations";
+import { isDemoModeAvailable } from "@/lib/demoMode";
+import {
+  buildDemoLogs,
+  buildDemoMealTracking,
+  DEMO_DAYS,
+} from "@/lib/demoLifestyleData";
 import {
   evaluateDay,
   summarise,
@@ -68,7 +78,13 @@ import {
   type DietAdherenceDay,
   type MealTrackingDay,
 } from "@/lib/dietAdherence";
-import { loadLifestyleLogs, saveLifestyleDay } from "@/services/lifestyleLogService";
+import {
+  cacheLifestyleDay,
+  clearCachedLogs,
+  loadLifestyleLogs,
+  saveLifestyleDay,
+  writeCachedLogs,
+} from "@/services/lifestyleLogService";
 import { fetchMealTracking } from "@/services/mealAdherenceService";
 import {
   fetchScreenings,
@@ -77,6 +93,7 @@ import {
 } from "@/services/diseaseDetectionService";
 import { getNutritionalTargets, type LifeStage } from "@/services/dietChartService";
 
+import { CHART_COLORS } from "@/lib/chartColors";
 const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
 
 const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
@@ -90,15 +107,17 @@ const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
   heart: Heart,
 };
 
+// One ramp per intensity so the three stay tellable apart at a glance; the
+// badge also spells the word out, so hue is never the only cue.
 const INTENSITY_STYLES: Record<string, string> = {
-  gentle: "bg-green-100 text-green-800 border-green-200",
-  moderate: "bg-blue-100 text-blue-800 border-blue-200",
-  brisk: "bg-purple-100 text-purple-800 border-purple-200",
+  gentle: "bg-rose-100 text-rose-800 border-rose-200",
+  moderate: "bg-coral-100 text-coral-800 border-coral-200",
+  brisk: "bg-plum-100 text-plum-800 border-plum-200",
 };
 
 const SLEEP_QUALITY_STYLES: Record<string, string> = {
-  deep: "bg-green-100 text-green-800 border-green-200",
-  disturbed: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  deep: "bg-rose-100 text-rose-800 border-rose-200",
+  disturbed: "bg-coral-100 text-coral-800 border-coral-200",
   insufficient: "bg-red-100 text-red-800 border-red-200",
 };
 
@@ -139,6 +158,11 @@ const LifestyleTracker = () => {
     label: "General Adult",
   });
   const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
+
+  // Demo data is local-only and clearly flagged; see src/lib/demoMode.ts.
+  const demoAvailable = useMemo(() => isDemoModeAvailable(), []);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const [demoMealTracking, setDemoMealTracking] = useState<MealTrackingDay[] | null>(null);
 
   // Supabase mirroring is debounced so holding "+" on a water glass doesn't
   // fire an upsert per click; the localStorage cache is written synchronously
@@ -258,24 +282,57 @@ const LifestyleTracker = () => {
         );
 
         if (patientId) {
-          if (saveTimer.current) clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(() => {
-            void saveLifestyleDay(patientId, updated).then((persisted) =>
-              setIsSynced(persisted)
-            );
-          }, 600);
+          if (isDemoData) {
+            // Never mirror fabricated data to Supabase — cache only.
+            cacheLifestyleDay(patientId, updated);
+          } else {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+            saveTimer.current = setTimeout(() => {
+              void saveLifestyleDay(patientId, updated).then((persisted) =>
+                setIsSynced(persisted)
+              );
+            }, 600);
+          }
         }
 
         return next;
       });
     },
-    [patientId, today]
+    [patientId, today, isDemoData]
   );
 
   const recommendation = useMemo(
     () => recommendExercises({ conditions, isPregnant }),
     [conditions, isPregnant]
   );
+
+  /** Fill the tracker with a month of fabricated data, cache-only. */
+  const loadDemoData = useCallback(() => {
+    // Logged against her actual recommended exercises, so the demo month
+    // matches the plan she is being shown.
+    const demoLogs = buildDemoLogs(
+      recommendation.exercises.map((e) => e.id),
+      today
+    );
+    setLogs(demoLogs);
+    setDemoMealTracking(buildDemoMealTracking(today, calorieTarget.min));
+    setIsDemoData(true);
+    if (patientId) writeCachedLogs(patientId, demoLogs);
+  }, [recommendation.exercises, today, calorieTarget.min, patientId]);
+
+  const clearDemoData = useCallback(() => {
+    setIsDemoData(false);
+    setDemoMealTracking(null);
+    setLogs([]);
+    if (patientId) clearCachedLogs(patientId);
+    // Re-read whatever is really on the server.
+    if (patientId) {
+      void loadLifestyleLogs(patientId).then(({ logs: real, synced }) => {
+        setLogs(real);
+        setIsSynced(synced);
+      });
+    }
+  }, [patientId]);
 
   const activityStreak = useMemo(() => currentStreak(activeDates(logs), today), [logs, today]);
   const bestActivityStreak = useMemo(() => longestStreak(activeDates(logs)), [logs]);
@@ -291,9 +348,10 @@ const LifestyleTracker = () => {
   const logByDate = useMemo(() => new Map(logs.map((l) => [l.date, l])), [logs]);
 
   const adherence: DietAdherenceDay[] = useMemo(() => {
-    const byDate = new Map(mealTracking.map((m) => [m.date, m]));
+    const source = demoMealTracking ?? mealTracking;
+    const byDate = new Map(source.map((m) => [m.date, m]));
     return week.map((date) => evaluateDay(date, byDate.get(date), calorieTarget));
-  }, [week, mealTracking, calorieTarget]);
+  }, [week, mealTracking, demoMealTracking, calorieTarget]);
 
   const adherenceSummary = useMemo(() => summarise(adherence), [adherence]);
   const todayAdherence = adherence[adherence.length - 1];
@@ -368,8 +426,50 @@ const LifestyleTracker = () => {
         </Button>
       </div>
 
-      {!isSynced && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+      {demoAvailable && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm ${
+            isDemoData
+              ? "border-plum-300 bg-plum-100 text-plum-900"
+              : "border-dashed border-gray-300 bg-gray-50 text-gray-600"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {isDemoData ? (
+                <>
+                  <strong>Showing {DEMO_DAYS} days of demo data.</strong> None of this is
+                  real, and none of it is saved to the server — it lives in this browser
+                  only until you clear it.
+                </>
+              ) : (
+                <>Testing tools: load {DEMO_DAYS} days of fake data to see the streaks,
+                calendars and charts populated.</>
+              )}
+            </span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="outline" onClick={loadDemoData}>
+              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of demo data`}
+            </Button>
+            {isDemoData && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearDemoData}
+                className="flex items-center gap-1"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isSynced && !isDemoData && (
+        <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">
           <CloudOff className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             Saved on this device only — we couldn't reach the server. Your streak is safe
@@ -383,7 +483,7 @@ const LifestyleTracker = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Activity Streak</CardTitle>
-            <Flame className="h-4 w-4 text-orange-500" />
+            <Flame className="h-4 w-4 text-coral-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -398,13 +498,13 @@ const LifestyleTracker = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Hydration Today</CardTitle>
-            <Droplets className="h-4 w-4 text-cyan-600" />
+            <Droplets className="h-4 w-4 text-plum-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {todayLog.waterGlasses}/{waterGoal}
             </div>
-            <p className={`text-xs ${hydrationMet ? "text-green-600" : "text-gray-600"}`}>
+            <p className={`text-xs ${hydrationMet ? "text-rose-600" : "text-gray-600"}`}>
               {hydrationMet ? "Daily target met" : "Target not met yet"}
             </p>
           </CardContent>
@@ -413,7 +513,7 @@ const LifestyleTracker = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Sleep</CardTitle>
-            <Moon className="h-4 w-4 text-blue-600" />
+            <Moon className="h-4 w-4 text-plum-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -426,7 +526,7 @@ const LifestyleTracker = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Diet Plan Today</CardTitle>
-            <ClipboardCheck className="h-4 w-4 text-emerald-600" />
+            <ClipboardCheck className="h-4 w-4 text-rose-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -458,13 +558,13 @@ const LifestyleTracker = () => {
                       .join(", ")}`}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-4 py-2">
-              <Flame className="w-5 h-5 text-orange-500" />
+            <div className="flex items-center gap-2 rounded-lg bg-coral-50 px-4 py-2">
+              <Flame className="w-5 h-5 text-coral-500" />
               <div>
-                <div className="text-xl font-bold leading-none text-orange-600">
+                <div className="text-xl font-bold leading-none text-coral-600">
                   {activityStreak}
                 </div>
-                <div className="text-xs text-orange-700">day streak</div>
+                <div className="text-xs text-coral-700">day streak</div>
               </div>
             </div>
           </div>
@@ -475,13 +575,13 @@ const LifestyleTracker = () => {
             <span className="text-sm font-semibold">
               {todayActivityMinutes} min
               {todayActivityMinutes > 0 && (
-                <CheckCircle2 className="ml-2 inline h-4 w-4 text-green-600" />
+                <CheckCircle2 className="ml-2 inline h-4 w-4 text-rose-600" />
               )}
             </span>
           </div>
 
           {todayActivityMinutes === 0 && activityStreak > 0 && (
-            <p className="text-sm text-amber-700">
+            <p className="text-sm text-coral-700">
               Log any movement today to keep your {activityStreak}-day streak alive.
             </p>
           )}
@@ -497,7 +597,7 @@ const LifestyleTracker = () => {
               return (
                 <div
                   key={exercise.id}
-                  className={`rounded-lg border p-4 ${done ? "border-green-200 bg-green-50/50" : ""}`}
+                  className={`rounded-lg border p-4 ${done ? "border-rose-200 bg-rose-50/50" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -516,9 +616,18 @@ const LifestyleTracker = () => {
                         <p className="mt-1 text-xs text-gray-500">
                           Target: {exercise.minutes} min/day
                         </p>
+                        <a
+                          href={videoUrl(exercise)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                        >
+                          <Youtube className="h-3.5 w-3.5" />
+                          Watch how to do it
+                        </a>
                       </div>
                     </div>
-                    {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />}
+                    {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-rose-600" />}
                   </div>
 
                   <div className="mt-3 flex items-center justify-end gap-2">
@@ -549,12 +658,12 @@ const LifestyleTracker = () => {
           {/* Why these, per condition */}
           <div className="space-y-3">
             {recommendation.plans.map((plan) => (
-              <div key={plan.key} className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
+              <div key={plan.key} className="rounded-lg border border-plum-100 bg-plum-50/50 p-4">
                 <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <h4 className="font-medium text-blue-900">Why this for {plan.label}</h4>
+                  <Info className="h-4 w-4 text-plum-600" />
+                  <h4 className="font-medium text-plum-900">Why this for {plan.label}</h4>
                 </div>
-                <p className="mt-1 text-sm text-blue-900/80">{plan.rationale}</p>
+                <p className="mt-1 text-sm text-plum-900/80">{plan.rationale}</p>
               </div>
             ))}
           </div>
@@ -593,7 +702,7 @@ const LifestyleTracker = () => {
                     <div
                       className={`flex h-9 items-center justify-center rounded text-xs font-medium ${
                         minutes > 0
-                          ? "bg-orange-100 text-orange-800"
+                          ? "bg-coral-100 text-coral-800"
                           : "bg-gray-100 text-gray-400"
                       }`}
                       title={`${date}: ${minutes} min`}
@@ -620,7 +729,7 @@ const LifestyleTracker = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4 text-center">
-              <div className={`text-6xl font-bold ${hydrationMet ? "text-green-600" : "text-cyan-600"}`}>
+              <div className={`text-6xl font-bold ${hydrationMet ? "text-rose-600" : "text-plum-600"}`}>
                 {todayLog.waterGlasses}
               </div>
               <p className="text-gray-600">of {waterGoal} glasses today</p>
@@ -632,7 +741,7 @@ const LifestyleTracker = () => {
                 variant="outline"
                 className={
                   hydrationMet
-                    ? "border-green-200 bg-green-100 text-green-800"
+                    ? "border-rose-200 bg-rose-100 text-rose-800"
                     : "border-gray-200 bg-gray-100 text-gray-700"
                 }
               >
@@ -701,15 +810,21 @@ const LifestyleTracker = () => {
                   return (
                     <div key={date} className="text-center">
                       <div className="mb-1 text-xs text-gray-500">{dayLabel(date)}</div>
+                      {/* Met is a *filled* chip, not another pale tint: inside
+                          one hue family two 100-level tints read as the same
+                          colour at a glance, which is exactly the thing this
+                          strip exists to distinguish. */}
                       <div
                         className={`rounded p-1 text-sm font-medium ${
                           met
-                            ? "bg-green-100 text-green-800"
+                            ? "bg-rose-600 text-white"
                             : log?.waterGlasses
-                              ? "bg-yellow-100 text-yellow-800"
+                              ? "bg-coral-100 text-coral-800 ring-1 ring-inset ring-coral-300"
                               : "bg-gray-100 text-gray-400"
                         }`}
-                        title={`${date}: ${log?.waterGlasses ?? 0} glasses`}
+                        title={`${date}: ${log?.waterGlasses ?? 0} glasses${
+                          met ? " — target met" : ""
+                        }`}
                       >
                         {log?.waterGlasses ?? 0}
                       </div>
@@ -822,13 +937,13 @@ const LifestyleTracker = () => {
           <div className="grid gap-4 md:grid-cols-2">
             <div
               className={`rounded-lg border p-4 ${
-                todayAdherence?.nutritionComplete ? "border-green-200 bg-green-50/50" : ""
+                todayAdherence?.nutritionComplete ? "border-rose-200 bg-rose-50/50" : ""
               }`}
             >
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">Daily nutrition complete</h4>
                 {todayAdherence?.nutritionComplete ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <CheckCircle2 className="h-5 w-5 text-rose-600" />
                 ) : (
                   <TrendingUp className="h-5 w-5 text-gray-400" />
                 )}
@@ -861,13 +976,13 @@ const LifestyleTracker = () => {
 
             <div
               className={`rounded-lg border p-4 ${
-                todayAdherence?.planFollowed ? "border-green-200 bg-green-50/50" : ""
+                todayAdherence?.planFollowed ? "border-rose-200 bg-rose-50/50" : ""
               }`}
             >
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">Diet plan followed</h4>
                 {todayAdherence?.planFollowed ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <CheckCircle2 className="h-5 w-5 text-rose-600" />
                 ) : (
                   <ClipboardCheck className="h-5 w-5 text-gray-400" />
                 )}
@@ -906,10 +1021,12 @@ const LifestyleTracker = () => {
                     className="flex flex-col gap-1"
                     title={`${day.date}: ${day.caloriesConsumed} kcal, ${day.mealsEaten}/${day.mealsPlanned} meals`}
                   >
+                    {/* Filled = achieved, hollow = not. Two 100-level tints
+                        of the same family were indistinguishable at this size. */}
                     <div
                       className={`h-5 rounded text-[10px] leading-5 ${
                         day.nutritionComplete
-                          ? "bg-emerald-100 text-emerald-800"
+                          ? "bg-rose-600 font-medium text-white"
                           : "bg-gray-100 text-gray-400"
                       }`}
                     >
@@ -918,7 +1035,7 @@ const LifestyleTracker = () => {
                     <div
                       className={`h-5 rounded text-[10px] leading-5 ${
                         day.planFollowed
-                          ? "bg-indigo-100 text-indigo-800"
+                          ? "bg-plum-600 font-medium text-white"
                           : "bg-gray-100 text-gray-400"
                       }`}
                     >
@@ -954,7 +1071,7 @@ const LifestyleTracker = () => {
                   <Line
                     type="monotone"
                     dataKey="sleep"
-                    stroke="#3b82f6"
+                    stroke={CHART_COLORS.sleep}
                     strokeWidth={2}
                     connectNulls
                   />
@@ -972,7 +1089,7 @@ const LifestyleTracker = () => {
                   <XAxis dataKey="date" tickFormatter={dayNumber} />
                   <YAxis />
                   <Tooltip formatter={(value: number) => [`${value} min`, "Activity"]} />
-                  <Bar dataKey="activity" fill="#f97316" />
+                  <Bar dataKey="activity" fill={CHART_COLORS.activity} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -990,7 +1107,7 @@ const LifestyleTracker = () => {
                   <XAxis dataKey="date" tickFormatter={dayNumber} />
                   <YAxis domain={[0, Math.max(12, waterGoal + 2)]} />
                   <Tooltip formatter={(value: number) => [`${value} glasses`, "Water"]} />
-                  <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot />
+                  <Line type="monotone" dataKey="water" stroke={CHART_COLORS.water} strokeWidth={2} dot />
                 </LineChart>
               </ResponsiveContainer>
             </div>

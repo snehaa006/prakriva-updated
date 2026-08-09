@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Calendar, TrendingDown, TrendingUp, BarChart3, Activity } from "lucide-react";
 
+import { CHART_NEUTRALS, seriesColor } from "@/lib/chartColors";
 // Mock Firebase functions - Replace with actual Firebase imports and functions
 const mockFetchUserDigestiveIssues = async (userId) => {
   // Simulate API call delay
@@ -73,31 +74,31 @@ const SymptomTracking = () => {
     "bloating": { 
       name: "Bloating", 
       key: "bloating",
-      color: "#10b981", 
+      color: seriesColor(0), 
       description: "Abdominal distension, gas buildup" 
     },
     "gas": { 
       name: "Gas", 
       key: "gas",
-      color: "#f59e0b", 
+      color: seriesColor(1), 
       description: "Flatulence, gas-related discomfort" 
     },
     "acidity-heartburn": { 
       name: "Acidity/Heartburn", 
       key: "acidity-heartburn",
-      color: "#ef4444", 
+      color: seriesColor(2), 
       description: "Acid reflux, burning sensation" 
     },
     "constipation": { 
       name: "Constipation", 
       key: "constipation",
-      color: "#8b5cf6", 
+      color: seriesColor(3), 
       description: "Difficulty in bowel movement" 
     },
     "irregular-bowels": { 
       name: "Irregular bowel movements", 
       key: "irregular-bowels",
-      color: "#06b6d4", 
+      color: seriesColor(4), 
       description: "Inconsistent bowel patterns" 
     }
   };
@@ -110,8 +111,8 @@ const SymptomTracking = () => {
   const getSeverityColor = (level) => {
     const colors = [
       "bg-gray-100 text-gray-700 border-gray-200",
-      "bg-yellow-50 text-yellow-700 border-yellow-200", 
-      "bg-orange-50 text-orange-700 border-orange-200",
+      "bg-coral-50 text-coral-700 border-coral-200", 
+      "bg-coral-50 text-coral-700 border-coral-200",
       "bg-red-50 text-red-700 border-red-200"
     ];
     return colors[level] || colors[0];
@@ -252,7 +253,7 @@ const SymptomTracking = () => {
     return (
       <div className="flex-1 flex items-center justify-center p-8 bg-gray-50 min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your symptom tracker...</p>
         </div>
       </div>
@@ -274,7 +275,7 @@ const SymptomTracking = () => {
                 {userDigestiveIssues.map(issueKey => {
                   const issue = allDigestiveIssues[issueKey];
                   return issue ? (
-                    <Badge key={issueKey} variant="secondary" className="text-xs bg-green-100 text-green-700 border-green-200">
+                    <Badge key={issueKey} variant="secondary" className="text-xs bg-rose-100 text-rose-700 border-rose-200">
                       {issue.name}
                     </Badge>
                   ) : null;
@@ -301,7 +302,7 @@ const SymptomTracking = () => {
               </p>
               <Button 
                 onClick={() => handleNavigation("/profile-setup")}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-rose-600 hover:bg-rose-700 text-white"
               >
                 Update Health Profile
               </Button>
@@ -366,12 +367,12 @@ const SymptomTracking = () => {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    className="border-gray-200 focus:border-green-500 focus:ring-green-500"
+                    className="border-gray-200 focus:border-rose-500 focus:ring-rose-500"
                   />
                 </div>
 
                 <Button 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 font-medium" 
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white py-3 font-medium" 
                   onClick={handleSaveSymptoms}
                   disabled={saving}
                 >
@@ -384,7 +385,7 @@ const SymptomTracking = () => {
             <Card className="lg:col-span-2 bg-white border-gray-200 shadow-sm">
               <CardHeader className="border-b border-gray-100">
                 <CardTitle className="flex items-center gap-3 text-gray-900">
-                  <TrendingDown className="w-5 h-5 text-green-600" />
+                  <TrendingDown className="w-5 h-5 text-rose-600" />
                   7-Day Symptom Trends
                 </CardTitle>
                 <CardDescription className="text-gray-600">Track your symptoms over the past week</CardDescription>
@@ -393,23 +394,23 @@ const SymptomTracking = () => {
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={symptomHistory} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_NEUTRALS.grid} opacity={0.5} />
                       <XAxis 
                         dataKey="dateDisplay" 
-                        tick={{ fontSize: 12, fill: '#6b7280' }}
-                        axisLine={{ stroke: '#d1d5db' }}
-                        tickLine={{ stroke: '#d1d5db' }}
+                        tick={{ fontSize: 12, fill: CHART_NEUTRALS.tick }}
+                        axisLine={{ stroke: CHART_NEUTRALS.axis }}
+                        tickLine={{ stroke: CHART_NEUTRALS.axis }}
                       />
                       <YAxis 
                         domain={[0, 3]} 
-                        tick={{ fontSize: 12, fill: '#6b7280' }}
-                        axisLine={{ stroke: '#d1d5db' }}
-                        tickLine={{ stroke: '#d1d5db' }}
+                        tick={{ fontSize: 12, fill: CHART_NEUTRALS.tick }}
+                        axisLine={{ stroke: CHART_NEUTRALS.axis }}
+                        tickLine={{ stroke: CHART_NEUTRALS.axis }}
                       />
                       <Tooltip 
                         contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #d1d5db',
+                          backgroundColor: CHART_NEUTRALS.tooltipBg,
+                          border: `1px solid ${CHART_NEUTRALS.tooltipBorder}`,
                           borderRadius: '8px',
                           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                         }}
@@ -440,7 +441,7 @@ const SymptomTracking = () => {
             <Card className="lg:col-span-3 bg-white border-gray-200 shadow-sm">
               <CardHeader className="border-b border-gray-100">
                 <CardTitle className="flex items-center gap-3 text-gray-900">
-                  <BarChart3 className="w-5 h-5 text-green-600" />
+                  <BarChart3 className="w-5 h-5 text-rose-600" />
                   Weekly Summary & Insights
                 </CardTitle>
                 <CardDescription className="text-gray-600">Average levels and trends for each symptom</CardDescription>
@@ -459,10 +460,10 @@ const SymptomTracking = () => {
                       const TrendIcon = insights.trend === "increasing" ? TrendingUp : 
                                       insights.trend === "decreasing" ? TrendingDown : Activity;
                       const trendColor = insights.trend === "increasing" ? "text-red-500" : 
-                                       insights.trend === "decreasing" ? "text-green-500" : "text-blue-500";
+                                       insights.trend === "decreasing" ? "text-rose-500" : "text-plum-500";
                       
                       const trendBgColor = insights.trend === "increasing" ? "bg-red-50" : 
-                                         insights.trend === "decreasing" ? "bg-green-50" : "bg-blue-50";
+                                         insights.trend === "decreasing" ? "bg-rose-50" : "bg-plum-50";
 
                       return (
                         <div key={symptom.key} className="p-5 border border-gray-200 rounded-lg bg-gray-50 hover:shadow-md transition-shadow">
@@ -519,9 +520,9 @@ const SymptomTracking = () => {
                               <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div 
                                   className={`h-2 rounded-full transition-all duration-500 ${
-                                    insights.trend === "decreasing" ? "bg-green-500" :
+                                    insights.trend === "decreasing" ? "bg-rose-500" :
                                     insights.trend === "increasing" ? "bg-red-500" :
-                                    "bg-blue-500"
+                                    "bg-plum-500"
                                   }`}
                                   style={{ 
                                     width: `${Math.min(100, (insights.daysWithSymptoms / insights.totalDays) * 100)}%` 

@@ -175,15 +175,15 @@ function recipeToFood(recipe: RecipeBasic): Food {
 function getDietBadges(recipe: RecipeBasic) {
   const badges: { label: string; color: string }[] = [];
   if (parseFloat(recipe.vegan || "0") === 1)
-    badges.push({ label: "Vegan", color: "bg-green-100 text-green-800" });
+    badges.push({ label: "Vegan", color: "bg-rose-100 text-rose-800" });
   if (parseFloat(recipe.lacto_vegetarian || "0") === 1)
-    badges.push({ label: "Lacto-Veg", color: "bg-emerald-100 text-emerald-800" });
+    badges.push({ label: "Lacto-Veg", color: "bg-rose-100 text-rose-800" });
   if (parseFloat(recipe.ovo_vegetarian || "0") === 1)
-    badges.push({ label: "Ovo-Veg", color: "bg-teal-100 text-teal-800" });
+    badges.push({ label: "Ovo-Veg", color: "bg-rose-100 text-rose-800" });
   if (parseFloat(recipe.ovo_lacto_vegetarian || "0") === 1)
-    badges.push({ label: "Ovo-Lacto", color: "bg-cyan-100 text-cyan-800" });
+    badges.push({ label: "Ovo-Lacto", color: "bg-plum-100 text-plum-800" });
   if (parseFloat(recipe.pescetarian || "0") === 1)
-    badges.push({ label: "Pescetarian", color: "bg-blue-100 text-blue-800" });
+    badges.push({ label: "Pescetarian", color: "bg-plum-100 text-plum-800" });
   return badges;
 }
 
@@ -385,8 +385,8 @@ function RecipeDetailModal({
             <TabsContent value="overview" className="space-y-4 mt-4">
               {/* Time & Serving Info */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-50">
-                  <Clock className="w-4 h-4 text-orange-600" />
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-coral-50">
+                  <Clock className="w-4 h-4 text-coral-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Prep Time</p>
                     <p className="font-medium text-sm">
@@ -403,8 +403,8 @@ function RecipeDetailModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50">
-                  <Clock className="w-4 h-4 text-blue-600" />
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-plum-50">
+                  <Clock className="w-4 h-4 text-plum-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Total Time</p>
                     <p className="font-medium text-sm">
@@ -412,8 +412,8 @@ function RecipeDetailModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-50">
-                  <Users className="w-4 h-4 text-purple-600" />
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-plum-50">
+                  <Users className="w-4 h-4 text-plum-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Servings</p>
                     <p className="font-medium text-sm">
@@ -430,20 +430,20 @@ function RecipeDetailModal({
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="text-center p-3 rounded-lg bg-amber-50">
-                      <p className="text-xl font-bold text-amber-700">
+                    <div className="text-center p-3 rounded-lg bg-coral-50">
+                      <p className="text-xl font-bold text-coral-700">
                         {formatNumber(recipe.Calories)}
                       </p>
                       <p className="text-xs text-muted-foreground">Calories</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-green-50">
-                      <p className="text-xl font-bold text-green-700">
+                    <div className="text-center p-3 rounded-lg bg-rose-50">
+                      <p className="text-xl font-bold text-rose-700">
                         {formatNumber(recipe["Protein (g)"])}g
                       </p>
                       <p className="text-xs text-muted-foreground">Protein</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-blue-50">
-                      <p className="text-xl font-bold text-blue-700">
+                    <div className="text-center p-3 rounded-lg bg-plum-50">
+                      <p className="text-xl font-bold text-plum-700">
                         {formatNumber(recipe["Carbohydrate, by difference (g)"])}g
                       </p>
                       <p className="text-xs text-muted-foreground">Carbs</p>
@@ -608,7 +608,7 @@ function RecipeOfDayCard() {
 
   if (isLoading) {
     return (
-      <Card className="mb-6 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
+      <Card className="mb-6 border-coral-200 bg-gradient-to-r from-coral-50 to-coral-50">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
         </CardHeader>
@@ -633,10 +633,10 @@ function RecipeOfDayCard() {
   );
 
   return (
-    <Card className="mb-6 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
+    <Card className="mb-6 border-coral-200 bg-gradient-to-r from-coral-50 to-coral-50">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
-          <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+          <Star className="w-5 h-5 text-coral-500 fill-coral-500" />
           Recipe of the Day
         </CardTitle>
       </CardHeader>
@@ -664,7 +664,7 @@ function RecipeOfDayCard() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <div className="flex items-center gap-1">
-                <Flame className="w-3 h-3 text-orange-500" />
+                <Flame className="w-3 h-3 text-coral-500" />
                 <span className="text-muted-foreground">Cal:</span>
                 <span className="font-medium">{rotd.Calories}</span>
               </div>
@@ -1815,10 +1815,10 @@ const FoodExplorer: React.FC = () => {
 
       {/* Selected Foods Quick View */}
       {selectedFoods.length > 0 && (
-        <Card className="mb-6 bg-green-50 border-green-200">
+        <Card className="mb-6 bg-rose-50 border-rose-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-green-600" />
+              <ShoppingCart className="w-5 h-5 text-rose-600" />
               Selected Foods ({selectedFoods.length})
             </CardTitle>
           </CardHeader>
@@ -1951,7 +1951,7 @@ const FoodExplorer: React.FC = () => {
 
       {/* Nutrition Summary for Selected Foods */}
       {selectedFoods.length > 0 && (
-        <Card className="mt-6 bg-blue-50 border-blue-200">
+        <Card className="mt-6 bg-plum-50 border-plum-200">
           <CardHeader>
             <CardTitle className="text-lg">
               Selected Foods Nutrition Summary
@@ -1960,7 +1960,7 @@ const FoodExplorer: React.FC = () => {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-2xl font-bold text-plum-600">
                   {selectedFoods
                     .reduce((acc, f) => acc + Number(f.Calories), 0)
                     .toFixed(0)}
@@ -1968,7 +1968,7 @@ const FoodExplorer: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Total Calories</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-rose-600">
                   {selectedFoods
                     .reduce((acc, f) => acc + Number(f.Protein), 0)
                     .toFixed(1)}
@@ -1977,7 +1977,7 @@ const FoodExplorer: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Total Protein</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-yellow-600">
+                <p className="text-2xl font-bold text-coral-600">
                   {selectedFoods
                     .reduce((acc, f) => acc + Number(f.Fat), 0)
                     .toFixed(1)}
@@ -1986,7 +1986,7 @@ const FoodExplorer: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Total Fat</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-purple-600">
+                <p className="text-2xl font-bold text-plum-600">
                   {selectedFoods
                     .reduce((acc, f) => acc + Number(f.Carbs), 0)
                     .toFixed(1)}

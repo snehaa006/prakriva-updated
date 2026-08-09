@@ -316,7 +316,7 @@ const Patients: React.FC = () => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-blue-100 text-blue-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Activity className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.energyLevels || 'N/A'}/5</div>
@@ -330,14 +330,14 @@ const Patients: React.FC = () => {
           <div className="text-xs text-muted-foreground">Stress</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-blue-100 text-blue-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Droplet className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.waterIntake || 'N/A'}L</div>
           <div className="text-xs text-muted-foreground">Water/Day</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-purple-100 text-purple-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-plum-100 text-plum-600">
             <Clock className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.sleepDuration || 'N/A'}</div>
@@ -380,7 +380,7 @@ const Patients: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-blue-100 text-blue-600">
+              <div className="p-2 rounded-full bg-plum-100 text-plum-600">
                 <Users className="w-4 h-4" />
               </div>
               <div>
@@ -394,7 +394,7 @@ const Patients: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-green-100 text-green-600">
+              <div className="p-2 rounded-full bg-rose-100 text-rose-600">
                 <User className="w-4 h-4" />
               </div>
               <div>
@@ -410,7 +410,7 @@ const Patients: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-purple-100 text-purple-600">
+              <div className="p-2 rounded-full bg-plum-100 text-plum-600">
                 <Check className="w-4 h-4" />
               </div>
               <div>
@@ -426,7 +426,7 @@ const Patients: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-orange-100 text-orange-600">
+              <div className="p-2 rounded-full bg-coral-100 text-coral-600">
                 <AlertCircle className="w-4 h-4" />
               </div>
               <div>
@@ -537,7 +537,7 @@ const Patients: React.FC = () => {
                                 onClick={() => handleCopyPatientId(patient.fullPatientProfile.patientId!)}
                               >
                                 {copiedPatientId === patient.fullPatientProfile.patientId ? (
-                                  <Check className="w-3 h-3 text-green-600" />
+                                  <Check className="w-3 h-3 text-rose-600" />
                                 ) : (
                                   <Copy className="w-3 h-3" />
                                 )}
@@ -704,7 +704,7 @@ const Patients: React.FC = () => {
                           onClick={() => handleCopyPatientId(selectedPatient.fullPatientProfile.patientId!)}
                         >
                           {copiedPatientId === selectedPatient.fullPatientProfile.patientId ? (
-                            <Check className="w-3 h-3 text-green-600" />
+                            <Check className="w-3 h-3 text-rose-600" />
                           ) : (
                             <Copy className="w-3 h-3" />
                           )}
@@ -908,7 +908,7 @@ const Patients: React.FC = () => {
                           <Label className="text-xs text-muted-foreground">Digestion Issues</Label>
                           <div className="flex flex-wrap gap-2 mt-1">
                             {selectedPatient.fullPatientProfile.assessmentData.digestionIssues.map((issue, index) => (
-                              <Badge key={index} variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">{issue}</Badge>
+                              <Badge key={index} variant="outline" className="bg-coral-50 text-coral-700 border-coral-200">{issue}</Badge>
                             ))}
                           </div>
                         </div>
@@ -969,7 +969,7 @@ const Patients: React.FC = () => {
                       <CardContent>
                         <div className="flex flex-wrap gap-2">
                           {selectedPatient.fullPatientProfile.assessmentData.familyHistory.map((condition, index) => (
-                            <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">{condition}</Badge>
+                            <Badge key={index} variant="outline" className="bg-plum-50 text-plum-700 border-plum-200">{condition}</Badge>
                           ))}
                         </div>
                       </CardContent>
@@ -985,7 +985,7 @@ const Patients: React.FC = () => {
                       <CardContent>
                         <div className="flex flex-wrap gap-2">
                           {selectedPatient.fullPatientProfile.assessmentData.healthGoals.map((goal, index) => (
-                            <Badge key={index} variant="outline" className="bg-green-50 text-green-700 border-green-200">{goal}</Badge>
+                            <Badge key={index} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">{goal}</Badge>
                           ))}
                         </div>
                       </CardContent>

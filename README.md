@@ -88,10 +88,10 @@ kitchen, and get a personalized diet plan.
   (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
   Prakriva brand palette (deep maroon/burgundy on warm cream, matching
   `public/logo.png`). Dosha colors (`--vata`/`--pitta`/`--kapha`) and status
-  colors (`--success`/`--warning`/`--info`, plus the ad hoc green/red/amber
-  used for risk levels and meal/reminder status across `src/pages`) are kept
-  separate from the brand palette on purpose — they carry meaning and aren't
-  restyled when the brand colors change.
+  colors (`--success`/`--warning`/`--info`) now sit **inside** that palette
+  too — see "Color" below.
+- `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
+  strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
   standalone `mealCompatibility.html` visualisation (reachable at
@@ -464,6 +464,12 @@ unsafe.
   "avoid" notes on top of the condition's.
 - Minutes are logged against the recommended exercises themselves, so the log
   always matches the recommendation.
+- Each exercise card links to a how-to video. `videoUrl()` builds a YouTube
+  **search** URL from the exercise's `videoQuery` rather than embedding a video
+  id: a specific id can be taken down, go private, or be re-uploaded as
+  something else, and a dead or wrong-content link on a page giving health
+  guidance is worse than no link. Swap in
+  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
 
 **Streaks.** The activity streak counts consecutive days with *any* movement
 logged; the hydration section counts days the daily water target was met. Streak
@@ -495,6 +501,26 @@ thresholds are in `src/lib/dietAdherence.ts`.
 > The old `junk_food_streak_logs` table and its `supabase/junk_food_streak.sql`
 > migration were removed with the feature. If the table exists in an already
 > provisioned project it is now unused and safe to drop.
+
+**Demo data (testing only).** A month of real logs takes a month to accumulate,
+so the tracker can fill itself with 30 days of fabricated data to exercise the
+streaks, calendars, charts and adherence roll-up. Two guards keep it away from
+patients: the controls only appear when `isDemoModeAvailable()` says so
+(`src/lib/demoMode.ts` — local dev, or any build with `?demo=1` in the URL), and
+demo data is **never mirrored to Supabase**, only cached locally, so nothing
+fabricated reaches the database. A banner marks the page while it is loaded, and
+"Clear" wipes the cache and re-reads the real server data.
+
+`src/lib/demoLifestyleData.ts` generates it deterministically (seeded PRNG,
+dates relative to today), so the same day always produces the same month and a
+failure is reproducible. The shape is deliberately uneven — rest days, missed
+water targets, unlogged nights, skipped meals — because data where everything
+succeeds would not prove the streak logic works. The rest days are placed to
+give a current activity streak of 4 with an earlier best of 6;
+`src/lib/__tests__/demoLifestyleData.test.ts` asserts those numbers by running
+the production streak functions over the generated month, and
+`src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
+checks they reach the UI.
 
 ## Patient kitchen (pantry)
 
@@ -616,6 +642,48 @@ AYUSH / NCISM and their state Board of Indian Medicine — not the MCI or NMC,
 which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
+
+## Color
+
+The app is pink end to end. It used to mix in the stock Tailwind ramps —
+green "success" badges, blue chart lines, amber warnings — which read as three
+palettes fighting on one warm cream page. Everything now lives in one family.
+
+**Three brand ramps** (`tailwind.config.ts`), hues ~30° apart so states stay
+tellable apart while still reading as one palette:
+
+| Ramp | Hue | Role | Replaced |
+|---|---|---|---|
+| `plum` | 318° | informational, neutral emphasis | blue, sky, cyan, indigo, violet, purple |
+| `rose` | 345° | positive, on track, goal met | green, emerald, teal, lime |
+| `coral` | 8° | attention, partial, needs a nudge | yellow, amber, orange |
+
+They follow Tailwind's own lightness curve, so the swap kept shade numbers
+(`bg-green-100` → `bg-rose-100`) and with them the contrast each layout was
+built around. `red` keeps its native hue: it already sits inside this family
+(0°, between coral and rose) and carries the clinical high-risk signal.
+`gray`/`slate` are overridden to warm, brand-tinted neutrals — Tailwind's stock
+greys are blue-tinted and read cold against the cream background.
+
+Two rules follow from having one hue family, both learned from looking at the
+rendered pages rather than the code:
+
+- **Binary states are filled vs. tinted, not two tints.** Two 100-level tints of
+  the same family look identical at a glance, which defeats a "did I hit my
+  target?" strip. Achieved days are solid (`bg-rose-600 text-white`), missed
+  ones are pale and outlined.
+- **Colour never carries meaning alone.** Risk levels escalate in *intensity*
+  as well as hue (pale rose → coral → saturated red), so the ordering survives
+  greyscale and colour vision deficiency, and high risk is the only filled
+  badge. Every level also renders its `label` in words.
+
+Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
+blue that no class on the element can reach; `src/index.css` sets `accent-color`
+globally to fix that.
+
+`src/lib/__tests__/brandPalette.test.ts` fails the build if an off-brand
+utility or a hardcoded chart hex reappears — the drift happened once already,
+one reasonable-looking green badge at a time.
 
 ## Caching
 

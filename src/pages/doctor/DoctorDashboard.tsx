@@ -464,7 +464,7 @@ const DoctorDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-plum-500 to-plum-600 rounded-full flex items-center justify-center">
             <span className="text-white font-semibold text-lg">{doctorData.initials}</span>
           </div>
           <div>
@@ -499,7 +499,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-indigo-50"><Users className="w-5 h-5 text-indigo-600" /></div>
+              <div className="p-2 rounded-lg bg-plum-50"><Users className="w-5 h-5 text-plum-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{patientCount}</p>
                 <p className="text-xs text-muted-foreground">Total Patients</p>
@@ -510,7 +510,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-50"><Calendar className="w-5 h-5 text-emerald-600" /></div>
+              <div className="p-2 rounded-lg bg-rose-50"><Calendar className="w-5 h-5 text-rose-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{todayAppts.length}</p>
                 <p className="text-xs text-muted-foreground">Today's Appointments</p>
@@ -521,7 +521,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-50"><AlertCircle className="w-5 h-5 text-amber-600" /></div>
+              <div className="p-2 rounded-lg bg-coral-50"><AlertCircle className="w-5 h-5 text-coral-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{pendingRequests.length}</p>
                 <p className="text-xs text-muted-foreground">Pending Requests</p>
@@ -532,7 +532,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-50"><TrendingUp className="w-5 h-5 text-purple-600" /></div>
+              <div className="p-2 rounded-lg bg-plum-50"><TrendingUp className="w-5 h-5 text-plum-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{avgPatientCompletion}%</p>
                 <p className="text-xs text-muted-foreground">Avg Patient Adherence</p>
@@ -588,15 +588,15 @@ const DoctorDashboard = () => {
                 <div className="space-y-3">
                   {filteredAppointments.map(appt => (
                     <div key={appt.id} className={`flex items-center justify-between p-3 rounded-lg border ${
-                      appt.status === "completed" ? "bg-emerald-50/50 border-emerald-200" :
+                      appt.status === "completed" ? "bg-rose-50/50 border-rose-200" :
                       appt.status === "cancelled" ? "bg-red-50/50 border-red-200 opacity-60" :
                       "bg-muted/30"
                     }`}>
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-white border">
-                          {appt.mode === "video-call" ? <Video className="w-4 h-4 text-blue-500" /> :
-                           appt.mode === "phone" ? <Phone className="w-4 h-4 text-green-500" /> :
-                           <MapPin className="w-4 h-4 text-orange-500" />}
+                          {appt.mode === "video-call" ? <Video className="w-4 h-4 text-plum-500" /> :
+                           appt.mode === "phone" ? <Phone className="w-4 h-4 text-rose-500" /> :
+                           <MapPin className="w-4 h-4 text-coral-500" />}
                         </div>
                         <div>
                           <p className="font-medium text-sm">{appt.patientName}</p>
@@ -608,8 +608,8 @@ const DoctorDashboard = () => {
                         </div>
                       </div>
                       <Badge className={`text-xs ${
-                        appt.status === "scheduled" ? "bg-blue-100 text-blue-700" :
-                        appt.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                        appt.status === "scheduled" ? "bg-plum-100 text-plum-700" :
+                        appt.status === "completed" ? "bg-rose-100 text-rose-700" :
                         appt.status === "cancelled" ? "bg-red-100 text-red-700" :
                         "bg-gray-100 text-gray-700"
                       }`}>
@@ -645,7 +645,7 @@ const DoctorDashboard = () => {
                 <div className="space-y-3">
                   {patientProgress.slice(0, 8).map(p => (
                     <div key={p.patientId} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-xs font-medium text-indigo-700">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-plum-100 to-plum-100 flex items-center justify-center text-xs font-medium text-plum-700">
                         {p.patientName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -676,20 +676,20 @@ const DoctorDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-xl font-bold text-blue-600">{appointments.filter(a => a.status === "scheduled").length}</div>
+                <div className="text-center p-3 bg-plum-50 rounded-lg">
+                  <div className="text-xl font-bold text-plum-600">{appointments.filter(a => a.status === "scheduled").length}</div>
                   <p className="text-xs text-muted-foreground">Scheduled</p>
                 </div>
-                <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                  <div className="text-xl font-bold text-emerald-600">{completedAppts}</div>
+                <div className="text-center p-3 bg-rose-50 rounded-lg">
+                  <div className="text-xl font-bold text-rose-600">{completedAppts}</div>
                   <p className="text-xs text-muted-foreground">Completed</p>
                 </div>
                 <div className="text-center p-3 bg-red-50 rounded-lg">
                   <div className="text-xl font-bold text-red-600">{appointments.filter(a => a.status === "cancelled").length}</div>
                   <p className="text-xs text-muted-foreground">Cancelled</p>
                 </div>
-                <div className="text-center p-3 bg-amber-50 rounded-lg">
-                  <div className="text-xl font-bold text-amber-600">{appointments.filter(a => a.status === "no-show").length}</div>
+                <div className="text-center p-3 bg-coral-50 rounded-lg">
+                  <div className="text-xl font-bold text-coral-600">{appointments.filter(a => a.status === "no-show").length}</div>
                   <p className="text-xs text-muted-foreground">No-show</p>
                 </div>
               </div>
@@ -722,15 +722,15 @@ const DoctorDashboard = () => {
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {requests.slice(0, 10).map(req => (
                     <div key={req.id} className={`p-3 rounded-lg border text-sm ${
-                      req.status === "pending" ? "bg-amber-50/50 border-amber-200" :
-                      req.status === "accepted" ? "bg-emerald-50/50 border-emerald-200" :
+                      req.status === "pending" ? "bg-coral-50/50 border-coral-200" :
+                      req.status === "accepted" ? "bg-rose-50/50 border-rose-200" :
                       "bg-muted/30 border-muted"
                     }`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium">{req.patientName}</span>
                         <Badge variant="outline" className={`text-[10px] ${
                           req.urgency === "high" || req.urgency === "emergency" ? "border-red-300 text-red-600" :
-                          req.urgency === "medium" ? "border-amber-300 text-amber-600" :
+                          req.urgency === "medium" ? "border-coral-300 text-coral-600" :
                           "border-gray-300"
                         }`}>
                           {req.urgency}
@@ -742,7 +742,7 @@ const DoctorDashboard = () => {
 
                       {req.status === "pending" && (
                         <div className="flex gap-2 mt-2">
-                          <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 flex-1" onClick={() => updateRequestStatus(req.id, "accepted")}>
+                          <Button size="sm" className="h-7 text-xs bg-rose-600 hover:bg-rose-700 flex-1" onClick={() => updateRequestStatus(req.id, "accepted")}>
                             <Check className="w-3 h-3 mr-1" /> Accept
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => updateRequestStatus(req.id, "rejected")}>
@@ -751,7 +751,7 @@ const DoctorDashboard = () => {
                         </div>
                       )}
                       {req.status !== "pending" && (
-                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-rose-100 text-rose-700" : "bg-red-100 text-red-700"}`}>
                           {req.status}
                         </Badge>
                       )}
@@ -767,7 +767,7 @@ const DoctorDashboard = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-amber-500" />
+                  <Bell className="w-5 h-5 text-coral-500" />
                   <CardTitle>Notifications</CardTitle>
                   {unreadCount > 0 && (
                     <Badge variant="destructive" className="text-xs">{unreadCount}</Badge>
@@ -798,27 +798,27 @@ const DoctorDashboard = () => {
                       key={notif.id}
                       className={`p-3 rounded-lg border cursor-pointer transition-all text-sm ${
                         notif.read ? "bg-muted/20 border-muted" :
-                        notif.type === "consultation_request" ? "bg-blue-50 border-blue-200" :
-                        notif.type === "meal_tracking" ? "bg-emerald-50 border-emerald-200" :
-                        notif.type === "appointment" ? "bg-purple-50 border-purple-200" :
+                        notif.type === "consultation_request" ? "bg-plum-50 border-plum-200" :
+                        notif.type === "meal_tracking" ? "bg-rose-50 border-rose-200" :
+                        notif.type === "appointment" ? "bg-plum-50 border-plum-200" :
                         notif.type === "alert" ? "bg-red-50 border-red-200" :
-                        "bg-amber-50 border-amber-200"
+                        "bg-coral-50 border-coral-200"
                       }`}
                       onClick={() => !notif.read && markNotifRead(notif.id)}
                     >
                       <div className="flex items-start gap-2">
-                        {notif.type === "consultation_request" && <MessageCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />}
-                        {notif.type === "meal_tracking" && <Utensils className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />}
-                        {notif.type === "appointment" && <Calendar className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" />}
+                        {notif.type === "consultation_request" && <MessageCircle className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
+                        {notif.type === "meal_tracking" && <Utensils className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />}
+                        {notif.type === "appointment" && <Calendar className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
                         {notif.type === "alert" && <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}
-                        {notif.type === "info" && <Bell className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />}
+                        {notif.type === "info" && <Bell className="w-4 h-4 text-coral-500 mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs ${notif.read ? "text-muted-foreground" : "font-medium"}`}>
                             {notif.message}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(notif.createdAt)}</p>
                         </div>
-                        {!notif.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 shrink-0" />}
+                        {!notif.read && <div className="w-2 h-2 bg-plum-500 rounded-full mt-1.5 shrink-0" />}
                       </div>
                     </div>
                   ))}

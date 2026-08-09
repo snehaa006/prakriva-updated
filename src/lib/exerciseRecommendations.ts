@@ -38,7 +38,22 @@ export interface Exercise {
   minutes: number;
   /** How to do it. */
   how: string;
+  /** YouTube search terms for a how-to video — see `videoUrl` below. */
+  videoQuery: string;
 }
+
+/**
+ * A YouTube link for an exercise's how-to video.
+ *
+ * Deliberately a *search* URL rather than a hardcoded video id. A specific id
+ * can be taken down, go private, or be re-uploaded as something else entirely,
+ * and a dead or wrong-content link on a page giving health guidance is worse
+ * than no link. A search always resolves and stays current as better videos
+ * appear. Swap in `https://www.youtube.com/watch?v=<id>` per exercise if you
+ * ever want to curate specific videos.
+ */
+export const videoUrl = (exercise: Exercise): string =>
+  `https://www.youtube.com/results?search_query=${encodeURIComponent(exercise.videoQuery)}`;
 
 /** The exercises this module can recommend, keyed by id. */
 const CATALOG: Record<string, Exercise> = {
@@ -49,6 +64,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 20,
     how: "Easy, conversational pace on flat ground. Stop before you feel breathless.",
+    videoQuery: "gentle walking exercise for beginners low intensity",
   },
   "brisk-walk": {
     id: "brisk-walk",
@@ -57,6 +73,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "brisk",
     minutes: 30,
     how: "Fast enough that talking takes effort but singing doesn't happen.",
+    videoQuery: "brisk walking workout proper form technique",
   },
   "post-meal-walk": {
     id: "post-meal-walk",
@@ -65,6 +82,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 15,
     how: "Start 15–30 minutes after each main meal — this is when it blunts the glucose spike.",
+    videoQuery: "walking after meals to lower blood sugar",
   },
   "restorative-yoga": {
     id: "restorative-yoga",
@@ -73,6 +91,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 20,
     how: "Supported, held poses — child's pose, supta baddha konasana, legs-up-the-wall.",
+    videoQuery: "restorative yoga for beginners supported poses",
   },
   "hatha-yoga": {
     id: "hatha-yoga",
@@ -81,6 +100,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "moderate",
     minutes: 30,
     how: "Standing and seated asanas held with steady breath. Cat-cow and gentle twists included.",
+    videoQuery: "hatha yoga full class for beginners",
   },
   "prenatal-yoga": {
     id: "prenatal-yoga",
@@ -89,6 +109,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 25,
     how: "A pregnancy-specific sequence — no deep twists, no lying flat on your back after the first trimester.",
+    videoQuery: "prenatal yoga safe routine for pregnancy",
   },
   "surya-namaskar": {
     id: "surya-namaskar",
@@ -97,6 +118,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "brisk",
     minutes: 15,
     how: "6–12 slow rounds, breath matched to each movement.",
+    videoQuery: "surya namaskar step by step with breathing",
   },
   pranayama: {
     id: "pranayama",
@@ -105,6 +127,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 10,
     how: "Anulom vilom and slow diaphragmatic breathing, seated and unhurried. Never hold the breath to strain.",
+    videoQuery: "anulom vilom pranayama breathing technique for beginners",
   },
   "light-resistance": {
     id: "light-resistance",
@@ -113,6 +136,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 15,
     how: "Resistance bands or bodyweight, high reps and low load. Breathe out on effort — never hold your breath.",
+    videoQuery: "resistance band workout low impact beginners",
   },
   "strength-training": {
     id: "strength-training",
@@ -121,6 +145,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "brisk",
     minutes: 30,
     how: "2–3 sessions a week covering the major muscle groups, with a rest day between them.",
+    videoQuery: "beginner full body strength training workout",
   },
   swimming: {
     id: "swimming",
@@ -129,6 +154,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "moderate",
     minutes: 30,
     how: "Steady laps or water walking — the water carries your joints.",
+    videoQuery: "swimming technique for beginners low impact exercise",
   },
   "water-aerobics": {
     id: "water-aerobics",
@@ -137,6 +163,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "moderate",
     minutes: 30,
     how: "Chest-deep water, continuous movement, no impact through the knees or hips.",
+    videoQuery: "water aerobics workout for beginners",
   },
   "stationary-cycling": {
     id: "stationary-cycling",
@@ -145,6 +172,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "moderate",
     minutes: 25,
     how: "Light resistance, steady cadence, upright posture.",
+    videoQuery: "stationary bike workout beginners low resistance",
   },
   "pelvic-floor": {
     id: "pelvic-floor",
@@ -153,6 +181,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 10,
     how: "3 sets of 10 slow lifts and releases. Relax fully between reps — the release matters as much as the squeeze.",
+    videoQuery: "pelvic floor kegel exercises how to do correctly",
   },
   stretching: {
     id: "stretching",
@@ -161,6 +190,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 15,
     how: "Hold each stretch 30 seconds, to mild tension only, never to pain.",
+    videoQuery: "full body stretching routine for flexibility beginners",
   },
   "core-stability": {
     id: "core-stability",
@@ -169,6 +199,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "moderate",
     minutes: 15,
     how: "Dead bugs, bird dogs and side planks — control over crunches.",
+    videoQuery: "core stability exercises dead bug bird dog side plank",
   },
   "tai-chi": {
     id: "tai-chi",
@@ -177,6 +208,7 @@ const CATALOG: Record<string, Exercise> = {
     intensity: "gentle",
     minutes: 20,
     how: "Slow weight-shifting sequences; good for balance and for calming a racing mind.",
+    videoQuery: "tai chi for beginners slow mindful movement",
   },
 };
 

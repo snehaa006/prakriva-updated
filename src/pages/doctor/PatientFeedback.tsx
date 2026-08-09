@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+import { CHART_RATING_SCALE } from "@/lib/chartColors";
 interface Feedback {
   id: string;
   patientId: string;
@@ -97,11 +98,11 @@ const PatientFeedback = () => {
 
   // Calculate satisfaction metrics
   const satisfactionData = [
-    { name: 'Very Satisfied', value: feedbacks.filter(f => f.rating === 5).length, color: '#22c55e' },
-    { name: 'Satisfied', value: feedbacks.filter(f => f.rating === 4).length, color: '#84cc16' },
-    { name: 'Neutral', value: feedbacks.filter(f => f.rating === 3).length, color: '#eab308' },
-    { name: 'Dissatisfied', value: feedbacks.filter(f => f.rating === 2).length, color: '#f97316' },
-    { name: 'Very Dissatisfied', value: feedbacks.filter(f => f.rating === 1).length, color: '#ef4444' }
+    { name: 'Very Satisfied', value: feedbacks.filter(f => f.rating === 5).length, color: CHART_RATING_SCALE[0] },
+    { name: 'Satisfied', value: feedbacks.filter(f => f.rating === 4).length, color: CHART_RATING_SCALE[1] },
+    { name: 'Neutral', value: feedbacks.filter(f => f.rating === 3).length, color: CHART_RATING_SCALE[2] },
+    { name: 'Dissatisfied', value: feedbacks.filter(f => f.rating === 2).length, color: CHART_RATING_SCALE[3] },
+    { name: 'Very Dissatisfied', value: feedbacks.filter(f => f.rating === 1).length, color: CHART_RATING_SCALE[4] }
   ];
 
   const categoryRatings = [
@@ -162,7 +163,7 @@ const PatientFeedback = () => {
       <Star
         key={i}
         className={`w-4 h-4 ${
-          i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+          i < rating ? 'text-coral-400 fill-coral-400' : 'text-gray-300'
         }`}
       />
     ));

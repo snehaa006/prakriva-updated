@@ -81,22 +81,22 @@ const CheckboxGrid = ({ options, selected, columns, onToggle }: CheckboxGridProp
  * claim. A human still has to approve the doctor server-side.
  */
 const TestDoctorIds = () => (
-  <Alert className="mb-4 border-blue-200 bg-blue-50">
+  <Alert className="mb-4 border-plum-200 bg-plum-50">
     <AlertTriangle className="w-4 h-4" />
     <AlertDescription>
       <div className="text-sm">
-        <p className="font-medium text-blue-700 mb-2">Test Doctor License Numbers:</p>
-        <div className="grid grid-cols-1 gap-1 text-blue-600 text-xs">
+        <p className="font-medium text-plum-700 mb-2">Test Doctor License Numbers:</p>
+        <div className="grid grid-cols-1 gap-1 text-plum-600 text-xs">
           {Object.entries(MOCK_LICENSE_REGISTRY).map(([number, entry]) => (
             <div key={number}>
               <code>{number}</code> - {entry.doctorName}
               {!entry.isValid && (
-                <span className="text-blue-500"> (rejected: {entry.status})</span>
+                <span className="textplum-500"> (rejected: {entry.status})</span>
               )}
             </div>
           ))}
         </div>
-        <p className="text-blue-500 text-xs mt-2">
+        <p className="textplum-500 text-xs mt-2">
           Passing this check records your claim only. Your account stays pending
           until it is verified.
         </p>
@@ -231,13 +231,13 @@ const DoctorSignupSteps = ({
             <Alert
               className={
                 verificationResult.isValid
-                  ? "border-green-200 bg-green-50"
+                  ? "border-rose-200 bg-rose-50"
                   : "border-red-200 bg-red-50"
               }
             >
               <div className="flex items-start gap-2">
                 {verificationResult.isValid ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <CheckCircle className="w-4 h-4 text-rose-500" />
                 ) : (
                   <XCircle className="w-4 h-4 text-red-500" />
                 )}
@@ -245,10 +245,10 @@ const DoctorSignupSteps = ({
                   <AlertDescription>
                     {verificationResult.isValid ? (
                       <div>
-                        <p className="font-medium text-green-700">
+                        <p className="font-medium text-rose-700">
                           License Verified Successfully
                         </p>
-                        <div className="mt-2 text-sm text-green-600">
+                        <div className="mt-2 text-sm text-rose-600">
                           <p>
                             <strong>Doctor:</strong> {verificationResult.doctorName}
                           </p>
@@ -460,7 +460,7 @@ const DoctorSignupSteps = ({
                 <div className="flex items-center gap-2">
                   <div className="w-24 bg-gray-200 rounded-full h-2">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      className="bg-plum-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${score}%` }}
                     />
                   </div>
