@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useApp } from "@/context/AppContext";
-import { useNavigate } from "react-router-dom";
+import { useDoctorPatients } from "@/hooks/useDoctorPatients";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, 
@@ -43,8 +43,14 @@ interface Appointment {
 }
 
 const AppointmentScheduler = () => {
-  const { patients } = useApp();
+  // The doctor's own accepted patients. This used to read `AppContext.patients`,
+  // which nothing ever fills, so the "Patient" dropdown was always empty and no
+  // appointment could be booked at all.
+  const { patients, isLoading: loadingPatients } = useDoctorPatients({
+    statuses: ["accepted"],
+  });
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [showNewAppointment, setShowNewAppointment] = useState(false);
@@ -64,6 +70,17 @@ const AppointmentScheduler = () => {
     '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
   ];
 
+  // "Schedule" on a patient card links here with the patient in the URL, so the
+  // form opens with them already chosen instead of making the doctor find them
+  // in the dropdown again.
+  const requestedPatientId = searchParams.get('patientId');
+
+  useEffect(() => {
+    if (!requestedPatientId) return;
+    setNewAppointment(prev => ({ ...prev, patientId: requestedPatientId }));
+    setShowNewAppointment(true);
+  }, [requestedPatientId]);
+
   const handleScheduleAppointment = () => {
     if (!newAppointment.patientId || !newAppointment.date || !newAppointment.time) {
       toast({
@@ -75,7 +92,14 @@ const AppointmentScheduler = () => {
     }
 
     const patient = patients.find(p => p.id === newAppointment.patientId);
-    if (!patient) return;
+    if (!patient) {
+      toast({
+        title: "Patient Not Found",
+        description: "That patient is no longer in your list. Please pick another.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const appointment: Appointment = {
       id: uuidv4(),
@@ -417,12 +441,15 @@ const AppointmentScheduler = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label>Patient</Label>
-                <Select 
-                  value={newAppointment.patientId} 
+                <Select
+                  value={newAppointment.patientId}
                   onValueChange={(value) => setNewAppointment(prev => ({ ...prev, patientId: value }))}
+                  disabled={loadingPatients || patients.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select patient" />
+                    <SelectValue
+                      placeholder={loadingPatients ? "Loading patients…" : "Select patient"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {patients.map(patient => (
@@ -432,6 +459,11 @@ const AppointmentScheduler = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {!loadingPatients && patients.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    No accepted patients yet — accept a consultation request first.
+                  </p>
+                )}
               </div>
 
               <div>

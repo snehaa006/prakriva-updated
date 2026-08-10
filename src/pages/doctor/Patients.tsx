@@ -642,6 +642,11 @@ const Patients: React.FC = () => {
                       )}
                       <Button
                         size="sm"
+                        onClick={() =>
+                          navigate(
+                            `/doctor/appointments?patientId=${patient.patientId}`
+                          )
+                        }
                         className="gap-1"
                       >
                         <Calendar className="w-3 h-3" />

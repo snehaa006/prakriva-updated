@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 // Native <dialog>-based Dialog engine (Radix-free).
 // -----------------------------------------------------------------------
 
+/** Matches the `duration-300` exit transition on the overlay below. */
+const EXIT_DURATION_MS = 300;
+
 interface DialogContextValue {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -144,21 +147,34 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
     React.useImperativeHandle(ref, () => dialogRef.current as unknown as HTMLDivElement);
 
+    // Mounting has to happen before the <dialog> can be opened: the element is
+    // only rendered once `mounted` is true, so `dialogRef` is still null here on
+    // the render that first asks for `open`.
+    React.useEffect(() => {
+      if (open) setMounted(true);
+    }, [open]);
+
     React.useEffect(() => {
       const node = dialogRef.current;
       if (!node) return;
 
       if (open) {
-        setMounted(true);
         if (!node.open) node.showModal();
         // Trigger entrance transition on next frame.
         const id = requestAnimationFrame(() => setVisible(true));
         return () => cancelAnimationFrame(id);
-      } else {
-        setVisible(false);
-        if (node.open) node.close();
       }
-    }, [open]);
+
+      // Play the exit transition, then close and unmount. A closed <dialog> is
+      // `display: none`, so the fade has to finish before close() — waiting on
+      // transitionend after closing would wait forever.
+      setVisible(false);
+      const id = setTimeout(() => {
+        if (node.open) node.close();
+        setMounted(false);
+      }, EXIT_DURATION_MS);
+      return () => clearTimeout(id);
+    }, [open, mounted]);
 
     React.useEffect(() => {
       const node = dialogRef.current;
@@ -178,7 +194,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
         node.removeEventListener("close", handleClose);
         node.removeEventListener("cancel", handleCancel);
       };
-    }, [onOpenChange]);
+    }, [onOpenChange, mounted]);
 
     // Click-outside (on the ::backdrop, i.e. the dialog element itself).
     const handleDialogClick = (e: React.MouseEvent<HTMLDialogElement>) => {
@@ -187,17 +203,12 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
       }
     };
 
-    const handleTransitionEnd = () => {
-      if (!open) setMounted(false);
-    };
-
     if (!mounted) return null;
 
     return createPortal(
       <dialog
         ref={dialogRef}
         onClick={handleDialogClick}
-        onTransitionEnd={handleTransitionEnd}
         className={cn(
           "m-auto max-w-lg w-full rounded-2xl border border-border bg-card p-6 shadow-xl backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",
           "transition-all duration-300 ease-ios-spring",
