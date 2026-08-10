@@ -7,6 +7,7 @@ import {
   membershipStatusFor,
   profileMatchKeys,
   sortGroupsForPatient,
+  willJoinImmediately,
 } from "../community";
 import type { CommunityGroup, CommunityMembership } from "@/types/community";
 
@@ -86,6 +87,26 @@ describe("isRecommendedFor", () => {
 
   it("leaves unrelated circles unrecommended", () => {
     expect(isRecommendedFor(group("thyroid", ["thyroid"]), ["general", "pcos"])).toBe(
+      false
+    );
+  });
+});
+
+describe("willJoinImmediately", () => {
+  it("lets a pregnant patient straight into the pregnancy circle", () => {
+    const pregnancy = group("pregnancy", ["pregnancy", "gdm", "preeclampsia"]);
+    expect(willJoinImmediately(pregnancy, profileMatchKeys({ lifeStage: "pregnancy" })))
+      .toBe(true);
+  });
+
+  it("admits everyone to the open circle, though it never recommends it", () => {
+    const open = group("womens-wellness", ["general"]);
+    expect(willJoinImmediately(open, ["general"])).toBe(true);
+    expect(isRecommendedFor(open, ["general"])).toBe(false);
+  });
+
+  it("still makes her ask for a circle her record says nothing about", () => {
+    expect(willJoinImmediately(group("pcos", ["pcos"]), ["general", "pregnancy"])).toBe(
       false
     );
   });

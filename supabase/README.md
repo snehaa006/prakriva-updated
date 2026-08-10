@@ -161,12 +161,21 @@ policies are the access control:
   are readable by the patient herself and by approved members of the same circle
   (which is what makes peer approval possible), insertable only for herself, and
   updatable only by approved members. `community_admit()` is the second layer
-  under that update policy: it forces every new request to `pending` (except the
-  founding member of an empty circle, admitted immediately so a new circle is
-  joinable at all), restores every column but `status` on update, and refuses a
-  status change from anyone who is not an approved member. There is no update
-  policy on messages — a message cannot be rewritten after it is read — but an
-  author may delete her own.
+  under that update policy: it forces every new request to `pending` — except a
+  patient whose own record matches the circle, and the founding member of an
+  empty circle, both admitted immediately — restores every column but `status`
+  on update, and refuses a status change from anyone who is not an approved
+  member. There is no update policy on messages — a message cannot be rewritten
+  after it is read — but an author may delete her own.
+- `community_profile_keys()` is what decides that match, and it is `SECURITY
+  DEFINER` reading `patients` and `disease_screenings` directly. It must derive
+  the keys from stored data rather than from the request: a client that could
+  name its own keys could admit itself to any circle. It is only ever called by
+  the trigger, with the id of the row being inserted, which the insert policy has
+  already pinned to `auth.uid()`. `community_condition_key()` is the pure alias
+  lookup underneath it and transcribes `ALIASES` from
+  `src/lib/exerciseRecommendations.ts` — including its ordering, so "gestational
+  diabetes" reaches `gdm` rather than `diabetes`. Keep the two in step.
 - `community_member` is `SECURITY DEFINER` for the same reason as `doctor_treats`,
   with one addition: a policy on `community_memberships` that queried
   `community_memberships` directly would recurse.
@@ -204,7 +213,12 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `diet_plan_authorship`, `diet_plan_builder_payloads`, `seed_demo_doctors`,
 `foodoscope_api_keys`, `disease_screenings`, `patient_pantry_items`,
 `diet_plans_medical_notes_array`, `create_lifestyle_logs`,
-`patient_pantry_items_search_term`, `community_circles`, `pcos_tracking`.
+`patient_pantry_items_search_term`, `doctor_verification_hardening`,
+`community_circles`, `community_auto_join_matching_circles`.
+
+`pcos_tracking` is **not** applied to the live project — `pcos_tracking.sql` is
+in this folder but has never been run, so `patients.health_tracks` and the PCOS
+tracking tables do not exist yet. Apply it before relying on that feature.
 
 `disease_screenings.sql`, `patient_pantry_items.sql`, `lifestyle_logs.sql`,
 `community.sql` and `pcos_tracking.sql` in this folder are the sources for the
@@ -217,6 +231,11 @@ the eight seed circles. The file is re-runnable: every policy is dropped before
 it is recreated and the seed insert is `on conflict (slug) do nothing`. It also
 adds `community_messages` to the `supabase_realtime` publication so the chat
 updates live; that step is guarded, so re-applying it is harmless.
+
+`community_auto_join_matching_circles` added `community_condition_key()` and
+`community_profile_keys()` and rewrote `community_admit()` to admit a patient
+outright into a circle her own record matches, instead of leaving her pending
+until a member noticed. Re-runnable — it is three `create or replace`s.
 
 `pcos_tracking` added the PCOD/PCOS care track: `patients.health_tracks`, the
 `on_auth_user_created_track` trigger that fills it from signup metadata, the

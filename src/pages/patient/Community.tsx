@@ -41,6 +41,7 @@ import {
   isRecommendedFor,
   membershipFor,
   sortGroupsForPatient,
+  willJoinImmediately,
 } from "@/lib/community";
 import {
   decideRequest,
@@ -359,6 +360,10 @@ const Community = () => {
 
   const activeGroup = activeGroupId ? groupsById.get(activeGroupId) : undefined;
 
+  // Whether the dialog promises her the circle now or a wait. The database has
+  // the final say; she is never told to wait and then let in unexpectedly.
+  const joinsImmediately = joining ? willJoinImmediately(joining, matchKeys) : false;
+
   return (
     <div className="flex-1 space-y-6 p-6">
       <div>
@@ -621,7 +626,9 @@ const Community = () => {
                             onClick={() => openJoinDialog(group)}
                           >
                             <UserPlus className="h-4 w-4" />
-                            Ask to join
+                            {willJoinImmediately(group, matchKeys)
+                              ? "Join"
+                              : "Ask to join"}
                           </Button>
                         )}
                       </div>
@@ -701,8 +708,10 @@ const Community = () => {
           <DialogHeader>
             <DialogTitle>Join {joining?.name}</DialogTitle>
             <DialogDescription>
-              {joining?.whoItsFor} A member of the circle sees your request and lets
-              you in.
+              {joining?.whoItsFor}{" "}
+              {joinsImmediately
+                ? "This circle is written for what you're going through, so you'll go straight in."
+                : "A member of the circle sees your request and lets you in."}
             </DialogDescription>
           </DialogHeader>
 
@@ -743,12 +752,12 @@ const Community = () => {
               {isSubmittingJoin ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Sending...
+                  {joinsImmediately ? "Joining..." : "Sending..."}
                 </>
               ) : (
                 <>
                   <UserPlus className="h-4 w-4" />
-                  Send request
+                  {joinsImmediately ? "Join circle" : "Send request"}
                 </>
               )}
             </Button>

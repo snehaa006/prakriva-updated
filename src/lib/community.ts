@@ -63,6 +63,24 @@ export const isRecommendedFor = (group: CommunityGroup, keys: string[]): boolean
   group.matches.some((match) => match !== "general" && keys.includes(match));
 
 /**
+ * Will she be let in on the spot, rather than waiting for a member to approve?
+ *
+ * Any overlap counts here, `general` included: the open circle is open to
+ * everyone, so it admits outright even though it is never *recommended*.
+ *
+ * This only decides what the join dialog promises her — the database makes the
+ * real call in `community_admit()` (supabase/community.sql) from her stored
+ * record, which is why a browser cannot talk its way into a circle. The two
+ * can also disagree harmlessly in her favour: the first patient into an empty
+ * circle is admitted whether or not she matches it, so a request this returns
+ * `false` for may still come back approved.
+ */
+export const willJoinImmediately = (
+  group: CommunityGroup,
+  keys: string[]
+): boolean => group.matches.some((match) => keys.includes(match));
+
+/**
  * A name to post under, from her account name: first name plus the initial of
  * the last. These are circles about miscarriage, mental health and PCOS — the
  * default should not be her full name, though she can type whatever she likes

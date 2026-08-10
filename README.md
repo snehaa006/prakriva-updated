@@ -197,8 +197,9 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/lib/__tests__/exerciseRecommendations.test.ts` — condition → exercise
   matching, the screening findings that feed it, the pregnancy substitutions,
   and a working video link for every recommended exercise.
-- `src/lib/__tests__/community.test.ts` — which circles suit a patient, the
-  browse ordering, display-name defaulting and message validation.
+- `src/lib/__tests__/community.test.ts` — which circles suit a patient, which
+  ones admit her outright, the browse ordering, display-name defaulting and
+  message validation.
 - `src/services/__tests__/communityService.test.ts` — the community row
   mapping, that a join request never sends its own status, and the
   missing-table fallbacks.
@@ -968,15 +969,33 @@ matching keys off them.
   appear on the next send or reload).
 - **Requests** — who is waiting to be let into her circles.
 
-**Joining is always a request.** She picks a display name (defaulted to a first
-name plus an initial — these are circles about miscarriage, mental health and
-PCOS, so the default should not be her full name) and can add a line about
-herself. The status is the **database's** decision, never the browser's: the
-`community_admit()` trigger forces every insert to `pending`, except into a
-circle with no approved members yet, which would otherwise be un-joinable — that
-founding member is admitted immediately. After that, **existing members approve
-the next person**, which keeps moderation inside the circle rather than needing
-an admin the app does not have.
+**A circle written for her lets her straight in; every other circle is a
+request.** She picks a display name (defaulted to a first name plus an initial —
+these are circles about miscarriage, mental health and PCOS, so the default
+should not be her full name) and can add a line about herself. The status is the
+**database's** decision, never the browser's: the `community_admit()` trigger
+forces every insert to `pending` unless one of two things is true.
+
+1. **Her own record matches the circle.** A patient whose profile says she is
+   pregnant joins the Pregnancy Circle and starts chatting immediately, and the
+   same goes for PCOS, thyroid, anaemia and the rest; the open Women's Wellness
+   circle admits everyone, since it is for everyone. Making a woman wait outside
+   the one circle written for her was the thing that read as broken.
+2. **The circle has no approved members yet.** Somebody has to be first, or a
+   new circle has nobody able to approve anyone and stays empty forever.
+
+Everyone else asks, and **existing members approve the next person**, which keeps
+moderation inside the circle rather than needing an admin the app does not have.
+
+The match is recomputed **in Postgres** from what is stored about her —
+`public.community_profile_keys()`, backed by `public.community_condition_key()`,
+which mirror `profileMatchKeys` and `matchConditionKey` in the frontend. It is
+deliberately not read off the request: a browser that could name its own keys
+could talk its way into any circle. The frontend copy ("Join" vs "Ask to join")
+uses `willJoinImmediately` in `src/lib/community.ts` to predict the same answer,
+and the two can only disagree in her favour. **Keep the SQL alias rows in step
+with `ALIASES` in `src/lib/exerciseRecommendations.ts`** — that list is the
+source they are transcribed from.
 
 **Privacy is enforced in Postgres, not in the page.** `public.community_member()`
 (SECURITY DEFINER, so the membership policies don't recurse on their own table)
@@ -991,7 +1010,10 @@ cannot be edited after they are read; an author can delete her own.
 `community_messages` (`supabase/community.sql`), read and written through
 `src/services/communityService.ts`. A missing table degrades gracefully, as
 elsewhere: the page shows "No circles yet" rather than erroring, so a deploy
-that has not applied the SQL does not take the page down. Matching and message
+that has not applied the SQL does not take the page down. **That empty state is
+also what an unapplied `community.sql` looks like** — if Community shows "No
+circles yet" on a working deploy, run the file against the project before
+looking anywhere else. It is re-runnable. Matching and message
 validation are pure functions in `src/lib/community.ts`, unit tested in
 `src/lib/__tests__/community.test.ts`; the service's row mapping and its
 missing-table fallbacks in `src/services/__tests__/communityService.test.ts`.
