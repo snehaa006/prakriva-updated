@@ -131,6 +131,13 @@ plan starts from. See "Care tracks" below.
   embeds it in an iframe so it is reachable from the patient sidebar.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
+- `presentation/index.html` — the HackNite 2026 pitch deck as a standalone,
+  self-contained HTML presentation (16 slides, converted from the original
+  Canva deck). It has no build step and no external requests: all styles,
+  scripts and screenshots are inlined, so opening the file in a browser is
+  enough. Navigate with `←` / `→` (or space, or the on-hover control bar) and
+  press `F` for fullscreen. It is deliberately outside `src/` and is not part
+  of the Vite build.
 
 ## Getting started
 
