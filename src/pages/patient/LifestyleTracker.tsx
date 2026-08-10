@@ -18,13 +18,6 @@ import {
   Moon,
   Activity,
   Droplets,
-  Dumbbell,
-  Wind,
-  Waves,
-  Bike,
-  StretchHorizontal,
-  Footprints,
-  Heart,
   TrendingUp,
   Plus,
   Minus,
@@ -32,16 +25,15 @@ import {
   ArrowLeft,
   Flame,
   Loader2,
-  Youtube,
   FlaskConical,
   Trash2,
-  AlertTriangle,
   Utensils,
   ClipboardCheck,
   CloudOff,
-  Info,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import {
   DEFAULT_WATER_GOAL,
@@ -59,13 +51,19 @@ import {
   type SleepQuality,
 } from "@/lib/lifestyleLog";
 import {
+  conditionsFromScreening,
+  EXERCISE_DISCLAIMER,
   recommendExercises,
-  videoUrl,
   type ConditionInput,
   type Exercise,
-  type ExerciseIcon,
 } from "@/lib/exerciseRecommendations";
-import { isDemoModeAvailable } from "@/lib/demoMode";
+import { ExerciseSuggestions } from "@/components/wellness/ExercisePlan";
+import {
+  isDemoDataOn,
+  isDemoModeAvailable,
+  isDemoRequestedByUrl,
+  setDemoDataOn,
+} from "@/lib/demoMode";
 import {
   buildDemoLogs,
   buildDemoMealTracking,
@@ -79,11 +77,8 @@ import {
   type MealTrackingDay,
 } from "@/lib/dietAdherence";
 import {
-  cacheLifestyleDay,
-  clearCachedLogs,
   loadLifestyleLogs,
   saveLifestyleDay,
-  writeCachedLogs,
 } from "@/services/lifestyleLogService";
 import { fetchMealTracking } from "@/services/mealAdherenceService";
 import {
@@ -95,25 +90,6 @@ import { getNutritionalTargets, type LifeStage } from "@/services/dietChartServi
 
 import { CHART_COLORS } from "@/lib/chartColors";
 const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
-
-const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
-  walk: Footprints,
-  yoga: StretchHorizontal,
-  breathing: Wind,
-  strength: Dumbbell,
-  swim: Waves,
-  cycle: Bike,
-  stretch: StretchHorizontal,
-  heart: Heart,
-};
-
-// One ramp per intensity so the three stay tellable apart at a glance; the
-// badge also spells the word out, so hue is never the only cue.
-const INTENSITY_STYLES: Record<string, string> = {
-  gentle: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-coral-100 text-coral-800 border-coral-200",
-  brisk: "bg-plum-100 text-plum-800 border-plum-200",
-};
 
 const SLEEP_QUALITY_STYLES: Record<string, string> = {
   deep: "bg-rose-100 text-rose-800 border-rose-200",
@@ -133,6 +109,100 @@ const dayNumber = (iso: string) =>
     timeZone: "UTC",
   });
 
+/** Everything the tracker reads on open, loaded as one cacheable snapshot. */
+interface TrackerSnapshot {
+  logs: LifestyleDayLog[];
+  /** False when the logs came from the local cache alone. */
+  synced: boolean;
+  conditions: ConditionInput[];
+  isPregnant: boolean;
+  calorieTarget: CalorieTarget;
+  mealTracking: MealTrackingDay[];
+}
+
+/**
+ * Read the tracker's four sources in one pass.
+ *
+ * Each part fails on its own: a screening service that is down costs the
+ * tailored exercises, not the page, and the logs themselves are local-first so
+ * they survive Supabase being unreachable entirely.
+ */
+const loadTracker = async (patientId: string): Promise<TrackerSnapshot> => {
+  const snapshot: TrackerSnapshot = {
+    logs: [],
+    synced: true,
+    conditions: [],
+    isPregnant: false,
+    calorieTarget: { min: 1800, max: 2200, label: "General Adult" },
+    mealTracking: [],
+  };
+
+  // Cached logs render immediately; the Supabase merge lands underneath.
+  try {
+    const { logs, synced } = await loadLifestyleLogs(patientId);
+    snapshot.logs = logs;
+    snapshot.synced = synced;
+  } catch (error) {
+    console.error("Error loading lifestyle logs:", error);
+  }
+
+  // Conditions come from two places: what she reported in her profile, and
+  // what the maternal screening flagged. Both feed the exercise picks.
+  try {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("assessment_data")
+      .eq("id", patientId)
+      .maybeSingle();
+
+    const assessment = (patient?.assessment_data as AssessmentData) ?? null;
+    const record = (assessment ?? {}) as Record<string, unknown>;
+
+    const reported: ConditionInput[] = [
+      ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
+      ...(typeof record.currentConditionsOther === "string"
+        ? [record.currentConditionsOther]
+        : []),
+    ]
+      .filter((c): c is string => typeof c === "string" && c.trim() !== "")
+      .map((condition) => ({ condition }));
+
+    snapshot.isPregnant = isPregnantPatient(assessment);
+    snapshot.calorieTarget = getNutritionalTargets(
+      (record.lifeStage as LifeStage) ?? "not_applicable",
+      record.pregnancyTrimester as string | undefined,
+      record.isBreastfeeding as string | undefined,
+      record.menopauseStage as string | undefined
+    ).calories;
+
+    // Only moderate/high screening findings shape the plan — a low-risk score
+    // is a reassurance, not a condition to train around.
+    let screened: ConditionInput[] = [];
+    try {
+      const screenings = await fetchScreenings(patientId);
+      screened = conditionsFromScreening(screenings[0]?.result.conditions);
+    } catch (error) {
+      console.error("Error loading screening results:", error);
+    }
+
+    snapshot.conditions = [...screened, ...reported];
+  } catch (error) {
+    console.error("Error loading patient profile:", error);
+  }
+
+  // Diet adherence is read from what she logs on the Meal Logging page.
+  try {
+    snapshot.mealTracking = await fetchMealTracking(
+      patientId,
+      lastNDates(7, todayIso())[0]
+    );
+  } catch (error) {
+    console.error("Error loading meal tracking:", error);
+  }
+
+  return snapshot;
+};
+
 /**
  * The patient's one-page lifestyle tracker.
  *
@@ -146,23 +216,36 @@ const LifestyleTracker = () => {
 
   const today = todayIso();
 
-  const [patientId, setPatientId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LifestyleDayLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSynced, setIsSynced] = useState(true);
-  const [conditions, setConditions] = useState<ConditionInput[]>([]);
-  const [isPregnant, setIsPregnant] = useState(false);
-  const [calorieTarget, setCalorieTarget] = useState<CalorieTarget>({
-    min: 1800,
-    max: 2200,
-    label: "General Adult",
-  });
-  const [mealTracking, setMealTracking] = useState<MealTrackingDay[]>([]);
+  const patientId = useAuthUserId();
 
-  // Demo data is local-only and clearly flagged; see src/lib/demoMode.ts.
+  // Cached: coming back to the tracker re-renders yesterday's streak instantly
+  // instead of spinning while the same four sources are read again. Keyed on
+  // the date too, so a tab left open overnight reloads for the new day.
+  const { data, isFirstLoad } = useCachedPageData(
+    ["lifestyle-tracker", patientId, today],
+    () => loadTracker(patientId as string),
+    { enabled: !!patientId }
+  );
+
+  const conditions = useMemo(() => data?.conditions ?? [], [data]);
+  const isPregnant = data?.isPregnant ?? false;
+  const calorieTarget = useMemo<CalorieTarget>(
+    () => data?.calorieTarget ?? { min: 1800, max: 2200, label: "General Adult" },
+    [data]
+  );
+  const mealTracking = useMemo(() => data?.mealTracking ?? [], [data]);
+
+  const [logs, setLogs] = useState<LifestyleDayLog[]>([]);
+  const [isSynced, setIsSynced] = useState(true);
+
+  // Demo data is generated on the fly from a persisted flag — never written to
+  // Supabase, and never into the lifestyle-log cache either, so it cannot be
+  // mistaken for (or overwrite) the patient's own history. See lib/demoMode.ts.
   const demoAvailable = useMemo(() => isDemoModeAvailable(), []);
   const [isDemoData, setIsDemoData] = useState(false);
   const [demoMealTracking, setDemoMealTracking] = useState<MealTrackingDay[] | null>(null);
+  /** Real logs, parked while demo data is showing so Clear can restore them. */
+  const realLogs = useRef<LifestyleDayLog[]>([]);
 
   // Supabase mirroring is debounced so holding "+" on a water glass doesn't
   // fire an upsert per click; the localStorage cache is written synchronously
@@ -176,95 +259,40 @@ const LifestyleTracker = () => {
     []
   );
 
+  /**
+   * Pick up demo mode from the persisted flag (or `?demo=1`).
+   *
+   * Runs again once the patient id resolves, and only ever switches demo *on* —
+   * turning it off is Clear's job alone, so a late-arriving id can't yank a
+   * demo out from under someone mid-walkthrough.
+   */
   useEffect(() => {
-    let cancelled = false;
+    if (isDemoRequestedByUrl()) {
+      setDemoDataOn(patientId, true);
+      setIsDemoData(true);
+    } else if (isDemoDataOn(patientId)) {
+      setIsDemoData(true);
+    }
+  }, [patientId]);
 
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
-      if (!user) {
-        if (!cancelled) setIsLoading(false);
-        return;
-      }
-      if (!cancelled) setPatientId(user.id);
+  /**
+   * Put the loaded logs on screen — but only when they are newer than what is
+   * already there.
+   *
+   * Logging is local-first and debounced, so a background refresh that landed
+   * mid-edit could otherwise paint a stale server copy over minutes she had
+   * just entered. Demo mode owns `logs` outright while it is on, so it is left
+   * alone here too.
+   */
+  const seededLogs = useRef<LifestyleDayLog[] | null>(null);
+  useEffect(() => {
+    if (!data || seededLogs.current === data.logs) return;
+    seededLogs.current = data.logs;
 
-      // Cached logs render immediately; the Supabase merge lands underneath.
-      try {
-        const { logs: loaded, synced } = await loadLifestyleLogs(user.id);
-        if (!cancelled) {
-          setLogs(loaded);
-          setIsSynced(synced);
-        }
-      } catch (error) {
-        console.error("Error loading lifestyle logs:", error);
-      }
-
-      // Conditions come from two places: what she reported in her profile, and
-      // what the maternal screening flagged. Both feed the exercise picks.
-      try {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("assessment_data")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const assessment = (patient?.assessment_data as AssessmentData) ?? null;
-        const record = (assessment ?? {}) as Record<string, unknown>;
-
-        const reported: ConditionInput[] = [
-          ...(Array.isArray(record.currentConditions) ? record.currentConditions : []),
-          ...(typeof record.currentConditionsOther === "string"
-            ? [record.currentConditionsOther]
-            : []),
-        ]
-          .filter((c): c is string => typeof c === "string" && c.trim() !== "")
-          .map((condition) => ({ condition }));
-
-        if (!cancelled) {
-          setIsPregnant(isPregnantPatient(assessment));
-          setCalorieTarget(
-            getNutritionalTargets(
-              (record.lifeStage as LifeStage) ?? "not_applicable",
-              record.pregnancyTrimester as string | undefined,
-              record.isBreastfeeding as string | undefined,
-              record.menopauseStage as string | undefined
-            ).calories
-          );
-        }
-
-        // Only moderate/high screening findings shape the plan — a low-risk
-        // score is a reassurance, not a condition to train around.
-        let screened: ConditionInput[] = [];
-        try {
-          const screenings = await fetchScreenings(user.id);
-          screened = (screenings[0]?.result.conditions ?? [])
-            .filter((c) => c.risk_level === "moderate" || c.risk_level === "high")
-            .map((c) => ({ condition: c.condition, riskLevel: c.risk_level }));
-        } catch (error) {
-          console.error("Error loading screening results:", error);
-        }
-
-        if (!cancelled) setConditions([...screened, ...reported]);
-      } catch (error) {
-        console.error("Error loading patient profile:", error);
-      }
-
-      // Diet adherence is read from what she logs on the Meal Logging page.
-      try {
-        const rows = await fetchMealTracking(user.id, lastNDates(7, todayIso())[0]);
-        if (!cancelled) setMealTracking(rows);
-      } catch (error) {
-        console.error("Error loading meal tracking:", error);
-      }
-
-      if (!cancelled) setIsLoading(false);
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    realLogs.current = data.logs;
+    setIsSynced(data.synced);
+    if (!isDemoData) setLogs(data.logs);
+  }, [data, isDemoData]);
 
   const todayLog = useMemo(
     () => logs.find((l) => l.date === today) ?? emptyDayLog(today),
@@ -281,18 +309,16 @@ const LifestyleTracker = () => {
           a.date.localeCompare(b.date)
         );
 
-        if (patientId) {
-          if (isDemoData) {
-            // Never mirror fabricated data to Supabase — cache only.
-            cacheLifestyleDay(patientId, updated);
-          } else {
-            if (saveTimer.current) clearTimeout(saveTimer.current);
-            saveTimer.current = setTimeout(() => {
-              void saveLifestyleDay(patientId, updated).then((persisted) =>
-                setIsSynced(persisted)
-              );
-            }, 600);
-          }
+        // While demo data is showing, edits stay in memory: they are changes to
+        // a fabricated month, so persisting them anywhere would be writing
+        // fiction into her real history.
+        if (patientId && !isDemoData) {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(() => {
+            void saveLifestyleDay(patientId, updated).then((persisted) =>
+              setIsSynced(persisted)
+            );
+          }, 600);
         }
 
         return next;
@@ -306,32 +332,40 @@ const LifestyleTracker = () => {
     [conditions, isPregnant]
   );
 
-  /** Fill the tracker with a month of fabricated data, cache-only. */
-  const loadDemoData = useCallback(() => {
-    // Logged against her actual recommended exercises, so the demo month
-    // matches the plan she is being shown.
-    const demoLogs = buildDemoLogs(
-      recommendation.exercises.map((e) => e.id),
-      today
-    );
-    setLogs(demoLogs);
+  // Exercise ids as a stable string, so the regeneration effect below fires
+  // when the recommended plan actually changes rather than on every render.
+  const exerciseIdsKey = recommendation.exercises.map((e) => e.id).join(",");
+
+  /**
+   * Generate (or regenerate) the demo month whenever demo mode is on.
+   *
+   * Anchored to `today` and to her current recommended exercises, so it is
+   * always internally consistent: reopen the page a week later and the streaks
+   * still run up to today instead of trailing off into a stale gap.
+   */
+  useEffect(() => {
+    if (!isDemoData) return;
+    setLogs(buildDemoLogs(exerciseIdsKey ? exerciseIdsKey.split(",") : [], today));
     setDemoMealTracking(buildDemoMealTracking(today, calorieTarget.min));
-    setIsDemoData(true);
-    if (patientId) writeCachedLogs(patientId, demoLogs);
-  }, [recommendation.exercises, today, calorieTarget.min, patientId]);
+  }, [isDemoData, exerciseIdsKey, today, calorieTarget.min]);
+
+  const loadDemoData = useCallback(() => {
+    // No `patientId` guard: the toggle is clickable before auth resolves, and
+    // the flag helpers handle a null id by parking it under a pending key.
+    setDemoDataOn(patientId, true);
+    setIsDemoData(true); // the effect above fills in the month
+  }, [patientId]);
 
   const clearDemoData = useCallback(() => {
+    setDemoDataOn(patientId, false);
+    // Also clear the pre-auth key, so Clear sticks regardless of which one the
+    // demo was switched on under.
+    setDemoDataOn(null, false);
     setIsDemoData(false);
     setDemoMealTracking(null);
-    setLogs([]);
-    if (patientId) clearCachedLogs(patientId);
-    // Re-read whatever is really on the server.
-    if (patientId) {
-      void loadLifestyleLogs(patientId).then(({ logs: real, synced }) => {
-        setLogs(real);
-        setIsSynced(synced);
-      });
-    }
+    // Demo data never touched the cache or the server, so her real logs are
+    // exactly as they were — just put them back on screen.
+    setLogs(realLogs.current);
   }, [patientId]);
 
   const activityStreak = useMemo(() => currentStreak(activeDates(logs), today), [logs, today]);
@@ -398,7 +432,8 @@ const LifestyleTracker = () => {
   const setWaterGoal = (goal: number) =>
     updateToday((log) => ({ ...log, waterGoal: Math.max(1, Math.min(20, goal)) }));
 
-  if (isLoading) {
+  // First visit only — a return to this tab renders from the cached snapshot.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 flex items-center justify-center p-12">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -439,19 +474,19 @@ const LifestyleTracker = () => {
             <span>
               {isDemoData ? (
                 <>
-                  <strong>Showing {DEMO_DAYS} days of demo data.</strong> None of this is
-                  real, and none of it is saved to the server — it lives in this browser
-                  only until you clear it.
+                  <strong>Sample data — showing {DEMO_DAYS} days of example logs.</strong>{" "}
+                  None of this is real and none of it is saved: your own logs are
+                  untouched underneath and come straight back when you clear it.
                 </>
               ) : (
-                <>Testing tools: load {DEMO_DAYS} days of fake data to see the streaks,
-                calendars and charts populated.</>
+                <>See it with data: load {DEMO_DAYS} days of sample logs to fill the
+                streaks, calendars, charts and diet summary.</>
               )}
             </span>
           </div>
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="outline" onClick={loadDemoData}>
-              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of demo data`}
+              {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of sample data`}
             </Button>
             {isDemoData && (
               <Button
@@ -588,107 +623,39 @@ const LifestyleTracker = () => {
 
           {/* Recommended exercises — the only things you can log minutes against,
               so the log always matches the recommendation. */}
-          <div className="grid gap-3 md:grid-cols-2">
-            {recommendation.exercises.map((exercise: Exercise) => {
-              const Icon = EXERCISE_ICONS[exercise.icon] ?? Activity;
+          <ExerciseSuggestions
+            recommendation={recommendation}
+            isDone={(exercise) =>
+              (todayLog.activityMinutes[exercise.id] ?? 0) >= exercise.minutes
+            }
+            renderAction={(exercise: Exercise) => {
               const logged = todayLog.activityMinutes[exercise.id] ?? 0;
-              const done = logged >= exercise.minutes;
-
               return (
-                <div
-                  key={exercise.id}
-                  className={`rounded-lg border p-4 ${done ? "border-rose-200 bg-rose-50/50" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gray-700" />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-medium">{exercise.name}</h4>
-                          <Badge
-                            variant="outline"
-                            className={INTENSITY_STYLES[exercise.intensity]}
-                          >
-                            {exercise.intensity}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600">{exercise.how}</p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Target: {exercise.minutes} min/day
-                        </p>
-                        <a
-                          href={videoUrl(exercise)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
-                        >
-                          <Youtube className="h-3.5 w-3.5" />
-                          Watch how to do it
-                        </a>
-                      </div>
-                    </div>
-                    {done && <CheckCircle2 className="h-5 w-5 shrink-0 text-rose-600" />}
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => adjustExercise(exercise.id, -5)}
-                      disabled={logged === 0}
-                      aria-label={`Remove 5 minutes of ${exercise.name}`}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-16 text-center font-medium">{logged}m</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => adjustExercise(exercise.id, 5)}
-                      aria-label={`Add 5 minutes of ${exercise.name}`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustExercise(exercise.id, -5)}
+                    disabled={logged === 0}
+                    aria-label={`Remove 5 minutes of ${exercise.name}`}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-16 text-center font-medium">{logged}m</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustExercise(exercise.id, 5)}
+                    aria-label={`Add 5 minutes of ${exercise.name}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
               );
-            })}
-          </div>
+            }}
+          />
 
-          {/* Why these, per condition */}
-          <div className="space-y-3">
-            {recommendation.plans.map((plan) => (
-              <div key={plan.key} className="rounded-lg border border-plum-100 bg-plum-50/50 p-4">
-                <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-plum-600" />
-                  <h4 className="font-medium text-plum-900">Why this for {plan.label}</h4>
-                </div>
-                <p className="mt-1 text-sm text-plum-900/80">{plan.rationale}</p>
-              </div>
-            ))}
-          </div>
-
-          {recommendation.avoid.length > 0 && (
-            <div className="rounded-lg border border-red-100 bg-red-50/50 p-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <h4 className="font-medium text-red-900">Avoid for now</h4>
-              </div>
-              <ul className="mt-2 space-y-1 text-sm text-red-900/80">
-                {recommendation.avoid.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span aria-hidden>•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <p className="text-xs text-gray-500">
-            General wellness suggestions based on your health profile — check with your
-            doctor before starting anything new.
-          </p>
+          <p className="text-xs text-gray-500">{EXERCISE_DISCLAIMER.patient}</p>
 
           {/* Streak calendar */}
           <div>

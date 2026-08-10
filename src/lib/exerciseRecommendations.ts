@@ -17,6 +17,14 @@
 
 export type ExerciseIntensity = "gentle" | "moderate" | "brisk";
 
+/** The note every surface closes with — these are suggestions, not orders. */
+export const EXERCISE_DISCLAIMER: Record<"patient" | "clinician", string> = {
+  patient:
+    "General wellness suggestions based on your health profile — check with your doctor before starting anything new.",
+  clinician:
+    "General wellness suggestions derived from the screening result — a guide for the consultation, not a prescription.",
+};
+
 /** Icon slug; the page maps these onto lucide components. */
 export type ExerciseIcon =
   | "walk"
@@ -573,6 +581,31 @@ export interface ConditionInput {
   riskLevel?: string;
 }
 
+/**
+ * The shape of one detected condition on a screening result
+ * (`ConditionRisk` in src/types/diseaseDetection.ts), structurally typed so
+ * this module stays free of app imports and unit testable on plain objects.
+ */
+export interface ScreeningFinding {
+  condition: string;
+  risk_level: string;
+}
+
+/**
+ * Turn a screening result's detected conditions into recommendation inputs.
+ *
+ * Low-risk findings are dropped by default: a low score is a reassurance, not
+ * a condition to train around, and letting it through would bury the risk that
+ * actually needs tailoring under four that don't.
+ */
+export const conditionsFromScreening = (
+  findings: readonly ScreeningFinding[] | undefined | null,
+  { includeLow = false }: { includeLow?: boolean } = {}
+): ConditionInput[] =>
+  (findings ?? [])
+    .filter((finding) => includeLow || finding.risk_level !== "low")
+    .map((finding) => ({ condition: finding.condition, riskLevel: finding.risk_level }));
+
 export interface RecommendationOptions {
   conditions: ConditionInput[];
   isPregnant?: boolean;
@@ -591,6 +624,31 @@ export interface ExerciseRecommendation {
 
 /** Higher risk sorts first so the most pressing condition leads the list. */
 const RISK_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
+
+/**
+ * The exercises for a single plan, with the pregnancy substitutions applied.
+ *
+ * Exposed separately from `recommendExercises` so a results page can show
+ * "for your thyroid risk, these" per condition, rather than one merged list
+ * that no longer says which finding asked for what.
+ */
+export const planExercises = (plan: ExercisePlan, isPregnant = false): Exercise[] => {
+  const ids: string[] = [];
+
+  for (const id of plan.exerciseIds) {
+    const safeId = isPregnant ? PREGNANCY_SUBSTITUTES[id] ?? id : id;
+    if (isPregnant && PREGNANCY_UNSAFE.has(safeId)) continue;
+    if (!ids.includes(safeId)) ids.push(safeId);
+  }
+
+  return ids.map((id) => CATALOG[id]).filter(Boolean);
+};
+
+/** The plan for a condition — canonical key or free text — if we have one. */
+export const planForCondition = (condition: string): ExercisePlan | null => {
+  const key = matchConditionKey(condition);
+  return key ? PLANS[key] : null;
+};
 
 /**
  * Exercises tailored to the conditions a patient actually has.
@@ -622,10 +680,8 @@ export const recommendExercises = ({
   const avoid: string[] = [];
 
   for (const plan of plans) {
-    for (const id of plan.exerciseIds) {
-      const safeId = isPregnant ? PREGNANCY_SUBSTITUTES[id] ?? id : id;
-      if (isPregnant && PREGNANCY_UNSAFE.has(safeId)) continue;
-      if (!exerciseIds.includes(safeId)) exerciseIds.push(safeId);
+    for (const exercise of planExercises(plan, isPregnant)) {
+      if (!exerciseIds.includes(exercise.id)) exerciseIds.push(exercise.id);
     }
     for (const item of plan.avoid) {
       if (!avoid.includes(item)) avoid.push(item);

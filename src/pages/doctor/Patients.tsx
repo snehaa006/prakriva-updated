@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthUserId } from '@/hooks/useAuthUserId';
+import { useCachedPageData } from '@/hooks/useCachedPageData';
 import { supabase } from '@/lib/supabase';
 import { isPregnantPatient } from '@/services/diseaseDetectionService';
 
@@ -94,132 +96,114 @@ interface Patient {
   doctorEmail: string;
 }
 
+/**
+ * The doctor's accepted patients, in one round trip: the accepted requests
+ * plus the joined patient row, instead of a per-request follow-up read.
+ */
+const fetchAcceptedPatients = async (doctorId: string): Promise<Patient[]> => {
+  const { data: requests, error } = await supabase
+    .from('consultation_requests')
+    .select(`
+      id, patient_id, patient_name, patient_email, patient_phone,
+      request_type, requested_at, status_updated_at,
+      doctor_id, doctor_name, doctor_email, full_patient_profile,
+      patients (
+        patient_code, name, assessment_data, registration_date,
+        created_at, profile_completed, status
+      )
+    `)
+    .eq('doctor_id', doctorId)
+    .eq('status', 'accepted');
+
+  if (error) throw error;
+
+  const patientsData: Patient[] = (requests ?? []).map((data: any) => {
+    let enhancedPatientProfile = data.full_patient_profile || {
+      name: data.patient_name || 'Unknown Patient',
+      age: undefined,
+      gender: undefined,
+      phoneNumber: data.patient_phone,
+      address: undefined,
+      medicalHistory: [],
+      allergies: [],
+      currentMedications: [],
+      bloodGroup: undefined,
+      emergencyContact: undefined
+    };
+
+    const patientData = data.patients;
+    if (patientData) {
+      enhancedPatientProfile = {
+        ...enhancedPatientProfile,
+        patientId: patientData.patient_code || data.patient_id,
+        name: patientData.name || enhancedPatientProfile.name,
+        assessmentData: patientData.assessment_data || enhancedPatientProfile.assessmentData,
+        registrationDate: patientData.registration_date || patientData.created_at,
+        profileCompleted: patientData.profile_completed,
+        status: patientData.status || 'active',
+        ...(patientData.assessment_data && {
+          gender: patientData.assessment_data.gender || enhancedPatientProfile.gender,
+          phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessment_data.phoneNumber,
+          address: patientData.assessment_data.location || enhancedPatientProfile.address,
+        })
+      };
+    }
+
+    return {
+      id: data.id,
+      patientId: data.patient_id || '',
+      patientName: data.patient_name || 'Unknown Patient',
+      patientEmail: data.patient_email || '',
+      patientPhone: data.patient_phone,
+      requestType: data.request_type || 'consultation',
+      acceptedAt: data.status_updated_at || data.requested_at || new Date().toISOString(),
+      doctorId: data.doctor_id || '',
+      doctorName: data.doctor_name || '',
+      doctorEmail: data.doctor_email || '',
+      fullPatientProfile: enhancedPatientProfile
+    };
+  });
+
+  // One row per patient, even if they have several accepted requests.
+  return patientsData.filter(
+    (patient, index, self) =>
+      index === self.findIndex((p) => p.patientId === patient.patientId)
+  );
+};
+
 const Patients: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [genderFilter, setGenderFilter] = useState('all');
   const [ageFilter, setAgeFilter] = useState('all');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showPatientProfile, setShowPatientProfile] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [copiedPatientId, setCopiedPatientId] = useState<string | null>(null);
 
+  const doctorId = useAuthUserId();
+
+  // Cached, so coming back from a patient's analysis re-renders the list
+  // rather than blanking it. Still polled while open, because the list changes
+  // when a patient's request is accepted elsewhere.
+  const { data, error, isFirstLoad } = useCachedPageData(
+    ["doctor-accepted-patients", doctorId],
+    () => fetchAcceptedPatients(doctorId as string),
+    { enabled: !!doctorId, refreshMs: 60_000 }
+  );
+
+  const patients = useMemo(() => data ?? [], [data]);
+
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchAcceptedPatients = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUser = authData.user;
-      if (!currentUser) {
-        console.error('No authenticated user');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('Fetching accepted patients for doctor:', currentUser.id);
-
-      try {
-        // One round trip: the accepted requests plus the joined patient row,
-        // instead of a per-request follow-up read.
-        const { data: requests, error } = await supabase
-          .from('consultation_requests')
-          .select(`
-            id, patient_id, patient_name, patient_email, patient_phone,
-            request_type, requested_at, status_updated_at,
-            doctor_id, doctor_name, doctor_email, full_patient_profile,
-            patients (
-              patient_code, name, assessment_data, registration_date,
-              created_at, profile_completed, status
-            )
-          `)
-          .eq('doctor_id', currentUser.id)
-          .eq('status', 'accepted');
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        console.log('Received accepted requests, documents:', requests?.length ?? 0);
-
-        const patientsData: Patient[] = (requests ?? []).map((data: any) => {
-          let enhancedPatientProfile = data.full_patient_profile || {
-            name: data.patient_name || 'Unknown Patient',
-            age: undefined,
-            gender: undefined,
-            phoneNumber: data.patient_phone,
-            address: undefined,
-            medicalHistory: [],
-            allergies: [],
-            currentMedications: [],
-            bloodGroup: undefined,
-            emergencyContact: undefined
-          };
-
-          const patientData = data.patients;
-          if (patientData) {
-            enhancedPatientProfile = {
-              ...enhancedPatientProfile,
-              patientId: patientData.patient_code || data.patient_id,
-              name: patientData.name || enhancedPatientProfile.name,
-              assessmentData: patientData.assessment_data || enhancedPatientProfile.assessmentData,
-              registrationDate: patientData.registration_date || patientData.created_at,
-              profileCompleted: patientData.profile_completed,
-              status: patientData.status || 'active',
-              ...(patientData.assessment_data && {
-                gender: patientData.assessment_data.gender || enhancedPatientProfile.gender,
-                phoneNumber: enhancedPatientProfile.phoneNumber || patientData.assessment_data.phoneNumber,
-                address: patientData.assessment_data.location || enhancedPatientProfile.address,
-              })
-            };
-          }
-
-          return {
-            id: data.id,
-            patientId: data.patient_id || '',
-            patientName: data.patient_name || 'Unknown Patient',
-            patientEmail: data.patient_email || '',
-            patientPhone: data.patient_phone,
-            requestType: data.request_type || 'consultation',
-            acceptedAt: data.status_updated_at || data.requested_at || new Date().toISOString(),
-            doctorId: data.doctor_id || '',
-            doctorName: data.doctor_name || '',
-            doctorEmail: data.doctor_email || '',
-            fullPatientProfile: enhancedPatientProfile
-          };
-        });
-
-        // Remove duplicates based on patientId
-        const uniquePatients = patientsData.filter((patient, index, self) => 
-          index === self.findIndex((p) => p.patientId === patient.patientId)
-        );
-
-        console.log('Processed unique accepted patients:', uniquePatients.length);
-        setPatients(uniquePatients);
-        setIsLoading(false);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Error fetching accepted patients:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load patients. Please try again.',
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-      }
-    };
-
-    fetchAcceptedPatients();
-
-    // Set up periodic refresh every 60 seconds
-    const interval = setInterval(fetchAcceptedPatients, 60000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [toast]);
+    if (!error) return;
+    console.error('Error fetching accepted patients:', error);
+    toast({
+      title: 'Error',
+      description: 'Failed to load patients. Please try again.',
+      variant: 'destructive',
+    });
+  }, [error, toast]);
 
   useEffect(() => {
     applyFilters();
@@ -347,7 +331,8 @@ const Patients: React.FC = () => {
     );
   };
 
-  if (isLoading) {
+  // First visit only — a return to this tab renders from the cached list.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 p-6">
         <div className="flex items-center justify-center min-h-[60vh]">

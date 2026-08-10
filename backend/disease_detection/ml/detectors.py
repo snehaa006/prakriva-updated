@@ -12,14 +12,26 @@ haemoglobin would make anaemia scoring meaningless.
 from typing import List
 
 from ..recommendations import get_recommendations
-from ..rules import detect_anaemia, detect_gdm, detect_pregnancy_risk, detect_thyroid
+from ..rules import (
+    detect_anaemia,
+    detect_gdm,
+    detect_preeclampsia,
+    detect_pregnancy_risk,
+    detect_thyroid,
+)
 from ..schemas import ConditionRisk, RiskLevel, ScreeningInput
-from .inference import predict_from_screening, predict_gdm, predict_thyroid
+from .inference import (
+    predict_from_screening,
+    predict_gdm,
+    predict_preeclampsia,
+    predict_thyroid,
+)
 
 ANAEMIA_DETECTOR = "anaemia-xgb-v1"
 PREGNANCY_RISK_DETECTOR = "pregnancy-risk-xgb-v1"
 GDM_DETECTOR = "gdm-logreg-v1"
 THYROID_DETECTOR = "thyroid-nn-v1"
+PREECLAMPSIA_DETECTOR = "preeclampsia-logreg-v1"
 
 #: Anemia grade -> (representative 0-100 score, risk level). Scores sit inside
 #: the band `rules.classify` would assign, so mixed rules/ML runs stay coherent.
@@ -296,9 +308,83 @@ def detect_thyroid_ml(inputs: ScreeningInput) -> ConditionRisk:
     )
 
 
+_PREECLAMPSIA_LEVELS = {
+    "low": RiskLevel.LOW,
+    "moderate": RiskLevel.MODERATE,
+    "high": RiskLevel.HIGH,
+}
+
+
+def _preeclampsia_driver_reasons(inputs: ScreeningInput) -> List[str]:
+    """Plain-language factors behind the preeclampsia score."""
+    reasons: List[str] = []
+    sys_bp, dia_bp = inputs.bp_systolic, inputs.bp_diastolic
+    if sys_bp is not None and dia_bp is not None:
+        if sys_bp >= 160 or dia_bp >= 110:
+            reasons.append(f"Severe hypertension ({sys_bp}/{dia_bp})")
+        elif sys_bp >= 140 or dia_bp >= 90:
+            reasons.append(f"Hypertension ({sys_bp}/{dia_bp})")
+    if inputs.proteinuria == "positive":
+        reasons.append("Protein in urine")
+    if inputs.hypertension_history:
+        reasons.append("History of high blood pressure")
+    if inputs.diabetes:
+        reasons.append("Diabetes")
+    if inputs.bmi is not None and inputs.bmi >= 30:
+        reasons.append(f"Obesity (BMI {inputs.bmi:.1f})")
+    if inputs.age >= 35:
+        reasons.append(f"Maternal age {inputs.age}")
+    if inputs.has_any("blurred_vision", "headache", "swelling"):
+        reasons.append("Preeclampsia symptoms reported")
+    return reasons
+
+
+def detect_preeclampsia_ml(inputs: ScreeningInput) -> ConditionRisk:
+    """Preeclampsia risk from the logistic regression model.
+
+    Falls back to the rule-based detector without blood pressure: preeclampsia
+    is defined around hypertension, so scoring a patient whose BP is unknown
+    would rest almost entirely on population medians.
+    """
+    if inputs.bp_systolic is None or inputs.bp_diastolic is None:
+        return detect_preeclampsia(inputs)
+
+    prediction = predict_preeclampsia(inputs)
+    risk_level = _PREECLAMPSIA_LEVELS[prediction.risk_level]
+
+    reasons: List[str] = [
+        f"Estimated preeclampsia risk: {_format_probability(prediction.probability)}",
+        *_preeclampsia_driver_reasons(inputs),
+    ]
+    ultrasound = [
+        f for f in prediction.imputed_features
+        if f in ("fetal weight(kgs)", "amniotic fluid levels(cm)")
+    ]
+    if ultrasound:
+        reasons.append(
+            "Estimated without your latest scan measurements — add them for a "
+            "sharper result"
+        )
+
+    return ConditionRisk(
+        condition="preeclampsia",
+        label="Preeclampsia",
+        score=round(prediction.probability * 100, 1),
+        risk_level=risk_level,
+        reasons=reasons,
+        recommendations=get_recommendations("preeclampsia", risk_level),
+        detector=PREECLAMPSIA_DETECTOR,
+        details={
+            "probability": prediction.probability,
+            "imputed_features": prediction.imputed_features,
+        },
+    )
+
+
 # `available_conditions()` reports this name for the active detector, so tag the
 # functions with their versioned name (falls back to __name__ otherwise).
 detect_anaemia_ml.detector_name = ANAEMIA_DETECTOR
 detect_pregnancy_risk_ml.detector_name = PREGNANCY_RISK_DETECTOR
 detect_gdm_ml.detector_name = GDM_DETECTOR
 detect_thyroid_ml.detector_name = THYROID_DETECTOR
+detect_preeclampsia_ml.detector_name = PREECLAMPSIA_DETECTOR

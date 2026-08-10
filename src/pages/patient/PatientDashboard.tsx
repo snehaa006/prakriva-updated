@@ -38,6 +38,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import {
   getRecipesByCalories,
@@ -237,13 +238,40 @@ function getGreeting(): string {
 // Component
 // ──────────────────────────────────────────────
 
+/** The dashboard's slice of the patient's record. */
+const fetchDashboardProfile = async (
+  patientId: string,
+  fallbackName?: string
+): Promise<PatientProfile | null> => {
+  const { data, error } = await supabase
+    .from("patients")
+    .select("name, allergies, assessment_data")
+    .eq("id", patientId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const assessment = (data.assessment_data as Record<string, any>) || {};
+  return {
+    name: data.name || fallbackName || "Patient",
+    lifeStage: assessment.lifeStage || "not_applicable",
+    pregnancyTrimester: assessment.pregnancyTrimester,
+    dietaryPreferences: assessment.dietaryPreferences,
+    allergies: assessment.allergies || data.allergies || [],
+    healthGoals: assessment.healthGoals || [],
+    currentConditions: assessment.currentConditions || [],
+    isBreastfeeding: assessment.isBreastfeeding,
+    menopauseStage: assessment.menopauseStage,
+  };
+};
+
 const PatientDashboard = () => {
   const navigate = useNavigate();
   const { user } = useApp();
 
   // Patient profile
   const [profile, setProfile] = useState<PatientProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
 
   // Diet plans
   const [activePlan, setActivePlan] = useState<DietPlanDoc | null>(null);
@@ -284,39 +312,23 @@ const PatientDashboard = () => {
   const [trackingHistory, setTrackingHistory] = useState<Record<string, { eaten: number; total: number; calories: number }>>({});
 
   // ── Load patient profile ──
+  //
+  // Cached: the dashboard is the tab everything else returns to, so it should
+  // paint from the last load rather than spinning on every visit.
+  const { data: loadedProfile, error: profileError, isFirstLoad: loadingProfile } =
+    useCachedPageData(
+      ["patient-dashboard-profile", user?.id ?? null],
+      () => fetchDashboardProfile(user!.id, user?.name),
+      { enabled: !!user?.id }
+    );
+
   useEffect(() => {
-    if (!user?.id) return;
-    const loadProfile = async () => {
-      setLoadingProfile(true);
-      try {
-        const { data: d, error } = await supabase
-          .from("patients")
-          .select("name, allergies, assessment_data")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (error) throw error;
-        if (d) {
-          const assessment = (d.assessment_data as any) || {};
-          setProfile({
-            name: d.name || user.name || "Patient",
-            lifeStage: assessment.lifeStage || "not_applicable",
-            pregnancyTrimester: assessment.pregnancyTrimester,
-            dietaryPreferences: assessment.dietaryPreferences,
-            allergies: assessment.allergies || d.allergies || [],
-            healthGoals: assessment.healthGoals || [],
-            currentConditions: assessment.currentConditions || [],
-            isBreastfeeding: assessment.isBreastfeeding,
-            menopauseStage: assessment.menopauseStage,
-          });
-        }
-      } catch (e) {
-        console.error("Error loading profile:", e);
-      } finally {
-        setLoadingProfile(false);
-      }
-    };
-    loadProfile();
-  }, [user?.id]);
+    if (profileError) console.error("Error loading profile:", profileError);
+  }, [profileError]);
+
+  useEffect(() => {
+    if (loadedProfile) setProfile(loadedProfile);
+  }, [loadedProfile]);
 
   // ── Load diet plans ──
   useEffect(() => {

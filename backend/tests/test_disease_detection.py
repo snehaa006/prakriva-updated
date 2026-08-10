@@ -374,6 +374,73 @@ class TestMLDetectors:
 
         assert gdm.detector == "rules-v1"
 
+    def test_preeclampsia_model_is_active(self):
+        from disease_detection import available_conditions
+
+        active = {c["condition"]: c["detector"] for c in available_conditions()}
+        assert active["preeclampsia"] == "preeclampsia-logreg-v1"
+
+    def test_preeclampsia_separates_high_from_low_risk(self, healthy_input):
+        low = healthy_input.model_copy(
+            update={"bp_systolic": 112, "bp_diastolic": 70, "proteinuria": "negative"}
+        )
+        high = healthy_input.model_copy(
+            update={
+                "age": 38,
+                "bmi": 33.0,
+                "bp_systolic": 162,
+                "bp_diastolic": 108,
+                "proteinuria": "positive",
+                "hypertension_history": True,
+                "diabetes": True,
+            }
+        )
+        low_risk = next(
+            c for c in run_screening(low).conditions if c.condition == "preeclampsia"
+        )
+        high_risk = next(
+            c for c in run_screening(high).conditions if c.condition == "preeclampsia"
+        )
+
+        assert high_risk.score > low_risk.score
+        assert high_risk.risk_level == RiskLevel.HIGH
+        assert low_risk.risk_level == RiskLevel.LOW
+
+    def test_preeclampsia_without_bp_falls_back_to_rules(self, healthy_input):
+        inputs = healthy_input.model_copy(
+            update={"bp_systolic": None, "bp_diastolic": None}
+        )
+        pre = next(
+            c for c in run_screening(inputs).conditions if c.condition == "preeclampsia"
+        )
+
+        assert pre.detector == "rules-v1"
+
+    def test_preeclampsia_flags_missing_scan_measurements(self, healthy_input):
+        no_scan = healthy_input.model_copy(
+            update={"fetal_weight_kg": None, "amniotic_fluid_cm": None}
+        )
+        pre = next(
+            c for c in run_screening(no_scan).conditions if c.condition == "preeclampsia"
+        )
+
+        assert "fetal weight(kgs)" in pre.details["imputed_features"]
+        assert any("scan measurements" in r for r in pre.reasons)
+
+    def test_unknown_proteinuria_is_not_read_as_negative(self, healthy_input):
+        """"Not performed" must not be scored as a negative result."""
+        from disease_detection.ml.inference import predict_preeclampsia
+
+        base = healthy_input.model_copy(
+            update={"bp_systolic": 145, "bp_diastolic": 95}
+        )
+        unknown = predict_preeclampsia(base.model_copy(update={"proteinuria": "unknown"}))
+        positive = predict_preeclampsia(
+            base.model_copy(update={"proteinuria": "positive"})
+        )
+
+        assert positive.probability > unknown.probability
+
     def test_thyroid_model_is_active(self):
         from disease_detection import available_conditions
 

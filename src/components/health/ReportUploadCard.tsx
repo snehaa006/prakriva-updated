@@ -34,6 +34,8 @@ const FIELD_LABELS: Record<keyof ExtractedValues, { label: string; unit?: string
   tt4: { label: "Total T4", unit: "µg/dL" },
   t4u: { label: "T4 uptake" },
   fti: { label: "Free thyroxine index" },
+  fetal_weight_kg: { label: "Baby's estimated weight", unit: "kg" },
+  amniotic_fluid_cm: { label: "Amniotic fluid index", unit: "cm" },
   bp_systolic: { label: "Systolic BP", unit: "mmHg" },
   bp_diastolic: { label: "Diastolic BP", unit: "mmHg" },
 };

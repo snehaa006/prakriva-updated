@@ -201,9 +201,18 @@ class DatasetLoader:
                 logger.error(f"Failed to load {name} dataset: {e.message}")
                 errors.append(f"{name}: {e.message}")
         
-        if not datasets.get("food") or not datasets.get("dosha"):
+        # A DataFrame has no truth value, so `not datasets.get("food")` raised
+        # ValueError("The truth value of a DataFrame is ambiguous") on every
+        # successful load — the check was failing precisely when the datasets
+        # were fine. Test explicitly for absent or empty frames instead.
+        missing_critical = [
+            name
+            for name in ("food", "dosha")
+            if datasets.get(name) is None or datasets[name].empty
+        ]
+        if missing_critical:
             raise DatasetError(
-                "Critical datasets (food, dosha) failed to load",
+                f"Critical datasets ({', '.join(missing_critical)}) failed to load",
                 "CRITICAL_DATASETS_MISSING"
             )
         

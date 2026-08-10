@@ -42,6 +42,8 @@ export const emptyScreeningInput = (): ScreeningInput => ({
   previous_uti: false,
   gestational_diabetes_previous: false,
   known_prediabetes: false,
+  diabetes: false,
+  hypertension_history: false,
   unexplained_prenatal_loss: false,
   large_baby_previous: false,
   history_depression: false,
@@ -80,6 +82,8 @@ export const emptyScreeningInput = (): ScreeningInput => ({
   hemoglobin: null,
   hba1c: null,
   ogtt_1hr: null,
+  fetal_weight_kg: null,
+  amniotic_fluid_cm: null,
   hdl: null,
   triglycerides: null,
   urine_wbc: null,
@@ -294,16 +298,48 @@ interface ScreeningRow {
   result: ScreeningResult;
 }
 
-/** Past screenings for a patient, newest first. Empty when the table is absent. */
-export const fetchScreenings = async (
+/**
+ * Past screenings for a patient, newest first. Empty when the table is absent.
+ *
+ * Defaults to a year's worth of daily checks — high enough that the patient's
+ * "Past Checks" history and its date-range filters see the whole 3+ month
+ * window rather than being silently truncated to the most recent 20.
+ */
+/** A patient's health-check page in one load: her profile and her screenings. */
+export interface HealthCheckSnapshot {
+  assessment: AssessmentData;
+  screenings: StoredScreening[];
+}
+
+/**
+ * Everything the patient's Health Check needs, gathered so it can be cached as
+ * one snapshot and re-rendered instantly when she returns to the tab.
+ */
+export const loadHealthCheck = async (
   patientId: string
+): Promise<HealthCheckSnapshot> => {
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("assessment_data")
+    .eq("id", patientId)
+    .maybeSingle();
+
+  return {
+    assessment: (patient?.assessment_data as AssessmentData) ?? null,
+    screenings: await fetchScreenings(patientId),
+  };
+};
+
+export const fetchScreenings = async (
+  patientId: string,
+  limit = 400
 ): Promise<StoredScreening[]> => {
   const { data, error } = await supabase
     .from("disease_screenings")
     .select("id, patient_id, doctor_id, submitted_by, created_at, inputs, result")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(limit);
 
   if (error) {
     if (isMissingTable(error)) return [];

@@ -544,6 +544,69 @@ export const ThyroidSection: React.FC<SectionProps> = ({ form, update }) => (
   </div>
 );
 
+/**
+ * Blood-pressure history, urine protein and the scan measurements the
+ * preeclampsia model uses. Blood pressure itself lives in the measurements
+ * section, since it is also read by the anaemia and pregnancy-risk models.
+ */
+export const PreeclampsiaSection: React.FC<SectionProps> = ({ form, update }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <NumberField
+        id="fetal_weight_kg"
+        label="Baby's estimated weight (kg)"
+        step="0.01"
+        value={form.fetal_weight_kg}
+        onChange={(v) => update("fetal_weight_kg", v)}
+        placeholder="e.g. 1.4"
+      />
+      <NumberField
+        id="amniotic_fluid_cm"
+        label="Amniotic fluid index (cm)"
+        step="0.1"
+        value={form.amniotic_fluid_cm}
+        onChange={(v) => update("amniotic_fluid_cm", v)}
+        placeholder="e.g. 13"
+      />
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Protein in urine</Label>
+        <Select
+          value={form.proteinuria}
+          onValueChange={(v) => update("proteinuria", v as ScreeningInput["proteinuria"])}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unknown">Not tested</SelectItem>
+            <SelectItem value="positive">Yes, protein found</SelectItem>
+            <SelectItem value="negative">No protein</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+    <Separator />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <BoolField
+        id="hypertension_history"
+        label="History of high blood pressure"
+        checked={form.hypertension_history}
+        onChange={(v) => update("hypertension_history", v)}
+      />
+      <BoolField
+        id="diabetes"
+        label="Diagnosed with diabetes"
+        checked={form.diabetes}
+        onChange={(v) => update("diabetes", v)}
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      The scan values come from your latest ultrasound report — leave them blank
+      if you do not have it.
+    </p>
+  </div>
+);
+
 /** The symptom checklist plus the thyroid/GDM specific signs. */
 export const SymptomsSection: React.FC<SectionProps> = ({ form, update }) => {
   const toggleSymptom = (symptom: SymptomKey, checked: boolean) =>

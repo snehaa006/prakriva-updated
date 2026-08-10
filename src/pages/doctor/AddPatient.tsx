@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,8 @@ import {
   Droplet
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
+import { useAuthUserId } from '@/hooks/useAuthUserId';
+import { useCachedPageData } from '@/hooks/useCachedPageData';
 import { supabase } from '@/lib/supabase';
 import { withDoctorTitle } from '@/services/doctorService';
 
@@ -94,9 +96,68 @@ interface ConsultationRequest {
   doctorEmail: string;
 }
 
+/** Every consultation request addressed to this doctor, newest first. */
+const fetchConsultationRequests = async (
+  doctorId: string
+): Promise<ConsultationRequest[]> => {
+  const { data: rows, error } = await supabase
+    .from('consultation_requests')
+    .select('*')
+    .eq('doctor_id', doctorId)
+    .order('requested_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (rows ?? []).map((data: any) => ({
+    id: data.id,
+    patientId: data.patient_id || '',
+    patientName: data.patient_name || 'Unknown Patient',
+    patientEmail: data.patient_email || '',
+    patientPhone: data.patient_phone,
+    requestType: data.request_type || 'consultation',
+    urgency: data.urgency || 'medium',
+    preferredConsultationMode: data.preferred_consultation_mode,
+    message: data.message,
+    status: data.status || 'pending',
+    requestedAt: data.requested_at || new Date().toISOString(),
+    responseMessage: data.response_message ?? undefined,
+    respondedAt: data.status_updated_at ?? undefined,
+    doctorId: data.doctor_id || '',
+    doctorName: data.doctor_name || '',
+    doctorEmail: data.doctor_email || '',
+    fullPatientProfile: data.full_patient_profile || {
+      name: data.patient_name || 'Unknown Patient',
+      age: undefined,
+      gender: undefined,
+      phoneNumber: data.patient_phone,
+      address: undefined,
+      medicalHistory: [],
+      allergies: [],
+      currentMedications: [],
+      bloodGroup: undefined,
+      emergencyContact: undefined
+    }
+  }));
+};
+
 const ConsultationRequests: React.FC = () => {
   const { toast } = useToast();
-  const [requests, setRequests] = useState<ConsultationRequest[]>([]);
+  const doctorId = useAuthUserId();
+
+  // Cached, so switching away and back shows the queue immediately; still
+  // polled while open, since new requests arrive from patients at any time.
+  const {
+    data: loadedRequests,
+    error: requestsError,
+    isFirstLoad,
+    refresh: refreshRequests,
+  } = useCachedPageData(
+    ['doctor-consultation-requests', doctorId],
+    () => fetchConsultationRequests(doctorId as string),
+    { enabled: !!doctorId, refreshMs: 30_000 }
+  );
+
+  const requests = useMemo(() => loadedRequests ?? [], [loadedRequests]);
   const [filteredRequests, setFilteredRequests] = useState<ConsultationRequest[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -106,90 +167,17 @@ const ConsultationRequests: React.FC = () => {
   const [responseMessage, setResponseMessage] = useState('');
   const [showResponseDialog, setShowResponseDialog] = useState(false);
   const [responseType, setResponseType] = useState<'accept' | 'decline'>('accept');
-  const [isLoading, setIsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchRequests = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUser = authData.user;
-      if (!currentUser) {
-        console.error('No authenticated user');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('Fetching requests for doctor:', currentUser.id);
-
-      try {
-        const { data: rows, error } = await supabase
-          .from('consultation_requests')
-          .select('*')
-          .eq('doctor_id', currentUser.id)
-          .order('requested_at', { ascending: false });
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        console.log('Received requests, documents:', rows?.length ?? 0);
-
-        const requestsData: ConsultationRequest[] = (rows ?? []).map((data: any) => ({
-          id: data.id,
-          patientId: data.patient_id || '',
-          patientName: data.patient_name || 'Unknown Patient',
-          patientEmail: data.patient_email || '',
-          patientPhone: data.patient_phone,
-          requestType: data.request_type || 'consultation',
-          urgency: data.urgency || 'medium',
-          preferredConsultationMode: data.preferred_consultation_mode,
-          message: data.message,
-          status: data.status || 'pending',
-          requestedAt: data.requested_at || new Date().toISOString(),
-          responseMessage: data.response_message ?? undefined,
-          respondedAt: data.status_updated_at ?? undefined,
-          doctorId: data.doctor_id || '',
-          doctorName: data.doctor_name || '',
-          doctorEmail: data.doctor_email || '',
-          fullPatientProfile: data.full_patient_profile || {
-            name: data.patient_name || 'Unknown Patient',
-            age: undefined,
-            gender: undefined,
-            phoneNumber: data.patient_phone,
-            address: undefined,
-            medicalHistory: [],
-            allergies: [],
-            currentMedications: [],
-            bloodGroup: undefined,
-            emergencyContact: undefined
-          }
-        }));
-
-        console.log('Processed requests:', requestsData.length);
-        setRequests(requestsData);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching consultation requests:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load consultation requests. Please try again.',
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-      }
-    };
-
-    fetchRequests();
-
-    // Set up periodic refresh every 30 seconds to get new requests
-    const interval = setInterval(fetchRequests, 30000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [toast]);
+    if (!requestsError) return;
+    console.error('Error fetching consultation requests:', requestsError);
+    toast({
+      title: 'Error',
+      description: 'Failed to load consultation requests. Please try again.',
+      variant: 'destructive',
+    });
+  }, [requestsError, toast]);
 
   useEffect(() => {
     applyFilters();
@@ -293,17 +281,9 @@ const ConsultationRequests: React.FC = () => {
         console.warn('Failed to create patient notification:', notifyError.message);
       }
 
-      // Update local state immediately
-      setRequests(prev => prev.map(req => 
-        req.id === selectedRequest.id 
-          ? { 
-              ...req, 
-              status: responseType === 'accept' ? 'accepted' : 'rejected',
-              responseMessage: responseMessage.trim(),
-              respondedAt: timestamp
-            } 
-          : req
-      ));
+      // Re-read rather than patching a second copy of the row: the decision
+      // was just written, so the refreshed queue is the truth.
+      await refreshRequests();
 
       toast({
         title: responseType === 'accept' ? 'Request Accepted' : 'Request Declined',
@@ -416,7 +396,8 @@ const ConsultationRequests: React.FC = () => {
     return age;
   };
 
-  if (isLoading) {
+  // First visit only — a return to this tab renders from the cached queue.
+  if (isFirstLoad) {
     return (
       <div className="flex-1 p-6">
         <div className="flex items-center justify-center min-h-[60vh]">

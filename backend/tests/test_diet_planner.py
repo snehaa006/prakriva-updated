@@ -301,11 +301,18 @@ class TestGenerateDietChart:
 
 class TestKeyRotation:
     @pytest.fixture(autouse=True)
-    def reset_active_key(self):
-        """Rotation state is module-level, so it must not leak between tests."""
+    def reset_rotation_state(self):
+        """Rotation state is module-level, so it must not leak between tests.
+
+        Both halves matter: the active-key pointer *and* the cooldown table. A
+        key parked by one test would otherwise be sorted to the back of the
+        candidate order in the next one.
+        """
         gemini_service._active_key_index = 0
+        gemini_service._cooldown_until.clear()
         yield
         gemini_service._active_key_index = 0
+        gemini_service._cooldown_until.clear()
 
     def keys_used(self, post):
         return [call.kwargs["params"]["key"] for call in post.call_args_list]
@@ -339,30 +346,51 @@ class TestKeyRotation:
 
         assert len(self.keys_used(post)) == 2
 
-    def test_an_invalid_key_400_rotates_but_a_bad_request_400_does_not(self):
+    def test_a_400_rotates(self):
+        # Gemini also returns 400 for a disabled or malformed key, so it counts
+        # as the key's problem rather than the request's.
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b"]), \
              patch("gemini_service.requests.post", side_effect=[
                  FakeResponse(400, text="API key not valid"), ok_response(gemini_reply(days=1))
              ]) as post:
             gemini_service.generate("hello", "rules")
+
         assert len(self.keys_used(post)) == 2
 
-        gemini_service._active_key_index = 0
+    def test_a_status_no_key_can_fix_is_raised_without_burning_the_pool(self):
+        # A 404 (unknown model, say) fails identically on every key.
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b"]), \
              patch("gemini_service.requests.post",
-                   return_value=FakeResponse(400, text="invalid argument")) as post:
+                   return_value=FakeResponse(404, text="model not found")) as post:
             with pytest.raises(GeminiUnavailable):
                 gemini_service.generate("hello", "rules")
-        # A malformed request fails the same way on every key, so don't burn them.
+
         assert len(self.keys_used(post)) == 1
 
     def test_when_every_key_fails_it_gives_up(self):
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b", "key-c"]), \
              patch("gemini_service.requests.post", return_value=FakeResponse(429)) as post:
-            with pytest.raises(GeminiUnavailable, match="All 3 Gemini API keys failed"):
+            with pytest.raises(GeminiUnavailable, match="Gemini is unavailable"):
                 gemini_service.generate("hello", "rules")
 
-        assert self.keys_used(post) == ["key-a", "key-b", "key-c"]
+        assert sorted(self.keys_used(post)) == ["key-a", "key-b", "key-c"]
+
+    def test_a_cooling_key_is_tried_last_rather_than_dropped(self):
+        # Every key cooling must still leave a usable call — the pool degrades
+        # in ordering, never in availability.
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b"]), \
+             patch("gemini_service.requests.post", return_value=FakeResponse(429)):
+            with pytest.raises(GeminiUnavailable):
+                gemini_service.generate("hello", "rules")
+
+        assert len(gemini_service._cooldown_until) == 2
+
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b"]), \
+             patch("gemini_service.requests.post",
+                   return_value=ok_response(gemini_reply(days=1))) as post:
+            gemini_service.generate("hello again", "rules")
+
+        assert len(self.keys_used(post)) == 1
 
     def test_a_network_failure_tries_the_next_key(self):
         import requests as requests_lib

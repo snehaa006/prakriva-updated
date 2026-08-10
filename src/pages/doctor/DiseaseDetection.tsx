@@ -33,25 +33,25 @@ import {
   YAxis,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
+import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
+import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
 import {
   AnalysisUnavailableError,
   analyseScreenings,
   isAnalysisEnabled,
 } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
-import { CHART_COLORS, CHART_NEUTRALS, CHART_RISK } from "@/lib/chartColors";
+import { CHART_COLORS, CHART_NEUTRALS } from "@/lib/chartColors";
 import {
   AssessmentData,
   fetchScreenings,
   isPregnantPatient,
 } from "@/services/diseaseDetectionService";
-import {
-  RiskLevel,
-  ScreeningInput,
-  StoredScreening,
-} from "@/types/diseaseDetection";
+import { ScreeningInput, StoredScreening } from "@/types/diseaseDetection";
 
 interface PregnantPatient {
   patientId: string;
@@ -99,9 +99,6 @@ const CHART = {
   secondary: CHART_COLORS.activity,
 };
 
-/** Risk hues for the trend lines, matching the badges in `RISK_STYLES`. */
-const RISK_HEX: Record<RiskLevel, string> = CHART_RISK;
-
 /** Numeric vitals we can trend from a screening's inputs. */
 interface VitalMetric {
   key: keyof ScreeningInput;
@@ -139,6 +136,49 @@ const tooltipProps = {
   labelStyle: { color: CHART_NEUTRALS.tick, fontWeight: 600 },
 } as const;
 
+/**
+ * The doctor's accepted patients who are pregnant, de-duplicated and sorted.
+ *
+ * Every score on this page is calibrated on maternal conditions, so a patient
+ * who is not pregnant has nothing to show here and is left out.
+ */
+const fetchPregnantPatients = async (doctorId: string): Promise<PregnantPatient[]> => {
+  const { data, error } = await supabase
+    .from("consultation_requests")
+    .select(
+      `id, patient_id, patient_name, patient_email,
+       patients ( patient_code, name, assessment_data )`
+    )
+    .eq("doctor_id", doctorId)
+    .eq("status", "accepted");
+
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const pregnant: PregnantPatient[] = [];
+
+  for (const row of data ?? []) {
+    const record = row as unknown as ConsultationRow;
+    const assessment = record.patients?.assessment_data;
+    const patientId = record.patient_id;
+
+    if (!patientId || seen.has(patientId)) continue;
+    if (!isPregnantPatient(assessment)) continue;
+
+    seen.add(patientId);
+    pregnant.push({
+      patientId,
+      name: record.patients?.name || record.patient_name || "Unknown patient",
+      email: record.patient_email || "",
+      patientCode: record.patients?.patient_code,
+      trimester: assessment?.pregnancyTrimester as string | undefined,
+      assessmentData: assessment,
+    });
+  }
+
+  return pregnant.sort((a, b) => a.name.localeCompare(b.name));
+};
+
 /** A compact stat tile for the headline numbers above the charts. */
 const StatTile: React.FC<{
   icon: React.ReactNode;
@@ -162,8 +202,7 @@ const DiseaseDetection: React.FC = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [patients, setPatients] = useState<PregnantPatient[]>([]);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const doctorId = useAuthUserId();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
@@ -179,77 +218,33 @@ const DiseaseDetection: React.FC = () => {
   const [aiError, setAiError] = useState<string | null>(null);
   const [isAnalysing, setIsAnalysing] = useState(false);
 
+  // --- The doctor's accepted patients, keeping the pregnant ones -----------
+  //
+  // Cached: moving between a patient's analysis and the rest of the app comes
+  // back to the same list instead of reloading it behind a spinner.
+  const { data: loadedPatients, error: patientsError, isFirstLoad: isLoadingPatients } =
+    useCachedPageData(
+      ["pregnant-patients", doctorId],
+      () => fetchPregnantPatients(doctorId as string),
+      { enabled: !!doctorId }
+    );
+
+  const patients = useMemo(() => loadedPatients ?? [], [loadedPatients]);
+
   const selectedPatient = useMemo(
     () => patients.find((p) => p.patientId === selectedPatientId) ?? null,
     [patients, selectedPatientId]
   );
 
-  // --- Load the doctor's accepted patients, keeping the pregnant ones -------
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) {
-        setIsLoadingPatients(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("consultation_requests")
-          .select(
-            `id, patient_id, patient_name, patient_email,
-             patients ( patient_code, name, assessment_data )`
-          )
-          .eq("doctor_id", authData.user.id)
-          .eq("status", "accepted");
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        const seen = new Set<string>();
-        const pregnant: PregnantPatient[] = [];
-
-        for (const row of data ?? []) {
-          const record = row as unknown as ConsultationRow;
-          const assessment = record.patients?.assessment_data;
-          const patientId = record.patient_id;
-
-          if (!patientId || seen.has(patientId)) continue;
-          if (!isPregnantPatient(assessment)) continue;
-
-          seen.add(patientId);
-          pregnant.push({
-            patientId,
-            name: record.patients?.name || record.patient_name || "Unknown patient",
-            email: record.patient_email || "",
-            patientCode: record.patients?.patient_code,
-            trimester: assessment?.pregnancyTrimester as string | undefined,
-            assessmentData: assessment,
-          });
-        }
-
-        pregnant.sort((a, b) => a.name.localeCompare(b.name));
-        setPatients(pregnant);
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Error loading pregnant patients:", error);
-        toast({
-          title: "Could not load patients",
-          description: "Failed to fetch your accepted patients. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        if (!cancelled) setIsLoadingPatients(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [toast]);
+    if (!patientsError) return;
+    console.error("Error loading pregnant patients:", patientsError);
+    toast({
+      title: "Could not load patients",
+      description: "Failed to fetch your accepted patients. Please try again.",
+      variant: "destructive",
+    });
+  }, [patientsError, toast]);
 
   // --- Selecting a patient pulls her recorded screenings ------------------
   const selectPatient = useCallback(
@@ -329,22 +324,6 @@ const DiseaseDetection: React.FC = () => {
   const hasData = (key: string) => chartRows.some((r) => r[key] != null);
   const availableVitals = VITAL_METRICS.filter((m) => hasData(m.key as string));
   const hasBP = hasData("bp_systolic") || hasData("bp_diastolic");
-
-  // Per-condition score series for the risk trend (needs ≥2 points to trend).
-  const riskSeries = useMemo(() => {
-    if (!latest || screeningsInRange.length < 2) return [];
-    return latest.result.conditions.map((c) => ({
-      condition: c.condition,
-      label: c.label,
-      riskLevel: c.risk_level,
-      currentScore: c.score,
-      data: screeningsInRange.map((s) => ({
-        label: dayLabel(s.createdAt),
-        score:
-          s.result.conditions.find((x) => x.condition === c.condition)?.score ?? null,
-      })),
-    }));
-  }, [latest, screeningsInRange]);
 
   const rangeLabel = rangeDays === 0 ? "all recorded screenings" : `the last ${rangeDays} days`;
 
@@ -813,72 +792,7 @@ const DiseaseDetection: React.FC = () => {
                 </Card>
 
                 {/* --- Risk score trend (small multiples) --- */}
-                {riskSeries.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        Risk score trend
-                      </CardTitle>
-                      <CardDescription>
-                        How each condition's 0–100 risk score has moved over{" "}
-                        {rangeLabel}. Line colour is the latest risk level.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {riskSeries.map((s) => (
-                          <div key={s.condition} className="rounded-lg border p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-medium">{s.label}</h4>
-                              <Badge
-                                variant="outline"
-                                className={RISK_STYLES[s.riskLevel].badge}
-                              >
-                                {s.currentScore}%
-                              </Badge>
-                            </div>
-                            <ResponsiveContainer width="100%" height={120}>
-                              <LineChart
-                                data={s.data}
-                                margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
-                              >
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke={CHART.grid}
-                                  vertical={false}
-                                />
-                                <XAxis
-                                  dataKey="label"
-                                  tick={{ fontSize: 10, fill: CHART.axis }}
-                                  tickLine={false}
-                                  axisLine={{ stroke: CHART.grid }}
-                                />
-                                <YAxis
-                                  domain={[0, 100]}
-                                  tick={{ fontSize: 10, fill: CHART.axis }}
-                                  tickLine={false}
-                                  axisLine={false}
-                                  width={32}
-                                />
-                                <Tooltip {...tooltipProps} />
-                                <Line
-                                  name="Risk score"
-                                  type="monotone"
-                                  dataKey="score"
-                                  stroke={RISK_HEX[s.riskLevel]}
-                                  strokeWidth={2}
-                                  dot={{ r: 3 }}
-                                  connectNulls
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <RiskScoreTrend screenings={screeningsInRange} rangeLabel={rangeLabel} />
 
                 {/* --- Detected conditions & risk (latest screening) --- */}
                 {latest && (
@@ -898,6 +812,16 @@ const DiseaseDetection: React.FC = () => {
                       </p>
                     </div>
                     <ScreeningResultsView result={latest.result} audience="clinician" />
+
+                    {/* Movement is the intervention the doctor hands over at the
+                        end of the consultation, so the plan for the conditions
+                        just flagged sits with them. Every patient on this page
+                        is pregnant, so the pregnancy-safe substitutions apply. */}
+                    <ScreeningExercisePlan
+                      result={latest.result}
+                      isPregnant
+                      audience="clinician"
+                    />
                   </div>
                 )}
               </>

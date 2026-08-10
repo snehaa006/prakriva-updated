@@ -43,18 +43,20 @@ class Settings:
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
         # Gemini — narrative analysis of screening results, the patient
-        # assistant and diet chart generation. Server-side only: a VITE_-prefixed
-        # key would be readable in the browser bundle. No key at all disables
-        # those features rather than breaking the API.
+        # assistant/chatbot and diet chart generation. Server-side only: a
+        # VITE_-prefixed key would be readable in the browser bundle. No key at
+        # all disables those features rather than breaking the API.
         #
-        # Several keys may be supplied so a quota-exhausted or revoked key does
-        # not take the features down: GEMINI_API_KEY plus GEMINI_API_KEY2,
-        # GEMINI_API_KEY3, … (or one comma-separated GEMINI_API_KEY). They are
-        # tried in order, and gemini_service sticks to whichever one last
-        # worked.
+        # Several keys may be supplied so one hitting its rate limit or daily
+        # quota does not take the features down — which matters most for the
+        # chatbot (called far more than the occasional screening write-up) and
+        # for diet chart generation (one large request per plan). Set
+        # GEMINI_API_KEY plus GEMINI_API_KEY2, GEMINI_API_KEY3, … or give
+        # GEMINI_API_KEY a comma-separated list. gemini_service tries them in
+        # order and sticks to whichever one last worked.
         self.GEMINI_API_KEYS = self._collect_gemini_keys()
-        # The first key, kept as its own setting so existing callers and the
-        # health check keep working unchanged.
+        # The first key, kept as its own setting for backward compatibility with
+        # callers and the health check that read it directly.
         self.GEMINI_API_KEY = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
         self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.3))
@@ -95,6 +97,24 @@ class Settings:
         # Rate limiting
         self.RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", 30))
         self.RATE_LIMIT_PER_HOUR = int(os.getenv("RATE_LIMIT_PER_HOUR", 500))
+
+        # Where flask-limiter keeps its counters. Must be set explicitly:
+        # left unset, flask-limiter picks in-memory storage and warns about it
+        # on every boot ("no storage was explicitly specified"), which is the
+        # noise you see in the Render deploy log.
+        #
+        # "memory://" is the honest default for this deployment — Render's free
+        # plan runs a single Waitress process (WEB_CONCURRENCY=1), so one shared
+        # in-process counter is correct. It is only wrong once there is more
+        # than one worker/instance, because each process would then count
+        # separately and the effective limit would multiply. At that point set
+        # RATELIMIT_STORAGE_URI (or REDIS_URL) to a Redis instance — e.g.
+        # Render Key Value — and the limits become global again.
+        self.RATELIMIT_STORAGE_URI = (
+            os.getenv("RATELIMIT_STORAGE_URI")
+            or os.getenv("REDIS_URL")
+            or "memory://"
+        )
         
         # Caching
         self.CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
