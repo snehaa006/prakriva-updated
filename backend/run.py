@@ -151,31 +151,40 @@ class ProductionRunner:
     
     def setup_logging(self):
         """Setup production logging"""
-        # Remove default loguru handler
+        # Replace the handlers config.py installed at import time with the
+        # runner's own.
         logger.remove()
-        
-        # Add file logging
-        log_file = "logs/app.log"
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        
+
+        # Console logging always comes first, in every environment. Hosted
+        # platforms (Render, Vercel, Docker) capture stdout as *the* log
+        # stream — they cannot read logs/app.log, and the container's disk is
+        # thrown away on redeploy. Making this development-only meant every
+        # production boot, including a crash during startup, was completely
+        # silent in the Render dashboard.
         logger.add(
-            log_file,
-            rotation="1 day",
-            retention="30 days",
+            sys.stdout,
             level=settings.LOG_LEVEL,
             format=settings.LOG_FORMAT,
-            compression="zip"
+            colorize=settings.FLASK_ENV == 'development',
         )
-        
-        # Add console logging for development
-        if settings.FLASK_ENV == 'development':
+
+        # File logging is a local convenience on top of that. A read-only or
+        # full filesystem must not take the process down, so failures here are
+        # reported to stdout and otherwise ignored.
+        log_file = "logs/app.log"
+        try:
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
             logger.add(
-                sys.stdout,
+                log_file,
+                rotation="1 day",
+                retention="30 days",
                 level=settings.LOG_LEVEL,
                 format=settings.LOG_FORMAT,
-                colorize=True
+                compression="zip"
             )
-        
+        except OSError as e:
+            logger.warning(f"File logging disabled ({log_file}: {e}); logging to stdout only")
+
         logger.success("Logging configured successfully")
     
     def create_directories(self):

@@ -54,12 +54,28 @@ def create_app() -> Flask:
     vercel_preview_pattern = re.compile(r"^https://[a-z0-9-]+\.vercel\.app$")
     CORS(app, origins=[*settings.ALLOWED_ORIGINS, vercel_preview_pattern])
     
-    # Configure rate limiting
+    # Configure rate limiting. storage_uri is passed explicitly (see
+    # settings.RATELIMIT_STORAGE_URI) — without it flask-limiter falls back to
+    # in-memory storage *and* emits a UserWarning on every boot.
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
-        default_limits=[f"{settings.RATE_LIMIT_PER_HOUR} per hour"]
+        default_limits=[f"{settings.RATE_LIMIT_PER_HOUR} per hour"],
+        storage_uri=settings.RATELIMIT_STORAGE_URI,
     )
+
+    if settings.RATELIMIT_STORAGE_URI.startswith("memory://"):
+        # Fine for the single-process deployment we run today, but worth
+        # saying out loud so it is obvious what to change when scaling out.
+        logger.info(
+            "Rate limits are counted in process memory. Set RATELIMIT_STORAGE_URI "
+            "(or REDIS_URL) to a shared Redis instance before running more than "
+            "one worker, otherwise each worker enforces its own separate limit."
+        )
+    else:
+        logger.info(
+            f"Rate limit storage: {settings.RATELIMIT_STORAGE_URI.split('://')[0]}://…"
+        )
     
     # Configure caching
     cache = Cache(app, config={

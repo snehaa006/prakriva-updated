@@ -100,6 +100,24 @@ class Settings:
         # Rate limiting
         self.RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", 30))
         self.RATE_LIMIT_PER_HOUR = int(os.getenv("RATE_LIMIT_PER_HOUR", 500))
+
+        # Where flask-limiter keeps its counters. Must be set explicitly:
+        # left unset, flask-limiter picks in-memory storage and warns about it
+        # on every boot ("no storage was explicitly specified"), which is the
+        # noise you see in the Render deploy log.
+        #
+        # "memory://" is the honest default for this deployment — Render's free
+        # plan runs a single Waitress process (WEB_CONCURRENCY=1), so one shared
+        # in-process counter is correct. It is only wrong once there is more
+        # than one worker/instance, because each process would then count
+        # separately and the effective limit would multiply. At that point set
+        # RATELIMIT_STORAGE_URI (or REDIS_URL) to a Redis instance — e.g.
+        # Render Key Value — and the limits become global again.
+        self.RATELIMIT_STORAGE_URI = (
+            os.getenv("RATELIMIT_STORAGE_URI")
+            or os.getenv("REDIS_URL")
+            or "memory://"
+        )
         
         # Caching
         self.CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
