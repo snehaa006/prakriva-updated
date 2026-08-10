@@ -1,11 +1,15 @@
 // Patient signup, in two steps.
 //
-// The first step is the account itself; the second asks which care pathway she
-// is here for and then asks only the questions that pathway needs. A pregnant
-// patient is asked for a due date; a PCOD/PCOS patient is asked about her
-// diagnosis, her cycle and what she wants tracked — questions that would be
-// meaningless the other way round, which is why one shared form was never
-// going to work.
+// The first step is the account itself; the second asks what she is here for
+// and then asks only the questions those answers need. A pregnant patient is
+// asked for a due date; a PCOD/PCOS patient is asked about her diagnosis, her
+// cycle and what she wants tracked — questions that would be meaningless the
+// other way round, which is why one shared form was never going to work.
+//
+// The tracks are **checkboxes, not a radio group**. Pregnancy and PCOS
+// routinely coexist, and a form that forced a choice between them would make a
+// pregnant PCOS patient pick which half of her care to give up. Ticking both
+// shows both sets of questions.
 //
 // Everything collected here is a starting point, not a substitute for the
 // onboarding questionnaire: it seeds `assessment_data` so the trackers and the
@@ -16,26 +20,29 @@ import { Label } from "@/components/ui/label";
 import { Baby, Check, HeartPulse, Sparkles } from "lucide-react";
 import AccountFields, { type AccountFormData } from "./AccountFields";
 import {
+  GENERAL_TRACK_DESCRIPTION,
+  GENERAL_TRACK_LABEL,
+  HEALTH_TRACKS,
   HEALTH_TRACK_DESCRIPTIONS,
   HEALTH_TRACK_LABELS,
   type HealthTrack,
+  type HealthTracks,
 } from "@/lib/healthTrack";
 import type { TrackSignupDetails } from "@/services/healthTrackService";
 import { PCOS_CONCERNS } from "./patientTrackOptions";
 
-/** The pathways a patient can pick at signup, in the order they are shown. */
-const TRACK_OPTIONS: { track: HealthTrack; icon: typeof Baby }[] = [
-  { track: "pregnancy", icon: Baby },
-  { track: "pcos", icon: HeartPulse },
-  { track: "general", icon: Sparkles },
-];
+const TRACK_ICONS: Record<HealthTrack, typeof Baby> = {
+  pregnancy: Baby,
+  pcos: HeartPulse,
+};
 
 interface PatientSignupStepsProps {
   step: number;
   formData: AccountFormData;
   onFormChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  track: HealthTrack | null;
-  onTrackChange: (track: HealthTrack) => void;
+  /** Null until she has answered; an empty array is "general wellness". */
+  tracks: HealthTracks | null;
+  onTracksChange: (tracks: HealthTracks) => void;
   details: TrackSignupDetails;
   onDetailChange: (field: keyof TrackSignupDetails, value: string | string[]) => void;
   isLoading?: boolean;
@@ -45,8 +52,8 @@ const PatientSignupSteps = ({
   step,
   formData,
   onFormChange,
-  track,
-  onTrackChange,
+  tracks,
+  onTracksChange,
   details,
   onDetailChange,
   isLoading = false,
@@ -62,6 +69,16 @@ const PatientSignupSteps = ({
     );
   }
 
+  const selected = tracks ?? [];
+  const isGeneral = tracks !== null && tracks.length === 0;
+
+  const toggleTrack = (track: HealthTrack) =>
+    onTracksChange(
+      selected.includes(track)
+        ? selected.filter((t) => t !== track)
+        : HEALTH_TRACKS.filter((t) => t === track || selected.includes(t))
+    );
+
   const toggleConcern = (value: string) => {
     const current = details.concerns ?? [];
     onDetailChange(
@@ -75,54 +92,109 @@ const PatientSignupSteps = ({
   return (
     <div className="space-y-5">
       <fieldset>
-        <legend className="mb-2 text-sm font-medium">
-          What are you here for? *
-        </legend>
+        <legend className="text-sm font-medium">What are you here for? *</legend>
+        <p className="mb-2 text-xs text-gray-500">
+          Tick everything that applies — many people are both pregnant and
+          managing PCOD/PCOS.
+        </p>
         <div className="space-y-2">
-          {TRACK_OPTIONS.map(({ track: option, icon: Icon }) => {
-            const selected = track === option;
+          {HEALTH_TRACKS.map((track) => {
+            const Icon = TRACK_ICONS[track];
+            const checked = selected.includes(track);
             return (
               <label
-                key={option}
+                key={track}
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                  selected
+                  checked
                     ? "border-primary bg-primary/5"
                     : "border-gray-200 hover:bg-gray-50"
                 }`}
               >
                 <input
-                  type="radio"
-                  name="healthTrack"
-                  value={option}
-                  checked={selected}
-                  onChange={() => onTrackChange(option)}
+                  type="checkbox"
+                  name="healthTracks"
+                  value={track}
+                  checked={checked}
+                  onChange={() => toggleTrack(track)}
                   className="sr-only"
                   disabled={isLoading}
                 />
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+                    checked ? "border-primary bg-primary" : "border-gray-300"
+                  }`}
+                  aria-hidden
+                >
+                  {checked && <Check className="h-3 w-3 text-white" />}
+                </span>
                 <Icon
                   className={`mt-0.5 h-5 w-5 shrink-0 ${
-                    selected ? "text-primary" : "text-gray-400"
+                    checked ? "text-primary" : "text-gray-400"
                   }`}
+                  aria-hidden
                 />
                 <span className="min-w-0">
                   <span
-                    className={`block text-sm ${selected ? "font-semibold text-primary" : "font-medium"}`}
+                    className={`block text-sm ${checked ? "font-semibold text-primary" : "font-medium"}`}
                   >
-                    {HEALTH_TRACK_LABELS[option]}
+                    {HEALTH_TRACK_LABELS[track]}
                   </span>
                   <span className="block text-xs text-gray-500">
-                    {HEALTH_TRACK_DESCRIPTIONS[option]}
+                    {HEALTH_TRACK_DESCRIPTIONS[track]}
                   </span>
                 </span>
-                {selected && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />}
               </label>
             );
           })}
+
+          {/* "Neither" is its own control rather than an unticked state, so a
+              patient who genuinely wants no condition tracking gives an answer
+              instead of leaving the question blank. */}
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              isGeneral ? "border-primary bg-primary/5" : "border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <input
+              type="checkbox"
+              name="healthTracks"
+              value="general"
+              checked={isGeneral}
+              onChange={() => onTracksChange([])}
+              className="sr-only"
+              disabled={isLoading}
+            />
+            <span
+              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+                isGeneral ? "border-primary bg-primary" : "border-gray-300"
+              }`}
+              aria-hidden
+            >
+              {isGeneral && <Check className="h-3 w-3 text-white" />}
+            </span>
+            <Sparkles
+              className={`mt-0.5 h-5 w-5 shrink-0 ${
+                isGeneral ? "text-primary" : "text-gray-400"
+              }`}
+              aria-hidden
+            />
+            <span className="min-w-0">
+              <span
+                className={`block text-sm ${isGeneral ? "font-semibold text-primary" : "font-medium"}`}
+              >
+                {GENERAL_TRACK_LABEL}
+              </span>
+              <span className="block text-xs text-gray-500">
+                {GENERAL_TRACK_DESCRIPTION}
+              </span>
+            </span>
+          </label>
         </div>
       </fieldset>
 
-      {/* Asked of everyone: BMI needs both, and the weight log starts here. */}
-      {track && (
+      {/* Asked of everyone who answered: BMI needs both, and the weight log
+          starts here. */}
+      {tracks !== null && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="heightCm">Height (cm)</Label>
@@ -154,7 +226,7 @@ const PatientSignupSteps = ({
         </div>
       )}
 
-      {track === "pregnancy" && (
+      {selected.includes("pregnancy") && (
         <div>
           <Label htmlFor="dueDate">Estimated due date</Label>
           <Input
@@ -171,7 +243,7 @@ const PatientSignupSteps = ({
         </div>
       )}
 
-      {track === "pcos" && (
+      {selected.includes("pcos") && (
         <div className="space-y-4">
           <div>
             <Label htmlFor="diagnosisStatus">Has a doctor diagnosed it? *</Label>
@@ -225,7 +297,11 @@ const PatientSignupSteps = ({
               </p>
             </div>
             <div>
-              <Label htmlFor="lastPeriodStart">Last period started</Label>
+              <Label htmlFor="lastPeriodStart">
+                {selected.includes("pregnancy")
+                  ? "Last period before pregnancy"
+                  : "Last period started"}
+              </Label>
               <Input
                 id="lastPeriodStart"
                 type="date"
@@ -259,6 +335,7 @@ const PatientSignupSteps = ({
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
                         checked ? "border-primary bg-primary" : "border-gray-300"
                       }`}
+                      aria-hidden
                     >
                       {checked && <Check className="h-3 w-3 text-white" />}
                     </span>
@@ -271,6 +348,14 @@ const PatientSignupSteps = ({
             </div>
           </fieldset>
         </div>
+      )}
+
+      {selected.includes("pregnancy") && selected.includes("pcos") && (
+        <p className="rounded-lg border border-plum-100 bg-plum-50/50 p-3 text-xs text-plum-900">
+          You'll get both: the maternal health check and your cycle, weight and
+          skin trackers. Your nutrition follows pregnancy guidelines — those
+          come first — with your PCOD/PCOS logs shaping what goes in the plan.
+        </p>
       )}
     </div>
   );

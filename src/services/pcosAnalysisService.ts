@@ -46,7 +46,7 @@ export interface PcosAnalysis {
  */
 export const fetchPcosAnalysis = async (
   patientId: string,
-  heightCm?: number | null
+  { heightCm, isPregnant = false }: { heightCm?: number | null; isPregnant?: boolean } = {}
 ): Promise<PcosAnalysis> => {
   const today = todayIso();
 
@@ -81,7 +81,13 @@ export const fetchPcosAnalysis = async (
           .catch(() => null),
   ]);
 
-  const cycles = analyseCycles(cycleHistory.periods, cycleHistory.missedMonths, today);
+  // `isPregnant` matters to both: a pregnancy explains the gap since her last
+  // period, and gestational weight gain is not something a diet generator
+  // should be reading off a home scale. See the notes in each module.
+  const cycles = analyseCycles(cycleHistory.periods, cycleHistory.missedMonths, {
+    today,
+    isPregnant,
+  });
   const weight = analyseWeights(weights, height ?? null, { today });
   const acne = acneEntries.length > 0 ? analyseAcne(acneEntries) : null;
 
@@ -97,6 +103,6 @@ export const fetchPcosAnalysis = async (
     weight,
     acne,
     activity,
-    insight: buildPcosInsight({ cycles, weight, activity, acne }),
+    insight: buildPcosInsight({ cycles, weight, activity, acne, isPregnant }),
   };
 };

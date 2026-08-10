@@ -18,8 +18,8 @@
  */
 import { supabase } from "@/lib/supabase";
 import type { DoctorVerificationData } from "@/lib/licenseVerification";
-import type { HealthTrack } from "@/lib/healthTrack";
-import { saveHealthTrack, type TrackSignupDetails } from "@/services/healthTrackService";
+import type { HealthTracks } from "@/lib/healthTrack";
+import { saveHealthTracks, type TrackSignupDetails } from "@/services/healthTrackService";
 
 export type AuthRole = "doctor" | "patient";
 
@@ -35,8 +35,12 @@ export interface SignUpParams {
   password: string;
   /** Required for doctors, ignored for patients. */
   verification?: DoctorVerificationData;
-  /** Required for patients, ignored for doctors — which care pathway they chose. */
-  healthTrack?: HealthTrack;
+  /**
+   * Required for patients, ignored for doctors — which care pathways they
+   * chose. A set, not one value: pregnancy and PCOS routinely coexist. An
+   * empty array is an answer (general wellness); `undefined` is no answer.
+   */
+  healthTracks?: HealthTracks;
   /** The track-specific answers the patient signup form collected. */
   trackDetails?: TrackSignupDetails;
 }
@@ -76,20 +80,20 @@ export const buildSignupMetadata = ({
   role,
   name,
   verification,
-  healthTrack,
+  healthTracks,
   trackDetails,
 }: Pick<
   SignUpParams,
-  "role" | "name" | "verification" | "healthTrack" | "trackDetails"
+  "role" | "name" | "verification" | "healthTracks" | "trackDetails"
 >): Record<string, unknown> => {
   const metadata: Record<string, unknown> = { role, name };
 
-  // A patient's care pathway and the answers behind it. Unlike a doctor's
-  // license claim there is nothing to grant here — the track decides which
+  // A patient's care pathways and the answers behind them. Unlike a doctor's
+  // license claim there is nothing to grant here — the tracks decide which
   // tabs she sees and which nutrition targets apply, not what she can reach —
   // so it is safe for the trigger to copy straight through.
-  if (role === "patient" && healthTrack) {
-    metadata.healthTrack = healthTrack;
+  if (role === "patient" && healthTracks) {
+    metadata.healthTracks = healthTracks;
     if (trackDetails) metadata.healthTrackDetails = trackDetails;
   }
 
@@ -126,14 +130,14 @@ export const signUpUser = async ({
   email,
   password,
   verification,
-  healthTrack,
+  healthTracks,
   trackDetails,
 }: SignUpParams): Promise<SignUpResult> => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: buildSignupMetadata({ role, name, verification, healthTrack, trackDetails }),
+      data: buildSignupMetadata({ role, name, verification, healthTracks, trackDetails }),
     },
   });
 
@@ -155,16 +159,16 @@ export const signUpUser = async ({
     return { userId, hasSession };
   }
 
-  // Write the track onto the patient row now that there is a session. When
-  // email confirmation is on we never get here — `syncHealthTrackFromMetadata`
-  // picks it up out of the signup metadata on first sign-in instead.
-  if (healthTrack) {
+  // Write the tracks onto the patient row now that there is a session. When
+  // email confirmation is on we never get here — `syncHealthTracksFromMetadata`
+  // picks them up out of the signup metadata on first sign-in instead.
+  if (healthTracks) {
     try {
-      await saveHealthTrack(userId, healthTrack, trackDetails ?? {});
+      await saveHealthTracks(userId, healthTracks, trackDetails ?? {});
     } catch (trackError) {
       // The account exists and the metadata still carries the choice, so this
       // is recoverable — never fail a signup over it.
-      console.error("Could not record the patient's health track:", trackError);
+      console.error("Could not record the patient's health tracks:", trackError);
     }
   }
 

@@ -81,7 +81,10 @@ import {
   savePeriod,
 } from "@/services/cycleLogService";
 import { loadWeights, saveWeight } from "@/services/weightLogService";
-import { heightCmFromAssessment } from "@/services/diseaseDetectionService";
+import {
+  heightCmFromAssessment,
+  isPregnantPatient,
+} from "@/services/diseaseDetectionService";
 
 const FLOW_STYLES: Record<FlowIntensity, string> = {
   spotting: "bg-rose-50 text-rose-700 border-rose-200",
@@ -122,6 +125,10 @@ const PeriodTracker = () => {
   const [missedMonths, setMissedMonths] = useState<MissedMonth[]>([]);
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [heightCm, setHeightCm] = useState<number | null>(null);
+  // A pregnant patient's cycle log is still hers to keep, but nothing recent
+  // in it should be read as a finding — periods stop, so the gap is the
+  // pregnancy. See `analyseCycles`.
+  const [isPregnant, setIsPregnant] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSynced, setIsSynced] = useState(true);
 
@@ -158,6 +165,7 @@ const PeriodTracker = () => {
         setWeights(weightHistory.weights);
         setIsSynced(history.synced && weightHistory.synced);
         setHeightCm(heightCmFromAssessment(profile.data?.assessment_data ?? null));
+        setIsPregnant(isPregnantPatient(profile.data?.assessment_data ?? null));
       } catch (error) {
         console.error("Error loading cycle history:", error);
       }
@@ -172,8 +180,8 @@ const PeriodTracker = () => {
   }, []);
 
   const analysis = useMemo(
-    () => analyseCycles(periods, missedMonths, today),
-    [periods, missedMonths, today]
+    () => analyseCycles(periods, missedMonths, { today, isPregnant }),
+    [periods, missedMonths, today, isPregnant]
   );
 
   const weightAnalysis = useMemo(
@@ -305,7 +313,9 @@ const PeriodTracker = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Period & Weight Tracker</h1>
           <p className="text-gray-600">
-            Your cycle history and weight are what your PCOD/PCOS diet plan is built from
+            {isPregnant
+              ? "Your cycles are paused while you're pregnant — your history still shapes your plan"
+              : "Your cycle history and weight are what your PCOD/PCOS diet plan is built from"}
           </p>
         </div>
         <Button
@@ -606,9 +616,9 @@ const PeriodTracker = () => {
             Weight
           </CardTitle>
           <CardDescription>
-            Once a week is plenty — weigh yourself at the same time of day, and don't
-            read anything into a single kilo. Your diet plan uses the trend, not one
-            reading.
+            {isPregnant
+              ? "Gaining weight is the expected course of a pregnancy, so nothing here feeds your calorie target — that belongs with your obstetrician. Log it if it's useful to you."
+              : "Once a week is plenty — weigh yourself at the same time of day, and don't read anything into a single kilo. Your diet plan uses the trend, not one reading."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -688,13 +698,14 @@ const PeriodTracker = () => {
                   : "—"}
               </p>
               <p className="text-sm text-gray-600">
-                Losing 5% of body weight is the change with the strongest evidence for
-                restoring PCOS cycles.
+                {isPregnant
+                  ? "Not a target during pregnancy — shown for after."
+                  : "Losing 5% of body weight is the change with the strongest evidence for restoring PCOS cycles."}
               </p>
             </div>
           </div>
 
-          {weightAnalysis.isRapidGain && (
+          {weightAnalysis.isRapidGain && !isPregnant && (
             <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-900">
               <TrendingUp className="mt-0.5 h-4 w-4 shrink-0" />
               <span>

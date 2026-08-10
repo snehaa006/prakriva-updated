@@ -227,8 +227,9 @@ describe("patient sign up", () => {
     await completePatientStepOne(user);
 
     expect(screen.getByText(/step 2 of 2/i)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /pregnancy/i })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /pcod \/ pcos/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /pregnancy/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /pcod \/ pcos/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /general wellness/i })).toBeInTheDocument();
   });
 
   it("will not finish without a care pathway chosen", async () => {
@@ -255,7 +256,7 @@ describe("patient sign up", () => {
 
     await switchToSignup(user);
     await completePatientStepOne(user);
-    await user.click(screen.getByRole("radio", { name: /pcod \/ pcos/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -273,7 +274,7 @@ describe("patient sign up", () => {
     renderLogin("patient");
     await switchToSignup(user);
     await completePatientStepOne(user);
-    await user.click(screen.getByRole("radio", { name: /pregnancy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -284,7 +285,7 @@ describe("patient sign up", () => {
           data: expect.objectContaining({
             role: "patient",
             name: "Asha Patel",
-            healthTrack: "pregnancy",
+            healthTracks: ["pregnancy"],
           }),
         },
       })
@@ -304,7 +305,7 @@ describe("patient sign up", () => {
     renderLogin("patient");
     await switchToSignup(user);
     await completePatientStepOne(user);
-    await user.click(screen.getByRole("radio", { name: /pcod \/ pcos/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
     await user.selectOptions(
       screen.getByLabelText(/has a doctor diagnosed it/i),
       "diagnosed-pcos"
@@ -314,11 +315,52 @@ describe("patient sign up", () => {
 
     await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
     const metadata = supabaseMock.signUp.mock.calls[0][0].options.data;
-    expect(metadata.healthTrack).toBe("pcos");
+    expect(metadata.healthTracks).toEqual(["pcos"]);
     expect(metadata.healthTrackDetails).toMatchObject({
       diagnosisStatus: "diagnosed-pcos",
       typicalCycleLength: "45",
     });
+  });
+
+  // Pregnancy and PCOS routinely coexist; forcing a choice between them would
+  // make a pregnant PCOS patient give up half her care.
+  it("lets a patient sign up as both pregnant and PCOD/PCOS", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("patients", { data: { patient_code: "P009" } });
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
+
+    // Both sets of questions are on screen at once.
+    expect(screen.getByLabelText(/estimated due date/i)).toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByLabelText(/has a doctor diagnosed it/i),
+      "diagnosed-pcos"
+    );
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
+    expect(supabaseMock.signUp.mock.calls[0][0].options.data.healthTracks).toEqual([
+      "pregnancy",
+      "pcos",
+    ]);
+  });
+
+  it("treats general wellness as an answer, not a blank", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("patients", { data: { patient_code: "P010" } });
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /general wellness/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
+    expect(supabaseMock.signUp.mock.calls[0][0].options.data.healthTracks).toEqual([]);
   });
 
   it("refuses to leave step 1 when the passwords do not match", async () => {
@@ -344,7 +386,7 @@ describe("patient sign up", () => {
     renderLogin("patient");
     await switchToSignup(user);
     await completePatientStepOne(user);
-    await user.click(screen.getByRole("radio", { name: /pregnancy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -369,7 +411,7 @@ describe("patient sign up", () => {
     renderLogin("patient");
     await switchToSignup(user);
     await completePatientStepOne(user, { email: "taken@example.com" });
-    await user.click(screen.getByRole("radio", { name: /pregnancy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>

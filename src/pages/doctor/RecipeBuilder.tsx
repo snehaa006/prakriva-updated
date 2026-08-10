@@ -52,7 +52,7 @@ import {
   type LifeStage,
 } from "@/services/dietChartService";
 import { fetchPcosAnalysis, type PcosAnalysis } from "@/services/pcosAnalysisService";
-import { resolveHealthTrack } from "@/lib/healthTrack";
+import { describeHealthTracks, resolveHealthTracks } from "@/lib/healthTrack";
 import { REGULARITY_LABELS } from "@/lib/cycleTracking";
 import { BMI_BAND_LABELS, TREND_LABELS } from "@/lib/weightLog";
 
@@ -316,29 +316,35 @@ const RecipeBuilder = () => {
     return match ? toPatientProfile(match) : null;
   }, [patientId, doctorPatients]);
 
-  // Which care pathway the selected patient is on. A pregnant patient's plan
-  // is built on top of her maternal screening; a PCOD/PCOS patient has no
-  // screening to build on, so her cycle, weight and exercise logs take its
-  // place — fetched below and shown in the same slot the screening would be.
-  const healthTrack = useMemo(() => {
+  // Which care pathways the selected patient is on — a set, since pregnancy
+  // and PCOS routinely coexist. A pregnant patient's plan is built on top of
+  // her maternal screening; a PCOD/PCOS patient has no screening to build on,
+  // so her cycle, weight and exercise logs take its place — fetched below and
+  // shown in the same slot the screening would be. A patient on both gets the
+  // screening *and* the panel, with the panel restricted to what is safe in
+  // pregnancy.
+  const healthTracks = useMemo(() => {
     if (!patientId || doctorPatients.length === 0) return null;
     const match = doctorPatients.find((patient) => patient.id === patientId);
     if (!match) return null;
     const raw = match.profile as Record<string, unknown>;
     const assessment = (raw.assessmentData ?? {}) as Record<string, unknown>;
-    return resolveHealthTrack({
-      column: match.healthTrack,
-      assessmentTrack: assessment.healthTrack,
+    return resolveHealthTracks({
+      column: match.healthTracks,
+      assessmentTracks: assessment.healthTracks,
       lifeStage: assessment.lifeStage ?? raw.lifeStage,
       conditions: assessment.currentConditions,
     });
   }, [patientId, doctorPatients]);
 
+  const isPcosPatient = !!healthTracks?.includes("pcos");
+  const isPregnantPcosPatient = isPcosPatient && !!healthTracks?.includes("pregnancy");
+
   const [pcosAnalysis, setPcosAnalysis] = useState<PcosAnalysis | null>(null);
   const [isLoadingPcos, setIsLoadingPcos] = useState(false);
 
   useEffect(() => {
-    if (healthTrack !== "pcos" || !patientId) {
+    if (!isPcosPatient || !patientId) {
       setPcosAnalysis(null);
       return;
     }
@@ -346,7 +352,7 @@ const RecipeBuilder = () => {
     let cancelled = false;
     setIsLoadingPcos(true);
 
-    fetchPcosAnalysis(patientId)
+    fetchPcosAnalysis(patientId, { isPregnant: isPregnantPcosPatient })
       .then((analysis) => {
         if (!cancelled) setPcosAnalysis(analysis);
       })
@@ -361,7 +367,7 @@ const RecipeBuilder = () => {
     return () => {
       cancelled = true;
     };
-  }, [healthTrack, patientId]);
+  }, [isPcosPatient, isPregnantPcosPatient, patientId]);
 
   const [numDays, setNumDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -945,10 +951,13 @@ const RecipeBuilder = () => {
 
           {/* ===== PCOD/PCOS ANALYSIS =====
               Stands where the maternal screening result would sit for a
-              pregnant patient. There is no disease-detection pipeline to run
-              here — the diagnosis is already made — so the plan is tuned from
-              what she actually logs: her cycles, her weight and her exercise. */}
-          {healthTrack === "pcos" && (
+              patient who is only pregnant. There is no disease-detection
+              pipeline to run for PCOS — the diagnosis is already made — so the
+              plan is tuned from what she actually logs: her cycles, her weight
+              and her exercise. A patient who is *both* pregnant and has PCOS
+              gets this panel alongside her screening, restricted to what is
+              safe in pregnancy. */}
+          {isPcosPatient && (
             <Card className="shadow-sm border-plum-100 bg-plum-50/30">
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -957,12 +966,13 @@ const RecipeBuilder = () => {
                     <CardTitle className="text-sm">PCOD / PCOS Analysis</CardTitle>
                   </div>
                   <Badge className="border border-plum-200 bg-plum-100 text-plum-800 text-[10px]">
-                    From her cycle, weight & exercise logs
+                    {healthTracks ? describeHealthTracks(healthTracks) : "PCOD / PCOS"}
                   </Badge>
                 </div>
                 <CardDescription className="text-xs">
-                  This patient has no maternal screening — these logs are what the
-                  generated plan is tuned from.
+                  {isPregnantPcosPatient
+                    ? "She is pregnant as well as managing PCOD/PCOS. Her plan follows the pregnancy targets — nothing below restricts her intake — and these logs shape what goes into it."
+                    : "This patient has no maternal screening — these logs are what the generated plan is tuned from."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

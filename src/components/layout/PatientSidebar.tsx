@@ -31,17 +31,18 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { useApp } from "@/context/AppContext";
-import { HEALTH_TRACK_LABELS, type HealthTrack } from "@/lib/healthTrack";
+import { describeHealthTracks, type HealthTrack } from "@/lib/healthTrack";
 
 /**
- * Items every patient sees, plus the ones that only apply to one care
- * pathway. `tracks` is the whitelist: absent means "everyone".
+ * Items every patient sees, plus the ones that only apply to a care pathway.
+ * `tracks` is the whitelist: absent means "everyone", and an item shows when
+ * the patient is on *any* of its tracks.
  *
  * Health Check is the maternal disease screening, so it is pregnancy-only —
  * the models behind it are trained on pregnancy conditions and would score a
- * PCOS patient against conditions her answers were never about. She gets the
- * period and skin trackers in its place, which is where her own analysis
- * actually comes from.
+ * patient who is not pregnant against conditions her answers were never about.
+ * A PCOS patient gets the period and skin trackers in its place; a patient who
+ * is both pregnant and has PCOS gets all three, because both are true of her.
  */
 const navigationItems: {
   title: string;
@@ -130,15 +131,17 @@ const accountItems = [
 export function PatientSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { user, setUser, healthTrack } = useApp();
+  const { user, setUser, healthTracks } = useApp();
   const currentPath = location.pathname;
   const isCollapsed = state === "collapsed";
 
-  // Until the track has loaded, show only the items that apply to everyone —
+  // Until the tracks have loaded, show only the items that apply to everyone —
   // better a menu that fills in than one that shows a maternal health check to
   // a PCOS patient for a second and then takes it away.
   const visibleItems = navigationItems.filter(
-    (item) => !item.tracks || (healthTrack !== null && item.tracks.includes(healthTrack))
+    (item) =>
+      !item.tracks ||
+      (healthTracks !== null && item.tracks.some((t) => healthTracks.includes(t)))
   );
 
   const getNavClass = ({ isActive }: { isActive: boolean }) =>
@@ -172,7 +175,7 @@ export function PatientSidebar() {
                   {user.name}
                 </p>
                 <p className="text-xs text-sidebar-foreground/70 truncate">
-                  {healthTrack ? HEALTH_TRACK_LABELS[healthTrack] : "Patient"}
+                  {healthTracks ? describeHealthTracks(healthTracks) : "Patient"}
                 </p>
               </div>
             </div>

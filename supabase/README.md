@@ -138,11 +138,14 @@ policies are the access control:
   segment (`<patient-id>/…`), so a patient can only reach her own folder and a
   wrong prefix is a server-side rejection rather than a trusted claim. The
   frontend renders them through short-lived signed URLs.
-- `patients.health_track` is deliberately *not* protected like the doctor
+- `patients.health_tracks` is deliberately *not* protected like the doctor
   verification columns. It decides which of her own trackers a patient sees,
   not what she may reach, so it is safe both for the client to state at signup
   and for her to change later (she may become pregnant, or get a PCOS
-  diagnosis).
+  diagnosis). It is an **array** because pregnancy and PCOS commonly coexist —
+  a single-valued column would make a pregnant PCOS patient pick which half of
+  her care to give up. An empty array means general wellness; null means she
+  was never asked.
 - `foodoscope_api_keys` is `select`-able by `authenticated` where `is_active`,
   with no write policy: keys are added and retired from the dashboard (or the
   service role), never from the browser. These are FoodOScope quota tokens
@@ -189,9 +192,11 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `pcos_tracking.sql` in this folder are the sources for the matching migrations,
 kept here so the tables can be recreated in a fresh project.
 
-`pcos_tracking` added the PCOD/PCOS care track: `patients.health_track`, the
+`pcos_tracking` added the PCOD/PCOS care track: `patients.health_tracks`, the
 `on_auth_user_created_track` trigger that fills it from signup metadata, the
-four tracker tables, and the private `acne-photos` bucket. It depends on
+four tracker tables, and the private `acne-photos` bucket. If an earlier
+revision of the file was already applied, it migrates the single-valued
+`health_track` column into the array and drops it. It depends on
 `handle_new_user()` from `doctor_verification.sql` having already created the
 `patients` row, so apply that file first in a fresh project — Postgres runs
 same-event triggers in name order, and `on_auth_user_created` sorts before

@@ -18,11 +18,11 @@ export interface DoctorPatient {
   /** Questionnaire/consultation payload, merged for diet-chart generation. */
   profile: Record<string, unknown>;
   /**
-   * `patients.health_track` — which care pathway she signed up for. Null in a
+   * `patients.health_tracks` — which care pathways she signed up for. Null in a
    * project that has not applied `supabase/pcos_tracking.sql`; callers fall
-   * back to `assessment_data` through `resolveHealthTrack`.
+   * back to `assessment_data` through `resolveHealthTracks`.
    */
-  healthTrack: string | null;
+  healthTracks: string[] | null;
 }
 
 /** The statuses `public.doctor_treats()` accepts — i.e. patients the doctor can write for. */
@@ -46,7 +46,7 @@ interface ConsultationRow {
     name: string | null;
     email: string | null;
     assessment_data: Record<string, unknown> | null;
-    health_track?: string | null;
+    health_tracks?: string[] | null;
   } | null;
 }
 
@@ -74,12 +74,12 @@ export async function fetchDoctorPatients(
       .order("requested_at", { ascending: false });
 
   let { data, error } = await select(
-    "patient_code, name, email, assessment_data, health_track"
+    "patient_code, name, email, assessment_data, health_tracks"
   );
 
-  // `health_track` arrived with the PCOD/PCOS tracks. Retry without it rather
+  // `health_tracks` arrived with the PCOD/PCOS tracks. Retry without it rather
   // than leaving the whole patient list broken in a project that has not
-  // applied the migration — the track still resolves from `assessment_data`.
+  // applied the migration — the tracks still resolve from `assessment_data`.
   if (error && MISSING_COLUMN_CODES.includes(error.code ?? "")) {
     ({ data, error } = await select("patient_code, name, email, assessment_data"));
   }
@@ -109,7 +109,7 @@ export async function fetchDoctorPatients(
       email: record?.email || row.patient_email || "",
       requestStatus: row.status,
       profile,
-      healthTrack: record?.health_track ?? null,
+      healthTracks: record?.health_tracks ?? null,
     });
   }
 

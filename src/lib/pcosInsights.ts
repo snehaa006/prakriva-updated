@@ -65,6 +65,18 @@ export interface PcosInsightInput {
   activity: ActivitySummary;
   /** Optional — the skin tracker is not mandatory. */
   acne?: AcneAnalysis | null;
+  /**
+   * Whether this patient is also pregnant.
+   *
+   * PCOS does not go away at conception — roughly one pregnancy in ten is a
+   * PCOS pregnancy — so both tracks apply at once, and the two want opposite
+   * things from a calorie target. Everything restrictive here is suppressed
+   * when this is true: no deficit, no food exclusions, no "lose 5%". What
+   * survives is the part that helps both, and helps most precisely *because*
+   * she is pregnant — the low-glycaemic emphasis (PCOS is the single largest
+   * risk factor for gestational diabetes) and the iron focus.
+   */
+  isPregnant?: boolean;
 }
 
 /**
@@ -79,6 +91,7 @@ export const buildPcosInsight = ({
   weight,
   activity,
   acne = null,
+  isPregnant = false,
 }: PcosInsightInput): PcosInsight => {
   const drivers: InsightDriver[] = [];
   const gaps: string[] = [];
@@ -87,8 +100,27 @@ export const buildPcosInsight = ({
   const notes: string[] = [];
   let calorieDelta = 0;
 
+  if (isPregnant) {
+    drivers.push({
+      key: "pregnancy-first",
+      label: "Pregnancy takes precedence",
+      detail:
+        "She is pregnant as well as managing PCOD/PCOS, so her plan follows the pregnancy targets and nothing here restricts her intake. What carries over is the low-glycaemic emphasis — PCOS is the largest single risk factor for gestational diabetes — and the iron focus.",
+    });
+    notes.push(
+      "Pregnancy targets apply — PCOS adjustments are limited to food quality, never restriction"
+    );
+  }
+
   // --- Weight -------------------------------------------------------------
-  if (weight.latest === null) {
+  if (isPregnant) {
+    // Weight *gain* is the expected course of a pregnancy, and gestational
+    // weight is managed by an obstetrician against her booking weight, not by
+    // a diet generator reading a home scale. Deliberately silent here.
+    gaps.push(
+      "Weight is not used to tune a pregnancy plan — gestational weight gain belongs with her obstetrician."
+    );
+  } else if (weight.latest === null) {
     gaps.push("No weight logged yet — the calorie target is the population default.");
   } else if (needsWeightReduction(weight)) {
     calorieDelta -= WEIGHT_LOSS_DEFICIT_KCAL;
@@ -180,6 +212,8 @@ export const buildPcosInsight = ({
   }
 
   // --- Activity -----------------------------------------------------------
+  // The training allowance is an *addition*, so it is safe in pregnancy; the
+  // sedentary branch only adds emphasis, never restriction. Both stay on.
   if (activity.avgMinutesPerDay < SEDENTARY_MINUTES) {
     drivers.push({
       key: "sedentary",
@@ -204,7 +238,10 @@ export const buildPcosInsight = ({
   }
 
   // --- Skin ---------------------------------------------------------------
-  if (acne && (acne.severity === "moderate" || acne.severity === "severe")) {
+  // The acne driver pulls milk out for a trial period. That trades a food
+  // group for a cosmetic gain, which is a reasonable trade outside pregnancy
+  // and not one to make on a patient whose calcium requirement is raised.
+  if (!isPregnant && acne && (acne.severity === "moderate" || acne.severity === "severe")) {
     drivers.push({
       key: "acne",
       label: "Active acne",

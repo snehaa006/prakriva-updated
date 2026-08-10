@@ -19,7 +19,7 @@ import {
   PATIENT_STEP_LABELS,
   emptyTrackDetails,
 } from "./patientTrackOptions";
-import type { HealthTrack } from "@/lib/healthTrack";
+import type { HealthTracks } from "@/lib/healthTrack";
 import type { TrackSignupDetails } from "@/services/healthTrackService";
 import {
   emptyVerificationData,
@@ -72,9 +72,11 @@ const Login = () => {
   const [verificationData, setVerificationData] =
     useState<DoctorVerificationData>(emptyVerificationData);
 
-  // Which care pathway a patient is signing up for, and the answers that
-  // pathway asks for. Doctors never see these.
-  const [healthTrack, setHealthTrack] = useState<HealthTrack | null>(null);
+  // Which care pathways a patient is signing up for, and the answers those
+  // pathways ask for. A set rather than one value — pregnancy and PCOS
+  // routinely coexist. Null means she has not answered yet; an empty array is
+  // an answer (general wellness). Doctors never see these.
+  const [healthTracks, setHealthTracks] = useState<HealthTracks | null>(null);
   const [trackDetails, setTrackDetails] = useState<TrackSignupDetails>(emptyTrackDetails);
 
   const isDoctorSignup = isSignup && role === "doctor";
@@ -167,11 +169,11 @@ const Login = () => {
   /** Validate the current wizard step, reporting the first missing field. */
   const validateStep = (step: number): boolean => {
     if (isPatientSignup && step === 2) {
-      if (!healthTrack) {
+      if (healthTracks === null) {
         toast.error("Please choose what you're here for");
         return false;
       }
-      if (healthTrack === "pcos" && !trackDetails.diagnosisStatus) {
+      if (healthTracks.includes("pcos") && !trackDetails.diagnosisStatus) {
         toast.error("Please tell us whether PCOD/PCOS has been diagnosed");
         return false;
       }
@@ -224,7 +226,7 @@ const Login = () => {
     setFormData(emptyFormData());
     setVerificationData(emptyVerificationData());
     setVerificationResult(null);
-    setHealthTrack(null);
+    setHealthTracks(null);
     setTrackDetails(emptyTrackDetails());
   };
 
@@ -235,7 +237,7 @@ const Login = () => {
       email: formData.email,
       password: formData.password,
       verification: role === "doctor" ? verificationData : undefined,
-      healthTrack: role === "patient" ? healthTrack ?? undefined : undefined,
+      healthTracks: role === "patient" ? healthTracks ?? undefined : undefined,
       trackDetails: role === "patient" ? trackDetails : undefined,
     });
 
@@ -381,8 +383,8 @@ const Login = () => {
                     step={currentStep}
                     formData={formData}
                     onFormChange={handleInputChange}
-                    track={healthTrack}
-                    onTrackChange={setHealthTrack}
+                    tracks={healthTracks}
+                    onTracksChange={setHealthTracks}
                     details={trackDetails}
                     onDetailChange={handleTrackDetailChange}
                     isLoading={isLoading}

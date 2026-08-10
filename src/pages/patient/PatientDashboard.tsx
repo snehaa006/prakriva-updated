@@ -239,7 +239,7 @@ function getGreeting(): string {
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
-  const { user, healthTrack } = useApp();
+  const { user, healthTracks } = useApp();
 
   // Patient profile
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -1128,7 +1128,7 @@ const PatientDashboard = () => {
                 {/* PCOD/PCOS patients have no maternal health check; their
                     cycle and skin logs are what their diet plan is built
                     from, so they belong in reach from the dashboard. */}
-                {healthTrack === "pcos" && (
+                {healthTracks?.includes("pcos") && (
                   <>
                     <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/period-tracker")}>
                       <Calendar className="w-4 h-4" /> Period & Weight Tracker

@@ -6,9 +6,9 @@ data, and run maternal disease-risk screening for their pregnant patients;
 patients complete an Ayurvedic health questionnaire, list the foods in their
 kitchen, and get a personalized diet plan.
 
-Patients pick a **care track** at signup — pregnancy, PCOD/PCOS or general
-wellness — which decides which tabs they see and which nutritional targets
-their plan starts from. See "Care tracks" below.
+Patients pick their **care tracks** at signup — pregnancy, PCOD/PCOS, both, or
+neither — which decides which tabs they see and which nutritional targets their
+plan starts from. See "Care tracks" below.
 
 ## Tech stack
 
@@ -47,7 +47,7 @@ their plan starts from. See "Care tracks" below.
   - `DoctorSignupSteps.tsx` — the four-step doctor wizard (account, license,
     expertise, practice), with its option lists in `doctorProfileOptions.ts`.
   - `PatientSignupSteps.tsx` — the two-step patient wizard (account, then care
-    track and its track-specific questions), with its constants in
+    tracks and their track-specific questions), with its constants in
     `patientTrackOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
@@ -74,11 +74,12 @@ their plan starts from. See "Care tracks" below.
   `disease_screenings.sql` for the screening history table,
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
   hydration log, `patient_pantry_items.sql` for the patient kitchen list and
-  `pcos_tracking.sql` for the care-track column, the PCOD/PCOS trackers
+  `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
   (`menstrual_cycle_logs`, `missed_cycle_months`, `weight_logs`, `acne_logs`)
   and the private `acne-photos` storage bucket.
 - `src/lib/healthTrack.ts` + `src/services/healthTrackService.ts` — which care
-  track a patient is on, and the two places it is stored. See "Care tracks".
+  tracks a patient is on (a set — pregnancy and PCOS can both apply), and the
+  two places they are stored. See "Care tracks".
 - `src/lib/cycleTracking.ts`, `src/lib/weightLog.ts`, `src/lib/acneGuidance.ts`
   and `src/lib/pcosInsights.ts` — the PCOD/PCOS domain model: cycle analysis,
   weight trends, acne guidance, and the combined insight that tunes the diet
@@ -197,7 +198,7 @@ deliberately not collected here. What the profile stores:
 | Group | Fields |
 |---|---|
 | Personal | `name`, `dob` (age is derived, never stored), `gender`, `location`, `heightCm` |
-| Care track (set at signup) | `healthTrack` (`pregnancy`/`pcos`/`general`), mirrored to `patients.health_track` |
+| Care tracks (set at signup) | `healthTracks` (any of `pregnancy`, `pcos`; empty = general), mirrored to `patients.health_tracks` |
 | Maternal (once) | `lifeStage` (`pregnancy`/`pcos`/`not_applicable`, or `none` from the questionnaire's own "No"), `dueDate` (estimated due date) |
 | PCOD/PCOS (set at signup) | `pcosDiagnosisStatus`, `pcosDiagnosisYear`, `typicalCycleLength`, `lastPeriodStart`, `pcosConcerns` |
 | Allergies & avoidances | `allergies`, `allergiesOther`, `foodAvoidances` |
@@ -216,12 +217,12 @@ maternal facts; the current gestational week is derived from `dueDate` at
 screening time rather than stored.)
 
 **The questionnaire merges into `assessment_data`, it does not replace it.**
-Signup writes the care track and its answers there before the patient ever
+Signup writes the care tracks and their answers there before the patient ever
 reaches this form, and an empty answer never wins over a stored one — saving
-the form state straight over the column would silently wipe her track and drop
+the form state straight over the column would silently wipe her tracks and drop
 her back onto general-adult nutrition targets. For the same reason the "Are you
-currently pregnant?" question is hidden on the PCOD/PCOS track, which already
-answered it at signup.
+currently pregnant?" question is hidden for anyone who ticked a track at
+signup, since she has already answered it.
 
 Readers of `assessment_data` treat it as free-form `jsonb` and read every field
 defensively, so profiles saved before this change keep working and any absent
@@ -241,45 +242,78 @@ keys simply read as absent. Worth knowing:
 
 Prakriva began as a maternal app: every patient was assumed pregnant, so the
 maternal screening and the pregnancy nutrition targets applied to everyone. A
-patient now picks a **care track** on step 2 of signup, and that choice decides
-what the app is for her:
+patient now picks her **care tracks** on step 2 of signup, and that choice
+decides what the app is for her.
 
-| Track | Tabs she gets | Analysis her diet plan is built from | Calorie band |
+**They are a set, not a choice.** Pregnancy and PCOS routinely coexist — PCOS is
+one of the more common reasons a pregnancy is higher-risk, and a patient does
+not stop having it the month she conceives. A form that forced a choice would
+make a pregnant PCOS patient pick which half of her care to give up, so the
+signup step is checkboxes and ticking both shows both sets of questions.
+
+| Tracks | Tabs she gets | Analysis her plan is built from | Calorie band |
 |---|---|---|---|
 | `pregnancy` | Health Check (maternal screening) | `disease_screenings` — the trained models | ACOG, per trimester |
-| `pcos` | Period & Weight Tracker, Skin & Acne | Her own cycle, weight, exercise and skin logs | PCOS band, tuned per patient |
-| `general` | Neither | — | General adult |
+| `pcos` | Period & Weight Tracker, Skin & Acne | Her cycle, weight, exercise and skin logs | PCOS band, tuned per patient |
+| both | All three | Both — screening *and* logs | ACOG (pregnancy wins) |
+| neither (general) | Neither | — | General adult |
 
-**PCOD/PCOS patients are deliberately not shown disease detection.** The
-screening models are trained on pregnancy conditions (gestational diabetes,
-preeclampsia, maternal anaemia); running them for a PCOS patient would produce
-confident-looking risk scores for conditions her answers were never about,
-which is worse than showing nothing. `showsDiseaseDetection()` in
-`src/lib/healthTrack.ts` is the single place that decision lives — the sidebar
-hides the tab, `TrackRoute` in `App.tsx` redirects a hand-typed URL, and the
-doctor's Patient Analysis page never lists her.
+**Only pregnancy gets disease detection.** The screening models are trained on
+pregnancy conditions (gestational diabetes, preeclampsia, maternal anaemia);
+running them for a patient who is not pregnant would produce confident-looking
+risk scores for conditions her answers were never about, which is worse than
+showing nothing. That applies to PCOS-only *and* general-wellness patients.
+`showsDiseaseDetection()` in `src/lib/healthTrack.ts` is the single place the
+decision lives — the sidebar hides the tab, `TrackRoute` in `App.tsx` redirects
+a hand-typed URL, and the doctor's Patient Analysis page never lists her.
 
-### Where the track is stored
+### Pregnancy takes precedence, and that is a safety rule
+
+`lifeStageForTracks()` puts pregnancy ahead of PCOS whenever both apply, and
+that ordering is not a preference. The PCOS targets run a calorie deficit and
+exclude foods; neither belongs anywhere near a pregnancy. Three places enforce
+it, and each is unit-tested:
+
+- **Nutrition targets** come from the pregnancy guidelines, not the PCOS ones.
+- **`buildPcosInsight({ isPregnant: true })`** suppresses everything
+  restrictive: no deficit, no "lose 5%", no dairy exclusion for acne. What
+  survives is the part that helps *because* she is pregnant — the low-glycaemic
+  emphasis (PCOS is the largest single risk factor for gestational diabetes)
+  and the iron focus. The training-calorie allowance stays, since it adds.
+  Weight is not read at all, and the panel says so rather than silently
+  ignoring it: gestational weight gain belongs with her obstetrician, not a
+  diet generator reading a home scale.
+- **`analyseCycles({ isPregnant: true })`** suppresses every gap-derived flag.
+  Periods stop in pregnancy, so her log shows a months-long gap and an
+  ever-growing "days since last period"; reported as-is that reads as
+  amenorrhoea and an overdue period — a false clinical finding generated by an
+  entirely normal event, shown to the patient least able to shrug it off. The
+  history itself still stands, because her pre-pregnancy pattern is what makes
+  PCOS relevant to a pregnancy in the first place.
+
+### Where the tracks are stored
 
 Two places, on purpose:
 
-1. `auth.users.raw_user_meta_data.healthTrack` — written by `signUp()`, so it
+1. `auth.users.raw_user_meta_data.healthTracks` — written by `signUp()`, so it
    exists even when email confirmation means there is no session yet and the
    browser cannot write to `patients`.
-2. `patients.health_track` — the column everything reads, set by the
+2. `patients.health_tracks text[]` — the column everything reads, set by the
    `on_auth_user_created_track` trigger (`supabase/pcos_tracking.sql`).
+
+An empty array is an answer (general wellness); null means she was never asked.
 
 Unlike a doctor's verification claim this is **not** a trust signal — it
 decides which of her own trackers a patient sees, not what she may reach — so
 it is safe for the client to state and for the trigger to copy straight
-through. `signUp()` also merges the track's answers into `assessment_data`
-(including `lifeStage`, which the diet generator keys off), so a project that
-has not applied `pcos_tracking.sql` still resolves the track via
-`resolveHealthTrack()`. That fallback also covers accounts created before the
-tracks existed: an old profile with `lifeStage: "pregnancy"`, or with `PCOD` in
-its reported conditions, resolves correctly. An unknown patient falls back to
-`general`, never `pregnancy` — assuming pregnancy is exactly how the app ended
-up showing a maternal screening to everybody.
+through. `signUp()` also merges the answers into `assessment_data` (including
+`lifeStage`, which the diet generator keys off), so a project that has not
+applied `pcos_tracking.sql` still resolves them via `resolveHealthTracks()`.
+That fallback also covers accounts created before the tracks existed — and
+combines rather than competing, so an old profile whose questionnaire says
+pregnancy *and* which lists PCOD in its conditions resolves to both. An unknown
+patient falls back to the empty set, never `pregnancy`: assuming pregnancy is
+exactly how the app ended up showing a maternal screening to everybody.
 
 ### Period & weight tracker (PCOD/PCOS)
 
@@ -311,7 +345,8 @@ Two details worth knowing:
 Weight is asked for weekly or whenever she likes. No direction is reported from
 a single reading, or from two less than a fortnight apart — weight swings by a
 kilo on water alone. `needsWeightReduction()` fires on either being above the
-healthy BMI band or gaining faster than 1.5 kg/month.
+healthy BMI band or gaining faster than 1.5 kg/month. None of it applies during
+pregnancy; see "Pregnancy takes precedence" above.
 
 ### Skin & acne tracker (PCOD/PCOS)
 
@@ -340,9 +375,9 @@ that one line.
 
 ### How a PCOS diet plan is generated
 
-For a pregnant patient the doctor opens Patient Analysis, the pipeline scores
-her conditions, and Recipe Builder generates from the result. A PCOS patient
-has no pipeline to run — she already has the diagnosis — so
+For a patient who is only pregnant, the doctor opens Patient Analysis, the
+pipeline scores her conditions, and Recipe Builder generates from the result. A
+PCOS patient has no pipeline to run — she already has the diagnosis — so
 `src/lib/pcosInsights.ts` stands in its place, reading her cycle, weight,
 exercise and skin logs and producing the same shape of answer the generator
 wants: a `PlanAdjustment` of calorie delta, ingredient emphasis and notes.
@@ -362,8 +397,8 @@ wants: a `PlanAdjustment` of calorie delta, ingredient emphasis and notes.
   invented from an empty history.
 
 The doctor sees all of this in the **PCOD/PCOS Analysis** panel on Recipe
-Builder, which sits exactly where the screening result would for a pregnant
-patient.
+Builder, which sits exactly where the screening result would for a patient who
+is only pregnant — and *alongside* the screening for one who is both.
 
 ## Disease detection
 

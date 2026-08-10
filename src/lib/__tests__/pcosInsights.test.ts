@@ -146,6 +146,91 @@ describe("buildPcosInsight", () => {
     expect(insight.drivers.map((d) => d.key)).toContain("sedentary");
   });
 
+  // PCOS does not go away at conception, and the two tracks want opposite
+  // things from a calorie target. Restriction must never win.
+  describe("when she is also pregnant", () => {
+    const overweightAndGaining = analyseWeights(
+      [weigh("2026-01-01", 78), weigh("2026-03-02", 82)],
+      160,
+      { today: TODAY }
+    );
+
+    it("never runs a calorie deficit", () => {
+      const insight = buildPcosInsight({
+        cycles: noCycles,
+        weight: overweightAndGaining,
+        activity: moderate,
+        isPregnant: true,
+      });
+
+      expect(insight.adjustment.calorieDelta).toBeGreaterThanOrEqual(0);
+      expect(insight.drivers.map((d) => d.key)).not.toContain("weight-reduction");
+      expect(insight.drivers.map((d) => d.key)).toContain("pregnancy-first");
+    });
+
+    it("says why weight is not being used, rather than silently ignoring it", () => {
+      const insight = buildPcosInsight({
+        cycles: noCycles,
+        weight: overweightAndGaining,
+        activity: moderate,
+        isPregnant: true,
+      });
+
+      expect(insight.gaps.join(" ")).toContain("obstetrician");
+    });
+
+    it("keeps the low-glycaemic emphasis, which is the point in pregnancy", () => {
+      const insight = buildPcosInsight({
+        cycles: analyseCycles(
+          [period("2026-01-01"), period("2026-02-15"), period("2026-03-25")],
+          [],
+          TODAY
+        ),
+        weight: noWeight,
+        activity: moderate,
+        isPregnant: true,
+      });
+
+      expect(insight.adjustment.focusIngredients).toContain("cinnamon");
+      expect(insight.adjustment.avoidIngredients).toContain("white rice");
+    });
+
+    it("does not pull milk for acne", () => {
+      const acne: AcneEntry = {
+        id: "a1",
+        date: "2026-03-20",
+        severity: "severe",
+        regions: ["jawline"],
+        notes: "",
+        photoPath: null,
+        aiSeverity: null,
+        aiObservations: null,
+      };
+
+      const insight = buildPcosInsight({
+        cycles: noCycles,
+        weight: noWeight,
+        activity: moderate,
+        acne: analyseAcne([acne]),
+        isPregnant: true,
+      });
+
+      expect(insight.adjustment.avoidIngredients).not.toContain("milk");
+      expect(insight.drivers.map((d) => d.key)).not.toContain("acne");
+    });
+
+    it("still adds calories back for a consistent training week", () => {
+      const insight = buildPcosInsight({
+        cycles: noCycles,
+        weight: noWeight,
+        activity: active,
+        isPregnant: true,
+      });
+
+      expect(insight.adjustment.calorieDelta).toBe(ACTIVE_ALLOWANCE_KCAL);
+    });
+  });
+
   it("pulls dairy for active acne", () => {
     const acne: AcneEntry = {
       id: "a1",

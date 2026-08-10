@@ -11,10 +11,12 @@
 -- tracking: cycles, weight and skin, read alongside the exercise minutes
 -- already in `lifestyle_logs`.
 --
--- `patients.health_track` is what decides which of those two worlds a patient
--- sees. It is set from signup metadata by `handle_new_user()` below, and
--- back-filled from the browser on first sign-in for accounts created before
--- this migration (see src/services/healthTrackService.ts).
+-- `patients.health_tracks` is what decides which of those worlds a patient
+-- sees. It is a set rather than one value, because pregnancy and PCOS commonly
+-- coexist and a patient carrying both needs both. It is set from signup
+-- metadata by the trigger below, and back-filled from the browser on first
+-- sign-in for accounts created before this migration (see
+-- src/services/healthTrackService.ts).
 --
 -- Every table here degrades gracefully in the frontend: a project that has not
 -- applied this file keeps working, the trackers simply fall back to
@@ -26,18 +28,47 @@
 -- helper the other doctor-facing tables use.
 
 -- ---------------------------------------------------------------------------
--- 1. Which care pathway a patient signed up for.
+-- 1. Which care pathways a patient signed up for.
+--
+--    A **set**, not one value. Pregnancy and PCOS routinely coexist — PCOS is
+--    one of the more common reasons a pregnancy is higher-risk, and a patient
+--    does not stop having it the month she conceives. A single-valued column
+--    would force her to pick which half of her care to give up. An empty array
+--    is an answer (general wellness); null means she was never asked.
 -- ---------------------------------------------------------------------------
 
 alter table public.patients
-  add column if not exists health_track text
-    check (health_track in ('pregnancy', 'pcos', 'general'));
+  add column if not exists health_tracks text[]
+    check (health_tracks <@ array['pregnancy', 'pcos']::text[]);
 
-comment on column public.patients.health_track is
-  'Care pathway chosen at signup. Decides which patient tabs exist and which '
-  'nutritional targets the diet plan generator starts from. Null on accounts '
-  'created before the tracks existed; the frontend resolves those from '
-  'assessment_data.';
+comment on column public.patients.health_tracks is
+  'Care pathways chosen at signup, any of {pregnancy, pcos}. Empty array = '
+  'general wellness; null = never asked. Decides which patient tabs exist and '
+  'which nutritional targets the diet plan generator starts from (pregnancy '
+  'wins when both apply). Null on accounts created before the tracks existed; '
+  'the frontend resolves those from assessment_data.';
+
+-- Carry over the single-valued `health_track` if an earlier revision of this
+-- file was already applied. Guarded so a fresh project skips it entirely.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'patients'
+      and column_name = 'health_track'
+  ) then
+    update public.patients
+       set health_tracks = case
+             when health_track in ('pregnancy', 'pcos') then array[health_track]
+             when health_track = 'general' then '{}'::text[]
+             else null
+           end
+     where health_tracks is null;
+
+    alter table public.patients drop column health_track;
+  end if;
+end
+$$;
 
 -- Unlike the doctor verification columns, this is not a trust signal: it
 -- decides which of her own trackers a patient sees, not what she may reach.
@@ -46,7 +77,7 @@ comment on column public.patients.health_track is
 -- `patients` update policy already scopes that to her own row.
 
 -- ---------------------------------------------------------------------------
--- 2. Carry the track through signup.
+-- 2. Carry the tracks through signup.
 --
 --    Replaces the patient branch of `handle_new_user()` from
 --    doctor_verification.sql; the doctor branch is untouched, so apply that
@@ -60,28 +91,36 @@ security definer
 set search_path = public
 as $$
 declare
-  meta  jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
-  track text  := meta ->> 'healthTrack';
+  meta   jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
+  tracks text[];
 begin
   if coalesce(meta ->> 'role', 'patient') <> 'patient' then
     return new;
   end if;
 
-  if track not in ('pregnancy', 'pcos', 'general') then
-    track := null;
+  -- Absent or malformed metadata leaves the column null ("never asked")
+  -- rather than storing an empty array, which would claim she answered
+  -- "general wellness" on her behalf.
+  if jsonb_typeof(meta -> 'healthTracks') <> 'array' then
+    return new;
   end if;
 
+  select coalesce(array_agg(value #>> '{}'), '{}'::text[])
+    into tracks
+    from jsonb_array_elements(meta -> 'healthTracks')
+   where value #>> '{}' in ('pregnancy', 'pcos');
+
   update public.patients
-     set health_track = track
+     set health_tracks = tracks
    where id = new.id
-     and health_track is null;
+     and health_tracks is null;
 
   return new;
 end;
 $$;
 
 comment on function public.handle_new_user_patient_track() is
-  'Copies the signup metadata health track onto the patients row. Runs after '
+  'Copies the signup metadata health tracks onto the patients row. Runs after '
   'handle_new_user() has created that row.';
 
 -- Name-ordered after `on_auth_user_created`, so the patients row exists by the

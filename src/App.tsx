@@ -35,7 +35,7 @@ import SkinTracker from "./pages/patient/SkinTracker";
 import {
   showsCycleTracking,
   showsDiseaseDetection,
-  type HealthTrack,
+  type HealthTracks,
 } from "@/lib/healthTrack";
 import PatientProfile from "./pages/patient/PatientProfile";
 import Reminders from "./pages/patient/Reminders";
@@ -100,23 +100,24 @@ const PatientProtectedRoute = ({ children }: { children: React.ReactNode }) => {
  * A patient route that only exists on some care pathways.
  *
  * The sidebar already hides these, but a bookmarked or hand-typed URL would
- * otherwise still render them — a PCOD/PCOS patient landing on the maternal
- * health check would be screened for conditions her answers were never about,
- * which is worse than a redirect. Sends her to her dashboard instead.
+ * otherwise still render them — a patient who is not pregnant landing on the
+ * maternal health check would be screened for conditions her answers were
+ * never about, which is worse than a redirect. Sends her to her dashboard
+ * instead.
  */
 const TrackRoute = ({
   allow,
   children,
 }: {
-  allow: (track: HealthTrack) => boolean;
+  allow: (tracks: HealthTracks) => boolean;
   children: React.ReactNode;
 }) => {
-  const { healthTrack } = useApp();
+  const { healthTracks } = useApp();
 
-  // Still resolving — render nothing rather than flashing the page or
+  // Still resolving — show the loader rather than flashing the page or
   // bouncing a patient who does belong here.
-  if (healthTrack === null) return <LoadingScreen message="Loading your profile..." />;
-  if (!allow(healthTrack)) return <Navigate to="/patient/dashboard" replace />;
+  if (healthTracks === null) return <LoadingScreen message="Loading your profile..." />;
+  if (!allow(healthTracks)) return <Navigate to="/patient/dashboard" replace />;
 
   return <>{children}</>;
 };

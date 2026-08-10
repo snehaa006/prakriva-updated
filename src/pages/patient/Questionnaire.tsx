@@ -61,7 +61,7 @@ interface FormData {
 const AyurvedicHealthAssessment: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, setQuestionnaireCompleted, healthTrack } = useApp();
+  const { user, setQuestionnaireCompleted, healthTracks } = useApp();
   const [formData, setFormData] = useState<FormData>({
     name: user?.name || "",
     dob: "",
@@ -91,11 +91,11 @@ const AyurvedicHealthAssessment: React.FC = () => {
    * What signup already put in `assessment_data`, kept so the submit below can
    * merge into it rather than replace it.
    *
-   * Signup writes the care track and its answers (`healthTrack`, `lifeStage`,
-   * `dueDate`, the PCOD/PCOS fields) here before the patient ever reaches this
-   * form. Saving `formData` straight over the column — which is what this page
-   * used to do — would silently wipe every one of them and drop her back onto
-   * general-adult nutrition targets.
+   * Signup writes the care tracks and their answers (`healthTracks`,
+   * `lifeStage`, `dueDate`, the PCOD/PCOS fields) here before the patient ever
+   * reaches this form. Saving `formData` straight over the column — which is
+   * what this page used to do — would silently wipe every one of them and drop
+   * her back onto general-adult nutrition targets.
    */
   const [existingAssessment, setExistingAssessment] = useState<
     Record<string, unknown>
@@ -457,17 +457,17 @@ const AyurvedicHealthAssessment: React.FC = () => {
                 </p>
               </div>
               {/* The pregnancy question is only asked when signup did not
-                  already answer it. A PCOD/PCOS patient chose her care track
-                  at signup, and re-asking here would let a blank answer
+                  already answer it. A patient who ticked a care track at
+                  signup has answered; re-asking here would let a blank answer
                   contradict it. */}
-              {healthTrack === "pcos" ? (
+              {healthTracks !== null && healthTracks.length > 0 ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your care track
+                    Your care {healthTracks.length > 1 ? "tracks" : "track"}
                   </label>
                   <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700">
-                    {HEALTH_TRACK_LABELS.pcos} — your cycle, weight and skin
-                    trackers are set up for you.
+                    {healthTracks.map((t) => HEALTH_TRACK_LABELS[t]).join(" + ")} —
+                    set up for you already, so we won't ask again here.
                   </p>
                 </div>
               ) : (
@@ -487,7 +487,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   </select>
                 </div>
               )}
-              {healthTrack !== "pcos" && formData.lifeStage === "pregnancy" && (
+              {healthTracks?.length === 0 && formData.lifeStage === "pregnancy" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Estimated due date
