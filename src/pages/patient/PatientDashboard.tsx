@@ -31,13 +31,16 @@ import {
   Eye,
   AlertCircle,
   Heart,
-  Baby,
-  Flower2,
   User,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Reveal } from "@/components/ui/reveal";
+import { Plate } from "@/components/illustrations/LineArt";
+import { LIFE_STAGE_ART } from "@/components/illustrations/lifeStageArt";
+import { describeLifeStage, lifeStageInfo } from "@/lib/lifeStage";
 import { useApp } from "@/context/AppContext";
+import { useCountUp } from "@/hooks/useCountUp";
 import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 import { isPreviewMode } from "@/lib/previewMode";
@@ -147,54 +150,29 @@ const MEAL_SLOTS = [
   { type: "dinner" as const, label: "Dinner", time: "7:30 PM", icon: Moon },
 ];
 
-const LIFE_STAGE_INFO: Record<string, { label: string; icon: any; color: string; tips: string[] }> = {
-  pregnancy: {
-    label: "Pregnancy",
-    icon: Baby,
-    color: "bg-accent-soft text-accent-soft-foreground border-transparent",
-    tips: [
-      "Aim for 300-450 extra calories/day",
-      "Include iron-rich foods like spinach and lentils",
-      "Folate from dark leafy greens is essential",
-      "Stay hydrated with 8-10 glasses of water",
-    ],
-  },
-  postpartum: {
-    label: "Postpartum",
-    icon: Heart,
-    color: "bg-vata/10 text-vata border-transparent",
-    tips: [
-      "Focus on nutrient-dense recovery foods",
-      "Include galactagogues if breastfeeding",
-      "Iron-rich foods aid recovery",
-      "Hydration is crucial for milk production",
-    ],
-  },
-  menopause: {
-    label: "Menopause",
-    icon: Flower2,
-    color: "bg-pitta/10 text-pitta border-transparent",
-    tips: [
-      "Calcium (1200mg/day) prevents bone loss",
-      "Phytoestrogens in soy may help with symptoms",
-      "Limit sodium for blood pressure management",
-      "Magnesium-rich foods improve sleep quality",
-    ],
-  },
-  not_applicable: {
-    label: "General Wellness",
-    icon: Sparkles,
-    color: "bg-accent-soft text-accent-soft-foreground border-transparent",
-    tips: [
-      "Balanced diet with all food groups",
-      "5+ servings of fruits and vegetables daily",
-      "Stay hydrated with 2+ liters of water",
-      "Whole grains for sustained energy",
-    ],
-  },
-};
-
 const TRACKING_STORAGE_KEY = "nourish_meal_tracking";
+
+/** One figure in the header strip, counted up from its previous value. */
+function HeaderStat({
+  value,
+  label,
+  accent = false,
+}: {
+  value: string | number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="text-center">
+      {/* Tabular figures: without them a counting number changes width every
+          frame and the whole strip jitters as it settles. */}
+      <div className={`text-title3 tabular-nums ${accent ? "text-primary" : "text-foreground"}`}>
+        {value}
+      </div>
+      <p className="text-caption1 text-foreground-secondary">{label}</p>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -817,8 +795,14 @@ const PatientDashboard = () => {
   };
 
   const lifeStage = profile?.lifeStage || "not_applicable";
-  const stageInfo = LIFE_STAGE_INFO[lifeStage] || LIFE_STAGE_INFO.not_applicable;
-  const StageIcon = stageInfo.icon;
+  const stageInfo = lifeStageInfo(lifeStage);
+  const StageArt = LIFE_STAGE_ART[stageInfo.art];
+
+  // Counted-up header figures. Declared here, above the loading early-return,
+  // so the hook order is the same on every render.
+  const completionCount = useCountUp(todayStats.completionPct);
+  const caloriesCount = useCountUp(todayStats.caloriesConsumed);
+  const eatenCount = useCountUp(todayStats.eaten);
 
   // ── Loading state ──
   if (loadingProfile) {
@@ -836,21 +820,23 @@ const PatientDashboard = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      {/* ── Header ── */}
-      <div className="flex flex-col justify-between gap-5 rounded-2xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-center">
+      {/* ── Header ──
+          The avatar used to be the patient's initial in a burgundy disc, which
+          told her nothing she didn't know. It's now the mark for her life
+          stage, drawn on load — the one piece of her record that changes what
+          this whole page recommends. */}
+      <Reveal className="flex flex-col justify-between gap-5 rounded-xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
-            {(profile?.name || "P").charAt(0).toUpperCase()}
-          </div>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
+            <StageArt delay={200} className="h-9 w-9" />
+          </span>
           <div>
             <h1 className="text-title2 text-foreground">
               {getGreeting()}, {(profile?.name || "there").split(" ")[0]}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <Badge className={`gap-1 ${stageInfo.color}`}>
-                <StageIcon className="h-3 w-3" />
-                {stageInfo.label}
-                {lifeStage === "pregnancy" && profile?.pregnancyTrimester && ` · T${profile.pregnancyTrimester}`}
+              <Badge className={`gap-1 ${stageInfo.badgeClass}`}>
+                {describeLifeStage(lifeStage, profile?.pregnancyTrimester)}
               </Badge>
               {profile?.allergies && profile.allergies.length > 0 && (
                 <Badge variant="outline" className="text-caption1">
@@ -862,49 +848,44 @@ const PatientDashboard = () => {
           </div>
         </div>
 
-        {/* Quick stats */}
+        {/* Quick stats. The figures count up on load; `useCountUp` always
+            lands on the exact value and never animates downward. */}
         {todaysMeals.length > 0 && (
           <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-5">
-            <div className="text-center">
-              <div className="text-title3 text-primary">{todayStats.completionPct}%</div>
-              <p className="text-caption1 text-foreground-secondary">Today</p>
-            </div>
+            <HeaderStat value={`${completionCount}%`} label="Today" accent />
             <div className="h-8 w-px bg-border" />
-            <div className="text-center">
-              <div className="text-title3 text-foreground">{todayStats.caloriesConsumed}</div>
-              <p className="text-caption1 text-foreground-secondary">Cal eaten</p>
-            </div>
+            <HeaderStat value={caloriesCount} label="Cal eaten" />
             <div className="h-8 w-px bg-border" />
-            <div className="text-center">
-              <div className="text-title3 text-foreground">
-                {todayStats.eaten}/{todayStats.total}
-              </div>
-              <p className="text-caption1 text-foreground-secondary">Meals</p>
-            </div>
+            <HeaderStat value={`${eatenCount}/${todayStats.total}`} label="Meals" />
           </div>
         )}
-      </div>
+      </Reveal>
 
-      {/* ── Tabs ── */}
+      {/* ── Tabs ──
+          On a phone these used to be four bare icons: a sun, a calendar, a
+          funnel and an arrow, with no way to tell "My Plans" from "Create
+          Plan" without tapping. Each now carries a short label stacked under
+          its icon, which fits four columns at 390px. */}
       <div className="rounded-2xl border border-border bg-card p-1 shadow-xs">
         <div className="flex gap-1">
           {([
-            { id: "today" as TabId, label: "Today", icon: Sun },
-            { id: "plan" as TabId, label: "My Plans", icon: Calendar },
-            { id: "create" as TabId, label: "Create Plan", icon: Filter },
-            { id: "progress" as TabId, label: "Progress", icon: TrendingUp },
+            { id: "today" as TabId, label: "Today", shortLabel: "Today", icon: Sun },
+            { id: "plan" as TabId, label: "My Plans", shortLabel: "Plans", icon: Calendar },
+            { id: "create" as TabId, label: "Create Plan", shortLabel: "Create", icon: Filter },
+            { id: "progress" as TabId, label: "Progress", shortLabel: "Progress", icon: TrendingUp },
           ]).map(tab => {
             const Icon = tab.icon;
             return (
               <Button
                 key={tab.id}
                 variant={activeTab === tab.id ? "default" : "ghost"}
-                className={`h-11 flex-1 gap-2 px-1.5 sm:h-10 sm:px-4 ${activeTab === tab.id ? "" : "text-foreground-secondary"}`}
+                className={`h-auto flex-1 flex-col gap-1 px-1 py-2 sm:h-10 sm:flex-row sm:gap-2 sm:px-4 sm:py-2 ${activeTab === tab.id ? "" : "text-foreground-secondary"}`}
                 onClick={() => setActiveTab(tab.id)}
                 title={tab.label}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="hidden truncate text-caption1 sm:inline sm:text-sm">{tab.label}</span>
+                <span className="text-caption2 sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden truncate sm:inline sm:text-sm">{tab.label}</span>
               </Button>
             );
           })}
@@ -919,9 +900,7 @@ const PatientDashboard = () => {
             {todaysMeals.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
-                    <ChefHat className="h-7 w-7 text-primary" />
-                  </div>
+                  <Plate className="h-20 w-20 text-primary/70" />
                   <div className="max-w-sm space-y-1.5">
                     <h3 className="text-headline text-foreground">No diet plan active yet</h3>
                     <p className="text-footnote text-foreground-secondary">
@@ -967,19 +946,34 @@ const PatientDashboard = () => {
                   </CardContent>
                 </Card>
 
-                {/* Meal cards */}
-                {todaysMeals.map((meal) => {
+                {/* Today's meals — one list, divided, rather than five
+                    identical floating cards. Five bordered boxes in a column
+                    is the shape a generator reaches for; it costs a card's
+                    worth of padding and shadow per row and still doesn't say
+                    the rows belong together. */}
+                <Card className="divide-y divide-border overflow-hidden">
+                  <div className="flex items-baseline justify-between px-6 pb-3 pt-5">
+                    <h2 className="text-subhead font-semibold text-foreground">Today's meals</h2>
+                    <span className="text-caption1 tabular-nums text-foreground-secondary">
+                      {todayStats.eaten} of {todayStats.total} logged
+                    </span>
+                  </div>
+                  {todaysMeals.map((meal, mealIndex) => {
                   const SlotIcon = MEAL_SLOTS.find(s => s.type === meal.type)?.icon || Utensils;
                   const isEaten = meal.status === "eaten";
                   const isSkipped = meal.status === "skipped";
                   return (
-                    <Card
+                    <Reveal
                       key={meal.id}
-                      className={`transition-all duration-200 ease-ios ${
+                      /* Only the first few rows stagger — by row six the wait
+                         is longer than the animation is worth. */
+                      index={Math.min(mealIndex, 5)}
+                      delay={120}
+                      className={`transition-colors duration-200 ease-ios ${
                         isEaten ? "bg-accent-soft/40" : isSkipped ? "bg-muted/40" : ""
                       }`}
                     >
-                      <CardContent className="py-4">
+                      <div className="px-6 py-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                           <div className="flex flex-1 min-w-0 items-start gap-3.5">
                             <div
@@ -999,21 +993,27 @@ const PatientDashboard = () => {
                                 {meal.time} · {meal.type.charAt(0).toUpperCase() + meal.type.slice(1)}
                                 {meal.dayLabel && ` · ${meal.dayLabel}`}
                               </p>
+                              {/* Macro icons stay in one quiet tone: the label
+                                  next to each already names the macro, so four
+                                  saturated hues on every meal row only added
+                                  noise — and it borrowed the dosha colours,
+                                  which are supposed to mean vata/pitta/kapha
+                                  and nothing else. */}
                               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
                                 <span className="flex items-center gap-1">
-                                  <Flame className="h-3 w-3 text-pitta" />
+                                  <Flame className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.calories} cal
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Drumstick className="h-3 w-3 text-primary" />
+                                  <Drumstick className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.protein}g protein
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Wheat className="h-3 w-3 text-kapha" />
+                                  <Wheat className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.carbs}g carbs
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Droplets className="h-3 w-3 text-vata" />
+                                  <Droplets className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.fat}g fat
                                 </span>
                               </div>
@@ -1110,10 +1110,11 @@ const PatientDashboard = () => {
                             </Button>
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </Reveal>
                   );
                 })}
+                </Card>
               </>
             )}
           </div>
@@ -1129,7 +1130,7 @@ const PatientDashboard = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-foreground-secondary">
-                      <Flame className="h-4 w-4 text-pitta" />
+                      <Flame className="h-4 w-4 text-foreground-tertiary" />
                       <span className="text-footnote">Calories</span>
                     </div>
                     <span className="text-footnote font-semibold text-foreground">
@@ -1144,7 +1145,7 @@ const PatientDashboard = () => {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-foreground-secondary">
-                    <Drumstick className="h-4 w-4 text-primary" />
+                    <Drumstick className="h-4 w-4 text-foreground-tertiary" />
                     <span className="text-footnote">Protein</span>
                   </div>
                   <span className="text-footnote font-semibold text-foreground">{todayStats.proteinConsumed}g</span>
@@ -1156,7 +1157,7 @@ const PatientDashboard = () => {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-subhead font-semibold">
-                  <StageIcon className="h-4 w-4 text-primary" />
+                  <StageArt animate={false} className="h-4 w-4 text-primary" />
                   Tips for {stageInfo.label}
                 </CardTitle>
               </CardHeader>
@@ -1451,10 +1452,10 @@ const PatientDashboard = () => {
                               </Badge>
                               <h3 className="text-subhead font-semibold text-foreground">{meal.name}</h3>
                               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
-                                <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-pitta" />{meal.calories} cal</span>
-                                <span className="inline-flex items-center gap-1"><Drumstick className="h-3 w-3 text-primary" />{meal.protein}g protein</span>
-                                <span className="inline-flex items-center gap-1"><Wheat className="h-3 w-3 text-kapha" />{meal.carbs}g carbs</span>
-                                <span className="inline-flex items-center gap-1"><Droplets className="h-3 w-3 text-vata" />{meal.fat}g fat</span>
+                                <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-foreground-tertiary" />{meal.calories} cal</span>
+                                <span className="inline-flex items-center gap-1"><Drumstick className="h-3 w-3 text-foreground-tertiary" />{meal.protein}g protein</span>
+                                <span className="inline-flex items-center gap-1"><Wheat className="h-3 w-3 text-foreground-tertiary" />{meal.carbs}g carbs</span>
+                                <span className="inline-flex items-center gap-1"><Droplets className="h-3 w-3 text-foreground-tertiary" />{meal.fat}g fat</span>
                               </div>
                               {(meal.region || meal.cookTime) && (
                                 <p className="mt-1 text-caption1 text-foreground-tertiary">

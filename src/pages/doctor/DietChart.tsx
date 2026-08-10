@@ -92,11 +92,13 @@ const DietChart = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRow, setEditingRow] = useState<string | null>(null);
 
+  // Tinted dosha tokens rather than palette ramps, so a "Vata" badge here is
+  // the same colour as vata anywhere else in the app.
   const doshaColors = {
-    vata: "bg-plum-100 text-plum-800",
-    pitta: "bg-red-100 text-red-800", 
-    kapha: "bg-rose-100 text-rose-800",
-    tridosh: "bg-coral-100 text-coral-800"
+    vata: "bg-vata/10 text-vata",
+    pitta: "bg-pitta/10 text-pitta",
+    kapha: "bg-kapha/10 text-kapha",
+    tridosh: "bg-accent-soft text-accent-soft-foreground"
   };
 
   // Convert Firebase meal plans to DietPlanRow format
