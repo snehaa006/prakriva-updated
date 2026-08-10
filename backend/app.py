@@ -991,6 +991,63 @@ def extract_report():
         raise ModelError(f"Report extraction failed: {e}")
 
 
+#: Skin check-ins are phone photos; a PDF makes no sense here, unlike a report.
+_ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
+                        "image/heif"}
+
+
+@app.route("/analysis/acne-photo", methods=["POST"])
+@app.limiter.limit("20 per hour")
+def assess_acne_photo():
+    """Describe the acne visible in a skin photo, for the PCOD/PCOS tracker.
+
+    Body: `{"image": "<base64>", "mime_type": "image/jpeg"}`. Returns a
+    severity band, the visible regions and a short description — never a
+    diagnosis and never treatment advice. The photo is forwarded to Gemini and
+    discarded; the copy the patient keeps lives in her own Supabase storage
+    folder, which this endpoint never touches.
+
+    A photo Gemini cannot judge comes back with `severity: null` rather than a
+    guess, so the frontend keeps the patient's own rating instead.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        image = payload.get("image")
+        mime_type = str(payload.get("mime_type") or "").lower()
+
+        if not isinstance(image, str) or not image:
+            raise ValidationError("An image is required")
+        if len(image) > _MAX_REPORT_BASE64_CHARS:
+            raise ValidationError("That photo is too large — try one under 8 MB")
+        if mime_type not in _ALLOWED_PHOTO_TYPES:
+            raise ValidationError("Upload a photo (JPEG, PNG, WEBP or HEIC)")
+
+        assessment = gemini_service.assess_acne_photo(image, mime_type)
+
+        return jsonify(APIResponse(
+            success=True,
+            data=assessment,
+            message=(
+                "Photo assessed"
+                if assessment.get("severity")
+                else "Could not judge this photo"
+            ),
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Acne photo assessment unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Photo assessment unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Acne photo assessment failed: {e}")
+        raise ModelError(f"Acne photo assessment failed: {e}")
+
+
 @app.route("/analytics", methods=["GET"])
 @app.limiter.limit("10 per minute")
 def get_analytics():

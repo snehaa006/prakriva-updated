@@ -52,6 +52,10 @@ import {
   type LifeStage,
   type DietChartContext,
 } from "@/services/dietChartService";
+import { fetchPcosAnalysis, type PcosAnalysis } from "@/services/pcosAnalysisService";
+import { describeHealthTracks, resolveHealthTracks } from "@/lib/healthTrack";
+import { REGULARITY_LABELS } from "@/lib/cycleTracking";
+import { BMI_BAND_LABELS, TREND_LABELS } from "@/lib/weightLog";
 import { fetchPantryItems, type PantryItem } from "@/services/pantryService";
 import { fetchScreenings } from "@/services/diseaseDetectionService";
 import type { RiskLevel, StoredScreening } from "@/types/diseaseDetection";
@@ -317,6 +321,59 @@ const RecipeBuilder = () => {
     return match ? toPatientProfile(match) : null;
   }, [patientId, doctorPatients]);
 
+  // Which care pathways the selected patient is on — a set, since pregnancy
+  // and PCOS routinely coexist. A pregnant patient's plan is built on top of
+  // her maternal screening; a PCOD/PCOS patient has no screening to build on,
+  // so her cycle, weight and exercise logs take its place — fetched below and
+  // shown in the same slot the screening would be. A patient on both gets the
+  // screening *and* the panel, with the panel restricted to what is safe in
+  // pregnancy.
+  const healthTracks = useMemo(() => {
+    if (!patientId || doctorPatients.length === 0) return null;
+    const match = doctorPatients.find((patient) => patient.id === patientId);
+    if (!match) return null;
+    const raw = match.profile as Record<string, unknown>;
+    const assessment = (raw.assessmentData ?? {}) as Record<string, unknown>;
+    return resolveHealthTracks({
+      column: match.healthTracks,
+      assessmentTracks: assessment.healthTracks,
+      lifeStage: assessment.lifeStage ?? raw.lifeStage,
+      conditions: assessment.currentConditions,
+    });
+  }, [patientId, doctorPatients]);
+
+  const isPcosPatient = !!healthTracks?.includes("pcos");
+  const isPregnantPcosPatient = isPcosPatient && !!healthTracks?.includes("pregnancy");
+
+  const [pcosAnalysis, setPcosAnalysis] = useState<PcosAnalysis | null>(null);
+  const [isLoadingPcos, setIsLoadingPcos] = useState(false);
+
+  useEffect(() => {
+    if (!isPcosPatient || !patientId) {
+      setPcosAnalysis(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingPcos(true);
+
+    fetchPcosAnalysis(patientId, { isPregnant: isPregnantPcosPatient })
+      .then((analysis) => {
+        if (!cancelled) setPcosAnalysis(analysis);
+      })
+      .catch((error) => {
+        console.error("Could not load the PCOS analysis:", error);
+        if (!cancelled) setPcosAnalysis(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingPcos(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPcosPatient, isPregnantPcosPatient, patientId]);
+
   // The two extra sources the AI generator plans around: what the patient
   // actually has in her kitchen, and what her disease screenings found. Both
   // are optional — a patient with neither still gets a chart, just one built
@@ -355,8 +412,13 @@ const RecipeBuilder = () => {
         createdAt: screening.createdAt,
         result: screening.result,
       })),
+      // A pregnant patient's clinical input is the screening above. A
+      // PCOD/PCOS patient has none to run, so this carries the equivalent
+      // derived from her own cycle, weight and exercise logs. Undefined on
+      // every other track, leaving the plan exactly as it was.
+      adjustment: pcosAnalysis?.insight.adjustment,
     };
-  }, [pantryItems, screenings]);
+  }, [pantryItems, screenings, pcosAnalysis]);
 
   const pantryAtHomeCount = useMemo(
     () => pantryItems.filter((item) => item.availability === "at_home").length,
@@ -963,6 +1025,141 @@ const RecipeBuilder = () => {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ===== PCOD/PCOS ANALYSIS =====
+              Stands where the maternal screening result would sit for a
+              patient who is only pregnant. There is no disease-detection
+              pipeline to run for PCOS — the diagnosis is already made — so the
+              plan is tuned from what she actually logs: her cycles, her weight
+              and her exercise. A patient who is *both* pregnant and has PCOS
+              gets this panel alongside her screening, restricted to what is
+              safe in pregnancy. */}
+          {isPcosPatient && (
+            <Card className="shadow-sm border-plum-100 bg-plum-50/30">
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-plum-600" />
+                    <CardTitle className="text-sm">PCOD / PCOS Analysis</CardTitle>
+                  </div>
+                  <Badge className="border border-plum-200 bg-plum-100 text-plum-800 text-[10px]">
+                    {healthTracks ? describeHealthTracks(healthTracks) : "PCOD / PCOS"}
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs">
+                  {isPregnantPcosPatient
+                    ? "She is pregnant as well as managing PCOD/PCOS. Her plan follows the pregnancy targets — nothing below restricts her intake — and these logs shape what goes into it."
+                    : "This patient has no maternal screening — these logs are what the generated plan is tuned from."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoadingPcos ? (
+                  <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading her tracking history...
+                  </div>
+                ) : !pcosAnalysis ? (
+                  <p className="py-2 text-sm text-gray-500">
+                    Could not load her tracking history. The plan will use the standard
+                    PCOD/PCOS targets.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        {
+                          label: "Cycles",
+                          value: REGULARITY_LABELS[pcosAnalysis.cycles.regularity],
+                          detail:
+                            pcosAnalysis.cycles.averageCycleLength !== null
+                              ? `avg ${pcosAnalysis.cycles.averageCycleLength} days · ${pcosAnalysis.cycles.cycleCount} logged`
+                              : "no cycles logged",
+                        },
+                        {
+                          label: "Missed / frequent",
+                          value: `${pcosAnalysis.cycles.missedCycles + pcosAnalysis.cycles.reportedMissedMonths} / ${pcosAnalysis.cycles.twiceInAMonth}`,
+                          detail: "missed stretches · months with two periods",
+                        },
+                        {
+                          label: "Weight",
+                          value: pcosAnalysis.weight.latest
+                            ? `${pcosAnalysis.weight.latest.weightKg} kg`
+                            : "—",
+                          detail: pcosAnalysis.weight.band
+                            ? `BMI ${pcosAnalysis.weight.bmi} · ${BMI_BAND_LABELS[pcosAnalysis.weight.band]} · ${TREND_LABELS[pcosAnalysis.weight.trend].toLowerCase()}`
+                            : "no height or weight recorded",
+                        },
+                        {
+                          label: "Exercise",
+                          value: `${pcosAnalysis.activity.avgMinutesPerDay} min/day`,
+                          detail: `${pcosAnalysis.activity.activeDaysPerWeek} active day(s) this week`,
+                        },
+                      ].map((stat) => (
+                        <div
+                          key={stat.label}
+                          className="rounded-lg border border-plum-100 bg-white p-3"
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                            {stat.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">{stat.value}</p>
+                          <p className="text-[11px] text-gray-500">{stat.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {pcosAnalysis.insight.drivers.length > 0 && (
+                      <div className="space-y-2">
+                        {pcosAnalysis.insight.drivers.map((driver) => (
+                          <div
+                            key={driver.key}
+                            className="rounded-lg border border-plum-100 bg-white p-3"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CircleDot className="h-3 w-3 shrink-0 text-plum-400" />
+                              <span className="text-xs font-semibold text-plum-900">
+                                {driver.label}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-600">{driver.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {pcosAnalysis.insight.adjustment.calorieDelta !== 0 && (
+                      <div className="flex items-center gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-xs text-coral-900">
+                        <Target className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          Generating will shift her calorie band by{" "}
+                          <strong>
+                            {pcosAnalysis.insight.adjustment.calorieDelta > 0 ? "+" : ""}
+                            {pcosAnalysis.insight.adjustment.calorieDelta} kcal/day
+                          </strong>{" "}
+                          from the standard PCOD/PCOS targets shown above.
+                        </span>
+                      </div>
+                    )}
+
+                    {pcosAnalysis.insight.gaps.length > 0 && (
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Still missing
+                        </p>
+                        <ul className="mt-1 space-y-1">
+                          {pcosAnalysis.insight.gaps.map((gap) => (
+                            <li key={gap} className="text-xs text-gray-600">
+                              {gap}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           )}

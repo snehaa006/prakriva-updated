@@ -34,7 +34,11 @@ export type LifeStage =
   | "not_applicable"
   | "pregnancy"
   | "postpartum"
-  | "menopause";
+  | "menopause"
+  // Not a life stage in the strict sense, but it enters the generator the same
+  // way the others do: a standing condition that decides the calorie band, the
+  // macro split and the ingredient focus for every meal in the plan.
+  | "pcos";
 
 export interface PatientProfile {
   name: string;
@@ -297,6 +301,82 @@ export function getNutritionalTargets(
           "Spice",
           "Herb",
         ],
+      };
+    }
+
+    case "pcos": {
+      // PCOS nutrition guidance (Rotterdam / international evidence-based
+      // guideline for PCOS). The condition runs on insulin resistance, so the
+      // shape of the plan matters more than the calorie count: a modest
+      // deficit, a low glycaemic load, protein and fibre at every meal, and
+      // enough iron to cover heavy or frequent bleeding.
+      //
+      // The band below is a *starting* point for a sedentary adult. The
+      // cycle, weight and activity logs adjust it per patient — see
+      // `src/lib/pcosInsights.ts`.
+      return {
+        calories: { min: 1600, max: 1900, label: "PCOD / PCOS" },
+        protein: { min: 60, max: 90, unit: "g/day (1.2-1.5g/kg)" },
+        // Frequent or heavy bleeding is the norm rather than the exception
+        // here, so iron stays at the menstruating-adult level rather than
+        // dropping to the general one.
+        iron: { min: 18, unit: "mg/day" },
+        calcium: { min: 1000, unit: "mg/day" },
+        folate: { min: 400, unit: "mcg/day" },
+        vitaminD: { min: 800, unit: "IU/day" },
+        // Fibre is the lever, not an afterthought: it is what flattens the
+        // glucose curve that everything else here is trying to flatten.
+        fiber: { min: 30, unit: "g/day" },
+        omega3: { min: 1.5, unit: "g/day" },
+        notes: [
+          "Low glycaemic index carbohydrates: millets, barley, whole dals, steel-cut oats — not white rice, maida or sugary drinks",
+          "Protein and fibre at every meal; never eat a carbohydrate on its own",
+          "30g+ fibre daily — vegetables, whole pulses, fruit with the skin on",
+          "Anti-inflammatory fats: flaxseed, chia, walnuts, olive oil",
+          "Iron with vitamin C (lemon on greens, amla, citrus) if periods are heavy or frequent",
+          "Vitamin D and magnesium both improve insulin sensitivity — sunlight, nuts, seeds, leafy greens",
+          "Spread food across regular meals; long fasts followed by large meals worsen insulin swings",
+          "Limit refined sugar, fried food and processed carbohydrate — the biggest single change for PCOS",
+        ],
+        avoidIngredients: [
+          "sugar",
+          "refined flour",
+          "white bread",
+          "white rice",
+          "maida",
+          "fried",
+          "sweetened beverage",
+          "corn syrup",
+          "processed meat",
+          "excessive caffeine",
+          "alcohol",
+        ],
+        focusIngredients: [
+          "millet",
+          "barley",
+          "oat",
+          "quinoa",
+          "lentil",
+          "chickpea",
+          "rajma",
+          "spinach",
+          "broccoli",
+          "flaxseed",
+          "chia",
+          "walnut",
+          "almond",
+          "pumpkin seed",
+          "fenugreek",
+          "cinnamon",
+          "turmeric",
+          "berry",
+          "guava",
+          "yogurt",
+          "paneer",
+          "egg",
+          "green tea",
+        ],
+        focusCategories: ["Vegetable", "Legume", "Cereal", "Nut", "Fruit", "Spice"],
       };
     }
 
@@ -815,20 +895,108 @@ export interface GeneratedDietChart {
   summary?: string;
 }
 
+/**
+ * Per-patient tuning applied on top of the life-stage targets.
+ *
+ * The life-stage guidelines are population-level: they know a PCOS patient
+ * needs a low-glycaemic plan, but not that *this* patient has gained 4 kg in
+ * two months and hasn't had a period since March. The PCOS track derives that
+ * from her own logs (`src/lib/pcosInsights.ts`) and passes it in here, which is
+ * what stands in for the disease analysis a pregnant patient's plan is built
+ * from.
+ */
+export interface PlanAdjustment {
+  /** kcal/day added to (or taken off) the target band. */
+  calorieDelta: number;
+  /** Ingredients to weight up, on top of the life-stage focus list. */
+  focusIngredients: string[];
+  /** Ingredients to steer away from, on top of the life-stage avoid list. */
+  avoidIngredients: string[];
+  /** Notes appended to the plan's medical notes, explaining the tuning. */
+  notes: string[];
+}
+
+export const emptyPlanAdjustment = (): PlanAdjustment => ({
+  calorieDelta: 0,
+  focusIngredients: [],
+  avoidIngredients: [],
+  notes: [],
+});
+
+/**
+ * The life-stage targets with a patient's own adjustment folded in.
+ *
+ * Shared by both generation paths — the Gemini one and the FoodOScope
+ * fallback — so a PCOS patient's plan is tuned the same way whichever composes
+ * it. A chart that quietly dropped her calorie deficit because the backend was
+ * unreachable would be the worst kind of fallback.
+ */
+export function applyPlanAdjustment(
+  base: NutritionalTargets,
+  adjustment: PlanAdjustment
+): NutritionalTargets {
+  // A floor of 1200 kcal: below that a plan cannot reliably carry the protein,
+  // iron and calcium these guidelines call for, and no adjustment computed
+  // from a tracker should be able to push a patient there.
+  const adjustedMin = Math.max(1200, base.calories.min + adjustment.calorieDelta);
+
+  return {
+    ...base,
+    calories: {
+      ...base.calories,
+      min: adjustedMin,
+      max: Math.max(adjustedMin + 200, base.calories.max + adjustment.calorieDelta),
+    },
+    notes: [...base.notes, ...adjustment.notes],
+    focusIngredients: [
+      ...new Set([...base.focusIngredients, ...adjustment.focusIngredients]),
+    ],
+    avoidIngredients: [
+      ...new Set([...base.avoidIngredients, ...adjustment.avoidIngredients]),
+    ],
+  };
+}
+
+/**
+ * Exclude and focus lists with the adjustment folded in.
+ *
+ * The adjustment's avoid list wins over its focus list, so a food ruled out for
+ * one reason cannot be pulled back in by another.
+ */
+export function applyIngredientAdjustment(
+  profile: PatientProfile,
+  adjustment: PlanAdjustment
+): { excludeIngredients: string[]; includeIngredients: string[] } {
+  const excludeIngredients = [
+    ...new Set([...buildExcludeIngredients(profile), ...adjustment.avoidIngredients]),
+  ];
+  const includeIngredients = [
+    ...new Set([...buildIncludeIngredients(profile), ...adjustment.focusIngredients]),
+  ].filter((i) => !excludeIngredients.includes(i));
+
+  return { excludeIngredients, includeIngredients };
+}
+
 async function generateDietChartFromRecipes(
   profile: PatientProfile,
-  numDays: number = 7
+  numDays: number = 7,
+  adjustment: PlanAdjustment = emptyPlanAdjustment()
 ): Promise<GeneratedDietChart> {
   const dosha = determinePrimaryDosha(profile);
-  const targets = getNutritionalTargets(
+  const baseTargets = getNutritionalTargets(
     profile.lifeStage as LifeStage,
     profile.pregnancyTrimester,
     profile.isBreastfeeding,
     profile.menopauseStage
   );
+
+  const targets = applyPlanAdjustment(baseTargets, adjustment);
+
   const dietPref = mapDietaryPreference(profile.dietaryPreferences);
-  const excludeIngredients = buildExcludeIngredients(profile);
-  const includeIngredients = buildIncludeIngredients(profile);
+  const { excludeIngredients, includeIngredients } = applyIngredientAdjustment(
+    profile,
+    adjustment
+  );
   const doshaPrefs = DOSHA_FOOD_PREFERENCES[dosha.primary] || DOSHA_FOOD_PREFERENCES.vata;
 
   const dailyCalories = Math.round((targets.calories.min + targets.calories.max) / 2);
@@ -931,6 +1099,7 @@ async function generateDietChartFromRecipes(
     menopause: `Menopause${
       profile.menopauseStage ? ` (${profile.menopauseStage})` : ""
     }`,
+    pcos: "PCOD / PCOS",
   };
 
   return {
@@ -981,6 +1150,16 @@ export interface ScreeningContext {
 export interface DietChartContext {
   pantry?: PantryContext;
   screenings?: ScreeningContext[];
+  /**
+   * Per-patient tuning on top of the life-stage targets.
+   *
+   * For a pregnant patient the clinical input is `screenings` above. A
+   * PCOD/PCOS patient has no screening to run, so this carries the equivalent
+   * derived from her own cycle, weight and exercise logs — see
+   * `src/lib/pcosInsights.ts`. Applied on both generation paths, so the
+   * fallback does not quietly drop it.
+   */
+  adjustment?: PlanAdjustment;
 }
 
 interface AiPlanResponse {
@@ -1016,7 +1195,7 @@ export async function generateDietChartWithAI(
   context: DietChartContext = {}
 ): Promise<GeneratedDietChart> {
   const dosha = determinePrimaryDosha(profile);
-  const targets = getNutritionalTargets(
+  const baseTargets = getNutritionalTargets(
     profile.lifeStage as LifeStage,
     profile.pregnancyTrimester,
     profile.isBreastfeeding,
@@ -1024,8 +1203,12 @@ export async function generateDietChartWithAI(
   );
   const doshaPrefs =
     DOSHA_FOOD_PREFERENCES[dosha.primary] || DOSHA_FOOD_PREFERENCES.vata;
-  const excludeIngredients = buildExcludeIngredients(profile);
-  const includeIngredients = buildIncludeIngredients(profile);
+  const adjustment = context.adjustment ?? emptyPlanAdjustment();
+  const targets = applyPlanAdjustment(baseTargets, adjustment);
+  const { excludeIngredients, includeIngredients } = applyIngredientAdjustment(
+    profile,
+    adjustment
+  );
 
   const lifeStageLabels: Record<string, string> = {
     not_applicable: "General",
@@ -1034,6 +1217,7 @@ export async function generateDietChartWithAI(
     }`,
     postpartum: `Postpartum${profile.isBreastfeeding === "yes" ? " (Breastfeeding)" : ""}`,
     menopause: `Menopause${profile.menopauseStage ? ` (${profile.menopauseStage})` : ""}`,
+    pcos: "PCOD / PCOS",
   };
   const lifeStageLabel = lifeStageLabels[profile.lifeStage] || "General";
 
@@ -1122,6 +1306,9 @@ export async function generateDietChart(
     return await generateDietChartWithAI(profile, numDays, context);
   } catch (err) {
     console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
-    return generateDietChartFromRecipes(profile, numDays);
+    // The adjustment goes with it — a chart that quietly dropped a patient's
+    // calorie deficit because the backend was unreachable would be worse than
+    // the error it replaced.
+    return generateDietChartFromRecipes(profile, numDays, context.adjustment);
   }
 }

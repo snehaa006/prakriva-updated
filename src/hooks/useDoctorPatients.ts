@@ -18,6 +18,12 @@ export interface DoctorPatient {
   requestStatus: string;
   /** Questionnaire/consultation payload, merged for diet-chart generation. */
   profile: Record<string, unknown>;
+  /**
+   * `patients.health_tracks` — which care pathways she signed up for. Null in a
+   * project that has not applied `supabase/pcos_tracking.sql`; callers fall
+   * back to `assessment_data` through `resolveHealthTracks`.
+   */
+  healthTracks: string[] | null;
 }
 
 /** The statuses `public.doctor_treats()` accepts — i.e. patients the doctor can write for. */
@@ -41,8 +47,12 @@ interface ConsultationRow {
     name: string | null;
     email: string | null;
     assessment_data: Record<string, unknown> | null;
+    health_tracks?: string[] | null;
   } | null;
 }
+
+/** Postgres/PostgREST codes meaning "that column isn't there (yet)". */
+const MISSING_COLUMN_CODES = ["42703", "PGRST204", "PGRST100"];
 
 export const doctorPatientsQueryKey = (
   doctorId: string | undefined,
@@ -53,15 +63,27 @@ export async function fetchDoctorPatients(
   doctorId: string,
   statuses: readonly string[]
 ): Promise<DoctorPatient[]> {
-  const { data, error } = await supabase
-    .from("consultation_requests")
-    .select(
-      `patient_id, patient_name, patient_email, status, requested_at, full_patient_profile,
-       patients ( patient_code, name, email, assessment_data )`
-    )
-    .eq("doctor_id", doctorId)
-    .in("status", [...statuses])
-    .order("requested_at", { ascending: false });
+  const select = (patientColumns: string) =>
+    supabase
+      .from("consultation_requests")
+      .select(
+        `patient_id, patient_name, patient_email, status, requested_at, full_patient_profile,
+         patients ( ${patientColumns} )`
+      )
+      .eq("doctor_id", doctorId)
+      .in("status", [...statuses])
+      .order("requested_at", { ascending: false });
+
+  let { data, error } = await select(
+    "patient_code, name, email, assessment_data, health_tracks"
+  );
+
+  // `health_tracks` arrived with the PCOD/PCOS tracks. Retry without it rather
+  // than leaving the whole patient list broken in a project that has not
+  // applied the migration — the tracks still resolve from `assessment_data`.
+  if (error && MISSING_COLUMN_CODES.includes(error.code ?? "")) {
+    ({ data, error } = await select("patient_code, name, email, assessment_data"));
+  }
 
   if (error) throw new Error(error.message);
 
@@ -88,6 +110,7 @@ export async function fetchDoctorPatients(
       email: record?.email || row.patient_email || "",
       requestStatus: row.status,
       profile,
+      healthTracks: record?.health_tracks ?? null,
     });
   }
 

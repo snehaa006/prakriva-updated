@@ -184,8 +184,28 @@ describe("patient sign in", () => {
   }, 15000);
 });
 
+/**
+ * Walk a patient through step 1 of the signup wizard: credentials, then Next.
+ *
+ * Patients get a two-step form since the PCOD/PCOS tracks landed — step 2 is
+ * where the care pathway and its track-specific questions live.
+ */
+const completePatientStepOne = async (
+  user: ReturnType<typeof userEvent.setup>,
+  overrides: Partial<Record<string, string>> = {}
+) => {
+  await fillCredentials(user, {
+    name: "Asha Patel",
+    email: "asha@example.com",
+    password: "secret123",
+    confirmPassword: "secret123",
+    ...overrides,
+  });
+  await user.click(screen.getByRole("button", { name: /^next$/i }));
+};
+
 describe("patient sign up", () => {
-  it("shows the signup fields after toggling", async () => {
+  it("shows the account fields on step 1 of its own two-step wizard", async () => {
     const user = userEvent.setup();
     renderLogin("patient");
 
@@ -194,29 +214,80 @@ describe("patient sign up", () => {
     expect(screen.getByText(/create your account/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
-    // Patients get one form, not the doctor wizard.
+    // Two steps, not the doctor's four.
+    expect(screen.getByText(/step 1 of 2/i)).toBeInTheDocument();
     expect(screen.queryByText(/step 1 of 4/i)).not.toBeInTheDocument();
   });
 
-  it("creates a patient account and sends them to the questionnaire", async () => {
+  it("asks which care pathway she is here for on step 2", async () => {
+    const user = userEvent.setup();
+    renderLogin("patient");
+
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+
+    expect(screen.getByText(/step 2 of 2/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /pregnancy/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /pcod \/ pcos/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /general wellness/i })).toBeInTheDocument();
+  });
+
+  it("will not finish without a care pathway chosen", async () => {
+    const user = userEvent.setup();
+    renderLogin("patient");
+
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() =>
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        "Please choose what you're here for"
+      )
+    );
+    expect(supabaseMock.signUp).not.toHaveBeenCalled();
+  });
+
+  // The diagnosis question is what separates a PCOS signup from a pregnancy
+  // one; a blank answer would leave her plan with nothing to key off.
+  it("requires the diagnosis answer on the PCOD/PCOS pathway", async () => {
+    const user = userEvent.setup();
+    renderLogin("patient");
+
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() =>
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        "Please tell us whether PCOD/PCOS has been diagnosed"
+      )
+    );
+    expect(supabaseMock.signUp).not.toHaveBeenCalled();
+  });
+
+  it("creates a pregnancy-track patient and sends her to the questionnaire", async () => {
     const user = userEvent.setup();
     supabaseMock.setTable("patients", { data: { patient_code: "P007" } });
 
     renderLogin("patient");
     await switchToSignup(user);
-    await fillCredentials(user, {
-      name: "Asha Patel",
-      email: "asha@example.com",
-      password: "secret123",
-      confirmPassword: "secret123",
-    });
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
       expect(supabaseMock.signUp).toHaveBeenCalledWith({
         email: "asha@example.com",
         password: "secret123",
-        options: { data: { role: "patient", name: "Asha Patel" } },
+        options: {
+          data: expect.objectContaining({
+            role: "patient",
+            name: "Asha Patel",
+            healthTracks: ["pregnancy"],
+          }),
+        },
       })
     );
     await waitFor(() =>
@@ -227,20 +298,80 @@ describe("patient sign up", () => {
     );
   });
 
-  it("refuses to submit when the passwords do not match", async () => {
+  it("carries the PCOD/PCOS answers into the signup metadata", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("patients", { data: { patient_code: "P008" } });
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/has a doctor diagnosed it/i),
+      "diagnosed-pcos"
+    );
+    await user.type(screen.getByLabelText(/usual cycle length/i), "45");
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
+    const metadata = supabaseMock.signUp.mock.calls[0][0].options.data;
+    expect(metadata.healthTracks).toEqual(["pcos"]);
+    expect(metadata.healthTrackDetails).toMatchObject({
+      diagnosisStatus: "diagnosed-pcos",
+      typicalCycleLength: "45",
+    });
+  });
+
+  // Pregnancy and PCOS routinely coexist; forcing a choice between them would
+  // make a pregnant PCOS patient give up half her care.
+  it("lets a patient sign up as both pregnant and PCOD/PCOS", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("patients", { data: { patient_code: "P009" } });
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
+
+    // Both sets of questions are on screen at once.
+    expect(screen.getByLabelText(/estimated due date/i)).toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByLabelText(/has a doctor diagnosed it/i),
+      "diagnosed-pcos"
+    );
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
+    expect(supabaseMock.signUp.mock.calls[0][0].options.data.healthTracks).toEqual([
+      "pregnancy",
+      "pcos",
+    ]);
+  });
+
+  it("treats general wellness as an answer, not a blank", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("patients", { data: { patient_code: "P010" } });
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /general wellness/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(supabaseMock.signUp).toHaveBeenCalled());
+    expect(supabaseMock.signUp.mock.calls[0][0].options.data.healthTracks).toEqual([]);
+  });
+
+  it("refuses to leave step 1 when the passwords do not match", async () => {
     const user = userEvent.setup();
     renderLogin("patient");
 
     await switchToSignup(user);
-    await fillCredentials(user, {
-      name: "Asha Patel",
-      email: "asha@example.com",
-      password: "secret123",
-      confirmPassword: "different",
-    });
-    await user.click(screen.getByRole("button", { name: /create account/i }));
+    await completePatientStepOne(user, { confirmPassword: "different" });
 
     await waitFor(() => expect(mock.toast.error).toHaveBeenCalledWith("Passwords don't match"));
+    expect(screen.getByText(/step 1 of 2/i)).toBeInTheDocument();
     expect(supabaseMock.signUp).not.toHaveBeenCalled();
     expect(mock.navigate).not.toHaveBeenCalled();
   });
@@ -254,12 +385,8 @@ describe("patient sign up", () => {
 
     renderLogin("patient");
     await switchToSignup(user);
-    await fillCredentials(user, {
-      name: "Asha Patel",
-      email: "asha@example.com",
-      password: "secret123",
-      confirmPassword: "secret123",
-    });
+    await completePatientStepOne(user);
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -283,12 +410,8 @@ describe("patient sign up", () => {
 
     renderLogin("patient");
     await switchToSignup(user);
-    await fillCredentials(user, {
-      name: "Asha Patel",
-      email: "taken@example.com",
-      password: "secret123",
-      confirmPassword: "secret123",
-    });
+    await completePatientStepOne(user, { email: "taken@example.com" });
+    await user.click(screen.getByRole("checkbox", { name: /pregnancy/i }));
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>

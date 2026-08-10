@@ -7,6 +7,10 @@ patients complete an Ayurvedic health questionnaire, list the foods in their
 kitchen, get a personalized diet plan, get exercise suggestions matched to the
 risks their health check flagged, and join peer-support community circles.
 
+Patients pick their **care tracks** at signup — pregnancy, PCOD/PCOS, both, or
+neither — which decides which tabs they see and which nutritional targets their
+plan starts from. See "Care tracks" below.
+
 ## Tech stack
 
 - **Frontend**: React + TypeScript + Vite, shadcn/ui + Radix + Tailwind CSS,
@@ -39,10 +43,13 @@ risks their health check flagged, and join peer-support community circles.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
-  - `AccountFields.tsx` — the name/email/password fields, shared by the
-    patient form and step 1 of the doctor wizard.
+  - `AccountFields.tsx` — the name/email/password fields, shared by step 1 of
+    both wizards and the sign-in form.
   - `DoctorSignupSteps.tsx` — the four-step doctor wizard (account, license,
     expertise, practice), with its option lists in `doctorProfileOptions.ts`.
+  - `PatientSignupSteps.tsx` — the two-step patient wizard (account, then care
+    tracks and their track-specific questions), with its constants in
+    `patientTrackOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
 - `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
@@ -72,12 +79,23 @@ risks their health check flagged, and join peer-support community circles.
   `disease_screenings.sql` for the screening history table,
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
   hydration log, `patient_pantry_items.sql` for the patient kitchen list and
-  `community.sql` for the community circles, their memberships and their chat.
+  `community.sql` for the community circles, their memberships and their chat,
+  and `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
+  (`menstrual_cycle_logs`, `missed_cycle_months`, `weight_logs`, `acne_logs`)
+  and the private `acne-photos` storage bucket.
 - `src/components/wellness/ExercisePlan.tsx` — the one rendering of an exercise
   suggestion, shared by the Lifestyle Tracker (where minutes are logged against
   each exercise), the patient's health-check results and the doctor's Patient
   Analysis, so the three cannot drift apart. The picks themselves come from
   `src/lib/exerciseRecommendations.ts`. See "Exercise suggestions" below.
+- `src/lib/healthTrack.ts` + `src/services/healthTrackService.ts` — which care
+  tracks a patient is on (a set — pregnancy and PCOS can both apply), and the
+  two places they are stored. See "Care tracks".
+- `src/lib/cycleTracking.ts`, `src/lib/weightLog.ts`, `src/lib/acneGuidance.ts`
+  and `src/lib/pcosInsights.ts` — the PCOD/PCOS domain model: cycle analysis,
+  weight trends, acne guidance, and the combined insight that tunes the diet
+  plan. All pure and unit-tested, with the Supabase side in the matching
+  `src/services/*LogService.ts` files.
 - `src/components/patients/` — shared patient-selection UI:
   `PatientPicker.tsx` (searchable dropdown over the signed-in doctor's own
   patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
@@ -209,7 +227,9 @@ deliberately not collected here. What the profile stores:
 | Group | Fields |
 |---|---|
 | Personal | `name`, `dob` (age is derived, never stored), `gender`, `location`, `heightCm` |
-| Maternal (once) | `lifeStage` (`pregnancy`/`none`), `dueDate` (estimated due date) |
+| Care tracks (set at signup) | `healthTracks` (any of `pregnancy`, `pcos`; empty = general), mirrored to `patients.health_tracks` |
+| Maternal (once) | `lifeStage` (`pregnancy`/`pcos`/`not_applicable`, or `none` from the questionnaire's own "No"), `dueDate` (estimated due date) |
+| PCOD/PCOS (set at signup) | `pcosDiagnosisStatus`, `pcosDiagnosisYear`, `typicalCycleLength`, `lastPeriodStart`, `pcosConcerns` |
 | Allergies & avoidances | `allergies`, `allergiesOther`, `foodAvoidances` |
 | Dietary pattern | `dietaryPreferences` |
 | Family history | `familyHistory`, `familyHistoryOther` |
@@ -225,6 +245,14 @@ Fields the profile no longer collects, because they change over time:
 maternal facts; the current gestational week is derived from `dueDate` at
 screening time rather than stored.)
 
+**The questionnaire merges into `assessment_data`, it does not replace it.**
+Signup writes the care tracks and their answers there before the patient ever
+reaches this form, and an empty answer never wins over a stored one — saving
+the form state straight over the column would silently wipe her tracks and drop
+her back onto general-adult nutrition targets. For the same reason the "Are you
+currently pregnant?" question is hidden for anyone who ticked a track at
+signup, since she has already answered it.
+
 Readers of `assessment_data` treat it as free-form `jsonb` and read every field
 defensively, so profiles saved before this change keep working and any absent
 keys simply read as absent. Worth knowing:
@@ -238,6 +266,168 @@ keys simply read as absent. Worth knowing:
 - `buildScreeningInputFromAssessment` prefills age, gestational week (from
   `dueDate`), trimester and history; labs and today's measurements stay blank
   for the patient or doctor to enter.
+
+## Care tracks
+
+Prakriva began as a maternal app: every patient was assumed pregnant, so the
+maternal screening and the pregnancy nutrition targets applied to everyone. A
+patient now picks her **care tracks** on step 2 of signup, and that choice
+decides what the app is for her.
+
+**They are a set, not a choice.** Pregnancy and PCOS routinely coexist — PCOS is
+one of the more common reasons a pregnancy is higher-risk, and a patient does
+not stop having it the month she conceives. A form that forced a choice would
+make a pregnant PCOS patient pick which half of her care to give up, so the
+signup step is checkboxes and ticking both shows both sets of questions.
+
+| Tracks | Tabs she gets | Analysis her plan is built from | Calorie band |
+|---|---|---|---|
+| `pregnancy` | Health Check (maternal screening) | `disease_screenings` — the trained models | ACOG, per trimester |
+| `pcos` | Period & Weight Tracker, Skin & Acne | Her cycle, weight, exercise and skin logs | PCOS band, tuned per patient |
+| both | All three | Both — screening *and* logs | ACOG (pregnancy wins) |
+| neither (general) | Neither | — | General adult |
+
+**Only pregnancy gets disease detection.** The screening models are trained on
+pregnancy conditions (gestational diabetes, preeclampsia, maternal anaemia);
+running them for a patient who is not pregnant would produce confident-looking
+risk scores for conditions her answers were never about, which is worse than
+showing nothing. That applies to PCOS-only *and* general-wellness patients.
+`showsDiseaseDetection()` in `src/lib/healthTrack.ts` is the single place the
+decision lives — the sidebar hides the tab, `TrackRoute` in `App.tsx` redirects
+a hand-typed URL, and the doctor's Patient Analysis page never lists her.
+
+### Pregnancy takes precedence, and that is a safety rule
+
+`lifeStageForTracks()` puts pregnancy ahead of PCOS whenever both apply, and
+that ordering is not a preference. The PCOS targets run a calorie deficit and
+exclude foods; neither belongs anywhere near a pregnancy. Three places enforce
+it, and each is unit-tested:
+
+- **Nutrition targets** come from the pregnancy guidelines, not the PCOS ones.
+- **`buildPcosInsight({ isPregnant: true })`** suppresses everything
+  restrictive: no deficit, no "lose 5%", no dairy exclusion for acne. What
+  survives is the part that helps *because* she is pregnant — the low-glycaemic
+  emphasis (PCOS is the largest single risk factor for gestational diabetes)
+  and the iron focus. The training-calorie allowance stays, since it adds.
+  Weight is not read at all, and the panel says so rather than silently
+  ignoring it: gestational weight gain belongs with her obstetrician, not a
+  diet generator reading a home scale.
+- **`analyseCycles({ isPregnant: true })`** suppresses every gap-derived flag.
+  Periods stop in pregnancy, so her log shows a months-long gap and an
+  ever-growing "days since last period"; reported as-is that reads as
+  amenorrhoea and an overdue period — a false clinical finding generated by an
+  entirely normal event, shown to the patient least able to shrug it off. The
+  history itself still stands, because her pre-pregnancy pattern is what makes
+  PCOS relevant to a pregnancy in the first place.
+
+### Where the tracks are stored
+
+Two places, on purpose:
+
+1. `auth.users.raw_user_meta_data.healthTracks` — written by `signUp()`, so it
+   exists even when email confirmation means there is no session yet and the
+   browser cannot write to `patients`.
+2. `patients.health_tracks text[]` — the column everything reads, set by the
+   `on_auth_user_created_track` trigger (`supabase/pcos_tracking.sql`).
+
+An empty array is an answer (general wellness); null means she was never asked.
+
+Unlike a doctor's verification claim this is **not** a trust signal — it
+decides which of her own trackers a patient sees, not what she may reach — so
+it is safe for the client to state and for the trigger to copy straight
+through. `signUp()` also merges the answers into `assessment_data` (including
+`lifeStage`, which the diet generator keys off), so a project that has not
+applied `pcos_tracking.sql` still resolves them via `resolveHealthTracks()`.
+That fallback also covers accounts created before the tracks existed — and
+combines rather than competing, so an old profile whose questionnaire says
+pregnancy *and* which lists PCOD in its conditions resolves to both. An unknown
+patient falls back to the empty set, never `pregnancy`: assuming pregnancy is
+exactly how the app ended up showing a maternal screening to everybody.
+
+### Period & weight tracker (PCOD/PCOS)
+
+`/patient/period-tracker` (`src/pages/patient/PeriodTracker.tsx`), backed by
+`src/lib/cycleTracking.ts` and `src/lib/weightLog.ts`. Local-first like the
+Lifestyle Tracker: every entry hits localStorage synchronously and is then
+mirrored to Supabase, so the history survives a refresh, an offline week and a
+project missing the tables.
+
+It counts the four ways a PCOS cycle goes wrong separately, because they pull
+nutrition in different directions:
+
+- **Infrequent cycles** (>35 days) and **missed periods** (90+ day gaps) point
+  at anovulation, so the plan leans on low-glycaemic carbohydrate.
+- **Frequent periods** and **heavy or prolonged bleeding** cost iron, so the
+  plan leans on iron plus vitamin C.
+
+Two details worth knowing:
+
+- **"Two periods in one month" is not just two starts in a calendar month.** On
+  a textbook 28-day cycle that happens roughly every other month — a period on
+  the 1st and the 29th of January is one ordinary cycle, not a finding. Only
+  two bleeds less than 21 days apart inside one month count.
+- **Missed months are recorded explicitly**, not inferred from gaps. A patient
+  who joins mid-way has gaps that are missing *data*, not missing periods, and
+  treating those as amenorrhoea would put a false clinical finding in front of
+  her doctor.
+
+Weight is asked for weekly or whenever she likes. No direction is reported from
+a single reading, or from two less than a fortnight apart — weight swings by a
+kilo on water alone. `needsWeightReduction()` fires on either being above the
+healthy BMI band or gaining faster than 1.5 kg/month. None of it applies during
+pregnancy; see "Pregnancy takes precedence" above.
+
+### Skin & acne tracker (PCOD/PCOS)
+
+`/patient/skin-tracker` (`src/pages/patient/SkinTracker.tsx`), backed by
+`src/lib/acneGuidance.ts`. She rates her skin, tags the regions, and can
+attach a photo; the guidance escalates with severity, adds the dairy trial and
+an active from moderate upwards, and points at a doctor for severe or
+worsening-moderate acne rather than pretending food will fix it.
+
+Unlike the other trackers this one is **not** local-first: a few phone photos
+would blow the localStorage quota and evict the cycle history stored beside it,
+so entries go straight to Supabase and a missing table is reported honestly.
+Photos live in the private `acne-photos` bucket under `<patient-id>/`, which is
+the prefix the storage policies key off, and are rendered through short-lived
+signed URLs — never public.
+
+If `GEMINI_API_KEY` is set, the photo is also sent to the backend's
+`POST /analysis/acne-photo`, which returns a severity band, the visible regions
+and at most two descriptive sentences. **The patient's own rating stays
+authoritative** — she can see her face in daylight, the model is looking at a
+phone photo — so the read is stored beside hers, never over it, and the
+recommendations only ever branch on her band. The endpoint returns no treatment
+advice at all, and a photo Gemini cannot judge comes back with a null severity
+rather than a guess. Without a key the tracker works exactly as before, minus
+that one line.
+
+### How a PCOS diet plan is generated
+
+For a patient who is only pregnant, the doctor opens Patient Analysis, the
+pipeline scores her conditions, and Recipe Builder generates from the result. A
+PCOS patient has no pipeline to run — she already has the diagnosis — so
+`src/lib/pcosInsights.ts` stands in its place, reading her cycle, weight,
+exercise and skin logs and producing the same shape of answer the generator
+wants: a `PlanAdjustment` of calorie delta, ingredient emphasis and notes.
+
+- `getNutritionalTargets("pcos")` in `dietChartService.ts` is the population
+  baseline: 1600–1900 kcal, 30 g+ fibre, iron at the menstruating-adult level,
+  and a low-glycaemic ingredient focus.
+- `buildPcosInsight()` tunes it per patient. Drivers add up rather than one
+  winning, so a patient who is both gaining weight *and* training hard lands in
+  between: −300 kcal for weight reduction, +150 back for a consistent training
+  week. Lean PCOS gets calories *added*, not cut.
+- `generateDietChart(profile, days, adjustment)` applies it, with a 1200 kcal
+  floor no tracker-derived adjustment can push through — below that a plan
+  cannot carry the protein, iron and calcium the guidelines call for.
+- With nothing logged there is no adjustment. `insight.gaps` says what is
+  missing, and the doctor sees "Not enough logged yet" rather than a number
+  invented from an empty history.
+
+The doctor sees all of this in the **PCOD/PCOS Analysis** panel on Recipe
+Builder, which sits exactly where the screening result would for a patient who
+is only pregnant — and *alongside* the screening for one who is both.
 
 ## Disease detection
 
@@ -492,6 +682,16 @@ Flask (`backend/gemini_service.py`):
   silently is worse than typing it by hand. The backend additionally discards
   anything outside the field's clinically plausible range before it is ever
   offered.
+- **Patient → Skin & Acne** (`/analysis/acne-photo`) — a second opinion on an
+  uploaded skin photo: a severity band, the visible regions, and at most two
+  descriptive sentences. It is asked for a *band*, never a lesion count or a
+  diagnosis, and it returns no treatment advice — that lives in
+  `src/lib/acneGuidance.ts` where it can be reviewed. The patient's own rating
+  stays authoritative and is the only thing the recommendations branch on; the
+  model's read is recorded beside it. A photo it cannot judge comes back with a
+  null severity rather than a guess. The photo is forwarded and discarded — the
+  copy she keeps lives in her own Supabase storage folder, which this endpoint
+  never touches.
 - `/assistant/ask` — the chatbot's original, narrower endpoint (screening
   results only). No longer called by the UI now that the chatbot has full
   context, but left in place as a lighter-weight "ask about just my
@@ -935,7 +1135,12 @@ Long-running work no longer disappears on a page refresh:
 - The Lifestyle Tracker uses the same wrapper but with no TTL
   (`CACHE_KEYS.lifestyleLogs` + the patient id): its logs are the patient's own
   history rather than in-progress work, so a streak must not expire on its own.
-  See "Lifestyle Tracker" above.
+  See "Lifestyle Tracker" above. The PCOD/PCOS cycle and weight logs
+  (`CACHE_KEYS.cycleLogs`, `missedCycleMonths`, `weightLogs`) follow the same
+  rule for the same reason.
+- The skin tracker is the one exception: photos cannot go in localStorage
+  without blowing the ~5 MB quota and evicting the cycle history stored beside
+  them, so it reads and writes Supabase directly. See "Care tracks" above.
 - Server reads go through React Query, whose app-wide defaults live in
   `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
   focus), so switching pages serves from cache instead of refetching.
@@ -990,7 +1195,7 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
-| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot and lab-report extraction. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
+| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot, lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
 | `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
 | `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |

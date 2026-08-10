@@ -27,6 +27,10 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | `community_groups`      | — (new; the peer support circles, see `community.sql`) |
 | `community_memberships` | — (new; request-to-join rows, one per patient per circle) |
 | `community_messages`    | — (new; the chat inside a circle)            |
+| `menstrual_cycle_logs`  | — (new; the PCOD/PCOS period log, see `pcos_tracking.sql`) |
+| `missed_cycle_months`   | — (new; months explicitly reported as having no period) |
+| `weight_logs`           | — (new; one weight reading per patient per day)   |
+| `acne_logs`             | — (new; dated skin check-ins, photos in the `acne-photos` bucket) |
 
 Notes on the shape:
 
@@ -125,6 +129,26 @@ policies are the access control:
   only rows where `patient_id = auth.uid()`. A treating doctor (`doctor_treats`)
   can read a patient's pantry but has no write policy, so the kitchen list is
   always the patient's own statement of what they have.
+- The PCOD/PCOS trackers (`menstrual_cycle_logs`, `missed_cycle_months`,
+  `weight_logs`, `acne_logs`) are owned by the patient: she inserts, updates
+  and deletes only rows where `patient_id = auth.uid()`. A treating doctor
+  (`doctor_treats`) reads them but has no write policy. They are deletable,
+  unlike `disease_screenings` — a mistyped period date is the patient's own
+  data to correct, not a clinician's finding to preserve.
+- The `acne-photos` storage bucket is **private**. These are photographs of a
+  patient's face; a public bucket would make every one readable by URL to
+  anyone who guessed a path. The storage policies key off the first path
+  segment (`<patient-id>/…`), so a patient can only reach her own folder and a
+  wrong prefix is a server-side rejection rather than a trusted claim. The
+  frontend renders them through short-lived signed URLs.
+- `patients.health_tracks` is deliberately *not* protected like the doctor
+  verification columns. It decides which of her own trackers a patient sees,
+  not what she may reach, so it is safe both for the client to state at signup
+  and for her to change later (she may become pregnant, or get a PCOS
+  diagnosis). It is an **array** because pregnancy and PCOS commonly coexist —
+  a single-valued column would make a pregnant PCOS patient pick which half of
+  her care to give up. An empty array means general wellness; null means she
+  was never asked.
 - `foodoscope_api_keys` is `select`-able by `authenticated` where `is_active`,
   with no write policy: keys are added and retired from the dashboard (or the
   service role), never from the browser. These are FoodOScope quota tokens
@@ -180,11 +204,12 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `diet_plan_authorship`, `diet_plan_builder_payloads`, `seed_demo_doctors`,
 `foodoscope_api_keys`, `disease_screenings`, `patient_pantry_items`,
 `diet_plans_medical_notes_array`, `create_lifestyle_logs`,
-`patient_pantry_items_search_term`, `community_circles`.
+`patient_pantry_items_search_term`, `community_circles`, `pcos_tracking`.
 
-`disease_screenings.sql`, `patient_pantry_items.sql`, `lifestyle_logs.sql` and
-`community.sql` in this folder are the sources for the matching migrations, kept
-here so the tables can be recreated in a fresh project.
+`disease_screenings.sql`, `patient_pantry_items.sql`, `lifestyle_logs.sql`,
+`community.sql` and `pcos_tracking.sql` in this folder are the sources for the
+matching migrations, kept here so the tables can be recreated in a fresh
+project.
 
 `community_circles` added the Community tab's three tables, the
 `community_member()` / `community_admit()` / `community_recount()` functions and
@@ -192,6 +217,20 @@ the eight seed circles. The file is re-runnable: every policy is dropped before
 it is recreated and the seed insert is `on conflict (slug) do nothing`. It also
 adds `community_messages` to the `supabase_realtime` publication so the chat
 updates live; that step is guarded, so re-applying it is harmless.
+
+`pcos_tracking` added the PCOD/PCOS care track: `patients.health_tracks`, the
+`on_auth_user_created_track` trigger that fills it from signup metadata, the
+four tracker tables, and the private `acne-photos` bucket. If an earlier
+revision of the file was already applied, it migrates the single-valued
+`health_track` column into the array and drops it. It depends on
+`handle_new_user()` from `doctor_verification.sql` having already created the
+`patients` row, so apply that file first in a fresh project — Postgres runs
+same-event triggers in name order, and `on_auth_user_created` sorts before
+`on_auth_user_created_track`.
+
+Every table it adds degrades gracefully in the frontend: a project that has not
+applied it keeps working, and the trackers fall back to localStorage (cycles,
+weight) or report themselves unavailable (skin, which needs the bucket).
 
 `create_lifestyle_logs` added the Lifestyle Tracker's daily sleep/activity/
 hydration log. It replaced `junk_food_streak_logs`, whose tab was retired in
