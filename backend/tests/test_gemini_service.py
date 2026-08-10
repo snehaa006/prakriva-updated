@@ -111,6 +111,51 @@ class TestPostGemini:
                 gemini_service._post_gemini({}, timeout=5)
         assert mock_post.call_count == 1
 
+    def test_a_malformed_request_400_does_not_burn_the_key_pool(self, monkeypatch):
+        """Gemini answers both "bad key" and "bad request" with a 400.
+
+        Treating the second as a key failure rotated through every key and
+        parked each one for fifteen minutes, so one malformed request took the
+        chatbot (and every other Gemini feature) down until the cooldowns
+        expired.
+        """
+        with_keys(monkeypatch, "a", "b")
+        response = Mock(status_code=400)
+        response.json.return_value = {
+            "error": {"status": "INVALID_ARGUMENT", "message": "Please ensure that contents are valid"}
+        }
+        with patch("gemini_service.requests.post", return_value=response) as mock_post:
+            with pytest.raises(GeminiUnavailable, match="INVALID_ARGUMENT"):
+                gemini_service._post_gemini({}, timeout=5)
+        assert mock_post.call_count == 1
+        assert gemini_service._cooldown_until == {}
+
+    def test_a_400_about_the_key_still_rotates(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b")
+        invalid_key = Mock(status_code=400)
+        invalid_key.json.return_value = {
+            "error": {"status": "INVALID_ARGUMENT", "message": "API key not valid. Please pass a valid API key."}
+        }
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[invalid_key, candidates_response("ok")],
+        ) as mock_post:
+            body = gemini_service._post_gemini({}, timeout=5)
+        assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+        assert mock_post.call_count == 2
+
+    def test_the_failure_reason_reaches_the_caller_without_the_key(self, monkeypatch):
+        with_keys(monkeypatch, "secret-key-value")
+        response = Mock(status_code=400)
+        response.json.return_value = {
+            "error": {"status": "INVALID_ARGUMENT", "message": "bad request for key=secret-key-value"}
+        }
+        with patch("gemini_service.requests.post", return_value=response):
+            with pytest.raises(GeminiUnavailable) as excinfo:
+                gemini_service._post_gemini({}, timeout=5)
+        assert "bad request" in str(excinfo.value)
+        assert "secret-key-value" not in str(excinfo.value)
+
     def test_a_network_error_moves_to_the_next_key(self, monkeypatch):
         with_keys(monkeypatch, "a", "b")
         with patch(
@@ -144,6 +189,74 @@ class TestGenerateHistory:
         assert [c["role"] for c in contents] == ["user", "model", "user"]
         assert contents[0]["parts"][0]["text"] == "first"
         assert contents[-1]["parts"][0]["text"] == "new question"
+
+    def test_a_leading_model_turn_is_dropped(self, monkeypatch):
+        """The chatbot transcript opens with a canned welcome from the
+        assistant, but Gemini requires a conversation to start with a user
+        turn — sending it verbatim 400s on every single message."""
+        captured = {}
+
+        def fake_post_gemini(payload, timeout):
+            captured["payload"] = payload
+            return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
+
+        monkeypatch.setattr(gemini_service, "_post_gemini", fake_post_gemini)
+        gemini_service.generate(
+            "hi",
+            "rules",
+            history=[
+                {"role": "model", "text": "Namaste! I'm your wellness companion."},
+                {"role": "user", "text": "hello"},
+                {"role": "model", "text": "hello back"},
+            ],
+        )
+        contents = captured["payload"]["contents"]
+        assert [c["role"] for c in contents] == ["user", "model", "user"]
+        assert contents[0]["parts"][0]["text"] == "hello"
+
+    def test_consecutive_turns_of_one_role_are_merged(self, monkeypatch):
+        captured = {}
+
+        def fake_post_gemini(payload, timeout):
+            captured["payload"] = payload
+            return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
+
+        monkeypatch.setattr(gemini_service, "_post_gemini", fake_post_gemini)
+        gemini_service.generate(
+            "and now?",
+            "rules",
+            history=[
+                {"role": "user", "text": "one"},
+                {"role": "model", "text": "reply one"},
+                {"role": "model", "text": "reply two"},
+            ],
+        )
+        contents = captured["payload"]["contents"]
+        assert [c["role"] for c in contents] == ["user", "model", "user"]
+        assert contents[1]["parts"][0]["text"] == "reply one\n\nreply two"
+
+    def test_an_unanswered_question_is_folded_into_the_prompt(self, monkeypatch):
+        """History ending on a user turn (the previous reply failed) must not
+        produce two user turns in a row."""
+        captured = {}
+
+        def fake_post_gemini(payload, timeout):
+            captured["payload"] = payload
+            return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
+
+        monkeypatch.setattr(gemini_service, "_post_gemini", fake_post_gemini)
+        gemini_service.generate(
+            "retry",
+            "rules",
+            history=[
+                {"role": "user", "text": "one"},
+                {"role": "model", "text": "reply one"},
+                {"role": "user", "text": "unanswered"},
+            ],
+        )
+        contents = captured["payload"]["contents"]
+        assert [c["role"] for c in contents] == ["user", "model", "user"]
+        assert contents[-1]["parts"][0]["text"] == "unanswered\n\nretry"
 
     def test_no_history_is_a_single_turn(self, monkeypatch):
         captured = {}

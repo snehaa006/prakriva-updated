@@ -20,11 +20,23 @@ interface Envelope<T> {
 }
 
 const post = async <T>(path: string, body: unknown): Promise<T> => {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    // `fetch` rejects the same way for a backend that is down, a wrong
+    // VITE_API_URL and a CORS rejection, so name the URL that failed — the
+    // bare "Failed to fetch" says nothing a user could act on.
+    throw new Error(
+      `Could not reach the backend at ${API_BASE} (${
+        error instanceof Error ? error.message : String(error)
+      })`
+    );
+  }
 
   const payload = (await response.json().catch(() => null)) as Envelope<T> | null;
 
