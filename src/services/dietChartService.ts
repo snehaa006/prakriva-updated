@@ -721,27 +721,98 @@ export const MEAL_STRUCTURE: MealTargets[] = [
   },
 ];
 
+// --- Cancellation and time budgets ---
+//
+// Every step below talks to a network service that can be slow, asleep or
+// simply gone, and generation runs them one after another. Without a budget
+// the button spins for as long as the slowest of them takes to give up —
+// which, with a cold backend rotating through a pool of Gemini keys and a
+// FoodOScope fallback that sleeps between calls, is many minutes. So each
+// stage is handed a deadline and a signal, and stops when either says stop.
+
+/** Thrown when a stage was cut short by the caller or by its own deadline. */
+export class GenerationCancelled extends Error {
+  constructor(message = "Diet chart generation was cancelled") {
+    super(message);
+    this.name = "GenerationCancelled";
+  }
+}
+
+/** Thrown when no generation path could produce a usable chart. */
+export class DietChartGenerationError extends Error {
+  constructor(message: string, readonly reasons: string[] = []) {
+    super(message);
+    this.name = "DietChartGenerationError";
+  }
+}
+
+/** Everything the generation paths need in order to stop early. */
+export interface GenerationLimits {
+  /** Aborts the whole generation when the doctor cancels or leaves. */
+  signal?: AbortSignal;
+  /** Epoch ms after which this stage must give up. */
+  deadlineAt: number;
+}
+
+const remainingMs = (limits: GenerationLimits): number =>
+  Math.max(0, limits.deadlineAt - Date.now());
+
+function throwIfDone(limits: GenerationLimits): void {
+  if (limits.signal?.aborted) throw new GenerationCancelled();
+  if (remainingMs(limits) === 0) throw new GenerationCancelled("Timed out");
+}
+
+/** How long to wait on the backend, scaled by how much plan it has to write. */
+export function aiTimeoutMs(numDays: number): number {
+  return Math.min(120_000, 45_000 + numDays * 7_000);
+}
+
+/** The recipe fallback's share of the budget once the AI path has had its go. */
+const FALLBACK_BUDGET_MS = 75_000;
+
+/** The whole operation, both paths included. */
+export const GENERATION_BUDGET_MS = 120_000 + FALLBACK_BUDGET_MS;
+
 // --- Rate limit helper ---
 
 const RATE_LIMIT_DELAY = 3500; // ms between API calls to avoid 429
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** A sleep that ends early when the run is cancelled or out of time. */
+function delay(ms: number, limits?: GenerationLimits): Promise<void> {
+  const capped = limits ? Math.min(ms, remainingMs(limits)) : ms;
+  if (capped <= 0) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const signal = limits?.signal;
+    const timer = setTimeout(finish, capped);
+
+    function finish() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      resolve();
+    }
+
+    signal?.addEventListener("abort", finish, { once: true });
+  });
 }
 
 async function fetchWithRetry<T>(
   fn: () => Promise<T>,
-  retries: number = 3,
-  delayMs: number = 5000
+  limits: GenerationLimits,
+  retries: number = 2,
+  delayMs: number = 4000
 ): Promise<T> {
   try {
     return await fn();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    if (retries > 0 && message.includes("429")) {
+    // Only worth waiting out a rate limit if there is time left to use the
+    // answer — otherwise the retry finishes after the caller has given up.
+    if (retries > 0 && message.includes("429") && remainingMs(limits) > delayMs + 5_000) {
       console.log(`Rate limited, waiting ${delayMs}ms before retry (${retries} left)...`);
-      await delay(delayMs);
-      return fetchWithRetry(fn, retries - 1, delayMs * 2);
+      await delay(delayMs, limits);
+      throwIfDone(limits);
+      return fetchWithRetry(fn, limits, retries - 1, delayMs * 2);
     }
     throw err;
   }
@@ -770,19 +841,35 @@ function ensureMacros(recipe: RecipeBasic): RecipeBasic {
 
 // --- Fetch recipes for a single meal slot ---
 
+/**
+ * A pool of candidate recipes for one meal slot.
+ *
+ * Three strategies, narrowest first, each one only attempted while there is
+ * enough of the budget left to make use of the answer. A slot that comes back
+ * empty is not fatal — the caller pools what every slot found and fills the
+ * gaps from that.
+ */
 export async function fetchRecipesForMeal(
   mealTargets: MealTargets,
   dailyCalories: number,
   dietPref: string | null,
   excludeIngredients: string[],
   includeIngredients: string[],
-  focusCategories: string[]
+  focusCategories: string[],
+  limits: GenerationLimits
 ): Promise<RecipeBasic[]> {
   const targetCal = dailyCalories * mealTargets.caloriePercent;
   const minCal = Math.max(0, targetCal - 150);
   const maxCal = targetCal + 200;
 
+  // A single FoodOScope call can take ~15s (its own request timeout) and may
+  // be tried against several keys, so a later strategy is only worth starting
+  // when that much budget is still on the clock.
+  const CALL_BUDGET_MS = 20_000;
+
   try {
+    throwIfDone(limits);
+
     // Strategy: use ingredient/category filtering for best personalization
     if (includeIngredients.length > 0 || excludeIngredients.length > 0) {
       // Pick 2-3 random include ingredients to search
@@ -793,14 +880,16 @@ export async function fetchRecipesForMeal(
       const searchExcludes = excludeIngredients.slice(0, 5).join(",");
       const searchCategories = focusCategories.slice(0, 3).join(",");
 
-      const results = await fetchWithRetry(() =>
-        getRecipesByIngredientsCategoriesTitle({
-          includeIngredients: searchIncludes || undefined,
-          excludeIngredients: searchExcludes || undefined,
-          includeCategories: searchCategories || undefined,
-          page: Math.floor(Math.random() * 5) + 1,
-          limit: 20,
-        })
+      const results = await fetchWithRetry(
+        () =>
+          getRecipesByIngredientsCategoriesTitle({
+            includeIngredients: searchIncludes || undefined,
+            excludeIngredients: searchExcludes || undefined,
+            includeCategories: searchCategories || undefined,
+            page: Math.floor(Math.random() * 5) + 1,
+            limit: 20,
+          }),
+        limits
       );
 
       if (results && results.length > 0) {
@@ -815,10 +904,12 @@ export async function fetchRecipesForMeal(
     }
 
     // Fallback: use diet filter + calorie range
-    await delay(RATE_LIMIT_DELAY + 1500);
-    if (dietPref) {
-      const res = await fetchWithRetry(() =>
-        getRecipesByDiet(dietPref, 20, Math.floor(Math.random() * 10) + 1)
+    if (dietPref && remainingMs(limits) > CALL_BUDGET_MS) {
+      await delay(RATE_LIMIT_DELAY, limits);
+      throwIfDone(limits);
+      const res = await fetchWithRetry(
+        () => getRecipesByDiet(dietPref, 20, Math.floor(Math.random() * 10) + 1),
+        limits
       );
       if (res.data && res.data.length > 0) {
         const filtered = res.data.filter((r) => {
@@ -831,12 +922,16 @@ export async function fetchRecipesForMeal(
     }
 
     // Last fallback: just calorie range
-    await delay(RATE_LIMIT_DELAY + 1500);
-    const res = await fetchWithRetry(() =>
-      getRecipesByCalories(minCal, maxCal, 10)
+    if (remainingMs(limits) <= CALL_BUDGET_MS) return [];
+    await delay(RATE_LIMIT_DELAY, limits);
+    throwIfDone(limits);
+    const res = await fetchWithRetry(
+      () => getRecipesByCalories(minCal, maxCal, 10),
+      limits
     );
     return res.data || [];
   } catch (err) {
+    if (err instanceof GenerationCancelled) throw err;
     console.error(
       `Error fetching recipes for ${mealTargets.label}:`,
       err
@@ -980,7 +1075,8 @@ export function applyIngredientAdjustment(
 async function generateDietChartFromRecipes(
   profile: PatientProfile,
   numDays: number = 7,
-  adjustment: PlanAdjustment = emptyPlanAdjustment()
+  adjustment: PlanAdjustment = emptyPlanAdjustment(),
+  limits: GenerationLimits = { deadlineAt: Date.now() + FALLBACK_BUDGET_MS }
 ): Promise<GeneratedDietChart> {
   const dosha = determinePrimaryDosha(profile);
   const baseTargets = getNutritionalTargets(
@@ -1017,13 +1113,21 @@ async function generateDietChartFromRecipes(
   const mealRecipePools: Map<string, RecipeBasic[]> = new Map();
 
   // Initial cooldown to avoid rate limit from any prior API usage
-  await delay(2000);
+  await delay(2000, limits);
 
   for (let i = 0; i < MEAL_STRUCTURE.length; i++) {
     const mealSlot = MEAL_STRUCTURE[i];
+    if (limits.signal?.aborted) throw new GenerationCancelled();
+    // Out of budget: stop fetching and compose the plan from the slots that
+    // did answer, rather than spending the rest of it on slots that probably
+    // will not.
+    if (remainingMs(limits) === 0) break;
+
     // Wait between meal type fetches (skip before the first one)
     if (i > 0) {
-      await delay(RATE_LIMIT_DELAY);
+      await delay(RATE_LIMIT_DELAY, limits);
+      // The sleep ends early on an abort, so re-check before spending a call.
+      if (limits.signal?.aborted) throw new GenerationCancelled();
     }
     try {
       const candidates = await fetchRecipesForMeal(
@@ -1032,14 +1136,26 @@ async function generateDietChartFromRecipes(
         dietPref,
         excludeIngredients,
         includeIngredients,
-        targets.focusCategories
+        targets.focusCategories,
+        limits
       );
       mealRecipePools.set(mealSlot.mealType, candidates);
     } catch (err) {
-      console.error(`Error fetching recipe pool for ${mealSlot.label}:`, err);
+      // The doctor cancelling ends the run; running out of budget only ends
+      // the fetching, because the slots already fetched can still fill a board.
+      if (limits.signal?.aborted) throw new GenerationCancelled();
       mealRecipePools.set(mealSlot.mealType, []);
+      if (err instanceof GenerationCancelled) break;
+      console.error(`Error fetching recipe pool for ${mealSlot.label}:`, err);
     }
   }
+
+  // Every pool was filtered from the same patient profile — the same
+  // exclusions, the same dosha, the same focus ingredients — and differs only
+  // in its calorie window. So a slot whose own search came back empty (a
+  // narrow filter, a 404, a call that ran out of budget) is better served by
+  // another slot's recipes than by a hole in the board.
+  const sharedPool = [...new Set([...mealRecipePools.values()].flat())];
 
   for (let d = 0; d < numDays; d++) {
     const meals: DietChartMeal[] = [];
@@ -1050,7 +1166,8 @@ async function generateDietChartFromRecipes(
 
     for (const mealSlot of MEAL_STRUCTURE) {
       const targetCal = Math.round(dailyCalories * mealSlot.caloriePercent);
-      const pool = mealRecipePools.get(mealSlot.mealType) || [];
+      const ownPool = mealRecipePools.get(mealSlot.mealType) || [];
+      const pool = ownPool.length > 0 ? ownPool : sharedPool;
 
       if (pool.length > 0) {
         // Pick a random recipe from the pool for variety across days
@@ -1192,7 +1309,8 @@ function ageFromDob(dob: string): number | null {
 export async function generateDietChartWithAI(
   profile: PatientProfile,
   numDays: number,
-  context: DietChartContext = {}
+  context: DietChartContext = {},
+  limits: GenerationLimits = { deadlineAt: Date.now() + aiTimeoutMs(numDays) }
 ): Promise<GeneratedDietChart> {
   const dosha = determinePrimaryDosha(profile);
   const baseTargets = getNutritionalTargets(
@@ -1221,38 +1339,76 @@ export async function generateDietChartWithAI(
   };
   const lifeStageLabel = lifeStageLabels[profile.lifeStage] || "General";
 
-  const response = await fetch(`${API_BASE}/diet-chart/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      days: numDays,
-      profile: {
-        ageYears: ageFromDob(profile.dob),
-        lifeStage: profile.lifeStage,
-        lifeStageLabel,
-        dietaryPreferences: profile.dietaryPreferences,
-        healthGoals: profile.healthGoals,
-        currentConditions: profile.currentConditions,
-        digestionIssues: profile.digestionIssues,
-        appetitePattern: profile.appetitePattern,
-        physicalActivity: profile.physicalActivity,
-        sleepDuration: profile.sleepDuration,
-      },
-      dosha: {
-        primary: dosha.primary,
-        scores: dosha.scores,
-        description: doshaPrefs.description,
-        spices: doshaPrefs.spices,
-        cookingMethods: doshaPrefs.cookingMethods,
-      },
-      targets,
-      excludeIngredients,
-      focusIngredients: includeIngredients,
-      pantry: context.pantry ?? { atHome: [], toBuy: [] },
-      screenings: context.screenings ?? [],
-      mealStructure: MEAL_STRUCTURE,
-    }),
-  });
+  // The backend can be cold (a free-tier instance spins down) and then has to
+  // wait on Gemini, which it may retry across a pool of keys. `fetch` has no
+  // timeout of its own, so without this the request can stay pending for as
+  // long as all of that takes — which is what left the Generate button
+  // spinning with nothing to show for it.
+  const controller = new AbortController();
+  const abortForCaller = () => controller.abort(limits.signal?.reason);
+  limits.signal?.addEventListener("abort", abortForCaller, { once: true });
+  const timeoutId = setTimeout(
+    () => controller.abort(new GenerationCancelled("The AI planner did not answer in time")),
+    Math.max(1, remainingMs(limits))
+  );
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/diet-chart/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        days: numDays,
+        profile: {
+          ageYears: ageFromDob(profile.dob),
+          lifeStage: profile.lifeStage,
+          lifeStageLabel,
+          dietaryPreferences: profile.dietaryPreferences,
+          healthGoals: profile.healthGoals,
+          currentConditions: profile.currentConditions,
+          digestionIssues: profile.digestionIssues,
+          appetitePattern: profile.appetitePattern,
+          physicalActivity: profile.physicalActivity,
+          sleepDuration: profile.sleepDuration,
+        },
+        dosha: {
+          primary: dosha.primary,
+          scores: dosha.scores,
+          description: doshaPrefs.description,
+          spices: doshaPrefs.spices,
+          cookingMethods: doshaPrefs.cookingMethods,
+        },
+        targets,
+        excludeIngredients,
+        focusIngredients: includeIngredients,
+        pantry: context.pantry ?? { atHome: [], toBuy: [] },
+        screenings: context.screenings ?? [],
+        mealStructure: MEAL_STRUCTURE,
+      }),
+    });
+  } catch (err) {
+    // An abort surfaces as a DOMException, or as whatever reason we passed to
+    // `controller.abort()` — re-raise the reason so the caller can tell "the
+    // doctor cancelled" and "the backend never answered" apart from a genuine
+    // network failure.
+    if (controller.signal.aborted) {
+      const reason = controller.signal.reason;
+      throw reason instanceof Error
+        ? reason
+        : new GenerationCancelled("The AI planner did not answer in time");
+    }
+    // `fetch` rejects identically for a backend that is down, a wrong
+    // VITE_API_URL and a CORS rejection, so name the URL that failed.
+    throw new Error(
+      `Could not reach the backend at ${API_BASE} (${
+        err instanceof Error ? err.message : String(err)
+      })`
+    );
+  } finally {
+    clearTimeout(timeoutId);
+    limits.signal?.removeEventListener("abort", abortForCaller);
+  }
 
   const payload = (await response.json().catch(() => null)) as {
     success?: boolean;
@@ -1271,7 +1427,7 @@ export async function generateDietChartWithAI(
     lifeStage: profile.lifeStage,
     lifeStageLabel,
     nutritionalTargets: targets,
-    days: payload.data.days,
+    days: Array.isArray(payload.data.days) ? payload.data.days : [],
     doshaRecommendations: {
       description: doshaPrefs.description,
       spices: doshaPrefs.spices,
@@ -1289,6 +1445,14 @@ export async function generateDietChartWithAI(
   };
 }
 
+/** How many meals a chart actually carries, across every day. */
+export function countChartMeals(chart: GeneratedDietChart): number {
+  return (chart.days ?? []).reduce((total, day) => total + (day.meals?.length ?? 0), 0);
+}
+
+const describeFailure = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 /**
  * The one entry point callers should use.
  *
@@ -1296,19 +1460,59 @@ export async function generateDietChartWithAI(
  * screening results. If the backend is unreachable, has no Gemini key, or every
  * key is exhausted, this falls back to the FoodOScope recipe path so the doctor
  * still gets a chart rather than an error.
+ *
+ * Both paths are bounded. Each one talks to a service that can be slow or
+ * asleep, and neither `fetch` nor the FoodOScope client will give up on its
+ * own, so the whole run is fitted to `GENERATION_BUDGET_MS` and the caller can
+ * cut it short at any point with `signal`.
+ *
+ * A path that answers but composes nothing counts as a failure: a chart with no
+ * meals in it is an empty board, and reporting that as a success is what made
+ * this look like it had generated something when it had not.
  */
 export async function generateDietChart(
   profile: PatientProfile,
   numDays: number = 7,
-  context: DietChartContext = {}
+  context: DietChartContext = {},
+  signal?: AbortSignal
 ): Promise<GeneratedDietChart> {
+  const startedAt = Date.now();
+  const overallDeadline = startedAt + GENERATION_BUDGET_MS;
+  const reasons: string[] = [];
+
   try {
-    return await generateDietChartWithAI(profile, numDays, context);
+    const chart = await generateDietChartWithAI(profile, numDays, context, {
+      signal,
+      deadlineAt: Math.min(startedAt + aiTimeoutMs(numDays), overallDeadline),
+    });
+    if (countChartMeals(chart) > 0) return chart;
+    reasons.push("The AI planner answered, but composed no usable meals.");
   } catch (err) {
+    if (signal?.aborted) throw new GenerationCancelled();
     console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
+    reasons.push(`AI planner: ${describeFailure(err)}`);
+  }
+
+  try {
     // The adjustment goes with it — a chart that quietly dropped a patient's
     // calorie deficit because the backend was unreachable would be worse than
     // the error it replaced.
-    return generateDietChartFromRecipes(profile, numDays, context.adjustment);
+    const chart = await generateDietChartFromRecipes(profile, numDays, context.adjustment, {
+      signal,
+      deadlineAt: Math.min(Date.now() + FALLBACK_BUDGET_MS, overallDeadline),
+    });
+    if (countChartMeals(chart) > 0) return chart;
+    reasons.push(
+      "The recipe database returned nothing that fits this patient's restrictions."
+    );
+  } catch (err) {
+    if (signal?.aborted) throw new GenerationCancelled();
+    console.error("FoodOScope diet chart generation failed:", err);
+    reasons.push(`Recipe database: ${describeFailure(err)}`);
   }
+
+  throw new DietChartGenerationError(
+    "Could not build a diet chart for this patient.",
+    reasons
+  );
 }

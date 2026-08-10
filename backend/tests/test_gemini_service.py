@@ -166,6 +166,60 @@ class TestPostGemini:
         assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
 
 
+class TestRotationBudget:
+    """A caller with someone waiting on the reply can cap the whole rotation.
+
+    Without this, a deployment holding several spare keys spends `timeout` on
+    each one in turn before it answers — ten keys against a two-minute diet
+    chart timeout is a twenty-minute request, which is what left the Recipe
+    Builder's Generate button spinning.
+    """
+
+    @staticmethod
+    def slow_calls(monkeypatch, seconds_per_call, response):
+        """A fake clock that only moves when a Gemini call is made."""
+        now = {"t": 0.0}
+        monkeypatch.setattr(gemini_service.time, "monotonic", lambda: now["t"])
+
+        def post(*_args, **_kwargs):
+            now["t"] += seconds_per_call
+            return response
+
+        return post
+
+    def test_the_rotation_stops_once_the_budget_is_spent(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b", "c", "d")
+        post = self.slow_calls(monkeypatch, 46.0, Mock(status_code=429))
+
+        with patch("gemini_service.requests.post", side_effect=post) as mock_post:
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=60, budget=100)
+
+        # Two attempts spend 92s of the 100s budget; the third would have only
+        # 8s to work with, so the remaining keys are not tried at all.
+        assert mock_post.call_count == 2
+
+    def test_an_attempt_never_outlasts_the_remaining_budget(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b")
+        post = self.slow_calls(monkeypatch, 80.0, Mock(status_code=429))
+
+        with patch("gemini_service.requests.post", side_effect=post) as mock_post:
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=60, budget=100)
+
+        assert mock_post.call_args_list[0].kwargs["timeout"] == 60
+        # 80s gone, so the second key gets the 20s that are left, not another 60.
+        assert mock_post.call_args_list[1].kwargs["timeout"] == 20
+
+    def test_no_budget_leaves_the_rotation_unbounded(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b", "c")
+        with patch("gemini_service.requests.post", return_value=Mock(status_code=429)) as post:
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=5)
+        assert post.call_count == 3
+        assert post.call_args.kwargs["timeout"] == 5
+
+
 class TestGenerateHistory:
     def test_builds_multi_turn_contents_from_history(self, monkeypatch):
         captured = {}

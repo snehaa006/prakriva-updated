@@ -149,7 +149,9 @@ def _is_key_at_fault(http_status: int, gemini_status: Optional[str], message: st
     return False
 
 
-def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
+def _post_gemini(
+    payload: Dict[str, Any], *, timeout: int, budget: Optional[float] = None
+) -> Dict[str, Any]:
     """POST `payload` to Gemini, rotating across configured keys on failure.
 
     A request moves on to the next key for a network error/timeout, a 5xx, or
@@ -157,16 +159,39 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
     Anything else — a 404 for an unknown model, a 400 for a request Gemini
     could not parse — would fail identically on every key, so it is raised
     immediately with its reason rather than burning through the rotation.
+
+    `budget` caps the wall-clock time the rotation may spend in total. Without
+    it, a deployment with several keys can spend `timeout` seconds on each one
+    before answering — up to ten keys times a two-minute diet chart timeout —
+    and the browser waiting on that reply has no way to tell a slow generation
+    from a hung one. Callers whose response has someone waiting on it should
+    pass a budget; the background ones can leave it unset.
     """
     if not is_configured():
         raise GeminiUnavailable("No GEMINI_API_KEY is set")
 
     url = GEMINI_URL.format(model=settings.GEMINI_MODEL)
     last_error = "no keys configured"
+    started = time.monotonic()
 
     for key in _key_candidates():
+        attempt_timeout = timeout
+        if budget is not None:
+            remaining = budget - (time.monotonic() - started)
+            # Below this there is no point starting another attempt: Gemini
+            # will not have answered before the caller stops waiting.
+            if remaining < 10:
+                logger.warning(
+                    f"Gemini key rotation stopped after {budget:.0f}s "
+                    f"(last error: {last_error})"
+                )
+                break
+            attempt_timeout = min(timeout, int(remaining))
+
         try:
-            response = requests.post(url, json=payload, params={"key": key}, timeout=timeout)
+            response = requests.post(
+                url, json=payload, params={"key": key}, timeout=attempt_timeout
+            )
         except requests.RequestException as exc:
             _report_key_result(key, status=None, ok=False)
             last_error = f"network error ({exc.__class__.__name__})"
@@ -378,6 +403,7 @@ def generate_json(
     max_tokens: Optional[int] = None,
     temperature: float = 0.4,
     timeout: Optional[int] = None,
+    budget: Optional[float] = None,
 ) -> Any:
     """Send one prompt and parse the reply as JSON.
 
@@ -385,6 +411,9 @@ def generate_json(
     still possible on a long generation (a 14-day diet chart is the reason this
     exists), so the decode failure is reported as an unavailability rather than
     crashing the request.
+
+    `budget` bounds the total time spent rotating across keys — see
+    `_post_gemini`.
     """
     body = _post_gemini(
         {
@@ -397,6 +426,7 @@ def generate_json(
             },
         },
         timeout=timeout or settings.GEMINI_TIMEOUT_SECONDS,
+        budget=budget,
     )
 
     text = _first_text(body)

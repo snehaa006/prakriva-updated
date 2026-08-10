@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -42,11 +42,15 @@ import { usePersistentState } from "@/hooks/usePersistentState";
 import { CACHE_KEYS } from "@/lib/localCache";
 import {
   generateDietChart,
+  countChartMeals,
+  GenerationCancelled,
+  DietChartGenerationError,
   determinePrimaryDosha,
   getNutritionalTargets,
   buildExcludeIngredients,
   buildIncludeIngredients,
   DOSHA_FOOD_PREFERENCES,
+  MEAL_STRUCTURE,
   type PatientProfile,
   type GeneratedDietChart,
   type LifeStage,
@@ -439,6 +443,25 @@ const RecipeBuilder = () => {
 
   const [numDays, setNumDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Seconds spent on the current generation, so a slow run reads as progress
+  // rather than as a button that has stopped responding.
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const generationAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!isGenerating) return;
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const timer = setInterval(
+      () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)),
+      1000
+    );
+    return () => clearInterval(timer);
+  }, [isGenerating]);
+
+  // A generation left running after the page is gone can only resolve into a
+  // toast for a screen the doctor has already left.
+  useEffect(() => () => generationAbort.current?.abort(), []);
 
   // Draft/generation provenance. `editingDraftId` is set only when re-opening
   // an already-saved plan (e.g. from the Diet Chart viewer's Edit button);
@@ -564,9 +587,16 @@ const RecipeBuilder = () => {
       toast.error("Patient assessment incomplete. Body frame and skin type are required.");
       return;
     }
+    const controller = new AbortController();
+    generationAbort.current = controller;
     setIsGenerating(true);
     try {
-      const chart = await generateDietChart(patientProfile, numDays, generationContext);
+      const chart = await generateDietChart(
+        patientProfile,
+        numDays,
+        generationContext,
+        controller.signal
+      );
       const { Daily, Weekly } = chartToMealPlans(chart);
       setMealPlans({ Daily, Weekly });
       setActiveFilter("Weekly");
@@ -604,13 +634,42 @@ const RecipeBuilder = () => {
           `${chart.rejectedMeals.length} generated meal(s) were dropped for naming a restricted ingredient. Fill those slots by hand.`
         );
       }
+
+      // A short plan is still a usable starting point, but the doctor should
+      // hear it from the toast rather than discover it slot by slot.
+      const expectedMeals = chart.days.length * MEAL_STRUCTURE.length;
+      if (countChartMeals(chart) < expectedMeals * 0.6) {
+        toast.warning(
+          "Some meal slots came back empty — the recipe sources ran short. Fill the gaps by hand or generate again."
+        );
+      }
     } catch (err) {
-      console.error("Error generating diet chart:", err);
-      toast.error("Generation failed. Please try again.");
+      if (err instanceof GenerationCancelled || controller.signal.aborted) {
+        toast.info("Generation cancelled. The board is unchanged.");
+      } else if (err instanceof DietChartGenerationError) {
+        // Every reason matters here: "the backend is unreachable" and "no
+        // recipe matched her restrictions" call for completely different
+        // fixes, and the old blanket "Generation failed" said neither.
+        console.error("Diet chart generation failed:", err.reasons);
+        toast.error(err.message, {
+          description: err.reasons.join(" "),
+          duration: 12_000,
+        });
+      } else {
+        console.error("Error generating diet chart:", err);
+        toast.error(
+          `Generation failed: ${err instanceof Error ? err.message : "please try again."}`
+        );
+      }
     } finally {
+      if (generationAbort.current === controller) generationAbort.current = null;
       setIsGenerating(false);
     }
   }, [patientProfile, numDays, generationContext, setMealPlans, setActiveFilter, setPlanDuration]);
+
+  const handleCancelGeneration = useCallback(() => {
+    generationAbort.current?.abort();
+  }, []);
 
   const handleClearBoard = useCallback(() => {
     const wasEditingSavedDraft = !!editingDraftId;
@@ -1196,9 +1255,26 @@ const RecipeBuilder = () => {
                 </Button>
 
                 {isGenerating && (
-                  <span className="text-xs text-gray-400">
-                    Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below.
-                  </span>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelGeneration}
+                      className="h-10 px-4"
+                    >
+                      Cancel
+                    </Button>
+                    <span className="text-xs text-gray-400">
+                      Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below.
+                      {" "}
+                      <span className="tabular-nums">({elapsedSeconds}s)</span>
+                      {elapsedSeconds >= 30 && (
+                        <span className="block">
+                          Still working — the AI planner can take up to two minutes, and falls
+                          back to the recipe database if it does not answer.
+                        </span>
+                      )}
+                    </span>
+                  </>
                 )}
               </div>
 

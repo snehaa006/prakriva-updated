@@ -50,6 +50,22 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 #: request inside Gemini's output budget.
 MAX_DAYS = 14
 
+#: The longest this endpoint may take before it answers 503 and lets the
+#: frontend fall back to the recipe path.
+#:
+#: There is a doctor watching a spinner at the other end of this request, so it
+#: has to answer in a bounded time even when Gemini does not. Both halves of
+#: that matter: a single generation gets `_gemini_timeout` (long plans are slow
+#: to write), and the rotation across configured keys gets the budget below in
+#: total, so a deployment with several spare keys cannot turn one Gemini outage
+#: into a multi-minute request.
+GENERATION_BUDGET_SECONDS = 100
+
+
+def _gemini_timeout(days: int) -> int:
+    """Per-attempt timeout, scaled by how much plan Gemini has to write."""
+    return min(GENERATION_BUDGET_SECONDS, 30 + days * 5)
+
 DIET_RULES = """
 You are an Ayurvedic clinical dietitian composing a diet chart that a doctor
 will review before giving it to a patient.
@@ -495,7 +511,8 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
         max_tokens=max_tokens,
         temperature=0.6,
         # Long plans take well over the 30s default.
-        timeout=120,
+        timeout=_gemini_timeout(days),
+        budget=GENERATION_BUDGET_SECONDS,
     )
 
     plan = normalise_plan(

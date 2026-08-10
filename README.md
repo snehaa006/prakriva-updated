@@ -199,6 +199,10 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
   including a 404 (no recipe matches every ingredient) reading as an empty
   result rather than a failure.
+- `src/services/__tests__/dietChartService.test.ts` — diet chart generation
+  giving up in bounded time: a backend that never answers, a cancel from the
+  doctor, the recipe fallback filling every slot, and an empty plan being
+  reported as a failure rather than a success.
 - `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
   unique labels, known categories, normalized search terms and alias lookup.
 - `src/services/__tests__/ingredientCatalogService.test.ts` — building the
@@ -461,7 +465,7 @@ wants: a `PlanAdjustment` of calorie delta, ingredient emphasis and notes.
   winning, so a patient who is both gaining weight *and* training hard lands in
   between: −300 kcal for weight reduction, +150 back for a consistent training
   week. Lean PCOS gets calories *added*, not cut.
-- `generateDietChart(profile, days, adjustment)` applies it, with a 1200 kcal
+- `generateDietChart(profile, days, { adjustment })` applies it, with a 1200 kcal
   floor no tracker-derived adjustment can push through — below that a plan
   cannot carry the protein, iron and calcium the guidelines call for.
 - With nothing logged there is no adjustment. `insight.gaps` says what is
@@ -821,6 +825,12 @@ the request, and the key travels in the query string. When every key fails the e
 caller degrades on its own terms: diet chart generation falls back to the
 FoodOScope recipe path, and the analysis panels hide themselves.
 
+Rotating over a large key pool takes time, and a caller with a browser waiting
+on the reply cannot afford `timeout` seconds per key. Pass `budget=` to
+`generate_json` (and `_post_gemini`) to cap the wall-clock time the whole
+rotation may spend; each attempt is then given the smaller of `timeout` and
+what is left, and the rotation stops once too little remains to be useful.
+
 *These scores are decision aids for a clinician, not a diagnosis.*
 
 ## Exercise suggestions
@@ -981,7 +991,35 @@ exhausted (`POST /diet-chart/generate` → 503), generation falls back to the
 original FoodOScope path: recipes filtered by dosha, life stage and calorie
 range, dealt into meal slots. That chart is tagged `source: "foodoscope"` and
 the toast says so — it knows nothing about the kitchen or the screening, and the
-doctor should be told which one they got.
+doctor should be told which one they got. Meal slots share their candidate
+recipes, so a slot whose own search comes back empty is filled from what the
+other slots found instead of leaving a hole in the board.
+
+### Time budgets
+
+Generation is a chain of calls to services that can be slow, asleep or gone, and
+none of them gives up on its own: `fetch` has no timeout, and the backend may
+retry Gemini across a pool of up to ten keys. So the whole run is bounded from
+both ends.
+
+- **Frontend** (`src/services/dietChartService.ts`) — the AI request is aborted
+  after `aiTimeoutMs(days)` (45s plus 7s a day, capped at two minutes), and the
+  FoodOScope fallback gets 75s after that. Each stage checks the clock before
+  starting another call, so it stops fetching rather than overrunning. The
+  Generate button shows the elapsed seconds and a **Cancel**, which aborts both
+  paths and leaves the board untouched.
+- **Backend** (`backend/diet_planner.py`) — one generation gets
+  `30 + 5×days` seconds, and the rotation across configured keys gets
+  `GENERATION_BUDGET_SECONDS` (100s) in total, so a Gemini outage cannot turn
+  one request into a multi-minute wait. Pass `budget=` to
+  `gemini_service.generate_json` for any other endpoint with someone waiting on
+  the reply.
+
+**An empty plan is a failure, not a success.** If neither path composes a single
+meal, `generateDietChart` raises `DietChartGenerationError` carrying what each
+path actually reported ("could not reach the backend at …", "no recipe matched
+her restrictions"), and the toast shows those reasons — a green "plan generated"
+over an empty planner told the doctor nothing they could act on.
 
 ## Community
 
