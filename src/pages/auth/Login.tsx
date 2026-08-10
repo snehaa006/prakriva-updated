@@ -265,7 +265,17 @@ const Login = () => {
       );
     }
 
-    navigate(resolveDashboardPath(role!, undefined, true), { replace: true });
+    // The tracks she just picked, so a PCOD/PCOS signup lands on her dashboard
+    // rather than the questionnaire she has effectively just answered.
+    navigate(
+      resolveDashboardPath(
+        role!,
+        undefined,
+        true,
+        role === "patient" ? healthTracks : null
+      ),
+      { replace: true }
+    );
   };
 
   const handleSignin = async () => {
@@ -274,7 +284,11 @@ const Login = () => {
 
     // Route by the role on the account, not the role in the URL — the same
     // credentials land in the same place whichever door they signed in through.
-    const { role: userRole, hasCompletedQuestionnaire } = await getUserRole(userId!);
+    const {
+      role: userRole,
+      hasCompletedQuestionnaire,
+      healthTracks: tracks,
+    } = await getUserRole(userId!);
 
     if (!userRole) {
       toast.error("Could not determine account type. Please contact support.");
@@ -282,7 +296,9 @@ const Login = () => {
       return;
     }
 
-    navigate(resolveDashboardPath(userRole, hasCompletedQuestionnaire), { replace: true });
+    navigate(resolveDashboardPath(userRole, hasCompletedQuestionnaire, false, tracks), {
+      replace: true,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -312,7 +328,12 @@ const Login = () => {
       }
     } catch (error) {
       if (error instanceof EmailAlreadyRegisteredError) {
+        // Drop her on the sign-in form with her email already filled in, and
+        // clear the password she picked for an account that was never created
+        // — leaving it there invites her to submit it as her existing one.
         setIsSignup(false);
+        setCurrentStep(1);
+        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }));
       }
       toast.error(describeAuthError(error));
     } finally {

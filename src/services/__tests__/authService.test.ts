@@ -247,6 +247,51 @@ describe("signUpUser", () => {
     ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
   });
 
+  // The failure a PCOD/PCOS patient reported: with email confirmation on,
+  // Supabase answers a repeat signup with success and an obfuscated user
+  // rather than an error, so the screen used to promise an account that was
+  // never created and every sign-in after it failed on a password that was
+  // never set.
+  it("raises a typed error when a repeat signup is disguised as a success", async () => {
+    supabaseMock.signUp.mockResolvedValueOnce({
+      data: { user: { id: "obfuscated-user", identities: [] }, session: null },
+      error: null,
+    } as never);
+
+    await expect(
+      signUpUser({
+        role: "patient",
+        name: "Asha",
+        email: "taken@example.com",
+        password: "secret123",
+        healthTracks: ["pcos"],
+        trackDetails: { diagnosisStatus: "diagnosed-pcos" },
+      })
+    ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
+
+    // Nothing may be written for an account that does not belong to her.
+    expect(supabaseMock.from).not.toHaveBeenCalled();
+  });
+
+  it("treats a genuine signup with one identity as new", async () => {
+    supabaseMock.signUp.mockResolvedValueOnce({
+      data: {
+        user: { id: "user-1", identities: [{ id: "identity-1" }] },
+        session: null,
+      },
+      error: null,
+    } as never);
+
+    await expect(
+      signUpUser({
+        role: "patient",
+        name: "Asha",
+        email: "asha@example.com",
+        password: "secret123",
+      })
+    ).resolves.toEqual({ userId: "user-1", hasSession: false });
+  });
+
   it("rethrows other signup failures untouched", async () => {
     supabaseMock.signUp.mockResolvedValueOnce({
       data: { user: null, session: null },
@@ -294,7 +339,7 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: { questionnaire_completed: true } });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: true,
     });
@@ -304,7 +349,7 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: { questionnaire_completed: false } });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: false,
     });
@@ -314,9 +359,28 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: null });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: false,
+    });
+  });
+
+  // Read alongside the role because the two decide the landing route together
+  // — a PCOD/PCOS patient is not sent to the questionnaire.
+  it("reports the patient's care tracks alongside her role", async () => {
+    supabaseMock.setTable("profiles", { data: { role: "patient" } });
+    supabaseMock.setTable("patients", {
+      data: {
+        questionnaire_completed: false,
+        health_tracks: ["pcos"],
+        assessment_data: null,
+      },
+    });
+
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
+      role: "patient",
+      hasCompletedQuestionnaire: false,
+      healthTracks: ["pcos"],
     });
   });
 
@@ -375,6 +439,46 @@ describe("resolveDashboardPath", () => {
 
   it("falls back to the landing page for an unknown role", () => {
     expect(resolveDashboardPath(null)).toBe("/");
+  });
+
+  // The questionnaire is offered to a PCOD/PCOS patient, not demanded: she has
+  // just answered a form of her own at signup, and the trackers she came for
+  // are worth more to her early than a constitution questionnaire.
+  it("sends a brand new PCOD/PCOS signup straight to her dashboard", () => {
+    expect(resolveDashboardPath("patient", undefined, true, ["pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("does not hold a returning PCOD/PCOS patient at the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("exempts a patient who is both pregnant and PCOD/PCOS", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pregnancy", "pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("still asks a pregnancy-track patient to finish the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pregnancy"])).toBe(
+      "/patient/questionnaire"
+    );
+  });
+
+  it("still asks a general-wellness patient to finish the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, [])).toBe(
+      "/patient/questionnaire"
+    );
+  });
+
+  // Unreadable tracks must not open the gate for someone it applies to.
+  it("asks when the tracks could not be read at all", () => {
+    expect(resolveDashboardPath("patient", false, false, null)).toBe(
+      "/patient/questionnaire"
+    );
   });
 });
 

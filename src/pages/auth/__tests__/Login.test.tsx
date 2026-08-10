@@ -131,6 +131,28 @@ describe("patient sign in", () => {
     );
   });
 
+  // She answered the PCOD/PCOS form at signup; sending her to the Ayurvedic
+  // questionnaire on every sign-in reads as being asked the same thing twice,
+  // and stands between her and the trackers she actually came for.
+  it("takes a PCOD/PCOS patient to her dashboard, questionnaire or not", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("profiles", { data: { role: "patient" } });
+    supabaseMock.setTable("patients", {
+      data: { questionnaire_completed: false, health_tracks: ["pcos"], assessment_data: null },
+    });
+
+    renderLogin("patient");
+    await fillCredentials(user, { email: "asha@example.com", password: "secret123" });
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() =>
+      expect(mock.navigate).toHaveBeenCalledWith("/patient/dashboard", { replace: true })
+    );
+    expect(mock.navigate).not.toHaveBeenCalledWith("/patient/questionnaire", {
+      replace: true,
+    });
+  });
+
   it("routes by the role on the account, not the role in the URL", async () => {
     const user = userEvent.setup();
     // A doctor signing in through the patient door still lands on /doctor.
@@ -320,6 +342,12 @@ describe("patient sign up", () => {
       diagnosisStatus: "diagnosed-pcos",
       typicalCycleLength: "45",
     });
+
+    // And she goes straight to her dashboard — she has just answered a form,
+    // and the questionnaire is offered from her profile rather than demanded.
+    await waitFor(() =>
+      expect(mock.navigate).toHaveBeenCalledWith("/patient/dashboard", { replace: true })
+    );
   });
 
   // Pregnancy and PCOS routinely coexist; forcing a choice between them would
@@ -421,6 +449,45 @@ describe("patient sign up", () => {
       expect.stringContaining("account with this email already exists")
     );
     expect(mock.navigate).not.toHaveBeenCalled();
+  });
+
+  // The reported bug, end to end. With email confirmation on, Supabase hides a
+  // repeat signup behind a successful response, and the screen used to read it
+  // as "confirmation email sent" — so a PCOD/PCOS patient was told her account
+  // was created, then locked out of an account whose password she had never
+  // set, with signing up again only repeating the promise.
+  it("does not promise an account when a repeat signup is disguised as a success", async () => {
+    const user = userEvent.setup();
+    supabaseMock.signUp.mockResolvedValueOnce({
+      data: { user: { id: "obfuscated-user", identities: [] }, session: null },
+      error: null,
+    } as never);
+
+    renderLogin("patient");
+    await switchToSignup(user);
+    await completePatientStepOne(user, { email: "taken@example.com" });
+    await user.click(screen.getByRole("checkbox", { name: /pcod \/ pcos/i }));
+    await user.selectOptions(
+      screen.getByLabelText(/has a doctor diagnosed it/i),
+      "diagnosed-pcos"
+    );
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() =>
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("account with this email already exists")
+      )
+    );
+    expect(mock.toast.success).not.toHaveBeenCalled();
+    expect(mock.navigate).not.toHaveBeenCalled();
+
+    // She lands on sign-in with her email kept and the password she just chose
+    // cleared — it was never set on the account she is about to sign in to.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^sign in$/i })).toBeInTheDocument()
+    );
+    expect(screen.getByLabelText(/^email/i)).toHaveValue("taken@example.com");
+    expect(screen.getByLabelText(/^password/i)).toHaveValue("");
   });
 });
 

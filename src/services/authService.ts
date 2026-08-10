@@ -19,13 +19,24 @@
 import { supabase } from "@/lib/supabase";
 import type { DoctorVerificationData } from "@/lib/licenseVerification";
 import type { HealthTracks } from "@/lib/healthTrack";
-import { saveHealthTracks, type TrackSignupDetails } from "@/services/healthTrackService";
+import { requiresQuestionnaire } from "@/lib/healthTrack";
+import {
+  fetchHealthTracks,
+  saveHealthTracks,
+  type TrackSignupDetails,
+} from "@/services/healthTrackService";
 
 export type AuthRole = "doctor" | "patient";
 
 export interface RoleLookupResult {
   role: AuthRole | null;
   hasCompletedQuestionnaire?: boolean;
+  /**
+   * The patient's care pathways, so the caller can route without waiting for
+   * `AppContext` to resolve them. Null when they could not be read, and for
+   * doctors.
+   */
+  healthTracks?: HealthTracks | null;
 }
 
 export interface SignUpParams {
@@ -65,6 +76,24 @@ const isAlreadyRegistered = (message: string): boolean => {
   const msg = message.toLowerCase();
   return msg.includes("already registered") || msg.includes("already been registered");
 };
+
+/**
+ * Whether a *successful* signup response is really a rejected repeat signup.
+ *
+ * With email confirmation on, Supabase refuses to confirm or deny that an
+ * address is taken: signing up with one that already has an account returns
+ * success, no error, no session, and an obfuscated user. The giveaway is an
+ * empty `identities` array — a genuinely new user always comes back with one.
+ *
+ * Without this check that response is indistinguishable from "confirmation
+ * email sent", so the screen congratulates her on an account that was never
+ * created. The password she just chose is not the password on the account, so
+ * every sign-in afterwards fails with "Invalid credentials", and signing up
+ * again only repeats the lie. This is exactly the loop PCOD/PCOS patients hit
+ * on the two-step patient signup, and it is not specific to a track or a role.
+ */
+const isRepeatSignup = (user: { identities?: unknown } | null | undefined): boolean =>
+  Array.isArray(user?.identities) && user.identities.length === 0;
 
 /**
  * Build the auth metadata the `on_auth_user_created` trigger consumes.
@@ -122,7 +151,9 @@ export const buildSignupMetadata = ({
  * Create an account for either role.
  *
  * Throws `EmailAlreadyRegisteredError` for a taken email so the caller can
- * flip the form back to sign-in rather than showing a generic failure.
+ * flip the form back to sign-in rather than showing a generic failure — both
+ * when Supabase says so outright and when it hides it behind a successful
+ * response (see `isRepeatSignup`).
  */
 export const signUpUser = async ({
   role,
@@ -148,6 +179,14 @@ export const signUpUser = async ({
       );
     }
     throw error;
+  }
+
+  // Checked before anything else reads the response: a repeat signup carries a
+  // user id and looks entirely successful.
+  if (isRepeatSignup(data.user)) {
+    throw new EmailAlreadyRegisteredError(
+      "An account with this email already exists. Please sign in instead, or reset your password if you've forgotten it."
+    );
   }
 
   const userId = data.user?.id ?? null;
@@ -216,9 +255,21 @@ export const getUserRole = async (
           .eq("id", uid)
           .maybeSingle();
 
+        // Read alongside the questionnaire flag because the two decide the
+        // landing route together: a PCOD/PCOS patient is not held at the
+        // questionnaire. Never fatal — a track that cannot be read just falls
+        // back to the old behaviour of asking.
+        let healthTracks: HealthTracks | null = null;
+        try {
+          healthTracks = (await fetchHealthTracks(uid)).tracks;
+        } catch (trackError) {
+          console.error("Could not read the patient's health tracks:", trackError);
+        }
+
         return {
           role: "patient",
           hasCompletedQuestionnaire: Boolean(patient?.questionnaire_completed),
+          healthTracks,
         };
       }
     } catch (error) {
@@ -236,14 +287,22 @@ export const getUserRole = async (
 /**
  * Where an authenticated user belongs. Patients must clear the questionnaire
  * before the rest of the app; a brand new signup never has.
+ *
+ * Except on the PCOD/PCOS pathway, where it is offered rather than demanded —
+ * see `requiresQuestionnaire`. Tracks that could not be read (null) fall back
+ * to asking, so an unknown patient is never let past a gate that applies to
+ * her.
  */
 export const resolveDashboardPath = (
   role: AuthRole | null,
   hasCompletedQuestionnaire?: boolean,
-  isNewSignup = false
+  isNewSignup = false,
+  healthTracks?: HealthTracks | null
 ): string => {
   if (role === "doctor") return "/doctor/dashboard";
   if (role === "patient") {
+    if (healthTracks && !requiresQuestionnaire(healthTracks)) return "/patient/dashboard";
+
     return isNewSignup || !hasCompletedQuestionnaire
       ? "/patient/questionnaire"
       : "/patient/dashboard";

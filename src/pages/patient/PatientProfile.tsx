@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
-import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Target, MapPin, Apple, HeartPulse, IdCard, Copy, Check } from "lucide-react";
+import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Target, MapPin, Apple, HeartPulse, IdCard, Copy, Check, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCachedPageData } from "@/hooks/useCachedPageData";
@@ -463,6 +463,38 @@ export default function Profile() {
                 <strong>Note:</strong> Please keep your Patient ID safe. You'll need it for appointments, 
                 medical records, and when contacting support.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* An invitation, not a gate. A PCOD/PCOS patient is not held at the
+          questionnaire (see `requiresQuestionnaire`), so she reaches her
+          profile with the signup answers already in `assessment_data` and
+          would otherwise never be told the Prakriti half is still blank — the
+          half her diet chart's dosha is built from. */}
+      {assessmentData && !patientData.questionnaireCompleted && (
+        <Card className="border-plum-200 bg-plum-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+              <Sparkles className="h-10 w-10 shrink-0 text-plum-600" aria-hidden />
+              <div className="flex-1">
+                <h3 className="mb-1 text-lg font-semibold">
+                  Finish your Ayurvedic profile
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  We have what you told us at signup. The constitution questions —
+                  body frame, skin, appetite — are what your diet chart's dosha is
+                  worked out from, so filling them in makes every plan you get more
+                  personal. It takes a few minutes, and you can do it whenever.
+                </p>
+              </div>
+              <Button
+                className="shrink-0"
+                onClick={() => (window.location.href = "/patient/questionnaire")}
+              >
+                Complete it
+              </Button>
             </div>
           </CardContent>
         </Card>

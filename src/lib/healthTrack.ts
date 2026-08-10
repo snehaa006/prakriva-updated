@@ -67,6 +67,27 @@ export const showsCycleTracking = (tracks: HealthTracks): boolean =>
   tracks.includes("pcos");
 
 /**
+ * Whether the onboarding questionnaire is a gate or an invitation.
+ *
+ * A PCOD/PCOS patient has just answered a form of her own at signup — her
+ * diagnosis, her cycle, her height and weight, and what she wants tracked —
+ * and being dropped straight into a five-section Ayurvedic assessment reads as
+ * being asked the same thing twice. Worse, it stands between her and the
+ * trackers she signed up for, which is the one part of the app that is useless
+ * unless she starts logging early: a cycle history only becomes an analysis
+ * after a few entries.
+ *
+ * So for her it is offered rather than demanded. It is not deleted — the
+ * Prakriti answers are what the diet chart generator builds a dosha from
+ * (`src/services/dietChartService.ts`), and without them it falls back to a
+ * default constitution — so her profile keeps a prompt to fill it in when she
+ * wants to. Everyone else still completes it first; nothing about the other
+ * pathways changed.
+ */
+export const requiresQuestionnaire = (tracks: HealthTracks): boolean =>
+  !tracks.includes("pcos");
+
+/**
  * Which life stage the diet plan generator should use.
  *
  * Pregnancy wins over PCOS whenever both are present, and that ordering is a
