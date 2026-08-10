@@ -219,3 +219,107 @@ class TestBuildChatPrompt:
         prompt = gemini_service.build_chat_prompt("Any recipe ideas?", {})
         assert prompt.startswith("PATIENT CONTEXT")
         assert prompt.endswith("Any recipe ideas?")
+
+
+class TestAssessAcnePhoto:
+    """The PCOD/PCOS skin tracker's photo read.
+
+    The patient's own severity rating is authoritative, so everything here is
+    about the model *not* being trusted further than it should be: an
+    unrecognised band, an invented region or a photo it cannot judge must all
+    come back as "no opinion" rather than a guess the tracker then charts.
+    """
+
+    def test_returns_the_band_regions_and_description(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response(
+            '{"severity": "moderate", "regions": ["jawline", "chin"],'
+            ' "observations": "Several inflamed papules along the jaw."}'
+        )
+
+        with patch("requests.post", return_value=response):
+            result = gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert result["severity"] == "moderate"
+        assert result["regions"] == ["jawline", "chin"]
+        assert "inflamed" in result["observations"]
+
+    def test_the_photo_is_sent_inline_beside_the_prompt(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response('{"severity": "mild", "regions": []}')
+
+        with patch("requests.post", return_value=response) as post:
+            gemini_service.assess_acne_photo("Zm9v", "image/png")
+
+        parts = post.call_args.kwargs["json"]["contents"][0]["parts"]
+        assert parts[1]["inlineData"] == {"mimeType": "image/png", "data": "Zm9v"}
+
+    def test_runs_at_zero_temperature(self, monkeypatch):
+        """Description, not composition — the same rule report extraction uses."""
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response('{"severity": "mild", "regions": []}')
+
+        with patch("requests.post", return_value=response) as post:
+            gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert post.call_args.kwargs["json"]["generationConfig"]["temperature"] == 0
+
+    def test_an_unrecognised_severity_becomes_no_opinion(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response('{"severity": "cystic", "regions": []}')
+
+        with patch("requests.post", return_value=response):
+            result = gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert result["severity"] is None
+
+    def test_a_photo_it_cannot_judge_returns_null_rather_than_a_guess(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response(
+            '{"severity": null, "regions": [], "observations": "Too dark to judge."}'
+        )
+
+        with patch("requests.post", return_value=response):
+            result = gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert result["severity"] is None
+        assert result["observations"] == "Too dark to judge."
+
+    def test_invented_regions_are_dropped(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response(
+            '{"severity": "mild", "regions": ["chin", "shoulder", 7]}'
+        )
+
+        with patch("requests.post", return_value=response):
+            result = gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert result["regions"] == ["chin"]
+
+    def test_observations_are_truncated(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response(
+            '{"severity": "mild", "regions": [], "observations": "%s"}' % ("x" * 900)
+        )
+
+        with patch("requests.post", return_value=response):
+            result = gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+        assert len(result["observations"]) == 500
+
+    def test_unparseable_json_is_reported_as_unavailable(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = candidates_response("sorry, I can't help with that")
+
+        with patch("requests.post", return_value=response):
+            with pytest.raises(GeminiUnavailable):
+                gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+    def test_a_safety_block_is_reported_as_unavailable(self, monkeypatch):
+        with_keys(monkeypatch, "key-a")
+        response = Mock(status_code=200)
+        response.json.return_value = {"candidates": []}
+
+        with patch("requests.post", return_value=response):
+            with pytest.raises(GeminiUnavailable):
+                gemini_service.assess_acne_photo("Zm9v", "image/jpeg")

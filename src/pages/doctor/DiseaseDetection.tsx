@@ -419,6 +419,17 @@ const DiseaseDetection: React.FC = () => {
             <CardDescription>
               Patients you have accepted whose questionnaire marks them pregnant.
               Pick one to see her screening trends and detected risks.
+              {/* PCOD/PCOS patients are deliberately absent: the screening
+                  models here are trained on pregnancy conditions, so scoring
+                  one against them would produce confident-looking risks her
+                  answers were never about. Her analysis lives in the Recipe
+                  Builder instead, built from her cycle, weight and exercise
+                  logs. */}
+              <span className="mt-2 block">
+                PCOD/PCOS patients are not screened here — open{" "}
+                <strong>Recipe Builder</strong> for their cycle, weight and exercise
+                analysis instead.
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

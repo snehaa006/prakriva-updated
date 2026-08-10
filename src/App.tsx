@@ -30,6 +30,13 @@ import DiseaseDetection from "./pages/doctor/DiseaseDetection";
 import HealthRisks from "./pages/patient/HealthRisks";
 import NotFound from "./pages/NotFound";
 import Questionnaire from "./pages/patient/Questionnaire";
+import PeriodTracker from "./pages/patient/PeriodTracker";
+import SkinTracker from "./pages/patient/SkinTracker";
+import {
+  showsCycleTracking,
+  showsDiseaseDetection,
+  type HealthTrack,
+} from "@/lib/healthTrack";
 import PatientProfile from "./pages/patient/PatientProfile";
 import Reminders from "./pages/patient/Reminders";
 import Pantry from "./pages/patient/Pantry";
@@ -85,6 +92,31 @@ const PatientProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user || user.role !== "patient") return <Navigate to="/" replace />;
   if (questionnaireCompleted === false || questionnaireCompleted === null)
     return <Navigate to="/patient/questionnaire" replace />;
+
+  return <>{children}</>;
+};
+
+/**
+ * A patient route that only exists on some care pathways.
+ *
+ * The sidebar already hides these, but a bookmarked or hand-typed URL would
+ * otherwise still render them — a PCOD/PCOS patient landing on the maternal
+ * health check would be screened for conditions her answers were never about,
+ * which is worse than a redirect. Sends her to her dashboard instead.
+ */
+const TrackRoute = ({
+  allow,
+  children,
+}: {
+  allow: (track: HealthTrack) => boolean;
+  children: React.ReactNode;
+}) => {
+  const { healthTrack } = useApp();
+
+  // Still resolving — render nothing rather than flashing the page or
+  // bouncing a patient who does belong here.
+  if (healthTrack === null) return <LoadingScreen message="Loading your profile..." />;
+  if (!allow(healthTrack)) return <Navigate to="/patient/dashboard" replace />;
 
   return <>{children}</>;
 };
@@ -164,7 +196,30 @@ const AppRoutes = () => (
         <Route path="dashboard" element={<PatientDashboard />} />
         <Route path="meal-logging" element={<MealLogging />} />
         {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
-        <Route path="health-check" element={<HealthRisks />} />
+        <Route
+          path="health-check"
+          element={
+            <TrackRoute allow={showsDiseaseDetection}>
+              <HealthRisks />
+            </TrackRoute>
+          }
+        />
+        <Route
+          path="period-tracker"
+          element={
+            <TrackRoute allow={showsCycleTracking}>
+              <PeriodTracker />
+            </TrackRoute>
+          }
+        />
+        <Route
+          path="skin-tracker"
+          element={
+            <TrackRoute allow={showsCycleTracking}>
+              <SkinTracker />
+            </TrackRoute>
+          }
+        />
         <Route path="lifestyle-tracker" element={<LifestyleTracker />} />
         <Route path="social-support" element={<SocialSupport />} />
         <Route path="consult-doctor" element={<ConsultDoctor />} />

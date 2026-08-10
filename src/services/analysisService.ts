@@ -6,6 +6,7 @@
 // backend environment and every call is proxied through Flask.
 
 import type { StoredScreening } from "@/types/diseaseDetection";
+import type { AcneRegion, AcneSeverity } from "@/lib/acneGuidance";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -117,6 +118,33 @@ export const extractReport = async (file: File): Promise<ExtractedValues> => {
     { image: await toBase64(file), mime_type: file.type || "image/jpeg" }
   );
   return values;
+};
+
+/** What the vision model reports about a skin photo. */
+export interface AcnePhotoAssessment {
+  /** Null when the photo could not be judged — keep the patient's own rating. */
+  severity: AcneSeverity | null;
+  regions: AcneRegion[];
+  observations: string;
+}
+
+/**
+ * A second opinion on a skin photo, for the PCOD/PCOS skin tracker.
+ *
+ * Never authoritative: the patient's own severity rating wins, because she can
+ * see her face in daylight and the model is looking at a phone photo. This is
+ * offered alongside it so a trend has something objective in it, and the
+ * backend returns no treatment advice at all — that stays in
+ * `src/lib/acneGuidance.ts` where it can be reviewed.
+ */
+export const assessAcnePhoto = async (file: File): Promise<AcnePhotoAssessment> => {
+  if (file.size > MAX_REPORT_BYTES) {
+    throw new Error("That photo is too large — try one under 8 MB.");
+  }
+  return post<AcnePhotoAssessment>("/analysis/acne-photo", {
+    image: await toBase64(file),
+    mime_type: file.type || "image/jpeg",
+  });
 };
 
 /** Answer a patient's question about her own results. */

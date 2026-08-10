@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { HEALTH_TRACK_LABELS } from "@/lib/healthTrack";
 
 import {
   Leaf,
@@ -60,7 +61,7 @@ interface FormData {
 const AyurvedicHealthAssessment: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, setQuestionnaireCompleted } = useApp();
+  const { user, setQuestionnaireCompleted, healthTrack } = useApp();
   const [formData, setFormData] = useState<FormData>({
     name: user?.name || "",
     dob: "",
@@ -85,6 +86,51 @@ const AyurvedicHealthAssessment: React.FC = () => {
   });
 
   const [showModal, setShowModal] = useState(false);
+
+  /**
+   * What signup already put in `assessment_data`, kept so the submit below can
+   * merge into it rather than replace it.
+   *
+   * Signup writes the care track and its answers (`healthTrack`, `lifeStage`,
+   * `dueDate`, the PCOD/PCOS fields) here before the patient ever reaches this
+   * form. Saving `formData` straight over the column — which is what this page
+   * used to do — would silently wipe every one of them and drop her back onto
+   * general-adult nutrition targets.
+   */
+  const [existingAssessment, setExistingAssessment] = useState<
+    Record<string, unknown>
+  >({});
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const loadExisting = async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("assessment_data")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      const stored = (data?.assessment_data as Record<string, unknown>) ?? {};
+      setExistingAssessment(stored);
+
+      // Seed the fields signup already answered, so she is not asked twice and
+      // a blank input cannot overwrite a real value.
+      setFormData((prev) => ({
+        ...prev,
+        lifeStage: (stored.lifeStage as string) || prev.lifeStage,
+        dueDate: (stored.dueDate as string) || prev.dueDate,
+        heightCm: (stored.heightCm as string) || prev.heightCm,
+      }));
+    };
+
+    void loadExisting();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -159,7 +205,17 @@ const AyurvedicHealthAssessment: React.FC = () => {
         .from("patients")
         .update({
           questionnaire_completed: true,
-          assessment_data: formData,
+          // Merged, never replaced — see `existingAssessment` above. An empty
+          // answer also never wins over a stored one, so a field this form
+          // does not ask about on her track survives untouched.
+          assessment_data: {
+            ...existingAssessment,
+            ...Object.fromEntries(
+              Object.entries(formData).filter(
+                ([, value]) => value !== "" && value !== undefined
+              )
+            ),
+          },
           assessment_completed_at: new Date().toISOString(),
         })
         .eq("id", user.id);
@@ -400,22 +456,38 @@ const AyurvedicHealthAssessment: React.FC = () => {
                   Used with your weight to work out BMI in the health check.
                 </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Are you currently pregnant?
-                </label>
-                <select
-                  name="lifeStage"
-                  value={formData.lifeStage}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                >
-                  <option value="">Select...</option>
-                  <option value="pregnancy">Yes, I am pregnant</option>
-                  <option value="none">No</option>
-                </select>
-              </div>
-              {formData.lifeStage === "pregnancy" && (
+              {/* The pregnancy question is only asked when signup did not
+                  already answer it. A PCOD/PCOS patient chose her care track
+                  at signup, and re-asking here would let a blank answer
+                  contradict it. */}
+              {healthTrack === "pcos" ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your care track
+                  </label>
+                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700">
+                    {HEALTH_TRACK_LABELS.pcos} — your cycle, weight and skin
+                    trackers are set up for you.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Are you currently pregnant?
+                  </label>
+                  <select
+                    name="lifeStage"
+                    value={formData.lifeStage}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">Select...</option>
+                    <option value="pregnancy">Yes, I am pregnant</option>
+                    <option value="none">No</option>
+                  </select>
+                </div>
+              )}
+              {healthTrack !== "pcos" && formData.lifeStage === "pregnancy" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Estimated due date

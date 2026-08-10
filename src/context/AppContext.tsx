@@ -6,6 +6,11 @@ import React, {
   useEffect,
 } from "react";
 import { supabase } from "@/lib/supabase";
+import type { HealthTrack } from "@/lib/healthTrack";
+import {
+  fetchHealthTrack,
+  syncHealthTrackFromMetadata,
+} from "@/services/healthTrackService";
 
 /* ----------------------------- Type Definitions ----------------------------- */
 
@@ -159,6 +164,11 @@ interface AppContextType {
   setIsLoading: (loading: boolean) => void;
   questionnaireCompleted: boolean | null;
   setQuestionnaireCompleted: (isCompleted: boolean) => void;
+  /**
+   * The signed-in patient's care pathway. Null while loading, and for doctors.
+   * Decides which patient tabs exist — see `src/lib/healthTrack.ts`.
+   */
+  healthTrack: HealthTrack | null;
 
   doctor: Doctor | null;
   setDoctor: (doctor: Doctor | null) => void;
@@ -190,6 +200,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState<
     boolean | null
   >(null);
+  const [healthTrack, setHealthTrack] = useState<HealthTrack | null>(null);
 
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [consultationRequests, setConsultationRequests] = useState<
@@ -202,9 +213,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setDoctor(null);
       setConsultationRequests([]);
       setQuestionnaireCompleted(null);
+      setHealthTrack(null);
     };
 
-    const loadSession = async (authUser: { id: string; email?: string } | null) => {
+    const loadSession = async (
+      authUser:
+        | { id: string; email?: string; user_metadata?: Record<string, unknown> }
+        | null
+    ) => {
       setIsLoading(true);
 
       if (!authUser) {
@@ -236,6 +252,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             role: "patient",
           });
           setQuestionnaireCompleted(Boolean(data?.questionnaire_completed));
+
+          // Back-fill the track from signup metadata for accounts created
+          // before the column existed (or signed up with email confirmation
+          // on, where there was no session to write it with).
+          const synced = await syncHealthTrackFromMetadata(
+            authUser.id,
+            authUser.user_metadata
+          );
+          setHealthTrack(synced ?? (await fetchHealthTrack(authUser.id)).track);
         } else if (profile?.role === "doctor") {
           const { data } = await supabase
             .from("doctors")
@@ -252,6 +277,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           });
           setUser({ id: authUser.id, name, email: authUser.email || "", role: "doctor" });
           setQuestionnaireCompleted(null);
+          setHealthTrack(null);
 
           const { data: requests } = await supabase
             .from("consultation_requests")
@@ -311,6 +337,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoading,
     questionnaireCompleted,
     setQuestionnaireCompleted,
+    healthTrack,
     doctor,
     setDoctor,
     consultationRequests,

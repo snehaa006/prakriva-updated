@@ -89,6 +89,11 @@ export const CACHE_KEYS = {
   // Suffixed with the patient id, and read with no TTL — the Lifestyle
   // Tracker's streak history has to outlive an in-progress-work lifetime.
   lifestyleLogs: "lifestyle-logs",
+  // Same rule for the PCOS trackers: a cycle history or a weight curve is the
+  // patient's own record, not in-progress work, so it never expires on its own.
+  cycleLogs: "cycle-logs",
+  missedCycleMonths: "missed-cycle-months",
+  weightLogs: "weight-logs",
 } as const;
 
 /** A day, in ms — the default lifetime for cached in-progress work. */

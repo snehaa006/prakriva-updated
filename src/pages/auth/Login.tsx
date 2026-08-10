@@ -13,6 +13,14 @@ import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import AccountFields, { type AccountFormData } from "./AccountFields";
 import DoctorSignupSteps from "./DoctorSignupSteps";
+import PatientSignupSteps from "./PatientSignupSteps";
+import {
+  PATIENT_SIGNUP_STEPS,
+  PATIENT_STEP_LABELS,
+  emptyTrackDetails,
+} from "./patientTrackOptions";
+import type { HealthTrack } from "@/lib/healthTrack";
+import type { TrackSignupDetails } from "@/services/healthTrackService";
 import {
   emptyVerificationData,
   verifyLicense,
@@ -64,11 +72,25 @@ const Login = () => {
   const [verificationData, setVerificationData] =
     useState<DoctorVerificationData>(emptyVerificationData);
 
+  // Which care pathway a patient is signing up for, and the answers that
+  // pathway asks for. Doctors never see these.
+  const [healthTrack, setHealthTrack] = useState<HealthTrack | null>(null);
+  const [trackDetails, setTrackDetails] = useState<TrackSignupDetails>(emptyTrackDetails);
+
   const isDoctorSignup = isSignup && role === "doctor";
+  const isPatientSignup = isSignup && role === "patient";
+  const isWizard = isDoctorSignup || isPatientSignup;
+  const totalSteps = isDoctorSignup ? TOTAL_DOCTOR_STEPS : PATIENT_SIGNUP_STEPS;
+  const stepLabels = isDoctorSignup ? STEP_LABELS : PATIENT_STEP_LABELS;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  const handleTrackDetailChange = (
+    field: keyof TrackSignupDetails,
+    value: string | string[]
+  ) => setTrackDetails((prev) => ({ ...prev, [field]: value }));
 
   const handleVerificationChange = (field: keyof DoctorVerificationData, value: unknown) => {
     setVerificationData((prev) => {
@@ -144,6 +166,18 @@ const Login = () => {
 
   /** Validate the current wizard step, reporting the first missing field. */
   const validateStep = (step: number): boolean => {
+    if (isPatientSignup && step === 2) {
+      if (!healthTrack) {
+        toast.error("Please choose what you're here for");
+        return false;
+      }
+      if (healthTrack === "pcos" && !trackDetails.diagnosisStatus) {
+        toast.error("Please tell us whether PCOD/PCOS has been diagnosed");
+        return false;
+      }
+      return true;
+    }
+
     if (step === 1) {
       if (!formData.name || !formData.email || !formData.password) {
         toast.error("Please fill in all required fields");
@@ -179,7 +213,7 @@ const Login = () => {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((step) => Math.min(step + 1, TOTAL_DOCTOR_STEPS));
+      setCurrentStep((step) => Math.min(step + 1, totalSteps));
     }
   };
 
@@ -190,6 +224,8 @@ const Login = () => {
     setFormData(emptyFormData());
     setVerificationData(emptyVerificationData());
     setVerificationResult(null);
+    setHealthTrack(null);
+    setTrackDetails(emptyTrackDetails());
   };
 
   const handleSignup = async () => {
@@ -199,6 +235,8 @@ const Login = () => {
       email: formData.email,
       password: formData.password,
       verification: role === "doctor" ? verificationData : undefined,
+      healthTrack: role === "patient" ? healthTrack ?? undefined : undefined,
+      trackDetails: role === "patient" ? trackDetails : undefined,
     });
 
     if (!result.hasSession) {
@@ -251,7 +289,7 @@ const Login = () => {
     if (isSubmitting.current) return;
     isSubmitting.current = true;
 
-    if (isDoctorSignup && !validateStep(TOTAL_DOCTOR_STEPS)) {
+    if (isWizard && !validateStep(totalSteps)) {
       isSubmitting.current = false;
       return;
     }
@@ -297,9 +335,9 @@ const Login = () => {
             {isSignup ? "Create your account" : "Sign in to your account"} as a{" "}
             <span className="font-semibold capitalize text-primary">{role}</span>
             {/* A block element here would be invalid — CardDescription is a <p>. */}
-            {isDoctorSignup && (
+            {isWizard && (
               <span className="mt-2 block text-xs text-gray-500">
-                Step {currentStep} of {TOTAL_DOCTOR_STEPS}
+                Step {currentStep} of {totalSteps}
               </span>
             )}
           </CardDescription>
@@ -307,36 +345,49 @@ const Login = () => {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isDoctorSignup && (
+            {isWizard && (
               <div className="mb-6">
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                  {STEP_LABELS.map((label) => (
+                  {stepLabels.map((label) => (
                     <span key={label}>{label}</span>
                   ))}
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(currentStep / TOTAL_DOCTOR_STEPS) * 100}%` }}
+                    style={{ width: `${(currentStep / totalSteps) * 100}%` }}
                   />
                 </div>
               </div>
             )}
 
-            {isDoctorSignup ? (
+            {isWizard ? (
               <>
-                <DoctorSignupSteps
-                  step={currentStep}
-                  formData={formData}
-                  onFormChange={handleInputChange}
-                  verificationData={verificationData}
-                  onVerificationChange={handleVerificationChange}
-                  onArrayFieldChange={handleArrayFieldChange}
-                  onVerifyLicense={handleVerifyLicense}
-                  isVerifyingLicense={isVerifyingLicense}
-                  verificationResult={verificationResult}
-                  isLoading={isLoading}
-                />
+                {isDoctorSignup ? (
+                  <DoctorSignupSteps
+                    step={currentStep}
+                    formData={formData}
+                    onFormChange={handleInputChange}
+                    verificationData={verificationData}
+                    onVerificationChange={handleVerificationChange}
+                    onArrayFieldChange={handleArrayFieldChange}
+                    onVerifyLicense={handleVerifyLicense}
+                    isVerifyingLicense={isVerifyingLicense}
+                    verificationResult={verificationResult}
+                    isLoading={isLoading}
+                  />
+                ) : (
+                  <PatientSignupSteps
+                    step={currentStep}
+                    formData={formData}
+                    onFormChange={handleInputChange}
+                    track={healthTrack}
+                    onTrackChange={setHealthTrack}
+                    details={trackDetails}
+                    onDetailChange={handleTrackDetailChange}
+                    isLoading={isLoading}
+                  />
+                )}
 
                 <div className="flex justify-between pt-4">
                   <Button
@@ -348,7 +399,7 @@ const Login = () => {
                     Back
                   </Button>
 
-                  {currentStep < TOTAL_DOCTOR_STEPS ? (
+                  {currentStep < totalSteps ? (
                     <Button type="button" onClick={handleNext} disabled={isLoading}>
                       Next
                     </Button>

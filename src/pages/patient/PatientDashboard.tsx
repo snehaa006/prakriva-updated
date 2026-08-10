@@ -239,7 +239,7 @@ function getGreeting(): string {
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useApp();
+  const { user, healthTrack } = useApp();
 
   // Patient profile
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -1125,6 +1125,19 @@ const PatientDashboard = () => {
                 <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/lifestyle-tracker")}>
                   <Heart className="w-4 h-4" /> Tracker
                 </Button>
+                {/* PCOD/PCOS patients have no maternal health check; their
+                    cycle and skin logs are what their diet plan is built
+                    from, so they belong in reach from the dashboard. */}
+                {healthTrack === "pcos" && (
+                  <>
+                    <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/period-tracker")}>
+                      <Calendar className="w-4 h-4" /> Period & Weight Tracker
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/skin-tracker")}>
+                      <Sparkles className="w-4 h-4" /> Skin & Acne
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

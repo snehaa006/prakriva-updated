@@ -18,6 +18,8 @@
  */
 import { supabase } from "@/lib/supabase";
 import type { DoctorVerificationData } from "@/lib/licenseVerification";
+import type { HealthTrack } from "@/lib/healthTrack";
+import { saveHealthTrack, type TrackSignupDetails } from "@/services/healthTrackService";
 
 export type AuthRole = "doctor" | "patient";
 
@@ -33,6 +35,10 @@ export interface SignUpParams {
   password: string;
   /** Required for doctors, ignored for patients. */
   verification?: DoctorVerificationData;
+  /** Required for patients, ignored for doctors — which care pathway they chose. */
+  healthTrack?: HealthTrack;
+  /** The track-specific answers the patient signup form collected. */
+  trackDetails?: TrackSignupDetails;
 }
 
 export interface SignUpResult {
@@ -70,8 +76,22 @@ export const buildSignupMetadata = ({
   role,
   name,
   verification,
-}: Pick<SignUpParams, "role" | "name" | "verification">): Record<string, unknown> => {
+  healthTrack,
+  trackDetails,
+}: Pick<
+  SignUpParams,
+  "role" | "name" | "verification" | "healthTrack" | "trackDetails"
+>): Record<string, unknown> => {
   const metadata: Record<string, unknown> = { role, name };
+
+  // A patient's care pathway and the answers behind it. Unlike a doctor's
+  // license claim there is nothing to grant here — the track decides which
+  // tabs she sees and which nutrition targets apply, not what she can reach —
+  // so it is safe for the trigger to copy straight through.
+  if (role === "patient" && healthTrack) {
+    metadata.healthTrack = healthTrack;
+    if (trackDetails) metadata.healthTrackDetails = trackDetails;
+  }
 
   if (role !== "doctor" || !verification) return metadata;
 
@@ -106,11 +126,15 @@ export const signUpUser = async ({
   email,
   password,
   verification,
+  healthTrack,
+  trackDetails,
 }: SignUpParams): Promise<SignUpResult> => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: buildSignupMetadata({ role, name, verification }) },
+    options: {
+      data: buildSignupMetadata({ role, name, verification, healthTrack, trackDetails }),
+    },
   });
 
   if (error) {
@@ -129,6 +153,19 @@ export const signUpUser = async ({
   // patient-code read rather than reporting a missing code.
   if (role !== "patient" || !userId || !hasSession) {
     return { userId, hasSession };
+  }
+
+  // Write the track onto the patient row now that there is a session. When
+  // email confirmation is on we never get here — `syncHealthTrackFromMetadata`
+  // picks it up out of the signup metadata on first sign-in instead.
+  if (healthTrack) {
+    try {
+      await saveHealthTrack(userId, healthTrack, trackDetails ?? {});
+    } catch (trackError) {
+      // The account exists and the metadata still carries the choice, so this
+      // is recoverable — never fail a signup over it.
+      console.error("Could not record the patient's health track:", trackError);
+    }
   }
 
   const { data: patientRow } = await supabase
