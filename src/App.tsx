@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/context/AppContext";
-import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { FoodProvider } from "@/context/FoodContext";
 
@@ -196,8 +195,7 @@ const AppRoutes = () => (
 // --- App ---
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <I18nProvider>
+    <I18nProvider>
         <TooltipProvider>
           <AppProvider>
             <FoodProvider>
@@ -209,8 +207,7 @@ const App = () => (
             </FoodProvider>
           </AppProvider>
         </TooltipProvider>
-      </I18nProvider>
-    </ThemeProvider>
+    </I18nProvider>
   </QueryClientProvider>
 );
 
