@@ -3,28 +3,34 @@
 @tailwind utilities;
 
 /* Prakriva Design System — iOS/visionOS-style minimalism.
-Neutral, near-achromatic grays with a single burgundy accent (kept for brand
-continuity with public/logo.png), plus three domain-critical Ayurvedic dosha
-colors (vata/pitta/kapha) that carry real clinical meaning and must stay
-visually distinct. All colors MUST be HSL.
+Near-achromatic neutrals warmed toward the brand's blush hue (340) with a
+single burgundy accent (kept for brand continuity with public/logo.png), plus
+three domain-critical Ayurvedic dosha colors (vata/pitta/kapha) that carry real
+clinical meaning and must stay visually distinct. All colors MUST be HSL.
+
+The neutrals carry only 6-30% saturation — enough that surfaces read soft and
+warm rather than clinical gray, not enough to become "a pink app". The palette
+stays minimal: one accent, quiet neutrals, color reserved for meaning.
 */
 
 @layer base {
   :root {
-    /* Base neutrals - cool, near-white, iOS systemGroupedBackground style */
-    --background: 0 0% 98%;
+    /* Base neutrals — near-white, iOS systemGroupedBackground style, tinted a
+       few percent toward the blush accent so the app feels like the same
+       surface as the sign-in screen rather than a cool settings pane. */
+    --background: 340 30% 98%;
     --background-elevated: 0 0% 100%;
-    --foreground: 240 6% 10%;
-    --foreground-secondary: 240 4% 46%;
-    --foreground-tertiary: 240 4% 66%;
+    --foreground: 340 10% 12%;
+    --foreground-secondary: 340 6% 45%;
+    --foreground-tertiary: 340 6% 64%;
 
     /* Card colors - elevated surface over the grouped background */
     --card: 0 0% 100%;
-    --card-foreground: 240 6% 10%;
+    --card-foreground: 340 10% 12%;
 
     /* Popover colors */
     --popover: 0 0% 100%;
-    --popover-foreground: 240 6% 10%;
+    --popover-foreground: 340 10% 12%;
 
     /* Primary - the single accent. Kept close to the old Prakriva burgundy
        for brand continuity, but tuned as a UI accent (buttons, links, active
@@ -36,22 +42,28 @@ visually distinct. All colors MUST be HSL.
     --secondary: 340 45% 96%;
     --secondary-foreground: 340 45% 32%;
 
-    /* Muted - neutral gray, no warm/cool tint */
-    --muted: 240 5% 95%;
-    --muted-foreground: 240 4% 46%;
+    /* Muted - quiet neutral, warmed to match the base */
+    --muted: 340 20% 96%;
+    --muted-foreground: 340 6% 45%;
 
     /* Accent - alias of primary for shadcn-shaped components still expecting it */
     --accent: 340 45% 96%;
     --accent-foreground: 340 45% 32%;
+
+    /* Accent-soft — the tinted chip/pill/icon-well surface. Its own token (not
+       an alias of --secondary) so it can be read from inline styles and
+       gradients, not just Tailwind classes. */
+    --accent-soft: 340 45% 96%;
+    --accent-soft-foreground: 340 45% 32%;
 
     /* Destructive */
     --destructive: 4 78% 52%;
     --destructive-foreground: 0 0% 100%;
 
     /* Borders and inputs */
-    --border: 240 6% 90%;
-    --border-strong: 240 6% 82%;
-    --input: 240 6% 90%;
+    --border: 340 16% 91%;
+    --border-strong: 340 14% 84%;
+    --input: 340 16% 91%;
     --ring: 340 45% 42%;
 
     --radius: 0.75rem;
@@ -73,18 +85,18 @@ visually distinct. All colors MUST be HSL.
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 38%), hsl(340, 45%, 48%));
-    --gradient-secondary: linear-gradient(135deg, hsl(240, 5%, 95%), hsl(0, 0%, 100%));
-    --gradient-hero: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 46%), hsl(240, 5%, 95%));
+    --gradient-secondary: linear-gradient(135deg, hsl(340, 20%, 96%), hsl(0, 0%, 100%));
+    --gradient-hero: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 46%), hsl(340, 20%, 96%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
     /* Sidebar colors */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 6% 10%;
+    --sidebar-foreground: 340 10% 12%;
     --sidebar-primary: 340 45% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 340 45% 96%;
     --sidebar-accent-foreground: 340 45% 32%;
-    --sidebar-border: 240 6% 90%;
+    --sidebar-border: 340 16% 91%;
     --sidebar-ring: 340 45% 42%;
   }
 
@@ -92,36 +104,39 @@ visually distinct. All colors MUST be HSL.
      but kept in sync with the light palette so a class toggle would drop the
      app into a dark iOS-style surface rather than a stale pink theme. */
   .dark {
-    --background: 240 8% 9%;
-    --background-elevated: 240 8% 13%;
+    --background: 340 8% 9%;
+    --background-elevated: 340 8% 13%;
     --foreground: 0 0% 96%;
-    --foreground-secondary: 240 4% 66%;
-    --foreground-tertiary: 240 4% 46%;
+    --foreground-secondary: 340 5% 66%;
+    --foreground-tertiary: 340 5% 46%;
 
-    --card: 240 8% 13%;
+    --card: 340 8% 13%;
     --card-foreground: 0 0% 96%;
 
-    --popover: 240 8% 13%;
+    --popover: 340 8% 13%;
     --popover-foreground: 0 0% 96%;
 
     --primary: 340 55% 62%;
-    --primary-foreground: 240 8% 9%;
+    --primary-foreground: 340 8% 9%;
 
     --secondary: 340 25% 18%;
     --secondary-foreground: 0 0% 96%;
 
-    --muted: 240 6% 18%;
-    --muted-foreground: 240 4% 66%;
+    --muted: 340 6% 18%;
+    --muted-foreground: 340 5% 66%;
 
     --accent: 340 25% 18%;
     --accent-foreground: 0 0% 96%;
 
+    --accent-soft: 340 25% 18%;
+    --accent-soft-foreground: 340 45% 86%;
+
     --destructive: 4 70% 58%;
     --destructive-foreground: 0 0% 96%;
 
-    --border: 240 6% 20%;
-    --border-strong: 240 6% 28%;
-    --input: 240 6% 20%;
+    --border: 340 6% 20%;
+    --border-strong: 340 6% 28%;
+    --input: 340 6% 20%;
     --ring: 340 55% 62%;
 
     --vata: 256 50% 70%;
@@ -132,16 +147,16 @@ visually distinct. All colors MUST be HSL.
     --info: 256 50% 70%;
 
     --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 42%));
-    --gradient-secondary: linear-gradient(135deg, hsl(240, 6%, 18%), hsl(240, 8%, 13%));
-    --gradient-hero: linear-gradient(135deg, hsl(340, 40%, 20%), hsl(340, 42%, 30%), hsl(240, 8%, 13%));
+    --gradient-secondary: linear-gradient(135deg, hsl(340, 6%, 18%), hsl(340, 8%, 13%));
+    --gradient-hero: linear-gradient(135deg, hsl(340, 40%, 20%), hsl(340, 42%, 30%), hsl(340, 8%, 13%));
 
-    --sidebar-background: 240 8% 11%;
+    --sidebar-background: 340 8% 11%;
     --sidebar-foreground: 0 0% 96%;
     --sidebar-primary: 340 55% 62%;
-    --sidebar-primary-foreground: 240 8% 9%;
+    --sidebar-primary-foreground: 340 8% 9%;
     --sidebar-accent: 340 25% 18%;
     --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 240 6% 20%;
+    --sidebar-border: 340 6% 20%;
     --sidebar-ring: 340 55% 62%;
   }
 }
@@ -231,7 +246,7 @@ visually distinct. All colors MUST be HSL.
   }
 
   .dark .glass {
-    background-color: hsl(240 8% 13% / 0.55);
+    background-color: hsl(340 8% 13% / 0.55);
     border-color: hsl(0 0% 100% / 0.12);
   }
 

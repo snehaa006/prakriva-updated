@@ -33,9 +33,9 @@ function TabLink({ tab }: { tab: (typeof tabs)[number] }) {
 }
 
 /**
- * App-style phone navigation: a floating pill bar with a raised, glowing AI
- * button dead center — tap it to talk to the wellness companion instead of
- * navigating anywhere. "Community" and everything else lives under "More".
+ * App-style phone navigation: a floating pill bar with a raised AI button dead
+ * center — tap it to talk to the wellness companion instead of navigating
+ * anywhere. "Community" and everything else lives under "More".
  */
 export function PatientBottomNav({
   onMoreClick,
@@ -51,15 +51,18 @@ export function PatientBottomNav({
           <TabLink key={tab.title} tab={tab} />
         ))}
 
-        {/* Center AI button — raised above the bar, with a soft glow. */}
+        {/* Center AI button — raised above the bar. Stays inside the accent
+            family (a burgundy-to-blush fade) rather than fading out to the
+            pitta orange, which read as an alert badge against the rest of the
+            palette; and it sits still, since a pulsing glow above the thumb is
+            hard to ignore on a screen meant to feel calm. */}
         <div className="flex flex-1 items-center justify-center">
           <button
             onClick={onAIClick}
             aria-label="Talk to your wellness companion"
-            className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-pitta text-primary-foreground shadow-[0_8px_24px_-4px_hsl(var(--primary)/0.5)] transition-all duration-200 ease-ios-spring hover:scale-105 active:scale-95"
+            className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-rose-500 text-primary-foreground shadow-[0_6px_18px_-4px_hsl(var(--primary)/0.35)] ring-4 ring-background-elevated/70 transition-all duration-200 ease-ios-spring hover:scale-105 active:scale-95"
           >
             <Sparkles className="h-6 w-6" />
-            <span className="absolute inset-0 -z-10 animate-pulse rounded-full bg-primary/30 blur-md" />
           </button>
         </div>
 

@@ -885,26 +885,31 @@ const PatientDashboard = () => {
         )}
       </div>
 
-      {/* ── Tabs ── */}
+      {/* ── Tabs ──
+          On a phone these used to be four bare icons: a sun, a calendar, a
+          funnel and an arrow, with no way to tell "My Plans" from "Create
+          Plan" without tapping. Each now carries a short label stacked under
+          its icon, which fits four columns at 390px. */}
       <div className="rounded-2xl border border-border bg-card p-1 shadow-xs">
         <div className="flex gap-1">
           {([
-            { id: "today" as TabId, label: "Today", icon: Sun },
-            { id: "plan" as TabId, label: "My Plans", icon: Calendar },
-            { id: "create" as TabId, label: "Create Plan", icon: Filter },
-            { id: "progress" as TabId, label: "Progress", icon: TrendingUp },
+            { id: "today" as TabId, label: "Today", shortLabel: "Today", icon: Sun },
+            { id: "plan" as TabId, label: "My Plans", shortLabel: "Plans", icon: Calendar },
+            { id: "create" as TabId, label: "Create Plan", shortLabel: "Create", icon: Filter },
+            { id: "progress" as TabId, label: "Progress", shortLabel: "Progress", icon: TrendingUp },
           ]).map(tab => {
             const Icon = tab.icon;
             return (
               <Button
                 key={tab.id}
                 variant={activeTab === tab.id ? "default" : "ghost"}
-                className={`h-11 flex-1 gap-2 px-1.5 sm:h-10 sm:px-4 ${activeTab === tab.id ? "" : "text-foreground-secondary"}`}
+                className={`h-auto flex-1 flex-col gap-1 px-1 py-2 sm:h-10 sm:flex-row sm:gap-2 sm:px-4 sm:py-2 ${activeTab === tab.id ? "" : "text-foreground-secondary"}`}
                 onClick={() => setActiveTab(tab.id)}
                 title={tab.label}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="hidden truncate text-caption1 sm:inline sm:text-sm">{tab.label}</span>
+                <span className="text-caption2 sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden truncate sm:inline sm:text-sm">{tab.label}</span>
               </Button>
             );
           })}
@@ -999,21 +1004,27 @@ const PatientDashboard = () => {
                                 {meal.time} · {meal.type.charAt(0).toUpperCase() + meal.type.slice(1)}
                                 {meal.dayLabel && ` · ${meal.dayLabel}`}
                               </p>
+                              {/* Macro icons stay in one quiet tone: the label
+                                  next to each already names the macro, so four
+                                  saturated hues on every meal row only added
+                                  noise — and it borrowed the dosha colours,
+                                  which are supposed to mean vata/pitta/kapha
+                                  and nothing else. */}
                               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
                                 <span className="flex items-center gap-1">
-                                  <Flame className="h-3 w-3 text-pitta" />
+                                  <Flame className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.calories} cal
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Drumstick className="h-3 w-3 text-primary" />
+                                  <Drumstick className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.protein}g protein
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Wheat className="h-3 w-3 text-kapha" />
+                                  <Wheat className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.carbs}g carbs
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Droplets className="h-3 w-3 text-vata" />
+                                  <Droplets className="h-3 w-3 text-foreground-tertiary" />
                                   {meal.fat}g fat
                                 </span>
                               </div>
@@ -1129,7 +1140,7 @@ const PatientDashboard = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-foreground-secondary">
-                      <Flame className="h-4 w-4 text-pitta" />
+                      <Flame className="h-4 w-4 text-foreground-tertiary" />
                       <span className="text-footnote">Calories</span>
                     </div>
                     <span className="text-footnote font-semibold text-foreground">
@@ -1144,7 +1155,7 @@ const PatientDashboard = () => {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-foreground-secondary">
-                    <Drumstick className="h-4 w-4 text-primary" />
+                    <Drumstick className="h-4 w-4 text-foreground-tertiary" />
                     <span className="text-footnote">Protein</span>
                   </div>
                   <span className="text-footnote font-semibold text-foreground">{todayStats.proteinConsumed}g</span>
@@ -1451,10 +1462,10 @@ const PatientDashboard = () => {
                               </Badge>
                               <h3 className="text-subhead font-semibold text-foreground">{meal.name}</h3>
                               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
-                                <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-pitta" />{meal.calories} cal</span>
-                                <span className="inline-flex items-center gap-1"><Drumstick className="h-3 w-3 text-primary" />{meal.protein}g protein</span>
-                                <span className="inline-flex items-center gap-1"><Wheat className="h-3 w-3 text-kapha" />{meal.carbs}g carbs</span>
-                                <span className="inline-flex items-center gap-1"><Droplets className="h-3 w-3 text-vata" />{meal.fat}g fat</span>
+                                <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-foreground-tertiary" />{meal.calories} cal</span>
+                                <span className="inline-flex items-center gap-1"><Drumstick className="h-3 w-3 text-foreground-tertiary" />{meal.protein}g protein</span>
+                                <span className="inline-flex items-center gap-1"><Wheat className="h-3 w-3 text-foreground-tertiary" />{meal.carbs}g carbs</span>
+                                <span className="inline-flex items-center gap-1"><Droplets className="h-3 w-3 text-foreground-tertiary" />{meal.fat}g fat</span>
                               </div>
                               {(meal.region || meal.cookTime) && (
                                 <p className="mt-1 text-caption1 text-foreground-tertiary">

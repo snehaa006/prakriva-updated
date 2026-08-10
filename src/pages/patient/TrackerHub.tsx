@@ -41,11 +41,20 @@ const TrackerHub = () => {
     <div>
       {tabs.length > 1 && (
         <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-border bg-background-elevated/95 px-4 pb-3 pt-4 backdrop-blur sm:mx-0 sm:mt-0 sm:border-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-0 sm:backdrop-blur-none">
-          <Tabs value={active} onValueChange={setActive}>
+          {/* The overflowing row used to end in a tab sliced down the middle,
+              which reads as a layout bug rather than as "there is more this
+              way". A fade at the right edge (phone only, where the row
+              actually scrolls) says it's scrollable. */}
+          <Tabs
+            value={active}
+            onValueChange={setActive}
+            className="relative after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-10 after:bg-gradient-to-l after:from-background-elevated after:to-transparent sm:after:hidden"
+          >
             {/* Below `sm`, 4 icon+label tabs don't fit a `w-full` flex row
                 without squeezing each label — let the list scroll horizontally
-                instead of wrapping or truncating. */}
-            <TabsList className="flex w-full justify-start gap-1 overflow-x-auto sm:w-auto sm:justify-center">
+                instead of wrapping or truncating. `scroll-area` gives the
+                overflow a slim, on-theme scrollbar. */}
+            <TabsList className="scroll-area flex w-full justify-start gap-1 overflow-x-auto sm:w-auto sm:justify-center">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}

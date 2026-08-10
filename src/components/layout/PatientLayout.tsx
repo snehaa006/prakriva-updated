@@ -15,18 +15,23 @@ const PatientLayout = () => {
   return (
     <div className="relative flex min-h-screen w-full bg-background">
       {/* Soft warm wash instead of a flat background — a companion app should
-          feel a little less clinical than a settings screen. */}
+          feel a little less clinical than a settings screen. Both layers are
+          tinted accents at single-digit alpha, so the wash reads as light
+          falling on the page rather than as a coloured background. */}
       <div
         className="pointer-events-none fixed inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(1200px 600px at 15% -10%, hsl(var(--accent-soft)) 0%, transparent 55%), radial-gradient(900px 500px at 100% 0%, hsl(var(--vata) / 0.08) 0%, transparent 50%)",
+            "radial-gradient(1100px 620px at 12% -8%, hsl(var(--primary) / 0.07) 0%, transparent 60%), radial-gradient(900px 520px at 100% 2%, hsl(var(--vata) / 0.05) 0%, transparent 55%)",
         }}
       />
       <PatientSidebar collapsed={collapsed} mobileOpen={mobileOpen} onMobileOpenChange={setMobileOpen} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="glass sticky top-0 z-30 flex h-14 items-center border-b border-border px-4 lg:px-6">
+        {/* Deliberately thin: on a phone the brand mark, on a desktop just the
+            sidebar toggle. Nothing else belongs up here, so it shouldn't take
+            a full toolbar's height. */}
+        <header className="glass sticky top-0 z-30 flex h-12 items-center border-b border-border px-4 lg:px-6">
           {/* Primary phone navigation moved to the bottom tab bar — this is
               just the brand mark and, on larger screens, the collapse toggle. */}
           <Logo size="sm" className="md:hidden" />

@@ -115,11 +115,12 @@ plan starts from. See "Care tracks" below.
   palette, a generated diet chart, the selected patient) across a page refresh.
   See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
-  (`--primary`, `--secondary`, `--accent`, `--sidebar-*`, gradients) in the
-  Prakriva brand palette (deep maroon/burgundy on warm cream, matching
-  `public/logo.png`). Dosha colors (`--vata`/`--pitta`/`--kapha`) and status
-  colors (`--success`/`--warning`/`--info`) now sit **inside** that palette
-  too — see "Color" below.
+  (`--primary`, `--secondary`, `--accent`, `--accent-soft`, `--sidebar-*`,
+  gradients) in the Prakriva brand palette (deep maroon/burgundy on a warm
+  blush white, matching `public/logo.png`). Dosha colors
+  (`--vata`/`--pitta`/`--kapha`) and status colors
+  (`--success`/`--warning`/`--info`) now sit **inside** that palette too — see
+  "Color" below.
 - `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
   strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
@@ -1198,7 +1199,7 @@ allopathic registration.
 
 The app is pink end to end. It used to mix in the stock Tailwind ramps —
 green "success" badges, blue chart lines, amber warnings — which read as three
-palettes fighting on one warm cream page. Everything now lives in one family.
+palettes fighting on one warm blush page. Everything now lives in one family.
 
 **Three brand ramps** (`tailwind.config.ts`), hues ~30° apart so states stay
 tellable apart while still reading as one palette:
@@ -1206,15 +1207,28 @@ tellable apart while still reading as one palette:
 | Ramp | Hue | Role | Replaced |
 |---|---|---|---|
 | `plum` | 318° | informational, neutral emphasis | blue, sky, cyan, indigo, violet, purple |
-| `rose` | 345° | positive, on track, goal met | green, emerald, teal, lime |
-| `coral` | 8° | attention, partial, needs a nudge | yellow, amber, orange |
+| `rose` | 340° | positive, on track, goal met | green, emerald, teal, lime |
+| `coral` | 12° | attention, partial, needs a nudge | yellow, amber, orange |
 
 They follow Tailwind's own lightness curve, so the swap kept shade numbers
 (`bg-green-100` → `bg-rose-100`) and with them the contrast each layout was
 built around. `red` keeps its native hue: it already sits inside this family
 (0°, between coral and rose) and carries the clinical high-risk signal.
-`gray`/`slate` are overridden to warm, brand-tinted neutrals — Tailwind's stock
-greys are blue-tinted and read cold against the cream background.
+
+`plum` and `coral` share the hues `src/lib/chartColors.ts` uses (318° / 12°),
+so a chart line and the badge beside it are the same colour. They drifted once
+to the *dosha* hues instead (violet 256° and orange 18°), which put a violet
+avatar and an orange notification bell on the doctor dashboard — keep them off
+the dosha hues, which belong to `--vata`/`--pitta`/`--kapha` alone.
+
+**Neutrals.** `--background`, `--muted`, `--border` and the `gray`/`slate`
+ramps are near-achromatic but tinted a few percent toward the brand hue (340°,
+6–30% saturation). Stock Tailwind greys are blue-tinted and read cold and
+clinical next to the blush accent; these read soft without the app becoming
+"a pink app". Shadows are cast in the same warm neutral, so elevation reads as
+depth rather than a grey haze. `--accent-soft` / `--accent-soft-foreground` are
+the tinted chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS
+variables, so gradients and inline styles can read them too, not just classes.
 
 Two rules follow from having one hue family, both learned from looking at the
 rendered pages rather than the code:

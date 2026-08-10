@@ -222,10 +222,13 @@ const DoshaRadial: React.FC<{
   primary: string;
 }> = ({ scores, primary }) => {
   const total = scores.vata + scores.pitta + scores.kapha || 1;
+  // The three dosha tokens, not palette ramps: pitta and kapha were both
+  // rose-500 here, so two of the three bars in a vata/pitta/kapha breakdown
+  // were the same colour.
   const doshaInfo: Record<string, { bgColor: string; label: string }> = {
-    vata: { bgColor: "bg-plum-500", label: "Vata" },
-    pitta: { bgColor: "bg-rose-500", label: "Pitta" },
-    kapha: { bgColor: "bg-rose-500", label: "Kapha" },
+    vata: { bgColor: "bg-vata", label: "Vata" },
+    pitta: { bgColor: "bg-pitta", label: "Pitta" },
+    kapha: { bgColor: "bg-kapha", label: "Kapha" },
   };
 
   return (

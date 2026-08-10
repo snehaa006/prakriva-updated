@@ -70,8 +70,8 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
-          soft: "hsl(var(--secondary))",
-          "soft-foreground": "hsl(var(--secondary-foreground))",
+          soft: "hsl(var(--accent-soft))",
+          "soft-foreground": "hsl(var(--accent-soft-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -106,35 +106,45 @@ export default {
         // etc). Rather than migrating every call site, the ramps are kept and
         // their HSL values re-tuned to the neutral/single-accent iOS palette —
         // every existing class name keeps working, it just paints differently.
-        //   gray/slate  neutral        — true cool neutrals (was warm-pink-tinted)
+        //   gray/slate  neutral hue 340 — quiet neutrals, warmed a few percent
+        //                                toward the accent so they sit on the
+        //                                blush background instead of fighting it
         //   rose        accent hue 340 — positive / on-track (softened vs before)
-        //   plum        vata hue 256   — informational (violet, matches dosha)
-        //   coral       pitta hue 18   — attention / needs a nudge (matches dosha)
+        //   plum        hue 318        — informational (deep magenta-plum)
+        //   coral       hue 12         — attention / needs a nudge (warm red)
+        //
+        // plum and coral are pulled to the same hues `src/lib/chartColors.ts`
+        // uses (318 / 12), which its own test pins to within 40° of the brand
+        // hue. They previously borrowed the *dosha* hues instead — violet 256
+        // and orange 18 — which put a violet avatar and an orange notification
+        // bell on the doctor dashboard, and quietly spent the vata/pitta
+        // colours on things that have nothing to do with a dosha. Same ramp
+        // names, same call sites; they just land back inside the palette.
         gray: {
-          50: "hsl(240 20% 98%)",
-          100: "hsl(240 14% 96%)",
-          200: "hsl(240 10% 91%)",
-          300: "hsl(240 8% 84%)",
-          400: "hsl(240 6% 64%)",
-          500: "hsl(240 5% 50%)",
-          600: "hsl(240 6% 40%)",
-          700: "hsl(240 7% 32%)",
-          800: "hsl(240 8% 22%)",
-          900: "hsl(240 9% 15%)",
-          950: "hsl(240 10% 9%)",
+          50: "hsl(340 30% 98%)",
+          100: "hsl(340 22% 96%)",
+          200: "hsl(340 16% 91%)",
+          300: "hsl(340 12% 84%)",
+          400: "hsl(340 8% 64%)",
+          500: "hsl(340 6% 50%)",
+          600: "hsl(340 7% 40%)",
+          700: "hsl(340 8% 32%)",
+          800: "hsl(340 9% 22%)",
+          900: "hsl(340 10% 15%)",
+          950: "hsl(340 12% 9%)",
         },
         slate: {
-          50: "hsl(240 20% 98%)",
-          100: "hsl(240 14% 96%)",
-          200: "hsl(240 10% 91%)",
-          300: "hsl(240 8% 84%)",
-          400: "hsl(240 6% 64%)",
-          500: "hsl(240 5% 50%)",
-          600: "hsl(240 6% 40%)",
-          700: "hsl(240 7% 32%)",
-          800: "hsl(240 8% 22%)",
-          900: "hsl(240 9% 15%)",
-          950: "hsl(240 10% 9%)",
+          50: "hsl(340 30% 98%)",
+          100: "hsl(340 22% 96%)",
+          200: "hsl(340 16% 91%)",
+          300: "hsl(340 12% 84%)",
+          400: "hsl(340 8% 64%)",
+          500: "hsl(340 6% 50%)",
+          600: "hsl(340 7% 40%)",
+          700: "hsl(340 8% 32%)",
+          800: "hsl(340 9% 22%)",
+          900: "hsl(340 10% 15%)",
+          950: "hsl(340 12% 9%)",
         },
         rose: {
           50: "hsl(340 45% 97%)",
@@ -149,28 +159,28 @@ export default {
           900: "hsl(340 36% 22%)",
         },
         plum: {
-          50: "hsl(256 40% 97%)",
-          100: "hsl(256 36% 94%)",
-          200: "hsl(256 32% 87%)",
-          300: "hsl(256 28% 78%)",
-          400: "hsl(256 26% 66%)",
-          500: "hsl(256 32% 54%)",
-          600: "hsl(256 34% 44%)",
-          700: "hsl(256 32% 36%)",
-          800: "hsl(256 30% 28%)",
-          900: "hsl(256 28% 22%)",
+          50: "hsl(318 40% 97%)",
+          100: "hsl(318 36% 94%)",
+          200: "hsl(318 34% 87%)",
+          300: "hsl(318 34% 78%)",
+          400: "hsl(318 40% 66%)",
+          500: "hsl(318 46% 54%)",
+          600: "hsl(318 46% 44%)",
+          700: "hsl(318 44% 36%)",
+          800: "hsl(318 42% 28%)",
+          900: "hsl(318 40% 22%)",
         },
         coral: {
-          50: "hsl(18 60% 96%)",
-          100: "hsl(18 55% 92%)",
-          200: "hsl(18 50% 84%)",
-          300: "hsl(18 48% 74%)",
-          400: "hsl(18 50% 62%)",
-          500: "hsl(18 60% 52%)",
-          600: "hsl(18 65% 44%)",
-          700: "hsl(18 62% 36%)",
-          800: "hsl(18 55% 28%)",
-          900: "hsl(18 48% 22%)",
+          50: "hsl(12 55% 96%)",
+          100: "hsl(12 52% 92%)",
+          200: "hsl(12 50% 85%)",
+          300: "hsl(12 48% 74%)",
+          400: "hsl(12 48% 64%)",
+          500: "hsl(12 50% 56%)",
+          600: "hsl(12 55% 46%)",
+          700: "hsl(12 52% 38%)",
+          800: "hsl(12 48% 30%)",
+          900: "hsl(12 44% 23%)",
         },
       },
       borderRadius: {
@@ -183,14 +193,16 @@ export default {
         "2xl": "36px",
         full: "9999px",
       },
+      // Shadows are cast in the warm neutral rather than a cool gray, so
+      // elevation reads as depth instead of a gray haze over blush surfaces.
       boxShadow: {
-        xs: "0 1px 2px 0 hsl(240 6% 10% / 0.04)",
-        sm: "0 1px 3px 0 hsl(240 6% 10% / 0.06), 0 1px 2px -1px hsl(240 6% 10% / 0.04)",
-        DEFAULT: "0 1px 3px 0 hsl(240 6% 10% / 0.06), 0 1px 2px -1px hsl(240 6% 10% / 0.04)",
-        md: "0 4px 12px -2px hsl(240 6% 10% / 0.08), 0 2px 4px -2px hsl(240 6% 10% / 0.04)",
-        lg: "0 12px 24px -4px hsl(240 6% 10% / 0.10), 0 4px 8px -4px hsl(240 6% 10% / 0.04)",
-        xl: "0 24px 48px -8px hsl(240 6% 10% / 0.14), 0 8px 16px -8px hsl(240 6% 10% / 0.06)",
-        glass: "0 8px 32px hsl(240 6% 10% / 0.10)",
+        xs: "0 1px 2px 0 hsl(340 12% 12% / 0.04)",
+        sm: "0 1px 3px 0 hsl(340 12% 12% / 0.06), 0 1px 2px -1px hsl(340 12% 12% / 0.04)",
+        DEFAULT: "0 1px 3px 0 hsl(340 12% 12% / 0.06), 0 1px 2px -1px hsl(340 12% 12% / 0.04)",
+        md: "0 4px 12px -2px hsl(340 12% 12% / 0.08), 0 2px 4px -2px hsl(340 12% 12% / 0.04)",
+        lg: "0 12px 24px -4px hsl(340 12% 12% / 0.10), 0 4px 8px -4px hsl(340 12% 12% / 0.04)",
+        xl: "0 24px 48px -8px hsl(340 12% 12% / 0.14), 0 8px 16px -8px hsl(340 12% 12% / 0.06)",
+        glass: "0 8px 32px hsl(340 12% 12% / 0.10)",
       },
       transitionTimingFunction: {
         ios: "cubic-bezier(0.25, 0.1, 0.25, 1)",

@@ -3,6 +3,21 @@ import { Logo } from "@/components/ui/logo";
 import { Stethoscope, User, Brain, Heart, Users, Leaf, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+const roles = [
+  {
+    icon: Stethoscope,
+    title: "I'm a doctor",
+    description: "Manage patients and create personalized diet plans",
+    href: "/auth/doctor",
+  },
+  {
+    icon: User,
+    title: "I'm a patient",
+    description: "Track your diet plan and monitor your wellness journey",
+    href: "/auth/patient",
+  },
+];
+
 const Landing = () => {
   const navigate = useNavigate();
 
@@ -30,10 +45,20 @@ const Landing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background">
+      {/* Same blush wash the sign-in screen uses, so the first two screens of
+          the app feel like one surface. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px]"
+        style={{
+          background:
+            "radial-gradient(900px 480px at 50% -10%, hsl(var(--primary) / 0.08) 0%, transparent 65%)",
+        }}
+      />
+
       {/* Hero */}
-      <section className="mx-auto max-w-5xl px-6 pb-16 pt-20 text-center sm:pt-28">
-        <Logo size="lg" className="mx-auto mb-10 shadow-sm" />
+      <section className="mx-auto max-w-5xl px-6 pb-16 pt-16 text-center sm:pt-24">
+        <Logo size="lg" className="mx-auto mb-8 shadow-sm" />
 
         <h1 className="mx-auto max-w-3xl text-title1 sm:text-large-title text-foreground">
           Ayurvedic wellness,
@@ -46,49 +71,41 @@ const Landing = () => {
           plans built around your unique dosha.
         </p>
 
-        <div className="mx-auto mt-14 grid max-w-2xl gap-4 sm:grid-cols-2">
-          <button
-            onClick={() => navigate("/auth/doctor")}
-            className="group flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 text-left shadow-xs transition-all duration-200 ease-ios hover:shadow-md active:scale-[0.98]"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-primary">
-              <Stethoscope className="h-6 w-6" />
-            </span>
-            <span>
-              <span className="block text-headline text-foreground">I'm a doctor</span>
-              <span className="mt-1 block text-footnote text-foreground-secondary">
-                Manage patients and create personalized diet plans
+        {/* Both role cards get the same accent icon well — the patient card
+            used to take a gray one, which read as the disabled option next to
+            the doctor's. The "Continue" cue is always visible rather than
+            hover-only, since a hover state is invisible on a phone. */}
+        <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
+          {roles.map((role) => (
+            <button
+              key={role.title}
+              onClick={() => navigate(role.href)}
+              className="group flex h-full flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 text-left shadow-xs transition-all duration-200 ease-ios hover:border-border-strong hover:shadow-md active:scale-[0.98]"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <role.icon className="h-6 w-6" />
               </span>
-            </span>
-            <span className="flex items-center gap-1 text-footnote font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-              Continue <ArrowRight className="h-3.5 w-3.5" />
-            </span>
-          </button>
-
-          <button
-            onClick={() => navigate("/auth/patient")}
-            className="group flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 text-left shadow-xs transition-all duration-200 ease-ios hover:shadow-md active:scale-[0.98]"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-foreground">
-              <User className="h-6 w-6" />
-            </span>
-            <span>
-              <span className="block text-headline text-foreground">I'm a patient</span>
-              <span className="mt-1 block text-footnote text-foreground-secondary">
-                Track your diet plan and monitor your wellness journey
+              <span className="flex-1">
+                <span className="block text-headline text-foreground">{role.title}</span>
+                <span className="mt-1 block text-footnote text-foreground-secondary">
+                  {role.description}
+                </span>
               </span>
-            </span>
-            <span className="flex items-center gap-1 text-footnote font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-              Continue <ArrowRight className="h-3.5 w-3.5" />
-            </span>
-          </button>
+              <span className="flex items-center gap-1 text-footnote font-medium text-primary">
+                Continue
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-ios group-hover:translate-x-0.5" />
+              </span>
+            </button>
+          ))}
         </div>
       </section>
 
-      {/* Features */}
-      <section className="border-t border-border bg-muted/40 py-24">
+      {/* Features — a soft blush band. `bg-muted/40` was within a percent of
+          the page background, so the section boundary read as an accidental
+          hairline rather than a deliberate change of surface. */}
+      <section className="border-y border-border bg-accent-soft/50 py-20">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="mx-auto mb-16 max-w-xl text-center">
+          <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="text-title1 text-foreground">Why choose Prakriva</h2>
             <p className="mt-3 text-body text-foreground-secondary">
               Ancient Ayurvedic wisdom, combined with modern AI, for outcomes you can feel.
@@ -99,7 +116,7 @@ const Landing = () => {
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="rounded-2xl border border-border bg-card p-6 shadow-xs transition-all duration-200 ease-ios hover:shadow-md"
+                className="h-full rounded-2xl border border-border bg-card p-6 shadow-xs transition-all duration-200 ease-ios hover:shadow-md"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-primary">
                   <feature.icon className="h-5 w-5" />
@@ -113,7 +130,7 @@ const Landing = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-24">
+      <section className="py-20">
         <div className="mx-auto max-w-2xl px-6 text-center">
           <h2 className="text-title1 text-foreground">Ready to get started?</h2>
           <p className="mt-3 text-body text-foreground-secondary">
