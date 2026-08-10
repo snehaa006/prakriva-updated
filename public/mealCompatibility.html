@@ -681,11 +681,86 @@
             return 30000;
         };
 
+        // --- Host bridge -------------------------------------------------
+        //
+        // When this page runs inside the React app (the patient "Food
+        // Compatibility" screen embeds it in an iframe), the host can call
+        // FoodOScope for us with the rotating key pool it loads from Supabase.
+        // That pool is kept up to date; the hardcoded API_TOKENS above are a
+        // fallback that goes stale as keys expire, which is why searching
+        // stopped returning anything. Ask the host first, and only fall back to
+        // our own keys when the page is opened standalone or the host doesn't
+        // answer.
+        const isEmbedded = window.parent && window.parent !== window;
+        let hostBridgeUsable = isEmbedded;
+        let bridgeSeq = 0;
+        const bridgePending = new Map();
+        const BRIDGE_TIMEOUT_MS = 20000;
+
+        window.addEventListener('message', (event) => {
+            if (event.source !== window.parent) return;
+            const msg = event.data;
+            if (!msg || msg.type !== 'foodoscope-response') return;
+
+            const pending = bridgePending.get(msg.id);
+            if (!pending) return;
+            bridgePending.delete(msg.id);
+            clearTimeout(pending.timer);
+            pending.resolve(msg);
+        });
+
+        /** Asks the host for `path`. Resolves to null when it can't answer. */
+        function hostFetch(path) {
+            return new Promise((resolve) => {
+                const id = ++bridgeSeq;
+                const timer = setTimeout(() => {
+                    bridgePending.delete(id);
+                    // No listener on the other side — stop paying the timeout
+                    // on every request and use our own keys from here on.
+                    hostBridgeUsable = false;
+                    resolve(null);
+                }, BRIDGE_TIMEOUT_MS);
+
+                bridgePending.set(id, { resolve, timer });
+                try {
+                    window.parent.postMessage(
+                        { type: 'foodoscope-request', id, path },
+                        window.location.origin
+                    );
+                } catch (error) {
+                    clearTimeout(timer);
+                    bridgePending.delete(id);
+                    hostBridgeUsable = false;
+                    resolve(null);
+                }
+            });
+        }
+
+        /** Wraps a bridge reply in the bits of Response callers actually use. */
+        const bridgeResponse = (ok, status, body) => ({
+            ok,
+            status,
+            json: async () => body,
+        });
+
         /**
-         * fetch() against the FoodOScope API, rotating through API_TOKENS.
-         * Returns the last response so callers can keep checking .ok/.status.
+         * fetch() against the FoodOScope API: the host's key pool first, then
+         * our own API_TOKENS, rotating through them.
+         * Returns a Response (or a Response-alike from the host bridge) so
+         * callers can keep checking .ok/.status/.json().
          */
         async function foodoscopeFetch(path) {
+            if (hostBridgeUsable) {
+                const reply = await hostFetch(path);
+                if (reply && reply.ok) return bridgeResponse(true, 200, reply.data);
+                // A real HTTP status from the host means its keys reached
+                // FoodOScope and got a refusal — ours would fare no better.
+                if (reply && reply.status) {
+                    return bridgeResponse(false, reply.status, null);
+                }
+                // Otherwise the host couldn't help at all; fall through.
+            }
+
             const now = Date.now();
             const order = API_TOKENS.map((_, i) => (activeTokenIndex + i) % API_TOKENS.length);
             // Cooling-down keys go last rather than being skipped entirely.
@@ -2136,13 +2211,14 @@
                     }
                     
                     const data = await response.json();
-                    displaySearchResults(data.success ? data.data.slice(0, 8) : []);
+                    const results = Array.isArray(data && data.data) ? data.data : [];
+                    displaySearchResults(results.slice(0, 8));
                 } catch (error) {
                     console.error('Search error:', error);
                     if (error.message.includes('429')) {
                         searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">⚠️ Too many requests. Please wait...</div>';
                     } else {
-                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #f87171;">❌ Search failed. Try again.</div>';
+                        searchResults.innerHTML = `<div style="padding: 1rem; text-align: center; color: #f87171;">❌ Search failed (${error.message}). Try again.</div>`;
                     }
                 } finally {
                     loadingSpinner.style.display = 'none';

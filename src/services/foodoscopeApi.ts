@@ -348,6 +348,20 @@ async function apiFetch<T>(url: string): Promise<T> {
   throw lastError;
 }
 
+/**
+ * Calls a FoodOScope path with the rotating key pool and hands back the raw
+ * JSON body. Everything below wraps `apiFetch` in a typed helper instead; this
+ * exists for the standalone `public/mealCompatibility.html` page, which is
+ * embedded in an iframe and asks the app to make its calls (see
+ * `src/pages/patient/FoodCompatibility.tsx`) so it doesn't need keys of its own.
+ */
+export async function fetchFoodoscopePath<T = unknown>(path: string): Promise<T> {
+  if (!path.startsWith("/")) {
+    throw new FoodoscopeApiError(`FoodOScope path must start with "/": ${path}`);
+  }
+  return apiFetch<T>(`${BASE_URL}${path}`);
+}
+
 // --- Endpoint 1: Get Recipes Info (paginated browse) ---
 export async function getRecipesInfo(page = 1, limit = 12) {
   const url = `${BASE_URL}/recipe/recipesinfo?page=${page}&limit=${limit}`;
