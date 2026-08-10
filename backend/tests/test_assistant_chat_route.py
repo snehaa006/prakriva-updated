@@ -5,7 +5,7 @@ route's validation and error mapping, not about reaching Gemini itself.
 """
 import os
 import sys
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -83,3 +83,46 @@ class TestAssistantChat:
         with patch.object(gemini_service, "generate", return_value="ok"):
             resp = client.post("/assistant/chat", json={"message": "hello", "context": "oops a string"})
         assert resp.status_code == 200
+
+
+class TestChatSurvivesARetiredModel:
+    """The whole chatbot outage, end to end.
+
+    A configured model ID that Google has since shut down answers 404 to every
+    request. Before, that reached the patient as "I couldn't reach your
+    assistant" on every single message while the recipe/diet chart path hid
+    the same failure behind its FoodOScope fallback — so the app looked like
+    it had a broken chatbot rather than a dead model name.
+    """
+
+    @pytest.fixture(autouse=True)
+    def pin_a_dead_model(self, monkeypatch):
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_API_KEYS", ["key-a"])
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_MODEL", "gemini-2.0-flash")
+        gemini_service._resolved_model = None
+
+    def test_the_patient_still_gets_an_answer(self, client):
+        def fake_post(url, **kwargs):
+            if "gemini-2.0-flash" in url:
+                response = Mock(status_code=404)
+                response.json.return_value = {
+                    "error": {"status": "NOT_FOUND", "message": "is not found for API version v1beta"}
+                }
+                return response
+            response = Mock(status_code=200)
+            response.json.return_value = {
+                "candidates": [{"content": {"parts": [{"text": "Try warm moong dal khichdi."}]}}]
+            }
+            return response
+
+        with patch("gemini_service.requests.post", side_effect=fake_post):
+            resp = client.post("/assistant/chat", json={"message": "what should I eat?"})
+
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["answer"] == "Try warm moong dal khichdi."
+
+    def test_the_status_endpoint_names_the_model_in_use(self, client):
+        resp = client.get("/analysis/status")
+        body = resp.get_json()["data"]
+        assert body["enabled"] is True
+        assert body["model"] == "gemini-2.0-flash"

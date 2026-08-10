@@ -22,6 +22,7 @@ payload that leaves the network is a set of measurements and logs rather than
 an identifiable medical record.
 """
 import json
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -33,6 +34,7 @@ from config import settings
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
+GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 # ---------------------------------------------------------------------------
 # Key rotation
@@ -149,19 +151,198 @@ def _is_key_at_fault(http_status: int, gemini_status: Optional[str], message: st
     return False
 
 
-def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
-    """POST `payload` to Gemini, rotating across configured keys on failure.
+# ---------------------------------------------------------------------------
+# Model selection
+#
+# Google retires model IDs on a published schedule, and once an ID is gone the
+# endpoint answers 404 for every request made against it. Pinning one name in
+# config was therefore a dated fuse: gemini-2.0-flash, the original default
+# here, was shut down on 1 June 2026 and took every Gemini feature with it —
+# visibly in the chatbot, which has nothing to fall back to, and silently in
+# diet chart generation, which quietly served FoodOScope charts instead and so
+# looked like it was still working.
+#
+# So the model is resolved rather than declared: unless GEMINI_MODEL pins one,
+# the API is asked which models this key can actually call and the best flash
+# model on offer is used. A 404 (or a NOT_FOUND) on any call marks that ID gone
+# for the life of the process and the next candidate is tried on the same
+# request, so a mid-flight retirement costs one extra call rather than an
+# outage. Nothing is persisted — like the key cooldowns above, this is
+# in-memory state that a restart is welcome to rebuild.
+# ---------------------------------------------------------------------------
+
+#: Last-resort chain, used only when the live list cannot be fetched. Newest
+#: first. Every entry here is a guess with a shelf life — see `_model_candidates`
+#: for why the live list is asked first rather than trusting these.
+_MODEL_CHAIN = (
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+)
+
+#: Substrings marking a model this app cannot use: it needs plain text and
+#: images in, text out — not embeddings, speech, video or image generation.
+_UNUSABLE_MODEL_WORDS = (
+    "embedding", "aqa", "tts", "audio", "live", "image", "imagen",
+    "veo", "robotics", "computer-use",
+)
+
+#: How many models one request may try before giving up, so a pathological
+#: discovery list cannot turn a single chat message into dozens of calls.
+#: Roomy enough to reach the discovered list in the same request that retires
+#: the last of the static chain, rather than failing one message first.
+_MAX_MODEL_ATTEMPTS = 6
+
+_retired_models: set = set()
+_resolved_model: Optional[str] = None
+_discovered_models: Optional[List[str]] = None
+
+
+class _ModelGone(RuntimeError):
+    """Internal: this model ID no longer exists, try another."""
+
+
+def _model_rank(name: str) -> tuple:
+    """Sort key for picking a model out of the live list, best last.
+
+    Flash models first — this app makes short, frequent, latency-sensitive
+    calls and pays per token — then stable over preview, full over lite, and
+    the highest version number among what is left.
+    """
+    version = re.search(r"gemini-(\d+(?:\.\d+)?)", name)
+    return (
+        "flash" in name,
+        not ("preview" in name or "-exp" in name or name.endswith("exp")),
+        "lite" not in name,
+        float(version.group(1)) if version else 0.0,
+    )
+
+
+def _is_usable_model(name: str) -> bool:
+    return name.startswith("gemini-") and not any(
+        word in name for word in _UNUSABLE_MODEL_WORDS
+    )
+
+
+def _discover_models() -> List[str]:
+    """Models this key may actually call, best first, from Gemini's own list.
+
+    This is what keeps the app working across model retirements: rather than
+    answering "404, model not found" until someone redeploys, it asks what
+    does exist and uses that. Cached for the process (including an empty
+    result, so a listing outage is not retried on every message) and never
+    raises — a failure here just leaves the caller with the static chain.
+    """
+    global _discovered_models
+    if _discovered_models is not None:
+        return _discovered_models
+    if not _key_candidates():
+        return []  # nothing to authenticate with; don't cache an empty answer
+
+    _discovered_models = []
+    for key in _key_candidates():
+        try:
+            # Short: this runs inside the first request of each process, so a
+            # slow listing must not sit in front of the patient's answer.
+            response = requests.get(
+                GEMINI_MODELS_URL, params={"key": key, "pageSize": 200}, timeout=10
+            )
+        except requests.RequestException as exc:
+            logger.warning(f"Could not list Gemini models ({exc.__class__.__name__})")
+            continue
+
+        if response.status_code != 200:
+            gemini_status, message = _error_reason(response)
+            logger.warning(
+                f"Could not list Gemini models (HTTP {response.status_code}"
+                + (f" — {gemini_status or message}" if (gemini_status or message) else "")
+                + ")"
+            )
+            continue  # a key out of quota can still leave another one able to list
+
+        try:
+            body = response.json()
+        except ValueError:
+            continue
+
+        names = [
+            str(model.get("name") or "").split("/")[-1]
+            for model in (body.get("models") or [])
+            # Both spellings are accepted: the field this filters on is not
+            # worth a silent empty result if the API ever renames it.
+            if "generateContent"
+            in (model.get("supportedGenerationMethods") or model.get("supportedActions") or [])
+        ]
+        _discovered_models = sorted(
+            (name for name in names if _is_usable_model(name)),
+            key=_model_rank,
+            reverse=True,
+        )
+        logger.info(
+            "Gemini model discovery found "
+            f"{len(_discovered_models)} usable model(s); best is "
+            f"{_discovered_models[0] if _discovered_models else 'none'}"
+        )
+        break
+
+    return _discovered_models
+
+
+def _model_candidates() -> List[str]:
+    """Model IDs to try, best first.
+
+    An explicitly pinned `GEMINI_MODEL` wins. Otherwise the live list is
+    preferred over the static chain, because a hard-coded ID is only right
+    until Google's next retirement — and those have run *ahead* of their
+    published dates (gemini-2.5-flash started answering 404 more than three
+    months before its announced shutdown), so a name that was correct when
+    this was written is no evidence that it is callable today. One extra GET
+    per process buys a model that certainly exists for this key.
+    """
+    pinned = [settings.GEMINI_MODEL] if settings.GEMINI_MODEL else []
+    fallbacks = [name for name in _MODEL_CHAIN if name not in pinned]
+    return pinned + _discover_models() + fallbacks
+
+
+def active_model() -> Optional[str]:
+    """The model in use — the first candidate not known to be retired.
+
+    Exposed so `/analysis/status` and the generation endpoints can report what
+    actually answered, which is the difference between "the AI is broken" and
+    "the model name is gone" when reading a deployed log.
+    """
+    global _resolved_model
+    if not is_configured():
+        return None
+    if _resolved_model and _resolved_model not in _retired_models:
+        return _resolved_model
+    for name in _model_candidates():
+        if name not in _retired_models:
+            _resolved_model = name
+            return name
+    return None
+
+
+def _retire_model(name: str) -> None:
+    global _resolved_model
+    _retired_models.add(name)
+    if _resolved_model == name:
+        _resolved_model = None
+
+
+def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
+    """POST `payload` to one model, rotating across configured keys on failure.
 
     A request moves on to the next key for a network error/timeout, a 5xx, or
     a status that means this key is the problem (see `_is_key_at_fault`).
-    Anything else — a 404 for an unknown model, a 400 for a request Gemini
-    could not parse — would fail identically on every key, so it is raised
-    immediately with its reason rather than burning through the rotation.
+    A 404/NOT_FOUND means the model is gone rather than the key being bad, so
+    it raises `_ModelGone` for the caller to retry elsewhere. Anything else —
+    a 400 for a request Gemini could not parse — would fail identically on
+    every key, so it is raised immediately with its reason rather than burning
+    through the rotation.
     """
-    if not is_configured():
-        raise GeminiUnavailable("No GEMINI_API_KEY is set")
-
-    url = GEMINI_URL.format(model=settings.GEMINI_MODEL)
+    url = GEMINI_URL.format(model=model)
     last_error = "no keys configured"
 
     for key in _key_candidates():
@@ -183,6 +364,9 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
         detail = " — ".join(part for part in (gemini_status, message) if part)
         last_error = f"HTTP {response.status_code}" + (f" ({detail})" if detail else "")
 
+        if response.status_code == 404 or gemini_status == "NOT_FOUND":
+            raise _ModelGone(f"model '{model}' is gone ({last_error})")
+
         if _is_key_at_fault(response.status_code, gemini_status, message):
             logger.warning(
                 f"Gemini rejected one key ({last_error}); trying the next"
@@ -199,6 +383,36 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
         raise GeminiUnavailable(f"Gemini returned {last_error}")
 
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
+
+
+def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
+    """POST `payload` to Gemini, moving to the next model if one is retired.
+
+    Key rotation happens a level down, in `_post_to_model`. This level only
+    handles "that model ID no longer exists", which is a property of the
+    request rather than of any key: retrying the same dead model on the other
+    keys would just 404 three more times.
+    """
+    if not is_configured():
+        raise GeminiUnavailable("No GEMINI_API_KEY is set")
+
+    last_error = "no Gemini model is available"
+    tried: List[str] = []
+
+    while len(tried) < _MAX_MODEL_ATTEMPTS:
+        model = active_model()
+        if model is None or model in tried:
+            break
+        tried.append(model)
+        try:
+            return _post_to_model(model, payload, timeout=timeout)
+        except _ModelGone as exc:
+            last_error = str(exc)
+            logger.warning(f"Gemini {last_error}; retiring it and trying the next model")
+            _retire_model(model)
+
+    raise GeminiUnavailable(f"Gemini returned no usable model ({last_error})")
+
 
 #: Shared framing for both callers. The disclaimers are here rather than in the
 #: page copy so they cannot be dropped by a UI change.
@@ -307,6 +521,78 @@ def _history_contents(history: Optional[List[Dict[str, str]]]) -> List[Dict[str,
     return contents
 
 
+class _OutputBudgetSpent(GeminiUnavailable):
+    """Internal: the model used its whole token budget without answering."""
+
+
+#: Ceiling for the one automatic retry below. Well under any current model's
+#: output limit, and high enough that a reply which still has no text is a
+#: real failure rather than a budgeting accident.
+_MAX_RETRY_OUTPUT_TOKENS = 8192
+
+
+def _first_text(body: Dict[str, Any]) -> str:
+    """The text of the first candidate, or a useful failure.
+
+    A candidate carrying no text is not always the same problem, and the
+    reason is worth keeping: `MAX_TOKENS` means the budget ran out (see
+    `_text_from` — current models spend part of it thinking before they write
+    anything), while a safety block comes back with no candidate at all.
+    """
+    candidates = body.get("candidates") or []
+    if not candidates:
+        # Usually a safety block; surface it as unavailable rather than empty.
+        reason = (body.get("promptFeedback") or {}).get("blockReason")
+        raise GeminiUnavailable(
+            "Gemini returned no candidates" + (f" (blocked: {reason})" if reason else "")
+        )
+
+    candidate = candidates[0]
+    parts = candidate.get("content", {}).get("parts") or []
+    text = "".join(part.get("text", "") for part in parts).strip()
+    if text:
+        return text
+
+    finish_reason = str(candidate.get("finishReason") or "")
+    if finish_reason == "MAX_TOKENS":
+        raise _OutputBudgetSpent(
+            "Gemini used its whole output budget before writing an answer"
+        )
+    raise GeminiUnavailable(
+        "Gemini returned an empty response"
+        + (f" (finishReason: {finish_reason})" if finish_reason else "")
+    )
+
+
+def _text_from(payload: Dict[str, Any], *, timeout: int) -> str:
+    """The reply text for `payload`, retrying once with a bigger budget.
+
+    Current Gemini models reason internally before they answer, and those
+    tokens come out of `maxOutputTokens` — so a budget that was ample for
+    gemini-2.0-flash can now be spent entirely on thinking and return a
+    candidate with no text in it at all. Rather than reporting that as a
+    failure to the patient, the request is repeated once with room to finish.
+    """
+    try:
+        return _first_text(_post_gemini(payload, timeout=timeout))
+    except _OutputBudgetSpent:
+        config = dict(payload.get("generationConfig") or {})
+        current = int(config.get("maxOutputTokens") or settings.GEMINI_MAX_TOKENS)
+        raised = min(current * 3, _MAX_RETRY_OUTPUT_TOKENS)
+        if raised <= current:
+            raise
+        logger.warning(
+            f"Gemini spent its {current}-token budget without answering; "
+            f"retrying once at {raised}"
+        )
+        config["maxOutputTokens"] = raised
+        # A copy, so the caller's payload is not quietly left with the raised
+        # budget — the next call should start from its own sizing again.
+        return _first_text(
+            _post_gemini({**payload, "generationConfig": config}, timeout=timeout)
+        )
+
+
 def generate(
     prompt: str,
     system_rules: str,
@@ -340,35 +626,7 @@ def generate(
         },
     }
 
-    body = _post_gemini(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
-    candidates = body.get("candidates") or []
-    if not candidates:
-        # Usually a safety block; surface it as unavailable rather than empty.
-        raise GeminiUnavailable("Gemini returned no candidates")
-
-    parts = candidates[0].get("content", {}).get("parts") or []
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
-        raise GeminiUnavailable("Gemini returned an empty response")
-    return text
-
-
-def _first_text(body: Dict[str, Any]) -> str:
-    """The text of the first candidate, or a useful failure.
-
-    Same extraction `generate` does inline, factored out for the callers that
-    build their own payload (JSON replies, report images).
-    """
-    candidates = body.get("candidates") or []
-    if not candidates:
-        # Usually a safety block; surface it as unavailable rather than empty.
-        raise GeminiUnavailable("Gemini returned no candidates")
-
-    parts = candidates[0].get("content", {}).get("parts") or []
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
-        raise GeminiUnavailable("Gemini returned an empty response")
-    return text
+    return _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
 
 
 def generate_json(
@@ -386,7 +644,7 @@ def generate_json(
     exists), so the decode failure is reported as an unavailability rather than
     crashing the request.
     """
-    body = _post_gemini(
+    text = _text_from(
         {
             "systemInstruction": {"parts": [{"text": system_rules}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -399,7 +657,6 @@ def generate_json(
         timeout=timeout or settings.GEMINI_TIMEOUT_SECONDS,
     )
 
-    text = _first_text(body)
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
@@ -462,20 +719,12 @@ def extract_report_values(image_base64: str, mime_type: str) -> Dict[str, float]
         "generationConfig": {
             # Transcription, not composition — leave no room for invention.
             "temperature": 0,
-            "maxOutputTokens": 800,
+            "maxOutputTokens": 1200,
             "responseMimeType": "application/json",
         },
     }
 
-    body = _post_gemini(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
-    candidates = body.get("candidates") or []
-    if not candidates:
-        raise GeminiUnavailable("Gemini could not read the report")
-
-    text = "".join(
-        part.get("text", "")
-        for part in candidates[0].get("content", {}).get("parts") or []
-    ).strip()
+    text = _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
 
     try:
         raw = json.loads(text)
@@ -565,20 +814,12 @@ def assess_acne_photo(image_base64: str, mime_type: str) -> Dict[str, Any]:
         "generationConfig": {
             # Description, not composition — the same reason extraction runs at 0.
             "temperature": 0,
-            "maxOutputTokens": 400,
+            "maxOutputTokens": 800,
             "responseMimeType": "application/json",
         },
     }
 
-    body = _post_gemini(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
-    candidates = body.get("candidates") or []
-    if not candidates:
-        raise GeminiUnavailable("Gemini could not read the photo")
-
-    text = "".join(
-        part.get("text", "")
-        for part in candidates[0].get("content", {}).get("parts") or []
-    ).strip()
+    text = _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
 
     try:
         raw = json.loads(text)

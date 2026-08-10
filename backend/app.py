@@ -444,7 +444,7 @@ def generate_diet_chart():
 
         return jsonify(APIResponse(
             success=True,
-            data={**plan, "model": settings.GEMINI_MODEL},
+            data={**plan, "model": gemini_service.active_model()},
             message="Diet chart generated successfully",
         ).dict())
     except ValidationError:
@@ -778,7 +778,13 @@ def analysis_status():
     """
     return jsonify(APIResponse(
         success=True,
-        data={"enabled": gemini_service.is_configured()},
+        data={
+            "enabled": gemini_service.is_configured(),
+            # Which model the backend will actually call. Reported because a
+            # retired model ID looks exactly like a broken key from the
+            # frontend, and this is the cheapest way to tell them apart.
+            "model": gemini_service.active_model(),
+        },
         message="Analysis availability retrieved",
     ).dict())
 
@@ -808,7 +814,7 @@ def analyse_screenings():
 
         return jsonify(APIResponse(
             success=True,
-            data={"analysis": analysis, "model": settings.GEMINI_MODEL},
+            data={"analysis": analysis, "model": gemini_service.active_model()},
             message="Analysis generated successfully",
         ).dict())
     except ValidationError:
@@ -848,7 +854,7 @@ def assistant_ask():
 
         prompt = gemini_service.build_patient_prompt(question, screenings)
         answer = gemini_service.generate(
-            prompt, gemini_service.PATIENT_RULES, max_tokens=600
+            prompt, gemini_service.PATIENT_RULES, max_tokens=1200
         )
 
         return jsonify(APIResponse(
@@ -913,8 +919,12 @@ def assistant_chat():
             context = {}
 
         prompt = gemini_service.build_chat_prompt(message, context)
+        # The budget covers the model's internal reasoning as well as the
+        # reply, so it is well above what a few short paragraphs need — too
+        # tight and the whole budget goes on thinking and the patient gets an
+        # empty answer.
         answer = gemini_service.generate(
-            prompt, gemini_service.CHAT_RULES, max_tokens=700, history=history
+            prompt, gemini_service.CHAT_RULES, max_tokens=1500, history=history
         )
 
         return jsonify(APIResponse(

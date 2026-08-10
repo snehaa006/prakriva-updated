@@ -358,14 +358,17 @@ class TestKeyRotation:
         assert len(self.keys_used(post)) == 2
 
     def test_a_status_no_key_can_fix_is_raised_without_burning_the_pool(self):
-        # A 404 (unknown model, say) fails identically on every key.
+        # A 404 means the model ID is gone, not that the key is bad: it fails
+        # identically on every key, so the pool must come out untouched while
+        # the model chain is what gets worked through.
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b"]), \
              patch("gemini_service.requests.post",
                    return_value=FakeResponse(404, text="model not found")) as post:
             with pytest.raises(GeminiUnavailable):
                 gemini_service.generate("hello", "rules")
 
-        assert len(self.keys_used(post)) == 1
+        assert set(self.keys_used(post)) == {"key-a"}
+        assert gemini_service._cooldown_until == {}
 
     def test_when_every_key_fails_it_gives_up(self):
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a", "key-b", "key-c"]), \
