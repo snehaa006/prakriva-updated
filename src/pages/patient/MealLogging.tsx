@@ -5,12 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
   Utensils,
   Heart,
   Zap,
@@ -22,8 +21,8 @@ import {
   RefreshCw,
   User,
   Calendar,
-  AlertCircle,
-  ChefHat
+  Info,
+  ChefHat,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -72,7 +71,7 @@ const MealLogging = () => {
   const [savedPlans, setSavedPlans] = useState<SavedDietPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SavedDietPlan | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(false);
-  
+
   // Meal logging state
   const [todaysMeals, setTodaysMeals] = useState<Meal[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<string | null>(null);
@@ -99,7 +98,7 @@ const MealLogging = () => {
 
     const timeSlotMappings: { [key: string]: string } = {
       "Breakfast": "08:00 AM",
-      "Lunch": "12:30 PM", 
+      "Lunch": "12:30 PM",
       "Dinner": "07:00 PM",
       "Snack": "04:00 PM",
       "Early Morning": "06:30 AM",
@@ -134,8 +133,8 @@ const MealLogging = () => {
               status: "pending",
               preparation: food.preparation || `Prepare ${food.Food_Item} as recommended by your Ayurvedic practitioner`,
               benefits: food.benefits || `Nutritional content: ${food.Protein || 0}g protein, ${food.Fat || 0}g fat, ${food.Carbs || 0}g carbs`,
-              doshaBalance: food.Dosha_Vata === "Pacifying" ? "Vata Balancing" : 
-                           food.Dosha_Pitta === "Pacifying" ? "Pitta Balancing" : 
+              doshaBalance: food.Dosha_Vata === "Pacifying" ? "Vata Balancing" :
+                           food.Dosha_Pitta === "Pacifying" ? "Pitta Balancing" :
                            food.Dosha_Kapha === "Pacifying" ? "Kapha Balancing" : "Tridoshic",
               quantity: food.quantity || "1 serving"
             });
@@ -218,7 +217,7 @@ const MealLogging = () => {
       }));
 
       setSavedPlans(plans);
-      
+
       if (plans.length === 0) {
         toast.info("No diet plans found for this patient");
         setTodaysMeals([]); // Clear meals if no plans found
@@ -320,7 +319,12 @@ const MealLogging = () => {
       persistMealStatuses(updated);
       return updated;
     });
-    toast.success(`Meal marked as ${status}`);
+    const messages: Record<typeof status, string> = {
+      eaten: "Nice — logged as eaten",
+      skipped: "No worries, marked as skipped",
+      pending: "Back to pending",
+    };
+    toast.success(messages[status]);
   };
 
   // Save feedback to Firebase
@@ -347,15 +351,15 @@ const MealLogging = () => {
       if (error) throw error;
 
 
-      toast.success("Feedback saved successfully!");
-      
+      toast.success("Feedback saved — thank you for sharing how you feel");
+
       // Reset feedback form
       setSelectedMeal(null);
       setDigestionRating([3]);
       setMoodRating([3]);
       setEnergyRating([3]);
       setFeedbackNotes("");
-      
+
     } catch (error) {
       console.error("Error saving feedback:", error);
       toast.error("Failed to save feedback. Please try again.");
@@ -374,19 +378,19 @@ const MealLogging = () => {
 
   const getStatusIcon = (status: Meal["status"]) => {
     switch (status) {
-      case 'eaten': return <CheckCircle className="w-5 h-5 text-rose-600" />;
-      case 'skipped': return <XCircle className="w-5 h-5 text-red-600" />;
-      case 'pending': return <Clock className="w-5 h-5 text-coral-600" />;
-      default: return <Clock className="w-5 h-5 text-gray-400" />;
+      case 'eaten': return <CheckCircle className="w-5 h-5 text-success" />;
+      case 'skipped': return <XCircle className="w-5 h-5 text-foreground-tertiary" />;
+      case 'pending': return <Clock className="w-5 h-5 text-warning" />;
+      default: return <Clock className="w-5 h-5 text-foreground-tertiary" />;
     }
   };
 
   const getStatusColor = (status: Meal["status"]) => {
     switch (status) {
-      case 'eaten': return 'bg-rose-50 border-rose-200';
-      case 'skipped': return 'bg-red-50 border-red-200';
-      case 'pending': return 'bg-coral-50 border-coral-200';
-      default: return 'bg-gray-50 border-gray-200';
+      case 'eaten': return 'bg-accent-soft/60 border-accent-soft';
+      case 'skipped': return 'bg-muted border-border';
+      case 'pending': return 'bg-warning/5 border-warning/20';
+      default: return 'bg-muted border-border';
     }
   };
 
@@ -406,41 +410,72 @@ const MealLogging = () => {
       if (mockRecipes[key]) {
         setRecipeData({ loading: false, ...mockRecipes[key] });
       } else {
-        setRecipeData({ 
-          loading: false, 
-          error: "Recipe not found", 
-          youtube: `https://www.youtube.com/results?search_query=${encodeURIComponent(searchFood)}` 
+        setRecipeData({
+          loading: false,
+          error: "Recipe not found",
+          youtube: `https://www.youtube.com/results?search_query=${encodeURIComponent(searchFood)}`
         });
       }
     }, 1000);
   };
 
   const selectedMealData = selectedMeal ? todaysMeals.find(m => m.id === selectedMeal) : null;
+  const eatenCount = todaysMeals.filter(m => m.status === 'eaten').length;
+  const pendingCount = todaysMeals.filter(m => m.status === 'pending').length;
+  const totalCalories = todaysMeals.reduce((sum, meal) => sum + meal.calories, 0);
 
   return (
-    <div className="flex-1 space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 space-y-6 p-4 sm:space-y-8 sm:p-6 md:p-8 max-w-6xl mx-auto w-full">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Meal Logging & Feedback</h1>
-          <p className="text-muted-foreground">Track your personalized Ayurvedic meals and how they make you feel</p>
+          <h1 className="text-title1 text-foreground">Meal Logging & Feedback</h1>
+          <p className="mt-1.5 text-body text-foreground-secondary">
+            Track your Ayurvedic meals today and how they made you feel
+          </p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/patient/dashboard')}>
+        <Button variant="outline" onClick={() => navigate('/patient/dashboard')} className="w-full sm:w-auto">
           Back to Dashboard
         </Button>
       </div>
 
+      {/* Today's progress — the dominant summary, shown first */}
+      {todaysMeals.length > 0 && (
+        <Card className="border-accent-soft bg-accent-soft/30">
+          <CardContent className="p-5 sm:p-6 md:p-8">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4 sm:gap-6">
+              <div>
+                <div className="text-caption1 text-foreground-secondary">Today's meals</div>
+                <div className="mt-1 text-title2 text-foreground">{todaysMeals.length}</div>
+              </div>
+              <div>
+                <div className="text-caption1 text-foreground-secondary">Eaten</div>
+                <div className="mt-1 text-title2 text-primary">{eatenCount}</div>
+              </div>
+              <div>
+                <div className="text-caption1 text-foreground-secondary">Still pending</div>
+                <div className="mt-1 text-title2 text-foreground">{pendingCount}</div>
+              </div>
+              <div>
+                <div className="text-caption1 text-foreground-secondary">Calories logged</div>
+                <div className="mt-1 text-title2 text-foreground">{totalCalories}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Patient Search Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Load Patient Diet Plan
+          <CardTitle className="flex items-center gap-2 text-headline">
+            <User className="w-5 h-5 text-primary" />
+            Load Diet Plan
           </CardTitle>
           <CardDescription>
-            Enter patient details to load their personalized Ayurvedic diet plan
+            Enter a patient ID to load their personalized Ayurvedic diet plan
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="patient-id">Patient ID *</Label>
@@ -449,6 +484,7 @@ const MealLogging = () => {
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 placeholder="Enter patient ID"
+                className="mt-1.5"
               />
             </div>
             <div>
@@ -459,13 +495,14 @@ const MealLogging = () => {
                 onChange={(e) => setPatientName(e.target.value)}
                 placeholder="Will be loaded from plan"
                 disabled={!!selectedPlan}
+                className="mt-1.5"
               />
             </div>
             <div className="flex items-end">
-              <Button 
-                onClick={fetchDietPlans} 
-                disabled={loadingPlans || !patientId.trim()} 
-                className="w-full gap-2"
+              <Button
+                onClick={fetchDietPlans}
+                disabled={loadingPlans || !patientId.trim()}
+                className="w-full gap-2 h-11"
               >
                 {loadingPlans ? (
                   <>
@@ -484,19 +521,19 @@ const MealLogging = () => {
 
           {/* Available Plans */}
           {savedPlans.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <Label>Available Diet Plans:</Label>
-              <div className="flex flex-wrap gap-2">
+            <div className="pt-2 space-y-2">
+              <Label className="text-caption1 text-foreground-secondary">Available plans</Label>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
                 {savedPlans.map((plan) => (
                   <Button
                     key={plan.id}
                     size="sm"
                     variant={selectedPlan?.id === plan.id ? "default" : "outline"}
                     onClick={() => loadDietPlan(plan)}
-                    className="gap-1"
+                    className="gap-1.5 shrink-0"
                   >
-                    <Calendar className="w-3 h-3" />
-                    {new Date(plan.createdAt).toLocaleDateString()} • {plan.planType}
+                    <Calendar className="w-3.5 h-3.5" />
+                    {new Date(plan.createdAt).toLocaleDateString()} · {plan.planType}
                   </Button>
                 ))}
               </div>
@@ -505,15 +542,15 @@ const MealLogging = () => {
 
           {/* Current Plan Info */}
           {selectedPlan && (
-            <div className="mt-4 p-3 bg-plum-50 border border-plum-200 rounded-lg">
-              <div className="flex items-center gap-2 text-plum-700">
-                <AlertCircle className="w-4 h-4" />
-                <span className="font-medium">Loaded Plan:</span>
+            <div className="flex items-start gap-3 rounded-xl border border-accent-soft bg-accent-soft/40 px-4 py-3.5">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+              <div>
+                <p className="text-footnote font-medium text-foreground">Currently loaded plan</p>
+                <p className="mt-0.5 text-footnote text-foreground-secondary">
+                  {selectedPlan.patientName} · {selectedPlan.planDuration} · {selectedPlan.planType.replace('-', ' ')}
+                  {" · "}Created {new Date(selectedPlan.createdAt).toLocaleDateString()}
+                </p>
               </div>
-              <p className="text-sm text-plum-600 mt-1">
-                {selectedPlan.patientName} • {selectedPlan.planDuration} • {selectedPlan.planType.replace('-', ' ')} 
-                • Created: {new Date(selectedPlan.createdAt).toLocaleDateString()}
-              </p>
             </div>
           )}
         </CardContent>
@@ -523,101 +560,113 @@ const MealLogging = () => {
         {/* Meals Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ChefHat className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-headline">
+              <ChefHat className="w-5 h-5 text-primary" />
               Today's Ayurvedic Meals
             </CardTitle>
             <CardDescription>
-              {todaysMeals.length > 0 
-                ? `${todaysMeals.length} personalized meals from your diet plan` 
-                : "Load a patient's diet plan to see their meals"
+              {todaysMeals.length > 0
+                ? `${todaysMeals.length} personalized meals from your diet plan`
+                : "Load a diet plan above to see today's meals"
               }
             </CardDescription>
           </CardHeader>
           <CardContent>
             {todaysMeals.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Utensils className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="font-medium">No meals loaded</p>
-                <p className="text-sm">Enter a patient ID above to load their personalized diet plan</p>
+              <div className="flex flex-col items-center py-14 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <Utensils className="w-6 h-6" />
+                </div>
+                <p className="mt-4 text-subhead font-medium text-foreground">No meals loaded yet</p>
+                <p className="mt-1.5 max-w-xs text-footnote text-foreground-secondary">
+                  Enter a patient ID above and we'll bring in their personalized diet plan.
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {todaysMeals.map((meal) => {
                   const MealIcon = getMealIcon(meal.type);
                   return (
-                    <div 
-                      key={meal.id} 
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${getStatusColor(meal.status)} ${selectedMeal === meal.id ? 'ring-2 ring-primary' : ''}`} 
+                    <div
+                      key={meal.id}
+                      className={`p-4 border rounded-xl cursor-pointer transition-colors duration-200 ease-ios ${getStatusColor(meal.status)} ${selectedMeal === meal.id ? 'ring-2 ring-primary' : ''}`}
                       onClick={() => setSelectedMeal(meal.id)}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <MealIcon className="w-5 h-5 text-primary" />
-                          <div>
-                            <h3 className="font-semibold text-foreground">{meal.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {meal.time} • {meal.calories} calories
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-primary">
+                            <MealIcon className="w-4 h-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-subhead font-medium text-foreground truncate">{meal.name}</h3>
+                            <p className="text-footnote text-foreground-secondary">
+                              {meal.time} · {meal.calories} cal
                             </p>
                             {meal.doshaBalance && (
-                              <Badge variant="outline" className="text-xs mt-1">
+                              <Badge variant="outline" className="mt-1.5 text-caption2">
                                 {meal.doshaBalance}
                               </Badge>
                             )}
                           </div>
                         </div>
-                        {getStatusIcon(meal.status)}
+                        <span className="shrink-0">{getStatusIcon(meal.status)}</span>
                       </div>
-                      
+
                       {/* Meal Details */}
                       {selectedMeal === meal.id && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                        <div className="mt-3.5 pt-3.5 border-t border-border/60 space-y-2">
                           {meal.quantity && (
-                            <p className="text-sm"><strong>Quantity:</strong> {meal.quantity}</p>
+                            <p className="text-footnote text-foreground-secondary">
+                              <span className="font-medium text-foreground">Quantity:</span> {meal.quantity}
+                            </p>
                           )}
                           {meal.preparation && (
-                            <p className="text-sm"><strong>Preparation:</strong> {meal.preparation}</p>
+                            <p className="text-footnote text-foreground-secondary">
+                              <span className="font-medium text-foreground">Preparation:</span> {meal.preparation}
+                            </p>
                           )}
                           {meal.benefits && (
-                            <p className="text-sm"><strong>Benefits:</strong> {meal.benefits}</p>
+                            <p className="text-footnote text-foreground-secondary">
+                              <span className="font-medium text-foreground">Benefits:</span> {meal.benefits}
+                            </p>
                           )}
-                          
+
                           {/* Status Update Buttons */}
-                          <div className="flex gap-2 mt-3">
-                            <Button 
-                              size="sm" 
+                          <div className="grid grid-cols-3 gap-2 pt-2">
+                            <Button
+                              size="sm"
                               variant={meal.status === 'eaten' ? 'default' : 'outline'}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 updateMealStatus(meal.id, 'eaten');
                               }}
-                              className="gap-1"
+                              className="gap-1.5 h-10"
                             >
-                              <CheckCircle className="w-3 h-3" />
+                              <CheckCircle className="w-3.5 h-3.5" />
                               Eaten
                             </Button>
-                            <Button 
-                              size="sm" 
-                              variant={meal.status === 'skipped' ? 'destructive' : 'outline'}
+                            <Button
+                              size="sm"
+                              variant={meal.status === 'skipped' ? 'secondary' : 'outline'}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 updateMealStatus(meal.id, 'skipped');
                               }}
-                              className="gap-1"
+                              className="gap-1.5 h-10"
                             >
-                              <XCircle className="w-3 h-3" />
+                              <XCircle className="w-3.5 h-3.5" />
                               Skip
                             </Button>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant={meal.status === 'pending' ? 'secondary' : 'outline'}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 updateMealStatus(meal.id, 'pending');
                               }}
-                              className="gap-1"
+                              className="gap-1.5 h-10"
                             >
-                              <Clock className="w-3 h-3" />
+                              <Clock className="w-3.5 h-3.5" />
                               Pending
                             </Button>
                           </div>
@@ -634,9 +683,9 @@ const MealLogging = () => {
         {/* Feedback Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Post-Meal Feedback</CardTitle>
+            <CardTitle className="text-headline">Post-Meal Feedback</CardTitle>
             <CardDescription>
-              {selectedMealData 
+              {selectedMealData
                 ? `Rate how "${selectedMealData.name}" made you feel`
                 : "Select a meal to provide feedback"
               }
@@ -644,38 +693,42 @@ const MealLogging = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {!selectedMealData ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Heart className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Select a meal above to provide feedback</p>
+              <div className="flex flex-col items-center py-14 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <Heart className="w-6 h-6" />
+                </div>
+                <p className="mt-4 text-footnote text-foreground-secondary max-w-xs">
+                  Select a meal on the left to share how it made you feel.
+                </p>
               </div>
             ) : (
               <>
                 {/* Selected Meal Info */}
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium">{selectedMealData.name}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedMealData.time} • Status: {selectedMealData.status}
+                <div className="rounded-xl bg-muted px-4 py-3">
+                  <h4 className="text-subhead font-medium text-foreground">{selectedMealData.name}</h4>
+                  <p className="text-footnote text-foreground-secondary">
+                    {selectedMealData.time} · Status: {selectedMealData.status}
                   </p>
                 </div>
 
                 {/* Digestion Rating */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-primary" /> 
+                    <label className="text-footnote font-medium text-foreground flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-primary" />
                       Digestion
                     </label>
                     <span className="text-2xl">{getEmojiForRating(digestionRating[0], 'digestion')}</span>
                   </div>
-                  <Slider 
-                    value={digestionRating} 
-                    onValueChange={setDigestionRating} 
-                    max={5} 
-                    min={1} 
-                    step={1} 
-                    className="w-full" 
+                  <Slider
+                    value={digestionRating}
+                    onValueChange={setDigestionRating}
+                    max={5}
+                    min={1}
+                    step={1}
+                    className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-caption1 text-foreground-tertiary">
                     <span>Poor</span>
                     <span>Excellent</span>
                   </div>
@@ -684,21 +737,21 @@ const MealLogging = () => {
                 {/* Mood Rating */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Heart className="w-4 h-4 text-primary" /> 
+                    <label className="text-footnote font-medium text-foreground flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-primary" />
                       Mood
                     </label>
                     <span className="text-2xl">{getEmojiForRating(moodRating[0], 'mood')}</span>
                   </div>
-                  <Slider 
-                    value={moodRating} 
-                    onValueChange={setMoodRating} 
-                    max={5} 
-                    min={1} 
-                    step={1} 
-                    className="w-full" 
+                  <Slider
+                    value={moodRating}
+                    onValueChange={setMoodRating}
+                    max={5}
+                    min={1}
+                    step={1}
+                    className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-caption1 text-foreground-tertiary">
                     <span>Low</span>
                     <span>High</span>
                   </div>
@@ -707,39 +760,39 @@ const MealLogging = () => {
                 {/* Energy Rating */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-primary" /> 
+                    <label className="text-footnote font-medium text-foreground flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-primary" />
                       Energy Level
                     </label>
                     <span className="text-2xl">{getEmojiForRating(energyRating[0], 'energy')}</span>
                   </div>
-                  <Slider 
-                    value={energyRating} 
-                    onValueChange={setEnergyRating} 
-                    max={5} 
-                    min={1} 
-                    step={1} 
-                    className="w-full" 
+                  <Slider
+                    value={energyRating}
+                    onValueChange={setEnergyRating}
+                    max={5}
+                    min={1}
+                    step={1}
+                    className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-caption1 text-foreground-tertiary">
                     <span>Tired</span>
                     <span>Energetic</span>
                   </div>
                 </div>
 
-                <Textarea 
-                  placeholder="Additional notes about how this meal made you feel..." 
-                  value={feedbackNotes} 
-                  onChange={(e) => setFeedbackNotes(e.target.value)} 
-                  rows={3} 
+                <Textarea
+                  placeholder="Anything else about how this meal made you feel..."
+                  value={feedbackNotes}
+                  onChange={(e) => setFeedbackNotes(e.target.value)}
+                  rows={3}
                 />
-                
-                <Button 
-                  className="w-full" 
+
+                <Button
+                  className="w-full"
                   onClick={saveFeedback}
                   disabled={!patientId || !selectedMeal}
                 >
-                  Save Feedback to Patient Record
+                  Save Feedback
                 </Button>
               </>
             )}
@@ -749,117 +802,61 @@ const MealLogging = () => {
         {/* Recipe Search Section */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Recipe & Preparation Guide</CardTitle>
+            <CardTitle className="text-headline">Recipe & Preparation Guide</CardTitle>
             <CardDescription>Search for cooking instructions for your Ayurvedic meals</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 placeholder="Enter food name (e.g., quinoa, oatmeal)..."
                 value={searchFood}
                 onChange={(e) => setSearchFood(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && fetchRecipe()}
+                className="h-11 sm:h-10"
               />
-              <Button onClick={fetchRecipe} className="gap-2">
+              <Button onClick={fetchRecipe} className="gap-2 shrink-0 h-11 sm:h-10">
                 <Search className="w-4 h-4" />
                 Search
               </Button>
             </div>
 
             {recipeData.loading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2 text-footnote text-foreground-secondary">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <p>Loading recipe...</p>
+                <p>Looking that up...</p>
               </div>
             )}
-            
+
             {recipeData.error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700">{recipeData.error}</p>
+              <div className="rounded-xl border border-border bg-muted px-4 py-3">
+                <p className="text-footnote text-foreground-secondary">
+                  No recipe on file for that one yet — try the YouTube search below.
+                </p>
               </div>
             )}
-            
+
             {recipeData.recipe && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
-                <h4 className="font-medium text-rose-800 mb-1">Recipe Instructions:</h4>
-                <p className="text-rose-700">{recipeData.recipe}</p>
+              <div className="rounded-xl border border-accent-soft bg-accent-soft/40 px-4 py-3.5">
+                <h4 className="text-footnote font-medium text-foreground mb-1">Recipe instructions</h4>
+                <p className="text-footnote text-foreground-secondary">{recipeData.recipe}</p>
               </div>
             )}
-            
+
             {recipeData.youtube && (
-              <div className="p-3 bg-plum-50 border border-plum-200 rounded-lg">
-                <a 
-                  className="text-plum-600 hover:text-plum-800 underline font-medium" 
-                  href={recipeData.youtube} 
-                  target="_blank" 
+              <div className="rounded-xl border border-border bg-muted px-4 py-3">
+                <a
+                  className="text-footnote font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+                  href={recipeData.youtube}
+                  target="_blank"
                   rel="noopener noreferrer"
                 >
-                  → Watch cooking videos on YouTube
+                  Watch cooking videos on YouTube →
                 </a>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Summary Stats */}
-      {todaysMeals.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Utensils className="w-5 h-5 text-primary" />
-                <div>
-                  <div className="font-medium">Total Meals</div>
-                  <div className="text-2xl font-bold">{todaysMeals.length}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-rose-600" />
-                <div>
-                  <div className="font-medium">Completed</div>
-                  <div className="text-2xl font-bold">
-                    {todaysMeals.filter(m => m.status === 'eaten').length}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-coral-600" />
-                <div>
-                  <div className="font-medium">Pending</div>
-                  <div className="text-2xl font-bold">
-                    {todaysMeals.filter(m => m.status === 'pending').length}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                <div>
-                  <div className="font-medium">Total Calories</div>
-                  <div className="text-2xl font-bold">
-                    {todaysMeals.reduce((sum, meal) => sum + meal.calories, 0)}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 };

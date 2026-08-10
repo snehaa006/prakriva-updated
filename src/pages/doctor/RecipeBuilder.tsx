@@ -223,9 +223,9 @@ const DoshaRadial: React.FC<{
 }> = ({ scores, primary }) => {
   const total = scores.vata + scores.pitta + scores.kapha || 1;
   const doshaInfo: Record<string, { bgColor: string; label: string }> = {
-    vata: { bgColor: "bgplum-500", label: "Vata" },
+    vata: { bgColor: "bg-plum-500", label: "Vata" },
     pitta: { bgColor: "bg-rose-500", label: "Pitta" },
-    kapha: { bgColor: "bgrose-500", label: "Kapha" },
+    kapha: { bgColor: "bg-rose-500", label: "Kapha" },
   };
 
   return (
@@ -679,9 +679,11 @@ const RecipeBuilder = () => {
 
   const renderFoodCard = (food, index, draggableId) => (
     <Draggable key={draggableId} draggableId={draggableId} index={index}>
-      {(provided) => (
+      {(provided, snapshot) => (
         <div
-          className="p-2 mb-2 bg-white border rounded text-sm shadow-sm cursor-grab"
+          className={`p-2 mb-2 bg-card border border-border rounded-xl text-sm shadow-sm cursor-grab transition-shadow ${
+            snapshot.isDragging ? "shadow-md scale-[1.02]" : ""
+          }`}
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
@@ -827,9 +829,9 @@ const RecipeBuilder = () => {
     <div className="p-6 space-y-6">
       {/* Loading Draft Overlay */}
       {isLoadingDraft && (
-        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-background/80 z-50 flex items-center justify-center">
           <div className="text-center space-y-3">
-            <Loader2 className="w-8 h-8 animate-spin textrose-600 mx-auto" />
+            <Loader2 className="w-8 h-8 animate-spin text-rose-600 mx-auto" />
             <p className="text-sm font-medium text-gray-700">Loading diet plan draft...</p>
           </div>
         </div>
@@ -897,7 +899,7 @@ const RecipeBuilder = () => {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Spices</p>
                   <div className="flex flex-wrap gap-1">
                     {profileAnalysis.doshaPrefs.spices.map((s) => (
-                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bgcoral-50 textcoral-700 border bordercoral-100">{s}</span>
+                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-coral-50 text-coral-700 border border-coral-100">{s}</span>
                     ))}
                   </div>
                 </div>
@@ -978,7 +980,7 @@ const RecipeBuilder = () => {
                   </div>
                 )}
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider textcoral-600 mb-1">Excluded ({profileAnalysis.excludes.length})</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-coral-600 mb-1">Excluded ({profileAnalysis.excludes.length})</p>
                   <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
                     {profileAnalysis.excludes.slice(0, 15).map((e) => (
                       <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-100">{e}</span>
@@ -989,10 +991,10 @@ const RecipeBuilder = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider textrose-600 mb-1">Focus ({profileAnalysis.includes.length})</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 mb-1">Focus ({profileAnalysis.includes.length})</p>
                   <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
                     {profileAnalysis.includes.slice(0, 12).map((i) => (
-                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bgrose-50 textrose-600 border borderrose-100">{i}</span>
+                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-100">{i}</span>
                     ))}
                     {profileAnalysis.includes.length > 12 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">+{profileAnalysis.includes.length - 12}</span>
@@ -1001,7 +1003,7 @@ const RecipeBuilder = () => {
                 </div>
                 {patientProfile.dietaryPreferences && (
                   <div className="flex items-center gap-1.5 pt-1">
-                    <Apple className="w-3 h-3 textrose-600" />
+                    <Apple className="w-3 h-3 text-rose-600" />
                     <span className="text-xs capitalize font-medium">{patientProfile.dietaryPreferences}</span>
                   </div>
                 )}
@@ -1011,16 +1013,16 @@ const RecipeBuilder = () => {
 
           {/* Medical Notes */}
           {profileAnalysis.targets.notes.length > 0 && (
-            <Card className="shadow-sm borderplum-100 bgplum-50/30">
+            <Card className="shadow-sm border-plum-100 bg-plum-50/30">
               <CardContent className="py-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <BookOpen className="w-4 h-4 textplum-600" />
-                  <span className="text-sm font-semibold textplum-900">Clinical Guidelines</span>
+                  <BookOpen className="w-4 h-4 text-plum-600" />
+                  <span className="text-sm font-semibold text-plum-900">Clinical Guidelines</span>
                 </div>
                 <div className="grid md:grid-cols-2 gap-x-6 gap-y-1.5">
                   {profileAnalysis.targets.notes.map((note, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs textplum-800">
-                      <CircleDot className="w-3 h-3 textplum-400 shrink-0 mt-0.5" />
+                    <div key={idx} className="flex items-start gap-2 text-xs text-plum-800">
+                      <CircleDot className="w-3 h-3 text-plum-400 shrink-0 mt-0.5" />
                       {note}
                     </div>
                   ))}
@@ -1184,7 +1186,7 @@ const RecipeBuilder = () => {
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="bg-gray-900 hover:bg-gray-800 h-10 px-6"
+                  className="bg-foreground text-background hover:bg-foreground/90 h-10 px-6"
                 >
                   {isGenerating ? (
                     <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</>
@@ -1247,34 +1249,34 @@ const RecipeBuilder = () => {
 
       {/* ===== GENERATED / EDITING BANNER ===== */}
       {planMeta && !isLoadingDraft && (
-        <Card className="borderrose-200 bgrose-50/50">
+        <Card className="border-rose-200 bg-rose-50/50">
           <CardContent className="py-3 px-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bgrose-100 flex items-center justify-center">
-                <FileEdit className="w-4 h-4 textrose-700" />
+              <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
+                <FileEdit className="w-4 h-4 text-rose-700" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold textrose-900">
+                <p className="text-sm font-semibold text-rose-900">
                   {editingDraftId ? "Editing a saved diet plan" : "Personalized plan generated"}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5 text-xs textrose-700">
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-rose-700">
                   {!!planMeta.primaryDosha && (
-                    <Badge variant="outline" className="text-[10px] h-4 bg-white borderrose-300 textrose-700 capitalize">
+                    <Badge variant="outline" className="text-[10px] h-4 bg-card border-rose-300 text-rose-700 capitalize">
                       {String(planMeta.primaryDosha)} Dosha
                     </Badge>
                   )}
                   {!!planMeta.lifeStageLabel && (
-                    <Badge variant="outline" className="text-[10px] h-4 bg-white border-pink-300 text-pink-700">
+                    <Badge variant="outline" className="text-[10px] h-4 bg-card border-pink-300 text-pink-700">
                       {String(planMeta.lifeStageLabel)}
                     </Badge>
                   )}
-                  <span className="textrose-600">Drag & drop meals below to adjust, then save.</span>
+                  <span className="text-rose-600">Drag & drop meals below to adjust, then save.</span>
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 borderrose-300 textrose-700 hover:bgrose-100"
+                className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-100"
                 onClick={handleClearBoard}
               >
                 <AlertCircle className="w-3 h-3" />
@@ -1330,7 +1332,7 @@ const RecipeBuilder = () => {
               <Button
                 onClick={saveMealPlan}
                 disabled={saving}
-                className={`w-full gap-2 ${editingDraftId ? "bgrose-600 hover:bgrose-700" : ""}`}
+                className={`w-full gap-2 ${editingDraftId ? "bg-rose-600 hover:bg-rose-700" : ""}`}
               >
                 {saving ? (
                   <>
@@ -1361,7 +1363,7 @@ const RecipeBuilder = () => {
           <Droppable droppableId="palette">
             {(provided) => (
               <div
-                className="w-1/4 p-4 bg-gray-100 rounded"
+                className="w-1/4 p-4 bg-gray-100 rounded-2xl"
                 ref={provided.innerRef}
                 {...provided.droppableProps}
               >
@@ -1384,9 +1386,9 @@ const RecipeBuilder = () => {
               {["Daily", "Weekly"].map((option) => (
                 <button
                   key={option}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-xl transition-colors ${
                     activeFilter === option
-                      ? "bgrose-500 text-white"
+                      ? "bg-rose-500 text-white"
                       : "bg-gray-200"
                   }`}
                   onClick={() => setActiveFilter(option)}
@@ -1401,11 +1403,15 @@ const RecipeBuilder = () => {
               <div className="grid grid-cols-4 gap-4">
                 {mealSlots.map((slot) => (
                   <Droppable key={slot} droppableId={`Daily__${slot}`}>
-                    {(provided) => (
+                    {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
-                        className="p-4 bg-gray-50 rounded border"
+                        className={`p-4 rounded-2xl border-2 border-dashed transition-colors ${
+                          snapshot.isDraggingOver
+                            ? "border-primary bg-accent-soft/40"
+                            : "border-border bg-gray-50"
+                        }`}
                       >
                         <h3 className="font-bold mb-2">{slot}</h3>
                         <p className="text-xs text-gray-500 mb-2">
@@ -1426,7 +1432,7 @@ const RecipeBuilder = () => {
             {activeFilter === "Weekly" && (
               <div className="grid grid-cols-2 gap-4">
                 {weekDays.map((day) => (
-                  <div key={day} className="p-4 border rounded">
+                  <div key={day} className="p-4 border border-border rounded-2xl">
                     <h3 className="font-bold mb-2">{day}</h3>
                     <div className="grid grid-cols-2 gap-2">
                       {mealSlots.map((slot) => (
@@ -1434,11 +1440,15 @@ const RecipeBuilder = () => {
                           key={slot}
                           droppableId={`Weekly__${day}__${slot}`}
                         >
-                          {(provided) => (
+                          {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.droppableProps}
-                              className="p-2 bg-gray-50 rounded border"
+                              className={`p-2 rounded-xl border-2 border-dashed transition-colors ${
+                                snapshot.isDraggingOver
+                                  ? "border-primary bg-accent-soft/40"
+                                  : "border-border bg-gray-50"
+                              }`}
                             >
                               <h4 className="text-sm font-semibold">{slot}</h4>
                               <p className="text-xs text-gray-400">
@@ -1463,31 +1473,31 @@ const RecipeBuilder = () => {
             )}
 
             {/* Nutrition Summary */}
-            <div className="mt-6 p-4 bgrose-50 border rounded">
+            <div className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
               <h2 className="text-lg font-bold mb-2">
                 Nutrition Totals ({activeFilter})
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-2xl font-bold textrose-600">
+                  <p className="text-2xl font-bold text-rose-600">
                     {Math.round(nutritionTotals.Calories)}
                   </p>
                   <p className="text-sm text-gray-600">Calories</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold textplum-600">
+                  <p className="text-2xl font-bold text-plum-600">
                     {Math.round(nutritionTotals.Protein)}
                   </p>
                   <p className="text-sm text-gray-600">Protein (g)</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold textcoral-600">
+                  <p className="text-2xl font-bold text-coral-600">
                     {Math.round(nutritionTotals.Fat)}
                   </p>
                   <p className="text-sm text-gray-600">Fat (g)</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold textplum-600">
+                  <p className="text-2xl font-bold text-plum-600">
                     {Math.round(nutritionTotals.Carbs)}
                   </p>
                   <p className="text-sm text-gray-600">Carbs (g)</p>

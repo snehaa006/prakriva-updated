@@ -499,7 +499,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-plum-50"><Users className="w-5 h-5 text-plum-600" /></div>
+              <div className="p-2 rounded-xl bg-plum-50"><Users className="w-5 h-5 text-plum-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{patientCount}</p>
                 <p className="text-xs text-muted-foreground">Total Patients</p>
@@ -510,7 +510,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-rose-50"><Calendar className="w-5 h-5 text-rose-600" /></div>
+              <div className="p-2 rounded-xl bg-rose-50"><Calendar className="w-5 h-5 text-rose-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{todayAppts.length}</p>
                 <p className="text-xs text-muted-foreground">Today's Appointments</p>
@@ -521,7 +521,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-coral-50"><AlertCircle className="w-5 h-5 text-coral-600" /></div>
+              <div className="p-2 rounded-xl bg-coral-50"><AlertCircle className="w-5 h-5 text-coral-600" /></div>
               <div>
                 <p className="text-2xl font-bold">{pendingRequests.length}</p>
                 <p className="text-xs text-muted-foreground">Pending Requests</p>
@@ -587,13 +587,13 @@ const DoctorDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {filteredAppointments.map(appt => (
-                    <div key={appt.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                    <div key={appt.id} className={`flex items-center justify-between p-3 rounded-xl border ${
                       appt.status === "completed" ? "bg-rose-50/50 border-rose-200" :
-                      appt.status === "cancelled" ? "bg-red-50/50 border-red-200 opacity-60" :
+                      appt.status === "cancelled" ? "bg-destructive/5 border-destructive/20 opacity-60" :
                       "bg-muted/30"
                     }`}>
                       <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-white border">
+                        <div className="p-2 rounded-xl bg-card border border-border">
                           {appt.mode === "video-call" ? <Video className="w-4 h-4 text-plum-500" /> :
                            appt.mode === "phone" ? <Phone className="w-4 h-4 text-rose-500" /> :
                            <MapPin className="w-4 h-4 text-coral-500" />}
@@ -610,7 +610,7 @@ const DoctorDashboard = () => {
                       <Badge className={`text-xs ${
                         appt.status === "scheduled" ? "bg-plum-100 text-plum-700" :
                         appt.status === "completed" ? "bg-rose-100 text-rose-700" :
-                        appt.status === "cancelled" ? "bg-red-100 text-red-700" :
+                        appt.status === "cancelled" ? "bg-destructive/10 text-destructive" :
                         "bg-gray-100 text-gray-700"
                       }`}>
                         {appt.status}
@@ -676,19 +676,19 @@ const DoctorDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="text-center p-3 bg-plum-50 rounded-lg">
+                <div className="text-center p-3 bg-plum-50 rounded-xl">
                   <div className="text-xl font-bold text-plum-600">{appointments.filter(a => a.status === "scheduled").length}</div>
                   <p className="text-xs text-muted-foreground">Scheduled</p>
                 </div>
-                <div className="text-center p-3 bg-rose-50 rounded-lg">
+                <div className="text-center p-3 bg-rose-50 rounded-xl">
                   <div className="text-xl font-bold text-rose-600">{completedAppts}</div>
                   <p className="text-xs text-muted-foreground">Completed</p>
                 </div>
-                <div className="text-center p-3 bg-red-50 rounded-lg">
-                  <div className="text-xl font-bold text-red-600">{appointments.filter(a => a.status === "cancelled").length}</div>
+                <div className="text-center p-3 bg-destructive/5 rounded-xl">
+                  <div className="text-xl font-bold text-destructive">{appointments.filter(a => a.status === "cancelled").length}</div>
                   <p className="text-xs text-muted-foreground">Cancelled</p>
                 </div>
-                <div className="text-center p-3 bg-coral-50 rounded-lg">
+                <div className="text-center p-3 bg-coral-50 rounded-xl">
                   <div className="text-xl font-bold text-coral-600">{appointments.filter(a => a.status === "no-show").length}</div>
                   <p className="text-xs text-muted-foreground">No-show</p>
                 </div>
@@ -721,7 +721,7 @@ const DoctorDashboard = () => {
               ) : (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {requests.slice(0, 10).map(req => (
-                    <div key={req.id} className={`p-3 rounded-lg border text-sm ${
+                    <div key={req.id} className={`p-3 rounded-xl border text-sm ${
                       req.status === "pending" ? "bg-coral-50/50 border-coral-200" :
                       req.status === "accepted" ? "bg-rose-50/50 border-rose-200" :
                       "bg-muted/30 border-muted"
@@ -729,7 +729,7 @@ const DoctorDashboard = () => {
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium">{req.patientName}</span>
                         <Badge variant="outline" className={`text-[10px] ${
-                          req.urgency === "high" || req.urgency === "emergency" ? "border-red-300 text-red-600" :
+                          req.urgency === "high" || req.urgency === "emergency" ? "border-destructive/40 text-destructive" :
                           req.urgency === "medium" ? "border-coral-300 text-coral-600" :
                           "border-gray-300"
                         }`}>
@@ -751,7 +751,7 @@ const DoctorDashboard = () => {
                         </div>
                       )}
                       {req.status !== "pending" && (
-                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-rose-100 text-rose-700" : "bg-red-100 text-red-700"}`}>
+                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-rose-100 text-rose-700" : "bg-destructive/10 text-destructive"}`}>
                           {req.status}
                         </Badge>
                       )}
@@ -796,12 +796,12 @@ const DoctorDashboard = () => {
                   {notifications.slice(0, 15).map(notif => (
                     <div
                       key={notif.id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all text-sm ${
+                      className={`p-3 rounded-xl border cursor-pointer transition-all text-sm ${
                         notif.read ? "bg-muted/20 border-muted" :
                         notif.type === "consultation_request" ? "bg-plum-50 border-plum-200" :
                         notif.type === "meal_tracking" ? "bg-rose-50 border-rose-200" :
                         notif.type === "appointment" ? "bg-plum-50 border-plum-200" :
-                        notif.type === "alert" ? "bg-red-50 border-red-200" :
+                        notif.type === "alert" ? "bg-destructive/5 border-destructive/20" :
                         "bg-coral-50 border-coral-200"
                       }`}
                       onClick={() => !notif.read && markNotifRead(notif.id)}
@@ -810,7 +810,7 @@ const DoctorDashboard = () => {
                         {notif.type === "consultation_request" && <MessageCircle className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
                         {notif.type === "meal_tracking" && <Utensils className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />}
                         {notif.type === "appointment" && <Calendar className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
-                        {notif.type === "alert" && <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}
+                        {notif.type === "alert" && <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />}
                         {notif.type === "info" && <Bell className="w-4 h-4 text-coral-500 mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs ${notif.read ? "text-muted-foreground" : "font-medium"}`}>

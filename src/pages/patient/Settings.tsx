@@ -78,7 +78,7 @@ export default function Settings() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Settings</h1>
         <p className="text-muted-foreground">Manage your preferences and account settings</p>
       </div>
 
@@ -95,8 +95,8 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Meal Reminders</Label>
                 <p className="text-sm text-muted-foreground">
                   Get notified about your scheduled meals and diet plans
@@ -110,8 +110,8 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Medicine Reminders</Label>
                 <p className="text-sm text-muted-foreground">
                   Reminders for your Ayurvedic medicines and supplements
@@ -125,8 +125,8 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Appointment Reminders</Label>
                 <p className="text-sm text-muted-foreground">
                   Get notified about upcoming appointments with Dr. Rajesh Gupta
@@ -140,8 +140,8 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Weekly Reports</Label>
                 <p className="text-sm text-muted-foreground">
                   Receive weekly health and progress reports
@@ -236,8 +236,8 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Share Data with Doctor</Label>
                 <p className="text-sm text-muted-foreground">
                   Allow your doctor to access your health data and progress
@@ -251,8 +251,8 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Analytics & Improvement</Label>
                 <p className="text-sm text-muted-foreground">
                   Help us improve the app by sharing anonymous usage data
@@ -266,8 +266,8 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Show Online Status</Label>
                 <p className="text-sm text-muted-foreground">
                   Let your doctor see when you're online
@@ -293,14 +293,14 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Export Your Data</Label>
                 <p className="text-sm text-muted-foreground">
                   Download a copy of all your health data and progress
                 </p>
               </div>
-              <Button onClick={handleExportData} variant="outline" size="sm">
+              <Button onClick={handleExportData} variant="outline" className="h-10 w-full sm:w-auto">
                 <Download className="w-4 h-4 mr-2" />
                 Export Data
               </Button>
@@ -308,14 +308,14 @@ export default function Settings() {
 
             <Separator />
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <Label>Delete Account</Label>
                 <p className="text-sm text-muted-foreground">
                   Permanently delete your account and all associated data
                 </p>
               </div>
-              <Button onClick={handleDeleteAccount} variant="destructive" size="sm">
+              <Button onClick={handleDeleteAccount} variant="destructive" className="h-10 w-full sm:w-auto">
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete Account
               </Button>

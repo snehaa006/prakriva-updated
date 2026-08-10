@@ -285,10 +285,10 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your profile...</p>
+          <div className="mx-auto mb-4 h-9 w-9 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+          <p className="text-footnote text-foreground-secondary">Loading your profile…</p>
         </div>
       </div>
     );
@@ -296,132 +296,102 @@ export default function Profile() {
 
   if (!patientData) {
     return (
-      <div className="text-center py-12">
-        <div className="max-w-md mx-auto">
-          <HeartPulse className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Profile Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            Your patient profile could not be loaded. Please contact support.
-          </p>
-          <Button onClick={() => window.location.href = '/patient/questionnaire'}>
-            Complete Assessment
-          </Button>
-        </div>
+      <div className="mx-auto max-w-sm py-16 text-center">
+        <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+          <HeartPulse className="w-7 h-7" />
+        </span>
+        <h2 className="text-headline text-foreground">Profile not found</h2>
+        <p className="mt-2 text-footnote text-foreground-secondary">
+          Your patient profile could not be loaded. Please contact support.
+        </p>
+        <Button className="mt-5" onClick={() => window.location.href = '/patient/questionnaire'}>
+          Complete assessment
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Header Section */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <Avatar className="w-24 h-24 border-4 border-primary/20 shadow-xl">
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-2xl font-bold">
-                    {patientData.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-rose-500 rounded-full border-4 border-background flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                </div>
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold text-foreground mb-2">{patientData.name}</h1>
-                <p className="text-lg text-muted-foreground mb-1">{patientData.email}</p>
-                <div className="flex items-center gap-4 flex-wrap">
-                  {/* Patient ID Badge */}
-                  {patientData.patientId && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="gap-2 px-3 py-1 text-sm font-mono">
-                        <IdCard className="w-4 h-4" />
-                        ID: {patientData.patientId}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 ml-1 hover:bg-primary/20"
-                          onClick={handleCopyPatientId}
-                        >
-                          {patientIdCopied ? (
-                            <Check className="w-3 h-3 text-rose-600" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </Button>
-                      </Badge>
-                    </div>
-                  )}
-                  {assessmentData?.location && (
-                    <Badge variant="outline" className="gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {assessmentData.location}
-                    </Badge>
-                  )}
-                  {assessmentData?.dob && (
-                    <Badge variant="outline" className="gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {calculateAge(assessmentData.dob)}
-                    </Badge>
-                  )}
-                </div>
-                {/* Registration Date */}
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <Avatar className="h-16 w-16 shrink-0 shadow-sm sm:h-20 sm:w-20">
+              <AvatarFallback className="bg-accent-soft text-title3 font-semibold text-primary sm:text-title2">
+                {patientData.name.split(' ').map(n => n[0]).join('')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h1 className="text-title2 text-foreground sm:text-title1">{patientData.name}</h1>
+              <p className="mt-0.5 truncate text-footnote text-foreground-secondary">{patientData.email}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {assessmentData?.location && (
+                  <Badge variant="outline" className="gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {assessmentData.location}
+                  </Badge>
+                )}
+                {assessmentData?.dob && (
+                  <Badge variant="outline" className="gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {calculateAge(assessmentData.dob)}
+                  </Badge>
+                )}
                 {patientData.registrationDate && (
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <span className="text-caption1 text-foreground-tertiary">
                     Member since {formatDate(patientData.registrationDate)}
-                  </p>
+                  </span>
                 )}
               </div>
             </div>
-            <div className="flex gap-3">
-              {isEditing ? (
-                <>
-                  <Button onClick={handleSave} size="lg" className="gap-2">
-                    <Save className="w-5 h-5" />
-                    Save Changes
-                  </Button>
-                  <Button onClick={handleCancel} variant="outline" size="lg" className="gap-2">
-                    <X className="w-5 h-5" />
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <Button onClick={() => setIsEditing(true)} size="lg" className="gap-2">
-                  <Edit className="w-5 h-5" />
-                  Edit Profile
+          </div>
+          <div className="flex shrink-0 gap-2.5">
+            {isEditing ? (
+              <>
+                <Button onClick={handleSave} className="h-11 flex-1 gap-2 sm:flex-initial">
+                  <Save className="w-4 h-4" />
+                  Save changes
                 </Button>
-              )}
-            </div>
+                <Button onClick={handleCancel} variant="outline" className="h-11 flex-1 gap-2 sm:flex-initial">
+                  <X className="w-4 h-4" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)} variant="outline" className="h-11 w-full gap-2 sm:w-auto">
+                <Edit className="w-4 h-4" />
+                Edit profile
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Patient ID Information Card */}
       {patientData.patientId && (
-        <Card className="border-primary/20 shadow-lg">
-          <CardHeader className="pb-6">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 rounded-full bg-plum-100">
-                <IdCard className="w-6 h-6 text-plum-600" />
-              </div>
-              Patient Information
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <IdCard className="w-5 h-5" />
+              </span>
+              Patient information
             </CardTitle>
             <CardDescription>Your unique patient identification and account details</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                <div>
-                  <p className="font-medium">Patient ID</p>
-                  <p className="text-2xl font-mono font-bold text-primary">{patientData.patientId}</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-4">
+                <div className="min-w-0">
+                  <p className="text-caption1 font-medium text-foreground-secondary">Patient ID</p>
+                  <p className="truncate text-title3 font-mono font-bold text-primary">{patientData.patientId}</p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCopyPatientId}
-                  className="gap-2"
+                  className="h-10 shrink-0 gap-2"
                 >
                   {patientIdCopied ? (
                     <>
@@ -431,36 +401,36 @@ export default function Profile() {
                   ) : (
                     <>
                       <Copy className="w-4 h-4" />
-                      Copy ID
+                      Copy
                     </>
                   )}
                 </Button>
               </div>
-              
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <p className="font-medium">Account Status</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+
+              <div className="rounded-xl bg-muted/50 p-4">
+                <p className="text-caption1 font-medium text-foreground-secondary">Account status</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
                   <Badge variant="outline" className="capitalize">
                     {patientData.status || 'Active'}
                   </Badge>
                 </div>
               </div>
 
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <p className="font-medium">Profile Status</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className={`w-2 h-2 rounded-full ${patientData.profileCompleted ? 'bg-rose-500' : 'bg-coral-500'}`}></div>
+              <div className="rounded-xl bg-muted/50 p-4">
+                <p className="text-caption1 font-medium text-foreground-secondary">Profile status</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className={`h-1.5 w-1.5 rounded-full ${patientData.profileCompleted ? 'bg-success' : 'bg-warning'}`} />
                   <Badge variant="outline" className="capitalize">
                     {patientData.profileCompleted ? 'Complete' : 'Incomplete'}
                   </Badge>
                 </div>
               </div>
             </div>
-            
-            <div className="p-3 bg-plum-50 border border-plum-200 rounded-lg">
-              <p className="text-sm text-plum-700">
-                <strong>Note:</strong> Please keep your Patient ID safe. You'll need it for appointments, 
+
+            <div className="rounded-xl border border-border bg-accent-soft/60 p-4">
+              <p className="text-footnote text-accent-soft-foreground">
+                <strong>Note:</strong> Keep your Patient ID handy — you'll need it for appointments,
                 medical records, and when contacting support.
               </p>
             </div>
@@ -470,158 +440,154 @@ export default function Profile() {
 
       {/* Show message if no assessment data */}
       {!assessmentData ? (
-        <Card className="border-coral-200 bg-coral-50">
+        <Card className="bg-accent-soft/40">
           <CardContent className="pt-6">
-            <div className="text-center">
-              <HeartPulse className="w-16 h-16 text-coral-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Complete Your Health Assessment</h3>
-              <p className="text-muted-foreground mb-4">
-                To get personalized recommendations, please complete your health assessment questionnaire.
+            <div className="mx-auto max-w-sm py-4 text-center">
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <HeartPulse className="w-7 h-7" />
+              </span>
+              <h3 className="text-headline text-foreground">Complete your health assessment</h3>
+              <p className="mt-2 text-footnote text-foreground-secondary">
+                A few minutes of questions is all it takes to unlock personalized recommendations
+                built around you.
               </p>
-              <Button onClick={() => window.location.href = '/patient/questionnaire'}>
-                Start Assessment
+              <Button className="mt-5" onClick={() => window.location.href = '/patient/questionnaire'}>
+                Start assessment
               </Button>
             </div>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             {/* Personal Information */}
-            <Card className="border-primary/20 shadow-lg">
-              <CardHeader className="pb-6">
-                <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <User className="w-6 h-6 text-primary" />
-                  </div>
-                  Personal Information
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                    <User className="w-5 h-5" />
+                  </span>
+                  Personal information
                 </CardTitle>
                 <CardDescription>Your basic profile details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="name" className="text-base font-medium">Full Name</Label>
-                    {isEditing ? (
-                      <Input
-                        id="name"
-                        value={assessmentData.name || patientData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        className="text-base h-12"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-base">{assessmentData.name || patientData.name}</span>
-                      </div>
-                    )}
-                  </div>
+              <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-footnote font-medium text-foreground-secondary">Full name</Label>
+                  {isEditing ? (
+                    <Input
+                      id="name"
+                      value={assessmentData.name || patientData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                      <User className="w-4 h-4 text-foreground-tertiary" />
+                      <span className="text-subhead text-foreground">{assessmentData.name || patientData.name}</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="space-y-3">
-                    <Label htmlFor="dob" className="text-base font-medium">Date of Birth</Label>
-                    {isEditing ? (
-                      <Input
-                        id="dob"
-                        type="date"
-                        value={assessmentData.dob}
-                        onChange={(e) => handleInputChange('dob', e.target.value)}
-                        className="text-base h-12"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-base">{assessmentData.dob || "Not specified"} ({calculateAge(assessmentData.dob)})</span>
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dob" className="text-footnote font-medium text-foreground-secondary">Date of birth</Label>
+                  {isEditing ? (
+                    <Input
+                      id="dob"
+                      type="date"
+                      value={assessmentData.dob}
+                      onChange={(e) => handleInputChange('dob', e.target.value)}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                      <Calendar className="w-4 h-4 text-foreground-tertiary" />
+                      <span className="text-subhead text-foreground">{assessmentData.dob || "Not specified"} ({calculateAge(assessmentData.dob)})</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="space-y-3">
-                    <Label htmlFor="gender" className="text-base font-medium">Gender</Label>
-                    {isEditing ? (
-                      <Select
-                        value={assessmentData.gender}
-                        onValueChange={(value) => handleInputChange('gender', value)}
-                      >
-                        <SelectTrigger className="h-12">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="non-binary">Non-binary</SelectItem>
-                          <SelectItem value="prefer-not-say">Prefer not to say</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-base capitalize">{assessmentData.gender?.replace('-', ' ') || "Not specified"}</span>
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gender" className="text-footnote font-medium text-foreground-secondary">Gender</Label>
+                  {isEditing ? (
+                    <Select
+                      value={assessmentData.gender}
+                      onValueChange={(value) => handleInputChange('gender', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="non-binary">Non-binary</SelectItem>
+                        <SelectItem value="prefer-not-say">Prefer not to say</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                      <User className="w-4 h-4 text-foreground-tertiary" />
+                      <span className="text-subhead capitalize text-foreground">{assessmentData.gender?.replace('-', ' ') || "Not specified"}</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="space-y-3">
-                    <Label htmlFor="location" className="text-base font-medium">Location</Label>
-                    {isEditing ? (
-                      <Input
-                        id="location"
-                        value={assessmentData.location}
-                        onChange={(e) => handleInputChange('location', e.target.value)}
-                        className="text-base h-12"
-                        placeholder="City, State"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-base">{assessmentData.location || "Not specified"}</span>
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-footnote font-medium text-foreground-secondary">Location</Label>
+                  {isEditing ? (
+                    <Input
+                      id="location"
+                      value={assessmentData.location}
+                      onChange={(e) => handleInputChange('location', e.target.value)}
+                      placeholder="City, State"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                      <MapPin className="w-4 h-4 text-foreground-tertiary" />
+                      <span className="text-subhead text-foreground">{assessmentData.location || "Not specified"}</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
             {/* Allergies & Dietary Pattern */}
-            <Card className="border-primary/20 shadow-lg">
-              <CardHeader className="pb-6">
-                <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 rounded-full bg-rose-100">
-                    <Apple className="w-6 h-6 text-rose-600" />
-                  </div>
-                  Allergies & Dietary Pattern
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                    <Apple className="w-5 h-5" />
+                  </span>
+                  Allergies & dietary pattern
                 </CardTitle>
                 <CardDescription>Foods you always avoid and how you eat</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Dietary Preference</Label>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <Badge variant="outline" className="capitalize">
-                        {assessmentData.dietaryPreferences || "Not specified"}
-                      </Badge>
-                    </div>
+              <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Dietary preference</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
+                    <Badge variant="outline" className="capitalize">
+                      {assessmentData.dietaryPreferences || "Not specified"}
+                    </Badge>
                   </div>
+                </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Food Allergies</Label>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-base">{formatArrayToString(assessmentData.allergies, assessmentData.allergiesOther)}</p>
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Food allergies</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
+                    <p className="text-subhead text-foreground">{formatArrayToString(assessmentData.allergies, assessmentData.allergiesOther)}</p>
                   </div>
+                </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Foods Avoided</Label>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-base">{assessmentData.foodAvoidances || "Not specified"}</p>
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Foods avoided</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
+                    <p className="text-subhead text-foreground">{assessmentData.foodAvoidances || "Not specified"}</p>
                   </div>
+                </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Family History</Label>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-base">{formatArrayToString(assessmentData.familyHistory, assessmentData.familyHistoryOther)}</p>
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Family history</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
+                    <p className="text-subhead text-foreground">{formatArrayToString(assessmentData.familyHistory, assessmentData.familyHistoryOther)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -629,75 +595,75 @@ export default function Profile() {
           </div>
 
           {/* Ayurvedic Constitution */}
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-6">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-plum-100">
-                  <Heart className="w-6 h-6 text-plum-600" />
-                </div>
-                Ayurvedic Constitution Assessment
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <Heart className="w-5 h-5" />
+                </span>
+                Ayurvedic constitution assessment
               </CardTitle>
               <CardDescription>Your body constitution and characteristics</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Body Frame</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
+            <CardContent className="space-y-5">
+              <div className="grid gap-5 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Body frame</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
                     <Badge variant="outline" className="capitalize">
                       {assessmentData.bodyFrame || "Not specified"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Skin Type</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Skin type</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
                     <Badge variant="outline" className="capitalize">
                       {assessmentData.skinType || "Not specified"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Hair Type</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Hair type</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
                     <Badge variant="outline" className="capitalize">
                       {assessmentData.hairType || "Not specified"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Appetite Pattern</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Appetite pattern</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
                     <Badge variant="outline" className="capitalize">
                       {assessmentData.appetitePattern || "Not specified"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Weather Preference</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Weather preference</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
                     <Badge variant="outline" className="capitalize">
                       {assessmentData.weatherPreference || "Not specified"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Personality Traits</Label>
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <div className="flex flex-wrap gap-1">
+                <div className="space-y-2">
+                  <Label className="text-footnote font-medium text-foreground-secondary">Personality traits</Label>
+                  <div className="rounded-xl bg-muted/50 p-3">
+                    <div className="flex flex-wrap gap-1.5">
                       {assessmentData.personalityTraits && assessmentData.personalityTraits.length > 0 ? (
                         assessmentData.personalityTraits.map((trait, index) => (
-                          <Badge key={index} variant="secondary" className="capitalize text-xs">
+                          <Badge key={index} variant="secondary" className="capitalize">
                             {trait.replace('-', ' ')}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-sm text-muted-foreground">Not specified</span>
+                        <span className="text-footnote text-foreground-tertiary">Not specified</span>
                       )}
                     </div>
                   </div>
@@ -707,19 +673,19 @@ export default function Profile() {
           </Card>
 
           {/* Additional Notes */}
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-6">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 rounded-full bg-plum-100">
-                  <Target className="w-6 h-6 text-plum-600" />
-                </div>
-                Additional Notes
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <Target className="w-5 h-5" />
+                </span>
+                Additional notes
               </CardTitle>
               <CardDescription>Long-standing details a practitioner should always know</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <p className="text-base">{assessmentData.additionalNotes || "Not specified"}</p>
+              <div className="rounded-xl bg-muted/50 p-4">
+                <p className="text-subhead text-foreground">{assessmentData.additionalNotes || "Not specified"}</p>
               </div>
             </CardContent>
           </Card>
@@ -727,103 +693,102 @@ export default function Profile() {
       )}
 
       {/* Feedback Section */}
-      <Card className="border-primary/20 shadow-lg">
-        <CardHeader className="pb-6">
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <div className="p-2 rounded-full bg-rose-100">
-              <MessageSquare className="w-6 h-6 text-rose-600" />
-            </div>
-            Share Your Feedback
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <MessageSquare className="w-5 h-5" />
+            </span>
+            Share your feedback
           </CardTitle>
           <CardDescription>Help us improve your experience</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Overall Rating</Label>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
-                    className="hover:scale-110 transition-transform"
-                  >
-                    <Star 
-                      className={`w-8 h-8 ${
-                        star <= feedbackData.rating 
-                          ? 'fill-coral-400 text-coral-400' 
-                          : 'text-gray-300 hover:text-coral-200'
-                      }`} 
-                    />
-                  </button>
-                ))}
-                <span className="ml-3 text-lg font-medium">{feedbackData.rating}/5</span>
-              </div>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label className="text-footnote font-medium text-foreground-secondary">Overall rating</Label>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
+                  className="flex h-11 w-11 items-center justify-center transition-transform hover:scale-110"
+                  aria-label={`Rate ${star} out of 5`}
+                >
+                  <Star
+                    className={`h-7 w-7 ${
+                      star <= feedbackData.rating
+                        ? 'fill-primary text-primary'
+                        : 'text-border-strong'
+                    }`}
+                  />
+                </button>
+              ))}
+              <span className="ml-1 text-subhead font-medium text-foreground">{feedbackData.rating}/5</span>
             </div>
-
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Feedback Category</Label>
-              <Select
-                value={feedbackData.category}
-                onValueChange={(value: "general" | "features" | "bug" | "suggestion") => 
-                  setFeedbackData({ ...feedbackData, category: value })
-                }
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">General Feedback</SelectItem>
-                  <SelectItem value="features">Feature Request</SelectItem>
-                  <SelectItem value="bug">Bug Report</SelectItem>
-                  <SelectItem value="suggestion">Suggestion</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Your Message</Label>
-              <Textarea
-                value={feedbackData.message}
-                onChange={(e) => setFeedbackData({ ...feedbackData, message: e.target.value })}
-                placeholder="Share your thoughts, suggestions, or report any issues..."
-                className="min-h-[120px] resize-none"
-              />
-            </div>
-
-            <Button onClick={handleFeedbackSubmit} className="w-full h-12 gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Submit Feedback
-            </Button>
           </div>
+
+          <div className="space-y-2">
+            <Label className="text-footnote font-medium text-foreground-secondary">Feedback category</Label>
+            <Select
+              value={feedbackData.category}
+              onValueChange={(value: "general" | "features" | "bug" | "suggestion") =>
+                setFeedbackData({ ...feedbackData, category: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">General feedback</SelectItem>
+                <SelectItem value="features">Feature request</SelectItem>
+                <SelectItem value="bug">Bug report</SelectItem>
+                <SelectItem value="suggestion">Suggestion</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-footnote font-medium text-foreground-secondary">Your message</Label>
+            <Textarea
+              value={feedbackData.message}
+              onChange={(e) => setFeedbackData({ ...feedbackData, message: e.target.value })}
+              placeholder="Share your thoughts, suggestions, or report any issues..."
+              className="min-h-[110px] resize-none"
+            />
+          </div>
+
+          <Button onClick={handleFeedbackSubmit} className="w-full gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Submit feedback
+          </Button>
         </CardContent>
       </Card>
 
       {/* Contact Information */}
-      <Card className="border-primary/20 shadow-lg">
-        <CardHeader className="pb-6">
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <div className="p-2 rounded-full bg-plum-100">
-              <Phone className="w-6 h-6 text-plum-600" />
-            </div>
-            Contact & Support
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <Phone className="w-5 h-5" />
+            </span>
+            Contact & support
           </CardTitle>
           <CardDescription>Get in touch with our team</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-              <Mail className="w-5 h-5 text-muted-foreground" />
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-4">
+              <Mail className="w-5 h-5 text-foreground-tertiary" />
               <div>
-                <p className="font-medium">Email Support</p>
-                <p className="text-sm text-muted-foreground">support@ayurvedaapp.com</p>
+                <p className="text-subhead font-medium text-foreground">Email support</p>
+                <p className="text-footnote text-foreground-secondary">support@ayurvedaapp.com</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-              <Phone className="w-5 h-5 text-muted-foreground" />
+            <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-4">
+              <Phone className="w-5 h-5 text-foreground-tertiary" />
               <div>
-                <p className="font-medium">Phone Support</p>
-                <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
+                <p className="text-subhead font-medium text-foreground">Phone support</p>
+                <p className="text-footnote text-foreground-secondary">+1 (555) 123-4567</p>
               </div>
             </div>
           </div>

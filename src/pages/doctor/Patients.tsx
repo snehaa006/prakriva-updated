@@ -307,7 +307,7 @@ const Patients: React.FC = () => {
           <div className="text-xs text-muted-foreground">Energy</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-red-100 text-red-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-destructive/10 text-destructive">
             <Thermometer className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.stressLevels || 'N/A'}/5</div>
@@ -598,7 +598,7 @@ const Patients: React.FC = () => {
                         <Label className="text-xs text-muted-foreground">Allergies</Label>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {patient.fullPatientProfile.allergies.slice(0, 3).map((allergy, index) => (
-                            <Badge key={index} variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            <Badge key={index} variant="outline" className="text-xs bg-destructive/5 text-destructive border-destructive/20">
                               {allergy}
                             </Badge>
                           ))}
@@ -667,7 +667,7 @@ const Patients: React.FC = () => {
             
             <div className="space-y-6">
               {/* Patient Header with ID */}
-              <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+              <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-2xl">
                 <Avatar className="w-16 h-16 border border-border">
                   <AvatarFallback className="bg-muted text-foreground text-lg font-medium">
                     {selectedPatient.patientName.split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -805,7 +805,7 @@ const Patients: React.FC = () => {
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       {selectedPatient.fullPatientProfile.allergies.map((allergy, index) => (
-                        <Badge key={index} variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                        <Badge key={index} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20">
                           <AlertCircle className="w-3 h-3 mr-1" />
                           {allergy}
                         </Badge>

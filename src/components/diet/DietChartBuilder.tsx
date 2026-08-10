@@ -246,7 +246,7 @@ export const DietChartBuilder = () => {
               {filteredFoods.map((food) => (
                 <Card
                   key={food.id}
-                  className="p-3 cursor-grab hover:shadow-md transition-shadow border-dashed"
+                  className="p-3 rounded-xl cursor-grab hover:shadow-md transition-shadow border-dashed"
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', food.id);
@@ -288,7 +288,7 @@ export const DietChartBuilder = () => {
                     return (
                       <Card
                         key={meal.id}
-                        className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors min-h-24"
+                        className="rounded-2xl border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors min-h-24"
                         onDrop={(e) => {
                           e.preventDefault();
                           const foodId = e.dataTransfer.getData('text/plain');
@@ -323,7 +323,7 @@ export const DietChartBuilder = () => {
                               {meal.foods.map((food) => (
                                 <div
                                   key={food.id}
-                                  className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
+                                  className="flex items-center justify-between p-2 bg-muted/50 rounded-xl"
                                 >
                                   <div>
                                     <span className="font-medium text-sm">{food.name}</span>
@@ -412,7 +412,7 @@ export const DietChartBuilder = () => {
 
       <DragOverlay>
         {activeFood ? (
-          <Card className="p-3 shadow-lg rotate-3 bg-card">
+          <Card className="p-3 rounded-xl shadow-lg rotate-3 bg-card">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="font-medium text-sm">{activeFood.name}</h4>

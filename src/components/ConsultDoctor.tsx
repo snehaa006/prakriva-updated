@@ -389,7 +389,7 @@ const ConsultDoctor: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
@@ -402,20 +402,21 @@ const ConsultDoctor: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold">Consult with Verified Doctors</h1>
-          <p className="text-muted-foreground">Connect with experienced Ayurvedic practitioners and get personalized healthcare guidance.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Consult with Verified Doctors</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Connect with experienced Ayurvedic practitioners and get personalized healthcare guidance.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-end sm:self-auto">
           {/* Notifications Bell */}
           <div className="relative">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="gap-2"
+              size="icon"
+              className="h-11 w-11 shrink-0"
             >
               {unreadCount > 0 ? (
                 <BellRing className="w-4 h-4" />
@@ -423,15 +424,15 @@ const ConsultDoctor: React.FC = () => {
                 <Bell className="w-4 h-4" />
               )}
               {unreadCount > 0 && (
-                <Badge variant="destructive" className="ml-1 px-1 min-w-[20px] h-5">
+                <Badge variant="destructive" className="absolute -top-1 -right-1 px-1 min-w-[20px] h-5">
                   {unreadCount}
                 </Badge>
               )}
             </Button>
-            
+
             {/* Notifications Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-background border border-border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+              <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-popover border border-border rounded-2xl shadow-lg z-50 max-h-[70vh] sm:max-h-96 overflow-y-auto">
                 <div className="p-3 border-b border-border">
                   <h3 className="font-medium">Notifications</h3>
                   {unreadCount > 0 && (
@@ -454,8 +455,8 @@ const ConsultDoctor: React.FC = () => {
                       >
                         <div className="flex items-start gap-2">
                           <div className={`w-2 h-2 rounded-full mt-2 ${
-                            notification.type === 'consultation_accepted' 
-                              ? 'bg-rose-500' 
+                            notification.type === 'consultation_accepted'
+                              ? 'bg-rose-500'
                               : notification.type === 'consultation_rejected'
                               ? 'bg-red-500'
                               : 'bg-plum-500'
@@ -480,10 +481,10 @@ const ConsultDoctor: React.FC = () => {
               </div>
             )}
           </div>
-          
-          <Button variant="outline" onClick={loadDoctors} disabled={loading} className="gap-2">
+
+          <Button variant="outline" onClick={loadDoctors} disabled={loading} size="icon" className="h-11 w-11 shrink-0 sm:w-auto sm:px-4 sm:gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </div>
@@ -491,15 +492,15 @@ const ConsultDoctor: React.FC = () => {
       {/* Search and Filters Section */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-lg">Find Doctors</CardTitle>
               <CardDescription>Search and filter doctors by your preferences</CardDescription>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
+              className="gap-2 h-11 w-full sm:w-auto sm:h-10"
             >
               <SlidersHorizontal className="w-4 h-4" />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
@@ -514,7 +515,7 @@ const ConsultDoctor: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by doctor name, clinic, or location..."
-                className="pl-10"
+                className="pl-10 h-11 sm:h-10"
               />
               {searchLoading && (
                 <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
@@ -524,13 +525,13 @@ const ConsultDoctor: React.FC = () => {
 
           {/* Filters */}
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-2xl bg-muted/30">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Minimum Experience</label>
-                <select 
-                  value={filters.experience} 
+                <select
+                  value={filters.experience}
                   onChange={(e) => updateFilter('experience', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  className="w-full h-11 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Any experience</option>
                   <option value="1">1+ years</option>
@@ -546,7 +547,7 @@ const ConsultDoctor: React.FC = () => {
                   value={filters.location}
                   onChange={(e) => updateFilter('location', e.target.value)}
                   placeholder="Enter city or area"
-                  className="text-sm"
+                  className="text-sm h-11"
                 />
               </div>
 
@@ -556,16 +557,16 @@ const ConsultDoctor: React.FC = () => {
                   value={filters.specialization}
                   onChange={(e) => updateFilter('specialization', e.target.value)}
                   placeholder="e.g., Panchakarma, Skin"
-                  className="text-sm"
+                  className="text-sm h-11"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Verification Status</label>
-                <select 
-                  value={filters.verificationStatus} 
+                <select
+                  value={filters.verificationStatus}
                   onChange={(e) => updateFilter('verificationStatus', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  className="w-full h-11 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">All doctors</option>
                   <option value="verified">Verified only</option>
@@ -575,10 +576,10 @@ const ConsultDoctor: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Consultation Mode</label>
-                <select 
-                  value={filters.consultationMode} 
+                <select
+                  value={filters.consultationMode}
                   onChange={(e) => updateFilter('consultationMode', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  className="w-full h-11 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">All modes</option>
                   <option value="online">Online consultation</option>
@@ -589,10 +590,10 @@ const ConsultDoctor: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Minimum Rating</label>
-                <select 
-                  value={filters.minRating} 
+                <select
+                  value={filters.minRating}
                   onChange={(e) => updateFilter('minRating', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  className="w-full h-11 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Any rating</option>
                   <option value="4.0">4.0+ stars</option>
@@ -601,8 +602,8 @@ const ConsultDoctor: React.FC = () => {
                 </select>
               </div>
 
-              <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-                <Button variant="outline" size="sm" onClick={clearFilters}>
+              <div className="sm:col-span-2 md:col-span-3 flex justify-end gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={clearFilters} className="h-10">
                   Clear Filters
                 </Button>
               </div>
@@ -610,12 +611,12 @@ const ConsultDoctor: React.FC = () => {
           )}
 
           {filteredDoctors.length > 0 && (
-            <div className="mt-4 flex items-center justify-between text-sm">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
               <span className="text-muted-foreground">
                 {filteredDoctors.length} doctor{filteredDoctors.length !== 1 ? 's' : ''} found
                 {(searchQuery || Object.values(filters).some(f => f)) && ' matching your criteria'}
               </span>
-              <Badge variant="outline" className="gap-1">
+              <Badge variant="outline" className="gap-1 self-start sm:self-auto">
                 <CheckCircle className="w-3 h-3" />
                 Sorted by verification & rating
               </Badge>
@@ -640,6 +641,7 @@ const ConsultDoctor: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={() => setSearchQuery('')}
+                className="h-11"
               >
                 Clear Search
               </Button>
@@ -647,14 +649,14 @@ const ConsultDoctor: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-4 sm:gap-6">
           {filteredDoctors.map((doctor) => (
             <Card key={doctor.id} className="hover:shadow-md transition-shadow duration-200">
-              <CardContent className="p-6">
-                <div className="flex gap-6">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex gap-4 sm:gap-6">
                   {/* Doctor Avatar */}
                   <div className="flex-shrink-0">
-                    <Avatar className="w-16 h-16 border border-border">
+                    <Avatar className="w-12 h-12 sm:w-16 sm:h-16 border border-border">
                       <AvatarFallback className="bg-muted text-foreground text-sm font-medium">
                         {doctor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </AvatarFallback>
@@ -662,29 +664,29 @@ const ConsultDoctor: React.FC = () => {
                   </div>
 
                   {/* Doctor Info */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-2">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-semibold text-foreground">
+                          <h3 className="text-base sm:text-lg font-semibold text-foreground truncate">
                             {formatDoctorName(doctor.name)}
                           </h3>
                           {getVerificationIcon(doctor.verificationStatus)}
                         </div>
                         {doctor.clinicName && (
-                          <p className="text-muted-foreground">{doctor.clinicName}</p>
+                          <p className="text-muted-foreground text-sm sm:text-base">{doctor.clinicName}</p>
                         )}
                         {doctor.clinicAddress && (
-                          <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                            <MapPin className="w-3 h-3" />
+                          <div className="flex items-start gap-1 text-muted-foreground text-sm">
+                            <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
                             <span>{doctor.clinicAddress}</span>
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Rating */}
                       {doctor.rating && (
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-sm shrink-0">
                           <Star className="w-4 h-4 text-coral-500 fill-current" />
                           <span className="font-medium">{doctor.rating.toFixed(1)}</span>
                           {doctor.totalReviews && (
@@ -695,7 +697,7 @@ const ConsultDoctor: React.FC = () => {
                     </div>
 
                     {/* Key Info Row */}
-                    <div className="flex flex-wrap gap-4 mb-3 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-sm text-muted-foreground">
                       {doctor.yearsOfExperience && (
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -735,21 +737,21 @@ const ConsultDoctor: React.FC = () => {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       {acceptedChats.has(doctor.id) ? (
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => navigate(`/communication?chatId=${doctor.id}`)}
-                          className="gap-1"
+                          className="gap-1 h-10 sm:h-9 w-full sm:w-auto"
                         >
                           Chat
                         </Button>
                       ) : existingRequests.has(doctor.id) ? (
-                        <Button 
-                          disabled 
+                        <Button
+                          disabled
                           size="sm"
-                          className="gap-1"
+                          className="gap-1 h-10 sm:h-9 w-full sm:w-auto"
                         >
                           <CheckCircle className="w-3 h-3" />
                           Request Sent
@@ -758,18 +760,18 @@ const ConsultDoctor: React.FC = () => {
                         <Button
                           onClick={() => handleRequestConsultation(doctor)}
                           size="sm"
-                          className="gap-1"
+                          className="gap-1 h-10 sm:h-9 w-full sm:w-auto"
                         >
                           <UserPlus className="w-3 h-3" />
                           Request Consultation
                         </Button>
                       )}
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleViewProfile(doctor)}
-                        className="gap-1"
+                        className="gap-1 h-10 sm:h-9 w-full sm:w-auto"
                       >
                         <Eye className="w-3 h-3" />
                         View Profile
@@ -799,18 +801,18 @@ const ConsultDoctor: React.FC = () => {
 
       {/* Doctor Profile Modal */}
       {selectedDoctor && profileModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => { setProfileModalOpen(false); setSelectedDoctor(null); }}>
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-16 h-16 border-2 border-border">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" onClick={() => { setProfileModalOpen(false); setSelectedDoctor(null); }}>
+          <Card className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4 gap-3">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <Avatar className="w-12 h-12 sm:w-16 sm:h-16 border-2 border-border shrink-0">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-lg sm:text-xl font-bold">
                     {selectedDoctor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <CardTitle className="text-2xl">{formatDoctorName(selectedDoctor.name)}</CardTitle>
-                  <CardDescription className="text-base">
+                <div className="min-w-0">
+                  <CardTitle className="text-lg sm:text-2xl truncate">{formatDoctorName(selectedDoctor.name)}</CardTitle>
+                  <CardDescription className="text-sm sm:text-base truncate">
                     {selectedDoctor.clinicName}
                   </CardDescription>
                 </div>
@@ -818,6 +820,7 @@ const ConsultDoctor: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-10 w-10 shrink-0"
                 onClick={() => {
                   setProfileModalOpen(false);
                   setSelectedDoctor(null);
@@ -829,23 +832,23 @@ const ConsultDoctor: React.FC = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-semibold mb-1">Experience</h4>
-                  <p className="text-muted-foreground">{selectedDoctor.yearsOfExperience} years</p>
+                  <h4 className="font-semibold mb-1 text-sm sm:text-base">Experience</h4>
+                  <p className="text-muted-foreground text-sm sm:text-base">{selectedDoctor.yearsOfExperience} years</p>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Rating</h4>
+                  <h4 className="font-semibold mb-1 text-sm sm:text-base">Rating</h4>
                   <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-coral-500 fill-current" />
-                    <span className="text-muted-foreground">{selectedDoctor.rating} ({selectedDoctor.totalReviews} reviews)</span>
+                    <Star className="w-4 h-4 text-coral-500 fill-current shrink-0" />
+                    <span className="text-muted-foreground text-sm sm:text-base">{selectedDoctor.rating} ({selectedDoctor.totalReviews} reviews)</span>
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Consultation Fee</h4>
-                  <p className="text-muted-foreground">₹{selectedDoctor.consultationFee}</p>
+                  <h4 className="font-semibold mb-1 text-sm sm:text-base">Consultation Fee</h4>
+                  <p className="text-muted-foreground text-sm sm:text-base">₹{selectedDoctor.consultationFee}</p>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Location</h4>
-                  <p className="text-muted-foreground">{selectedDoctor.clinicAddress}</p>
+                  <h4 className="font-semibold mb-1 text-sm sm:text-base">Location</h4>
+                  <p className="text-muted-foreground text-sm sm:text-base">{selectedDoctor.clinicAddress}</p>
                 </div>
               </div>
               
@@ -877,7 +880,7 @@ const ConsultDoctor: React.FC = () => {
               {selectedDoctor.consultationModes && selectedDoctor.consultationModes.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2">Consultation Modes</h4>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {selectedDoctor.consultationModes.map((mode, index) => (
                       <Badge key={index} variant="outline" className="capitalize">
                         {mode.replace('-', ' ')}
@@ -894,18 +897,18 @@ const ConsultDoctor: React.FC = () => {
                       setProfileModalOpen(false);
                       navigate(`/communication?chatId=${selectedDoctor.id}`);
                     }}
-                    className="w-full gap-2"
+                    className="w-full gap-2 h-11"
                   >
                     Chat
                   </Button>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={() => {
                       setProfileModalOpen(false);
                       handleRequestConsultation(selectedDoctor);
                     }}
                     disabled={existingRequests.has(selectedDoctor.id)}
-                    className="w-full gap-2"
+                    className="w-full gap-2 h-11"
                   >
                     {existingRequests.has(selectedDoctor.id) ? (
                       <>

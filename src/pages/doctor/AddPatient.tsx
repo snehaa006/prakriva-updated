@@ -309,7 +309,7 @@ const ConsultationRequests: React.FC = () => {
     switch (urgency) {
       case 'high':
       case 'emergency':
-        return <Badge className="bg-red-100 text-red-800 border-red-200">High Priority</Badge>;
+        return <Badge className="bg-destructive/10 text-destructive border-destructive/20">High Priority</Badge>;
       case 'medium':
         return <Badge variant="outline" className="bg-coral-100 text-coral-800 border-coral-200">Medium Priority</Badge>;
       case 'low':
@@ -326,7 +326,7 @@ const ConsultationRequests: React.FC = () => {
       case 'accepted':
         return <Badge className="bg-rose-100 text-rose-800 border-rose-200">Accepted</Badge>;
       case 'rejected':
-        return <Badge className="bg-red-100 text-red-800 border-red-200">Declined</Badge>;
+        return <Badge className="bg-destructive/10 text-destructive border-destructive/20">Declined</Badge>;
       case 'completed':
         return <Badge variant="default">Completed</Badge>;
       default:
@@ -360,7 +360,7 @@ const ConsultationRequests: React.FC = () => {
           <div className="text-xs text-muted-foreground">Energy</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-red-100 text-red-600">
+          <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-destructive/10 text-destructive">
             <Thermometer className="w-4 h-4" />
           </div>
           <div className="text-lg font-bold">{assessmentData.stressLevels || 'N/A'}/5</div>
@@ -571,7 +571,7 @@ const ConsultationRequests: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRequestAction(request, 'decline')}
-                            className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                            className="gap-1 text-destructive border-destructive/20 hover:bg-destructive/5"
                           >
                             <X className="w-3 h-3" />
                             Decline
@@ -605,7 +605,7 @@ const ConsultationRequests: React.FC = () => {
             
             <div className="space-y-6">
               {/* Patient Header */}
-              <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+              <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-2xl">
                 <Avatar className="w-16 h-16 border border-border">
                   <AvatarFallback className="bg-muted text-foreground text-lg font-medium">
                     {selectedRequest.patientName.split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -697,7 +697,7 @@ const ConsultationRequests: React.FC = () => {
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       {selectedRequest.fullPatientProfile.allergies.map((allergy, index) => (
-<Badge key={index} variant="outline" className="bg-red-50 text-red-700 border-red-200">
+<Badge key={index} variant="outline" className="bg-destructive/5 text-destructive border-destructive/20">
                           <AlertCircle className="w-3 h-3 mr-1" />
                           {allergy}
                         </Badge>
@@ -933,7 +933,7 @@ const ConsultationRequests: React.FC = () => {
             <Button 
               onClick={submitResponse}
               disabled={submitting}
-              className={responseType === 'accept' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-red-600 hover:bg-red-700'}
+              className={responseType === 'accept' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-destructive hover:bg-destructive/90'}
             >
               {submitting ? (
                 <>

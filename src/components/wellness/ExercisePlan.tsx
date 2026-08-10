@@ -7,6 +7,7 @@
 // their presentation.
 
 import React from "react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -59,9 +60,9 @@ const EXERCISE_ICONS: Record<ExerciseIcon, typeof Activity> = {
 // One ramp per intensity so the three stay tellable apart at a glance; the
 // badge also spells the word out, so hue is never the only cue.
 const INTENSITY_STYLES: Record<string, string> = {
-  gentle: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-coral-100 text-coral-800 border-coral-200",
-  brisk: "bg-plum-100 text-plum-800 border-plum-200",
+  gentle: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  moderate: "bg-warning/10 text-warning border-warning/20",
+  brisk: "bg-vata/10 text-vata border-vata/20",
 };
 
 interface ExerciseCardProps {
@@ -81,29 +82,34 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   const Icon = EXERCISE_ICONS[exercise.icon] ?? Activity;
 
   return (
-    <div className={`rounded-lg border p-4 ${isDone ? "border-rose-200 bg-rose-50/50" : ""}`}>
+    <div
+      className={cn(
+        "rounded-xl border border-border p-4 transition-colors",
+        isDone && "border-accent-soft-foreground/20 bg-accent-soft/40",
+      )}
+    >
       <div className="flex items-start gap-3">
-        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gray-700" />
+        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-foreground-secondary" />
         <div className="min-w-0 flex-1">
           {isDone && (
             <CheckCircle2
-              className="float-right h-5 w-5 shrink-0 text-rose-600"
+              className="float-right h-5 w-5 shrink-0 text-primary"
               aria-label="Today's target met"
             />
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="font-medium">{exercise.name}</h4>
+            <h4 className="text-subhead font-medium text-foreground">{exercise.name}</h4>
             <Badge variant="outline" className={INTENSITY_STYLES[exercise.intensity]}>
               {exercise.intensity}
             </Badge>
           </div>
-          <p className="mt-1 text-sm text-gray-600">{exercise.how}</p>
-          <p className="mt-1 text-xs text-gray-500">Target: {exercise.minutes} min/day</p>
+          <p className="mt-1 text-footnote text-foreground-secondary">{exercise.how}</p>
+          <p className="mt-1 text-caption1 text-foreground-tertiary">Target: {exercise.minutes} min/day</p>
           <a
             href={videoUrl(exercise)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-caption1 font-medium text-primary hover:underline"
           >
             <Youtube className="h-3.5 w-3.5" />
             Watch how to do it
@@ -121,12 +127,12 @@ export const ExerciseAvoidList: React.FC<{ items: string[]; heading?: string }> 
   heading = "Avoid for now",
 }) =>
   items.length === 0 ? null : (
-    <div className="rounded-lg border border-red-100 bg-red-50/50 p-4">
+    <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
       <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-red-600" />
-        <h4 className="font-medium text-red-900">{heading}</h4>
+        <AlertTriangle className="h-4 w-4 text-destructive" />
+        <h4 className="text-subhead font-medium text-destructive">{heading}</h4>
       </div>
-      <ul className="mt-2 space-y-1 text-sm text-red-900/80">
+      <ul className="mt-2 space-y-1 text-footnote text-destructive/90">
         {items.map((item) => (
           <li key={item} className="flex gap-2">
             <span aria-hidden>•</span>
@@ -156,7 +162,7 @@ export const ExerciseSuggestions: React.FC<ExerciseSuggestionsProps> = ({
   renderAction,
   isDone,
 }) => (
-  <>
+  <div className="space-y-5">
     <div className="grid gap-3 md:grid-cols-2">
       {recommendation.exercises.map((exercise) => (
         <ExerciseCard
@@ -170,18 +176,18 @@ export const ExerciseSuggestions: React.FC<ExerciseSuggestionsProps> = ({
 
     <div className="space-y-3">
       {recommendation.plans.map((plan) => (
-        <div key={plan.key} className="rounded-lg border border-plum-100 bg-plum-50/50 p-4">
+        <div key={plan.key} className="rounded-xl border border-accent-soft-foreground/15 bg-accent-soft/40 p-4">
           <div className="flex items-center gap-2">
-            <Info className="h-4 w-4 text-plum-600" />
-            <h4 className="font-medium text-plum-900">Why this for {plan.label}</h4>
+            <Info className="h-4 w-4 text-accent-soft-foreground" />
+            <h4 className="text-subhead font-medium text-accent-soft-foreground">Why this for {plan.label}</h4>
           </div>
-          <p className="mt-1 text-sm text-plum-900/80">{plan.rationale}</p>
+          <p className="mt-1 text-footnote text-accent-soft-foreground/80">{plan.rationale}</p>
         </div>
       ))}
     </div>
 
     <ExerciseAvoidList items={recommendation.avoid} />
-  </>
+  </div>
 );
 
 /** One condition's own section: the risk, the reasoning, and its videos. */
@@ -191,9 +197,9 @@ const ConditionSection: React.FC<{
   plan: ExercisePlanShape;
   isPregnant: boolean;
 }> = ({ label, riskLevel, plan, isPregnant }) => (
-  <div className="space-y-3 rounded-lg border p-4">
+  <div className="space-y-3 rounded-xl border border-border p-5">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="font-semibold">Exercise for {label}</h3>
+      <h3 className="text-headline text-foreground">Exercise for {label}</h3>
       {riskLevel && (
         <Badge variant="outline" className={RISK_STYLES[riskLevel].badge}>
           {RISK_STYLES[riskLevel].label}
@@ -201,7 +207,7 @@ const ConditionSection: React.FC<{
       )}
     </div>
 
-    <p className="text-sm text-muted-foreground">{plan.rationale}</p>
+    <p className="text-footnote text-foreground-secondary">{plan.rationale}</p>
 
     <div className="grid gap-3 md:grid-cols-2">
       {planExercises(plan, isPregnant).map((exercise) => (
@@ -246,8 +252,10 @@ export const ScreeningExercisePlan: React.FC<{
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
+            <Activity className="h-4.5 w-4.5" />
+          </span>
           {audience === "patient" ? "Exercise for your results" : "Suggested exercise plan"}
         </CardTitle>
         <CardDescription>
@@ -264,22 +272,24 @@ export const ScreeningExercisePlan: React.FC<{
                   .join(", ")}. Each exercise links to a how-to video the patient can follow.`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         {fallback ? (
           <ExerciseSuggestions recommendation={fallback} />
         ) : (
-          sections.map((section) => (
-            <ConditionSection
-              key={section.plan.key}
-              label={section.label}
-              riskLevel={section.riskLevel}
-              plan={section.plan}
-              isPregnant={isPregnant}
-            />
-          ))
+          <div className="space-y-4">
+            {sections.map((section) => (
+              <ConditionSection
+                key={section.plan.key}
+                label={section.label}
+                riskLevel={section.riskLevel}
+                plan={section.plan}
+                isPregnant={isPregnant}
+              />
+            ))}
+          </div>
         )}
 
-        <p className="text-xs text-muted-foreground">{EXERCISE_DISCLAIMER[audience]}</p>
+        <p className="text-caption1 text-foreground-tertiary">{EXERCISE_DISCLAIMER[audience]}</p>
       </CardContent>
     </Card>
   );

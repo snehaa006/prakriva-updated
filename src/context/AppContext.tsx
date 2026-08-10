@@ -209,6 +209,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   >([]);
 
   useEffect(() => {
+    // TEMPORARY DEV-ONLY PREVIEW BYPASS — auth is OFF by default while this
+    // block is in place, so the redesign can be reviewed without a real
+    // Supabase login. Never runs in a production build (`import.meta.env.DEV`
+    // is false there). Remove this whole block once real login is needed
+    // again. Defaults to a fake patient session; set
+    // localStorage["prakriva_preview_bypass"] = "doctor" to preview as a
+    // doctor instead, or "off" to fall through to the real auth flow below.
+    const previewRole = import.meta.env.DEV
+      ? localStorage.getItem("prakriva_preview_bypass") ?? "patient"
+      : "off";
+    if (previewRole === "patient") {
+      setUser({ id: "preview-patient", name: "Preview Patient", email: "preview@example.com", role: "patient" });
+      setQuestionnaireCompleted(true);
+      // Both tracks on, not [] — a preview should surface every track-gated
+      // feature (Health Check, Period Tracker, Skin & Acne) at once, not
+      // just the general-wellness baseline. A real patient can genuinely be
+      // on both tracks simultaneously, so this isn't even a fake state.
+      setHealthTracks(["pregnancy", "pcos"]);
+      setIsLoading(false);
+      return;
+    }
+    if (previewRole === "doctor") {
+      setUser({ id: "preview-doctor", name: "Preview Doctor", email: "preview@example.com", role: "doctor" });
+      setDoctor({ id: "preview-doctor", name: "Preview Doctor", email: "preview@example.com", specialization: "General Ayurveda" });
+      setIsLoading(false);
+      return;
+    }
+
     const clearSession = () => {
       setUser(null);
       setDoctor(null);

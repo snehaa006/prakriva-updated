@@ -110,10 +110,10 @@ const SymptomTracking = () => {
 
   const getSeverityColor = (level) => {
     const colors = [
-      "bg-gray-100 text-gray-700 border-gray-200",
+      "bg-muted text-muted-foreground border-border",
       "bg-coral-50 text-coral-700 border-coral-200", 
       "bg-coral-50 text-coral-700 border-coral-200",
-      "bg-red-50 text-red-700 border-red-200"
+      "bg-destructive/10 text-destructive border-destructive/30"
     ];
     return colors[level] || colors[0];
   };
@@ -251,27 +251,27 @@ const SymptomTracking = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50 min-h-screen">
+      <div className="flex-1 flex items-center justify-center p-8 bg-muted min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your symptom tracker...</p>
+          <p className="text-muted-foreground">Loading your symptom tracker...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-muted p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Symptom & Health Tracking</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-3xl font-bold text-foreground">Symptom & Health Tracking</h1>
+            <p className="text-muted-foreground mt-2">
               Monitor your daily symptoms and track improvement over time
             </p>
             {userDigestiveIssues.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
-                <span className="text-sm text-gray-500">Tracking:</span>
+                <span className="text-sm text-muted-foreground">Tracking:</span>
                 {userDigestiveIssues.map(issueKey => {
                   const issue = allDigestiveIssues[issueKey];
                   return issue ? (
@@ -286,18 +286,18 @@ const SymptomTracking = () => {
           <Button 
             variant="outline" 
             onClick={() => handleNavigation("/patient/dashboard")}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="border-border text-foreground/80 hover:bg-muted/50"
           >
             Back to Dashboard
           </Button>
         </div>
 
         {symptoms.length === 0 ? (
-          <Card className="bg-white border-gray-200 shadow-sm">
+          <Card className="bg-card border-border shadow-sm">
             <CardContent className="py-16 text-center">
-              <Activity className="w-16 h-16 text-gray-400 mx-auto mb-6" />
-              <h3 className="text-xl font-semibold mb-3 text-gray-900">No Digestive Issues Selected</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              <Activity className="w-16 h-16 text-muted-foreground mx-auto mb-6" />
+              <h3 className="text-xl font-semibold mb-3 text-foreground">No Digestive Issues Selected</h3>
+              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                 You haven't selected any digestive issues to track. Update your health profile to get started.
               </p>
               <Button 
@@ -311,22 +311,22 @@ const SymptomTracking = () => {
         ) : (
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Daily Symptom Log */}
-            <Card className="bg-white border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-100">
-                <CardTitle className="flex items-center gap-3 text-gray-900">
-                  <Calendar className="w-5 h-5 text-gray-700" />
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="flex items-center gap-3 text-foreground">
+                  <Calendar className="w-5 h-5 text-foreground/80" />
                   Daily Symptom Log
                 </CardTitle>
-                <CardDescription className="text-gray-600">Rate your symptoms for today</CardDescription>
+                <CardDescription className="text-muted-foreground">Rate your symptoms for today</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <Calendar className="w-4 h-4 text-gray-600" />
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-2xl border border-border">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-transparent border-none outline-none text-sm text-gray-700 flex-1"
+                    className="bg-transparent border-none outline-none text-sm text-foreground/80 flex-1"
                   />
                 </div>
 
@@ -334,8 +334,8 @@ const SymptomTracking = () => {
                   <div key={symptom.name} className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium text-gray-900">{symptom.name}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{symptom.description}</p>
+                        <h4 className="font-medium text-foreground">{symptom.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">{symptom.description}</p>
                       </div>
                       <Badge className={`${getSeverityColor(symptom.level)} text-xs px-2 py-1`}>
                         {getSeverityLabel(symptom.level)}
@@ -350,7 +350,7 @@ const SymptomTracking = () => {
                         step={1}
                         className="w-full"
                       />
-                      <div className="flex justify-between text-xs text-gray-500">
+                      <div className="flex justify-between text-xs text-muted-foreground">
                         <span>None</span>
                         <span>Mild</span>
                         <span>Moderate</span>
@@ -361,13 +361,13 @@ const SymptomTracking = () => {
                 ))}
 
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-900">Additional Notes</label>
+                  <label className="text-sm font-medium text-foreground">Additional Notes</label>
                   <Textarea
                     placeholder="Describe any other symptoms, triggers, or observations..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    className="border-gray-200 focus:border-rose-500 focus:ring-rose-500"
+                    className="border-border focus:border-rose-500 focus:ring-rose-500"
                   />
                 </div>
 
@@ -382,13 +382,13 @@ const SymptomTracking = () => {
             </Card>
 
             {/* Symptom Trends Graph */}
-            <Card className="lg:col-span-2 bg-white border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-100">
-                <CardTitle className="flex items-center gap-3 text-gray-900">
+            <Card className="lg:col-span-2 bg-card border-border shadow-sm">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="flex items-center gap-3 text-foreground">
                   <TrendingDown className="w-5 h-5 text-rose-600" />
                   7-Day Symptom Trends
                 </CardTitle>
-                <CardDescription className="text-gray-600">Track your symptoms over the past week</CardDescription>
+                <CardDescription className="text-muted-foreground">Track your symptoms over the past week</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="h-80 w-full">
@@ -438,20 +438,20 @@ const SymptomTracking = () => {
             </Card>
 
             {/* Weekly Summary */}
-            <Card className="lg:col-span-3 bg-white border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-100">
-                <CardTitle className="flex items-center gap-3 text-gray-900">
+            <Card className="lg:col-span-3 bg-card border-border shadow-sm">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="flex items-center gap-3 text-foreground">
                   <BarChart3 className="w-5 h-5 text-rose-600" />
                   Weekly Summary & Insights
                 </CardTitle>
-                <CardDescription className="text-gray-600">Average levels and trends for each symptom</CardDescription>
+                <CardDescription className="text-muted-foreground">Average levels and trends for each symptom</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 {symptomHistory.length === 0 ? (
                   <div className="text-center py-12">
-                    <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-gray-500 mb-2">No Data Available</h4>
-                    <p className="text-gray-400">Start logging your symptoms to see weekly insights and trends.</p>
+                    <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-muted-foreground mb-2">No Data Available</h4>
+                    <p className="text-muted-foreground">Start logging your symptoms to see weekly insights and trends.</p>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -459,16 +459,16 @@ const SymptomTracking = () => {
                       const insights = getWeeklyInsights(symptom.key);
                       const TrendIcon = insights.trend === "increasing" ? TrendingUp : 
                                       insights.trend === "decreasing" ? TrendingDown : Activity;
-                      const trendColor = insights.trend === "increasing" ? "text-red-500" : 
+                      const trendColor = insights.trend === "increasing" ? "text-destructive" : 
                                        insights.trend === "decreasing" ? "text-rose-500" : "text-plum-500";
                       
-                      const trendBgColor = insights.trend === "increasing" ? "bg-red-50" : 
+                      const trendBgColor = insights.trend === "increasing" ? "bg-destructive/10" : 
                                          insights.trend === "decreasing" ? "bg-rose-50" : "bg-plum-50";
 
                       return (
-                        <div key={symptom.key} className="p-5 border border-gray-200 rounded-lg bg-gray-50 hover:shadow-md transition-shadow">
+                        <div key={symptom.key} className="p-5 border border-border rounded-2xl bg-muted hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium text-gray-900 text-sm">{symptom.name}</h4>
+                            <h4 className="font-medium text-foreground text-sm">{symptom.name}</h4>
                             <div className={`p-2 rounded-full ${trendBgColor}`}>
                               <TrendIcon className={`w-4 h-4 ${trendColor}`} />
                             </div>
@@ -477,7 +477,7 @@ const SymptomTracking = () => {
                           <div className="space-y-3">
                             {/* Average Level */}
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600">7-day average:</span>
+                              <span className="text-xs text-muted-foreground">7-day average:</span>
                               <Badge className={`${getSeverityColor(Math.round(insights.average))} text-xs px-2 py-1 font-medium`}>
                                 {insights.formattedAverage}
                               </Badge>
@@ -485,7 +485,7 @@ const SymptomTracking = () => {
                             
                             {/* Trend */}
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600">Trend:</span>
+                              <span className="text-xs text-muted-foreground">Trend:</span>
                               <span className={`text-xs capitalize font-medium ${trendColor}`}>
                                 {insights.trend}
                               </span>
@@ -493,16 +493,16 @@ const SymptomTracking = () => {
                             
                             {/* Days with symptoms */}
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600">Days affected:</span>
-                              <span className="text-xs font-medium text-gray-800">
+                              <span className="text-xs text-muted-foreground">Days affected:</span>
+                              <span className="text-xs font-medium text-foreground/80">
                                 {insights.daysWithSymptoms}/{insights.totalDays} days
                               </span>
                             </div>
                             
                             {/* Severity range */}
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600">Severity range:</span>
-                              <span className="text-xs font-medium text-gray-800">
+                              <span className="text-xs text-muted-foreground">Severity range:</span>
+                              <span className="text-xs font-medium text-foreground/80">
                                 {getSeverityLabel(insights.lowestLevel)} - {getSeverityLabel(insights.highestLevel)}
                               </span>
                             </div>
@@ -510,18 +510,18 @@ const SymptomTracking = () => {
                             {/* Progress indicator */}
                             <div className="pt-2">
                               <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs text-gray-500">Weekly progress</span>
+                                <span className="text-xs text-muted-foreground">Weekly progress</span>
                                 <span className={`text-xs font-medium ${trendColor}`}>
                                   {insights.trend === "decreasing" ? "Improving" : 
                                    insights.trend === "increasing" ? "Worsening" : 
                                    "Stable"}
                                 </span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="w-full bg-muted rounded-full h-2">
                                 <div 
                                   className={`h-2 rounded-full transition-all duration-500 ${
                                     insights.trend === "decreasing" ? "bg-rose-500" :
-                                    insights.trend === "increasing" ? "bg-red-500" :
+                                    insights.trend === "increasing" ? "bg-destructive" :
                                     "bg-plum-500"
                                   }`}
                                   style={{ 

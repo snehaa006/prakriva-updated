@@ -93,7 +93,7 @@ const PatientSignupSteps = ({
     <div className="space-y-5">
       <fieldset>
         <legend className="text-sm font-medium">What are you here for? *</legend>
-        <p className="mb-2 text-xs text-gray-500">
+        <p className="mb-2 text-caption1 text-muted-foreground">
           Tick everything that applies — many people are both pregnant and
           managing PCOD/PCOS.
         </p>
@@ -104,10 +104,10 @@ const PatientSignupSteps = ({
             return (
               <label
                 key={track}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
                   checked
                     ? "border-primary bg-primary/5"
-                    : "border-gray-200 hover:bg-gray-50"
+                    : "border-border hover:bg-muted/50"
                 }`}
               >
                 <input
@@ -121,7 +121,7 @@ const PatientSignupSteps = ({
                 />
                 <span
                   className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
-                    checked ? "border-primary bg-primary" : "border-gray-300"
+                    checked ? "border-primary bg-primary" : "border-border"
                   }`}
                   aria-hidden
                 >
@@ -129,7 +129,7 @@ const PatientSignupSteps = ({
                 </span>
                 <Icon
                   className={`mt-0.5 h-5 w-5 shrink-0 ${
-                    checked ? "text-primary" : "text-gray-400"
+                    checked ? "text-primary" : "text-muted-foreground"
                   }`}
                   aria-hidden
                 />
@@ -139,7 +139,7 @@ const PatientSignupSteps = ({
                   >
                     {HEALTH_TRACK_LABELS[track]}
                   </span>
-                  <span className="block text-xs text-gray-500">
+                  <span className="block text-caption1 text-muted-foreground">
                     {HEALTH_TRACK_DESCRIPTIONS[track]}
                   </span>
                 </span>
@@ -151,8 +151,8 @@ const PatientSignupSteps = ({
               patient who genuinely wants no condition tracking gives an answer
               instead of leaving the question blank. */}
           <label
-            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-              isGeneral ? "border-primary bg-primary/5" : "border-gray-200 hover:bg-gray-50"
+            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
+              isGeneral ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
             }`}
           >
             <input
@@ -166,7 +166,7 @@ const PatientSignupSteps = ({
             />
             <span
               className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
-                isGeneral ? "border-primary bg-primary" : "border-gray-300"
+                isGeneral ? "border-primary bg-primary" : "border-border"
               }`}
               aria-hidden
             >
@@ -174,7 +174,7 @@ const PatientSignupSteps = ({
             </span>
             <Sparkles
               className={`mt-0.5 h-5 w-5 shrink-0 ${
-                isGeneral ? "text-primary" : "text-gray-400"
+                isGeneral ? "text-primary" : "text-muted-foreground"
               }`}
               aria-hidden
             />
@@ -184,7 +184,7 @@ const PatientSignupSteps = ({
               >
                 {GENERAL_TRACK_LABEL}
               </span>
-              <span className="block text-xs text-gray-500">
+              <span className="block text-caption1 text-muted-foreground">
                 {GENERAL_TRACK_DESCRIPTION}
               </span>
             </span>
@@ -236,7 +236,7 @@ const PatientSignupSteps = ({
             onChange={(e) => onDetailChange("dueDate", e.target.value)}
             disabled={isLoading}
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-caption1 text-muted-foreground">
             We use this to work out how many weeks along you are, and which
             trimester your nutrition targets should follow.
           </p>
@@ -292,7 +292,7 @@ const PatientSignupSteps = ({
                 placeholder="28"
                 disabled={isLoading}
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-caption1 text-muted-foreground">
                 Leave blank if it is too irregular to say.
               </p>
             </div>
@@ -322,7 +322,7 @@ const PatientSignupSteps = ({
                 return (
                   <label
                     key={concern.value}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm hover:bg-gray-50"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border p-2 text-sm hover:bg-muted/50"
                   >
                     <input
                       type="checkbox"
@@ -333,7 +333,7 @@ const PatientSignupSteps = ({
                     />
                     <span
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
-                        checked ? "border-primary bg-primary" : "border-gray-300"
+                        checked ? "border-primary bg-primary" : "border-border"
                       }`}
                       aria-hidden
                     >
@@ -351,7 +351,7 @@ const PatientSignupSteps = ({
       )}
 
       {selected.includes("pregnancy") && selected.includes("pcos") && (
-        <p className="rounded-lg border border-plum-100 bg-plum-50/50 p-3 text-xs text-plum-900">
+        <p className="rounded-xl border border-plum-100 bg-plum-50/50 p-3 text-caption1 text-plum-900">
           You'll get both: the maternal health check and your cycle, weight and
           skin trackers. Your nutrition follows pregnancy guidelines — those
           come first — with your PCOD/PCOS logs shaping what goes in the plan.

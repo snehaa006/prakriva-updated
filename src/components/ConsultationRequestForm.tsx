@@ -76,31 +76,31 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Stethoscope className="w-5 h-5 text-primary shrink-0" />
             Request Consultation
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm">
             Send your consultation request to {formatDoctorName(doctor.name)}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           {/* Doctor Info Summary */}
           <Card className="bg-muted/30">
             <CardContent className="p-4">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <User className="w-6 h-6 text-primary" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">{formatDoctorName(doctor.name)}</h3>
-                  <p className="text-sm text-muted-foreground">{doctor.clinicName}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold truncate">{formatDoctorName(doctor.name)}</h3>
+                  <p className="text-sm text-muted-foreground truncate">{doctor.clinicName}</p>
                 </div>
                 {doctor.verificationStatus === 'verified' && (
-                  <CheckCircle className="w-5 h-5 text-rose-500" />
+                  <CheckCircle className="w-5 h-5 text-rose-500 shrink-0" />
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -197,7 +197,7 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
                 placeholder="Please describe your health concerns, symptoms, or any specific questions you have for the doctor..."
                 value={formData.message || ''}
                 onChange={(e) => updateFormData('message', e.target.value)}
-                className="min-h-[120px] resize-none"
+                className="min-h-[100px] sm:min-h-[120px] resize-none text-sm"
               />
               <p className="text-xs text-muted-foreground">
                 This information will help the doctor better understand your needs and prepare for the consultation.
@@ -224,13 +224,13 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
             </Card>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1"
+                className="flex-1 h-11"
               >
                 <X className="w-4 h-4 mr-2" />
                 Cancel
@@ -239,7 +239,7 @@ const ConsultationRequestForm: React.FC<ConsultationRequestFormProps> = ({
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex-1"
+                className="flex-1 h-11"
               >
                 {loading ? (
                   <div className="flex items-center gap-2">

@@ -93,23 +93,26 @@ const PantryItemCard: React.FC<{
   onDelete: (item: PantryItem) => void;
   busy: boolean;
 }> = ({ item, onToggle, onDelete, busy }) => (
-  <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+  <div className="flex items-start justify-between gap-2 rounded-2xl border border-border bg-card p-3.5 transition-shadow hover:shadow-xs sm:gap-3 sm:p-4">
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium capitalize">{item.foodName}</p>
+        <p className="text-subhead font-medium capitalize text-foreground">{item.foodName}</p>
         {item.quantity && (
-          <span className="text-xs text-muted-foreground">{item.quantity}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-caption2 text-foreground-secondary">
+            {item.quantity}
+          </span>
         )}
       </div>
       {item.notes && (
-        <p className="mt-1 text-xs text-muted-foreground">{item.notes}</p>
+        <p className="mt-1 text-caption1 text-foreground-tertiary">{item.notes}</p>
       )}
     </div>
 
-    <div className="flex shrink-0 gap-1">
+    <div className="flex shrink-0 gap-0.5 sm:gap-1">
       <Button
         variant="ghost"
         size="icon"
+        className="h-10 w-10"
         disabled={busy}
         title={
           item.availability === "at_home"
@@ -118,16 +121,17 @@ const PantryItemCard: React.FC<{
         }
         onClick={() => onToggle(item)}
       >
-        <ArrowRightLeft className="h-4 w-4" />
+        <ArrowRightLeft className="h-4 w-4 text-foreground-secondary" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
+        className="h-10 w-10"
         disabled={busy}
         title="Remove"
         onClick={() => onDelete(item)}
       >
-        <Trash2 className="h-4 w-4 text-red-500" />
+        <Trash2 className="h-4 w-4 text-foreground-tertiary" />
       </Button>
     </div>
   </div>
@@ -305,10 +309,17 @@ const Pantry: React.FC = () => {
       );
     }
     if (list.length === 0) {
-      return <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>;
+      return (
+        <div className="flex flex-col items-center py-12 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-primary">
+            <Refrigerator className="h-5 w-5" />
+          </span>
+          <p className="mt-3 text-footnote text-foreground-secondary">{empty}</p>
+        </div>
+      );
     }
     return (
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {list.map((item) => (
           <PantryItemCard
             key={item.id}
@@ -323,14 +334,14 @@ const Pantry: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-600">
-          <Refrigerator className="h-5 w-5 text-white" />
-        </div>
+    <div className="space-y-8 p-4 md:p-6">
+      <div className="flex items-center gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-primary">
+          <Refrigerator className="h-6 w-6" />
+        </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">My Kitchen</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-title1 text-foreground">My Kitchen</h1>
+          <p className="mt-1 text-body text-foreground-secondary">
             List the foods you have at home and the ones you plan to buy — your
             doctor uses this to build a plan you can actually cook.
           </p>
@@ -338,21 +349,21 @@ const Pantry: React.FC = () => {
       </div>
 
       {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-footnote text-destructive">
           Could not load your kitchen list: {(error as Error).message}
         </p>
       )}
 
-      {/* Add form */}
-      <Card>
+      {/* Add form — the primary action on this page */}
+      <Card className="border-primary/15 bg-accent-soft/30">
         <CardHeader className="pb-4">
-          <CardTitle className="text-base">Add a food</CardTitle>
+          <CardTitle className="text-headline">Add a food</CardTitle>
           <CardDescription>
             Search the food list — grains, dals, vegetables, fruits, spices,
             dairy. The list is every ingredient the recipe database knows, so
             whatever you pick, your doctor can find recipes that use it.
             {catalogSource === "fallback" && !isLoadingCatalog && (
-              <span className="mt-1 block textcoral-700">
+              <span className="mt-1 block text-warning">
                 Showing the offline food list — the full one will load when the
                 connection is back.
               </span>
@@ -492,9 +503,9 @@ const Pantry: React.FC = () => {
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Your foods</CardTitle>
+            <CardTitle className="text-headline">Your foods</CardTitle>
             <div className="relative sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-foreground-tertiary" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -506,7 +517,7 @@ const Pantry: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="at_home">
-            <TabsList className="mb-4">
+            <TabsList className="mb-5">
               <TabsTrigger value="at_home" className="gap-1.5">
                 <Home className="h-3.5 w-3.5" />
                 At home ({atHome.length})

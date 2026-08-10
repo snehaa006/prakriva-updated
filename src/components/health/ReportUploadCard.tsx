@@ -161,7 +161,7 @@ export const ReportUploadCard: React.FC<ReportUploadCardProps> = ({ onApply }) =
         )}
 
         {entries.length > 0 && (
-          <div className="rounded-lg border p-4 space-y-3">
+          <div className="rounded-2xl border p-4 space-y-3">
             <p className="text-sm font-medium">
               Found {entries.length} value{entries.length === 1 ? "" : "s"} — check
               these match your report:

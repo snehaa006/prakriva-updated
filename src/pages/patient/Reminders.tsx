@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Plus, Pill, Utensils, Calendar, Edit, Trash2, Bell } from "lucide-react";
+import { Clock, Plus, Pill, Utensils, Calendar, Trash2, Bell, BellOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface Reminder {
   id: string;
@@ -82,47 +83,50 @@ export default function Reminders() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case "medicine": return <Pill className="w-4 h-4" />;
-      case "meal": return <Utensils className="w-4 h-4" />;
-      case "appointment": return <Calendar className="w-4 h-4" />;
-      case "exercise": return <Bell className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
+      case "medicine": return <Pill className="h-4 w-4" />;
+      case "meal": return <Utensils className="h-4 w-4" />;
+      case "appointment": return <Calendar className="h-4 w-4" />;
+      case "exercise": return <Bell className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
     }
   };
 
-  const getTypeColor = (type: string) => {
+  // Type badges map onto the dosha palette so a reminder's kind reads at a
+  // glance, and share the same soft-tint treatment as the rest of the app —
+  // no hard-saturated fills.
+  const getTypeStyle = (type: string) => {
     switch (type) {
-      case "medicine": return "bg-plum-100 text-plum-800 border-plum-200";
-      case "meal": return "bg-rose-100 text-rose-800 border-rose-200";
-      case "appointment": return "bg-plum-100 text-plum-800 border-plum-200";
-      case "exercise": return "bg-coral-100 text-coral-800 border-coral-200";
-      default: return "bg-gray-100 text-gray-800 border-gray-200";
+      case "medicine": return "bg-vata/10 text-vata";
+      case "meal": return "bg-kapha/10 text-kapha";
+      case "appointment": return "bg-accent-soft text-accent-soft-foreground";
+      case "exercise": return "bg-pitta/10 text-pitta";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
   const toggleReminder = (id: string) => {
-    setReminders(prev => prev.map(reminder => 
+    setReminders(prev => prev.map(reminder =>
       reminder.id === id ? { ...reminder, isActive: !reminder.isActive } : reminder
     ));
     toast({
-      title: "Reminder Updated",
-      description: "Reminder status has been changed successfully.",
+      title: "Reminder updated",
+      description: "Reminder status has been changed.",
     });
   };
 
   const deleteReminder = (id: string) => {
     setReminders(prev => prev.filter(reminder => reminder.id !== id));
     toast({
-      title: "Reminder Deleted",
-      description: "Reminder has been removed successfully.",
+      title: "Reminder deleted",
+      description: "It won't remind you anymore.",
     });
   };
 
   const addReminder = () => {
     if (!newReminder.title || !newReminder.time) {
       toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
+        title: "Missing details",
+        description: "Please fill in a title and a time.",
         variant: "destructive",
       });
       return;
@@ -145,17 +149,17 @@ export default function Reminders() {
     setIsDialogOpen(false);
 
     toast({
-      title: "Reminder Added",
-      description: "New reminder has been created successfully.",
+      title: "Reminder added",
+      description: "We'll nudge you right on schedule.",
     });
   };
 
   const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  
+
   const toggleDay = (day: string) => {
     setNewReminder(prev => ({
       ...prev,
-      days: prev.days.includes(day) 
+      days: prev.days.includes(day)
         ? prev.days.filter(d => d !== day)
         : [...prev.days, day]
     }));
@@ -164,45 +168,104 @@ export default function Reminders() {
   const activeReminders = reminders.filter(r => r.isActive);
   const inactiveReminders = reminders.filter(r => !r.isActive);
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Reminders</h1>
-          <p className="text-muted-foreground">Manage your daily health reminders and schedule</p>
+  const stats = [
+    {
+      label: "Active reminders",
+      value: activeReminders.length,
+      icon: Bell,
+    },
+    {
+      label: "Medicine",
+      value: reminders.filter(r => r.type === "medicine" && r.isActive).length,
+      icon: Pill,
+    },
+    {
+      label: "Meals",
+      value: reminders.filter(r => r.type === "meal" && r.isActive).length,
+      icon: Utensils,
+    },
+  ];
+
+  const ReminderRow = ({ reminder }: { reminder: Reminder }) => (
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-opacity sm:flex-row sm:items-center sm:justify-between",
+        !reminder.isActive && "opacity-60"
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", getTypeStyle(reminder.type))}>
+          {getTypeIcon(reminder.type)}
         </div>
-        
+        <div className="min-w-0">
+          <h4 className="text-subhead font-semibold text-foreground">{reminder.title}</h4>
+          <p className="mt-0.5 text-footnote text-foreground-secondary">
+            {reminder.time} &middot; {reminder.days.length === 7 ? "Every day" : reminder.days.join(", ")}
+          </p>
+          {reminder.description && (
+            <p className="mt-1 text-caption1 text-foreground-tertiary">{reminder.description}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 self-end sm:self-auto">
+        <Switch
+          checked={reminder.isActive}
+          onCheckedChange={() => toggleReminder(reminder.id)}
+          aria-label={reminder.isActive ? "Turn off reminder" : "Turn on reminder"}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => deleteReminder(reminder.id)}
+          aria-label="Delete reminder"
+        >
+          <Trash2 className="h-4 w-4 text-foreground-tertiary" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 p-4 md:p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-title1 text-foreground">Reminders</h1>
+          <p className="mt-1 text-body text-foreground-secondary">
+            Gentle nudges for medicine, meals, movement and appointments.
+          </p>
+        </div>
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Reminder
+            <Button className="w-full gap-1.5 sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Add reminder
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="max-h-[85vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Create New Reminder</DialogTitle>
+              <DialogTitle>Create a reminder</DialogTitle>
               <DialogDescription>
-                Set up a new reminder for your health routine
+                Set up a nudge for your health routine.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Reminder Title</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="title">Title</Label>
                 <Input
                   id="title"
-                  placeholder="e.g., Take Chyawanprash"
+                  placeholder="e.g. Take Chyawanprash"
                   value={newReminder.title}
                   onChange={(e) => setNewReminder(prev => ({ ...prev, title: e.target.value }))}
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Type</Label>
                 <Select
                   value={newReminder.type}
-                  onValueChange={(value: "medicine" | "meal" | "appointment" | "exercise") => 
+                  onValueChange={(value: "medicine" | "meal" | "appointment" | "exercise") =>
                     setNewReminder(prev => ({ ...prev, type: value }))
                   }
                 >
@@ -218,7 +281,7 @@ export default function Reminders() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="time">Time</Label>
                 <Input
                   id="time"
@@ -228,14 +291,14 @@ export default function Reminders() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Repeat Days</Label>
+              <div className="space-y-1.5">
+                <Label>Repeat on</Label>
                 <div className="flex flex-wrap gap-2">
                   {allDays.map(day => (
                     <Badge
                       key={day}
                       variant={newReminder.days.includes(day) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer select-none px-3 py-1"
                       onClick={() => toggleDay(day)}
                     >
                       {day}
@@ -244,122 +307,64 @@ export default function Reminders() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Notes (optional)</Label>
                 <Input
                   id="description"
-                  placeholder="Additional details..."
+                  placeholder="Additional details…"
                   value={newReminder.description}
                   onChange={(e) => setNewReminder(prev => ({ ...prev, description: e.target.value }))}
                 />
               </div>
 
               <Button onClick={addReminder} className="w-full">
-                Create Reminder
+                Create reminder
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-rose-100 rounded-full">
-                <Bell className="w-4 h-4 text-rose-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{activeReminders.length}</p>
-                <p className="text-sm text-muted-foreground">Active Reminders</p>
-              </div>
+      {/* Stats — quiet summary strip, not competing tiles */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="flex items-center gap-3 rounded-2xl border border-border bg-accent-soft/40 px-4 py-3.5"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <stat.icon className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-title3 leading-none text-foreground">{stat.value}</p>
+              <p className="mt-1 text-caption1 text-foreground-secondary">{stat.label}</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-plum-100 rounded-full">
-                <Pill className="w-4 h-4 text-plum-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {reminders.filter(r => r.type === "medicine" && r.isActive).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Medicine Reminders</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-coral-100 rounded-full">
-                <Utensils className="w-4 h-4 text-coral-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {reminders.filter(r => r.type === "meal" && r.isActive).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Meal Reminders</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
       </div>
 
       {/* Active Reminders */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Reminders</CardTitle>
-          <CardDescription>Your currently enabled reminders</CardDescription>
+          <CardTitle className="text-headline">Active reminders</CardTitle>
+          <CardDescription>What's currently scheduled</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {activeReminders.map((reminder) => (
-              <div
-                key={reminder.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className={`p-2 rounded-full ${getTypeColor(reminder.type)}`}>
-                    {getTypeIcon(reminder.type)}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium">{reminder.title}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {reminder.time} • {reminder.days.join(", ")}
-                    </p>
-                    {reminder.description && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {reminder.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={reminder.isActive}
-                    onCheckedChange={() => toggleReminder(reminder.id)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteReminder(reminder.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+              <ReminderRow key={reminder.id} reminder={reminder} />
             ))}
-            
+
             {activeReminders.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">
-                No active reminders. Create your first reminder to get started.
-              </p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <BellOff className="h-5 w-5" />
+                </span>
+                <p className="mt-3 text-subhead text-foreground">No active reminders</p>
+                <p className="mt-1 text-footnote text-foreground-secondary">
+                  Add your first one and we'll take it from there.
+                </p>
+              </div>
             )}
           </div>
         </CardContent>
@@ -369,41 +374,13 @@ export default function Reminders() {
       {inactiveReminders.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Inactive Reminders</CardTitle>
-            <CardDescription>Disabled reminders you can re-enable anytime</CardDescription>
+            <CardTitle className="text-headline">Paused</CardTitle>
+            <CardDescription>Turned off, but ready whenever you are</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {inactiveReminders.map((reminder) => (
-                <div
-                  key={reminder.id}
-                  className="flex items-center justify-between p-4 border rounded-lg opacity-60"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-2 rounded-full ${getTypeColor(reminder.type)}`}>
-                      {getTypeIcon(reminder.type)}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">{reminder.title}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {reminder.time} • {reminder.days.join(", ")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      checked={reminder.isActive}
-                      onCheckedChange={() => toggleReminder(reminder.id)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteReminder(reminder.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+                <ReminderRow key={reminder.id} reminder={reminder} />
               ))}
             </div>
           </CardContent>

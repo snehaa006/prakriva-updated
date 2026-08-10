@@ -1,8 +1,35 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+
+/**
+ * Minimal dependency-free stand-in for the Radix Slot primitive.
+ * See button.tsx for the same pattern.
+ */
+const Slot = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }>(
+  ({ children, className, ...props }, ref) => {
+    if (!React.isValidElement(children)) {
+      return null;
+    }
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
+      ...props,
+      ...child.props,
+      className: cn(className, child.props?.className),
+      ref: ref
+        ? (node: HTMLElement) => {
+            if (typeof ref === "function") ref(node);
+            else if (ref) (ref as React.MutableRefObject<HTMLElement | null>).current = node;
+            const childRef = (child as any).ref;
+            if (typeof childRef === "function") childRef(node);
+            else if (childRef) childRef.current = node;
+          }
+        : (child as any).ref,
+    });
+  },
+);
+Slot.displayName = "Slot";
 
 const Breadcrumb = React.forwardRef<
   HTMLElement,
@@ -17,7 +44,7 @@ const BreadcrumbList = React.forwardRef<HTMLOListElement, React.ComponentPropsWi
     <ol
       ref={ref}
       className={cn(
-        "flex flex-wrap items-center gap-1.5 break-words text-sm text-muted-foreground sm:gap-2.5",
+        "flex flex-wrap items-center gap-1.5 break-words text-sm text-foreground-secondary sm:gap-2.5",
         className,
       )}
       {...props}
@@ -39,9 +66,16 @@ const BreadcrumbLink = React.forwardRef<
     asChild?: boolean;
   }
 >(({ asChild, className, ...props }, ref) => {
-  const Comp = asChild ? Slot : "a";
-
-  return <Comp ref={ref} className={cn("transition-colors hover:text-foreground", className)} {...props} />;
+  if (asChild) {
+    return (
+      <Slot
+        ref={ref as React.Ref<HTMLElement>}
+        className={cn("transition-colors hover:text-foreground", className)}
+        {...props}
+      />
+    );
+  }
+  return <a ref={ref} className={cn("transition-colors hover:text-foreground", className)} {...props} />;
 });
 BreadcrumbLink.displayName = "BreadcrumbLink";
 

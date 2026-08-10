@@ -92,9 +92,9 @@ import { CHART_COLORS } from "@/lib/chartColors";
 const SLEEP_QUALITIES: SleepQuality[] = ["deep", "disturbed", "insufficient"];
 
 const SLEEP_QUALITY_STYLES: Record<string, string> = {
-  deep: "bg-rose-100 text-rose-800 border-rose-200",
-  disturbed: "bg-coral-100 text-coral-800 border-coral-200",
-  insufficient: "bg-red-100 text-red-800 border-red-200",
+  deep: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  disturbed: "bg-warning/10 text-warning border-warning/20",
+  insufficient: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 const dayLabel = (iso: string) =>
@@ -435,46 +435,48 @@ const LifestyleTracker = () => {
   // First visit only — a return to this tab renders from the cached snapshot.
   if (isFirstLoad) {
     return (
-      <div className="flex-1 flex items-center justify-center p-12">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="flex flex-1 items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin text-foreground-tertiary" />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="mx-auto max-w-6xl flex-1 space-y-8 p-4 sm:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tracker</h1>
-          <p className="text-gray-600">
-            One daily check-in: sleep, movement, water and your diet plan
+          <h1 className="text-title1 text-foreground">Tracker</h1>
+          <p className="mt-1.5 max-w-lg text-subhead text-foreground-secondary">
+            One daily check-in: sleep, movement, water and your diet plan.
           </p>
         </div>
         <Button
           variant="outline"
-          className="flex items-center gap-2"
+          className="w-full gap-2 sm:w-auto"
           onClick={() => navigate("/patient/dashboard")}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Button>
       </div>
 
       {demoAvailable && (
         <div
-          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm ${
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-footnote ${
             isDemoData
-              ? "border-plum-300 bg-plum-100 text-plum-900"
-              : "border-dashed border-gray-300 bg-gray-50 text-gray-600"
+              ? "border-transparent bg-vata/10 text-foreground"
+              : "border-dashed border-border bg-muted/60 text-foreground-secondary"
           }`}
         >
-          <div className="flex items-start gap-2">
-            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex items-start gap-2.5">
+            <FlaskConical className={`mt-0.5 h-4 w-4 shrink-0 ${isDemoData ? "text-vata" : "text-foreground-tertiary"}`} />
             <span>
               {isDemoData ? (
                 <>
-                  <strong>Sample data — showing {DEMO_DAYS} days of example logs.</strong>{" "}
+                  <strong className="font-medium">
+                    Sample data — showing {DEMO_DAYS} days of example logs.
+                  </strong>{" "}
                   None of this is real and none of it is saved: your own logs are
                   untouched underneath and come straight back when you clear it.
                 </>
@@ -489,12 +491,7 @@ const LifestyleTracker = () => {
               {isDemoData ? "Regenerate" : `Load ${DEMO_DAYS} days of sample data`}
             </Button>
             {isDemoData && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={clearDemoData}
-                className="flex items-center gap-1"
-              >
+              <Button size="sm" variant="outline" onClick={clearDemoData} className="gap-1.5">
                 <Trash2 className="h-3 w-3" />
                 Clear
               </Button>
@@ -504,8 +501,8 @@ const LifestyleTracker = () => {
       )}
 
       {!isSynced && !isDemoData && (
-        <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">
-          <CloudOff className="w-4 h-4 mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/20 bg-warning/10 p-4 text-footnote text-foreground">
+          <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>
             Saved on this device only — we couldn't reach the server. Your streak is safe
             here and will sync when the connection is back.
@@ -514,17 +511,17 @@ const LifestyleTracker = () => {
       )}
 
       {/* Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Activity Streak</CardTitle>
-            <Flame className="h-4 w-4 text-coral-500" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Activity Streak</CardTitle>
+            <Flame className="h-4 w-4 text-pitta" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {activityStreak} day{activityStreak === 1 ? "" : "s"}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-1 text-caption1 text-foreground-tertiary">
               best: {bestActivityStreak} day{bestActivityStreak === 1 ? "" : "s"}
             </p>
           </CardContent>
@@ -532,14 +529,14 @@ const LifestyleTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hydration Today</CardTitle>
-            <Droplets className="h-4 w-4 text-plum-600" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Hydration Today</CardTitle>
+            <Droplets className="h-4 w-4 text-vata" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {todayLog.waterGlasses}/{waterGoal}
             </div>
-            <p className={`text-xs ${hydrationMet ? "text-rose-600" : "text-gray-600"}`}>
+            <p className={`mt-1 text-caption1 ${hydrationMet ? "text-success" : "text-foreground-tertiary"}`}>
               {hydrationMet ? "Daily target met" : "Target not met yet"}
             </p>
           </CardContent>
@@ -547,27 +544,27 @@ const LifestyleTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Sleep</CardTitle>
-            <Moon className="h-4 w-4 text-plum-600" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Average Sleep</CardTitle>
+            <Moon className="h-4 w-4 text-vata" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {averages.avgSleepHours === null ? "—" : `${averages.avgSleepHours.toFixed(1)}h`}
             </div>
-            <p className="text-xs text-gray-600">per night (last 7 days)</p>
+            <p className="mt-1 text-caption1 text-foreground-tertiary">per night (last 7 days)</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Diet Plan Today</CardTitle>
-            <ClipboardCheck className="h-4 w-4 text-rose-600" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Diet Plan Today</CardTitle>
+            <ClipboardCheck className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {todayAdherence?.hasPlan ? `${todayAdherence.planCompletionPct}%` : "—"}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-1 text-caption1 text-foreground-tertiary">
               {todayAdherence?.hasPlan
                 ? `${todayAdherence.mealsEaten}/${todayAdherence.mealsPlanned} meals eaten`
                 : "no plan logged today"}
@@ -582,7 +579,7 @@ const LifestyleTracker = () => {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
+                <Activity className="h-5 w-5 text-primary" />
                 Movement & Exercise
               </CardTitle>
               <CardDescription>
@@ -593,30 +590,28 @@ const LifestyleTracker = () => {
                       .join(", ")}`}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 rounded-lg bg-coral-50 px-4 py-2">
-              <Flame className="w-5 h-5 text-coral-500" />
+            <div className="flex items-center gap-2.5 rounded-xl bg-accent-soft px-4 py-2.5">
+              <Flame className="h-5 w-5 text-primary" />
               <div>
-                <div className="text-xl font-bold leading-none text-coral-600">
+                <div className="text-title3 leading-none text-accent-soft-foreground">
                   {activityStreak}
                 </div>
-                <div className="text-xs text-coral-700">day streak</div>
+                <div className="text-caption1 text-accent-soft-foreground/80">day streak</div>
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-            <span className="text-sm text-gray-600">Logged today</span>
-            <span className="text-sm font-semibold">
+          <div className="flex items-center justify-between rounded-xl bg-muted p-4">
+            <span className="text-footnote text-foreground-secondary">Logged today</span>
+            <span className="flex items-center gap-2 text-subhead font-medium text-foreground">
               {todayActivityMinutes} min
-              {todayActivityMinutes > 0 && (
-                <CheckCircle2 className="ml-2 inline h-4 w-4 text-rose-600" />
-              )}
+              {todayActivityMinutes > 0 && <CheckCircle2 className="h-4 w-4 text-success" />}
             </span>
           </div>
 
           {todayActivityMinutes === 0 && activityStreak > 0 && (
-            <p className="text-sm text-coral-700">
+            <p className="text-footnote text-foreground-secondary">
               Log any movement today to keep your {activityStreak}-day streak alive.
             </p>
           )}
@@ -633,7 +628,7 @@ const LifestyleTracker = () => {
               return (
                 <div className="mt-3 flex items-center justify-end gap-2">
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     onClick={() => adjustExercise(exercise.id, -5)}
                     disabled={logged === 0}
@@ -641,9 +636,9 @@ const LifestyleTracker = () => {
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-16 text-center font-medium">{logged}m</span>
+                  <span className="w-16 text-center text-subhead font-medium text-foreground">{logged}m</span>
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     onClick={() => adjustExercise(exercise.id, 5)}
                     aria-label={`Add 5 minutes of ${exercise.name}`}
@@ -655,22 +650,22 @@ const LifestyleTracker = () => {
             }}
           />
 
-          <p className="text-xs text-gray-500">{EXERCISE_DISCLAIMER.patient}</p>
+          <p className="text-caption1 text-foreground-tertiary">{EXERCISE_DISCLAIMER.patient}</p>
 
           {/* Streak calendar */}
           <div>
-            <h4 className="mb-2 text-sm font-medium text-gray-700">Last 14 days</h4>
+            <h4 className="mb-2.5 text-footnote font-medium text-foreground-secondary">Last 14 days</h4>
             <div className="grid grid-cols-7 gap-2">
               {fortnight.map((date) => {
                 const minutes = totalActivityMinutes(logByDate.get(date));
                 return (
                   <div key={date} className="text-center">
-                    <div className="mb-1 text-xs text-gray-500">{dayNumber(date)}</div>
+                    <div className="mb-1 text-caption2 text-foreground-tertiary">{dayNumber(date)}</div>
                     <div
-                      className={`flex h-9 items-center justify-center rounded text-xs font-medium ${
+                      className={`flex h-9 items-center justify-center rounded-md text-caption1 font-medium ${
                         minutes > 0
-                          ? "bg-coral-100 text-coral-800"
-                          : "bg-gray-100 text-gray-400"
+                          ? "bg-accent-soft text-accent-soft-foreground"
+                          : "bg-muted text-foreground-tertiary"
                       }`}
                       title={`${date}: ${minutes} min`}
                     >
@@ -685,21 +680,21 @@ const LifestyleTracker = () => {
       </Card>
 
       {/* ── Hydration + Sleep ── */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Droplets className="w-5 h-5" />
+              <Droplets className="h-5 w-5 text-vata" />
               Hydration
             </CardTitle>
             <CardDescription>Did you hit your daily water target?</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4 text-center">
-              <div className={`text-6xl font-bold ${hydrationMet ? "text-rose-600" : "text-plum-600"}`}>
+          <CardContent className="space-y-5">
+            <div className="space-y-3 text-center">
+              <div className={`text-large-title ${hydrationMet ? "text-success" : "text-vata"}`}>
                 {todayLog.waterGlasses}
               </div>
-              <p className="text-gray-600">of {waterGoal} glasses today</p>
+              <p className="text-footnote text-foreground-secondary">of {waterGoal} glasses today</p>
               <Progress
                 value={Math.min(100, (todayLog.waterGlasses / waterGoal) * 100)}
                 className="h-3 w-full"
@@ -708,8 +703,8 @@ const LifestyleTracker = () => {
                 variant="outline"
                 className={
                   hydrationMet
-                    ? "border-rose-200 bg-rose-100 text-rose-800"
-                    : "border-gray-200 bg-gray-100 text-gray-700"
+                    ? "border-transparent bg-success/10 text-success"
+                    : "border-border bg-muted text-foreground-secondary"
                 }
               >
                 {hydrationMet
@@ -718,29 +713,29 @@ const LifestyleTracker = () => {
               </Badge>
             </div>
 
-            <div className="flex justify-center gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button
                 variant="outline"
                 size="lg"
                 onClick={() => adjustWater(-1)}
                 disabled={todayLog.waterGlasses === 0}
-                className="flex items-center gap-2"
+                className="w-full gap-2 sm:w-auto"
               >
-                <Minus className="w-4 h-4" />
+                <Minus className="h-4 w-4" />
                 Remove Glass
               </Button>
               <Button
                 size="lg"
                 onClick={() => adjustWater(1)}
                 disabled={todayLog.waterGlasses >= 20}
-                className="flex items-center gap-2"
+                className="w-full gap-2 sm:w-auto"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
                 Add Glass
               </Button>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center justify-center gap-2 text-footnote text-foreground-secondary">
               <span>Daily target</span>
               <Button
                 size="sm"
@@ -751,7 +746,7 @@ const LifestyleTracker = () => {
               >
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="font-medium">{waterGoal}</span>
+              <span className="font-medium text-foreground">{waterGoal}</span>
               <Button
                 size="sm"
                 variant="ghost"
@@ -764,30 +759,28 @@ const LifestyleTracker = () => {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-700">Last 7 days</h4>
-                <span className="text-xs text-gray-500">
+              <div className="mb-2.5 flex items-center justify-between">
+                <h4 className="text-footnote font-medium text-foreground-secondary">Last 7 days</h4>
+                <span className="text-caption1 text-foreground-tertiary">
                   {hydrationStreak} day{hydrationStreak === 1 ? "" : "s"} on target
                 </span>
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-1.5">
                 {week.map((date) => {
                   const log = logByDate.get(date);
                   const met = isHydrationGoalMet(log);
                   return (
                     <div key={date} className="text-center">
-                      <div className="mb-1 text-xs text-gray-500">{dayLabel(date)}</div>
-                      {/* Met is a *filled* chip, not another pale tint: inside
-                          one hue family two 100-level tints read as the same
-                          colour at a glance, which is exactly the thing this
-                          strip exists to distinguish. */}
+                      <div className="mb-1 text-caption2 text-foreground-tertiary">{dayLabel(date)}</div>
+                      {/* Met is a *filled* chip, not another pale tint, so the
+                          strip stays legible at a glance. */}
                       <div
-                        className={`rounded p-1 text-sm font-medium ${
+                        className={`rounded-md p-1 text-footnote font-medium ${
                           met
-                            ? "bg-rose-600 text-white"
+                            ? "bg-success text-white"
                             : log?.waterGlasses
-                              ? "bg-coral-100 text-coral-800 ring-1 ring-inset ring-coral-300"
-                              : "bg-gray-100 text-gray-400"
+                              ? "bg-vata/10 text-vata ring-1 ring-inset ring-vata/20"
+                              : "bg-muted text-foreground-tertiary"
                         }`}
                         title={`${date}: ${log?.waterGlasses ?? 0} glasses${
                           met ? " — target met" : ""
@@ -806,14 +799,14 @@ const LifestyleTracker = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Moon className="w-5 h-5" />
+              <Moon className="h-5 w-5 text-vata" />
               Sleep
             </CardTitle>
             <CardDescription>How long and how well you slept last night</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <div className="space-y-3">
-              <label className="text-sm font-medium" htmlFor="sleep-hours">
+              <label className="text-footnote font-medium text-foreground" htmlFor="sleep-hours">
                 Sleep duration: {(todayLog.sleepHours ?? 7).toFixed(1)}h
               </label>
               <input
@@ -824,16 +817,16 @@ const LifestyleTracker = () => {
                 step="0.5"
                 value={todayLog.sleepHours ?? 7}
                 onChange={(e) => setSleep(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200"
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-muted"
               />
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-caption1 text-foreground-tertiary">
                 <span>4h</span>
                 <span>12h</span>
               </div>
             </div>
 
             <div className="space-y-3">
-              <span className="text-sm font-medium">Sleep quality</span>
+              <span className="text-footnote font-medium text-foreground">Sleep quality</span>
               <div className="grid grid-cols-3 gap-2">
                 {SLEEP_QUALITIES.map((quality) => (
                   <Button
@@ -858,9 +851,9 @@ const LifestyleTracker = () => {
                   return (
                     <div
                       key={date}
-                      className="flex items-center justify-between rounded bg-gray-50 p-2"
+                      className="flex items-center justify-between rounded-lg bg-muted p-2.5"
                     >
-                      <span className="text-sm">
+                      <span className="text-footnote text-foreground-secondary">
                         {dayLabel(date)} {dayNumber(date)}
                       </span>
                       {log?.sleepHours ? (
@@ -873,12 +866,12 @@ const LifestyleTracker = () => {
                               {log.sleepQuality}
                             </Badge>
                           )}
-                          <span className="text-sm font-medium">
+                          <span className="text-footnote font-medium text-foreground">
                             {log.sleepHours.toFixed(1)}h
                           </span>
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">not logged</span>
+                        <span className="text-footnote text-foreground-tertiary">not logged</span>
                       )}
                     </div>
                   );
@@ -892,7 +885,7 @@ const LifestyleTracker = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Utensils className="w-5 h-5" />
+            <Utensils className="h-5 w-5 text-primary" />
             Daily Nutrition & Diet Plan
           </CardTitle>
           <CardDescription>
@@ -903,21 +896,23 @@ const LifestyleTracker = () => {
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div
-              className={`rounded-lg border p-4 ${
-                todayAdherence?.nutritionComplete ? "border-rose-200 bg-rose-50/50" : ""
+              className={`rounded-xl border p-4 ${
+                todayAdherence?.nutritionComplete
+                  ? "border-transparent bg-accent-soft"
+                  : "border-border"
               }`}
             >
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Daily nutrition complete</h4>
+                <h4 className="text-subhead font-medium text-foreground">Daily nutrition complete</h4>
                 {todayAdherence?.nutritionComplete ? (
-                  <CheckCircle2 className="h-5 w-5 text-rose-600" />
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                 ) : (
-                  <TrendingUp className="h-5 w-5 text-gray-400" />
+                  <TrendingUp className="h-5 w-5 text-foreground-tertiary" />
                 )}
               </div>
-              <p className="mt-2 text-2xl font-bold">
+              <p className="mt-2 text-title3 text-foreground">
                 {todayAdherence?.caloriesConsumed ?? 0}
-                <span className="text-sm font-normal text-gray-600">
+                <span className="text-footnote font-normal text-foreground-tertiary">
                   {" "}
                   / {calorieTarget.min}–{calorieTarget.max} kcal
                 </span>
@@ -929,7 +924,7 @@ const LifestyleTracker = () => {
                   ((todayAdherence?.caloriesConsumed ?? 0) / calorieTarget.min) * 100
                 )}
               />
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-footnote text-foreground-secondary">
                 {todayAdherence?.overTarget
                   ? `Over your ${calorieTarget.label.toLowerCase()} range — worth mentioning to your doctor.`
                   : todayAdherence?.nutritionComplete
@@ -942,27 +937,29 @@ const LifestyleTracker = () => {
             </div>
 
             <div
-              className={`rounded-lg border p-4 ${
-                todayAdherence?.planFollowed ? "border-rose-200 bg-rose-50/50" : ""
+              className={`rounded-xl border p-4 ${
+                todayAdherence?.planFollowed
+                  ? "border-transparent bg-accent-soft"
+                  : "border-border"
               }`}
             >
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Diet plan followed</h4>
+                <h4 className="text-subhead font-medium text-foreground">Diet plan followed</h4>
                 {todayAdherence?.planFollowed ? (
-                  <CheckCircle2 className="h-5 w-5 text-rose-600" />
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                 ) : (
-                  <ClipboardCheck className="h-5 w-5 text-gray-400" />
+                  <ClipboardCheck className="h-5 w-5 text-foreground-tertiary" />
                 )}
               </div>
-              <p className="mt-2 text-2xl font-bold">
+              <p className="mt-2 text-title3 text-foreground">
                 {todayAdherence?.mealsEaten ?? 0}
-                <span className="text-sm font-normal text-gray-600">
+                <span className="text-footnote font-normal text-foreground-tertiary">
                   {" "}
                   / {todayAdherence?.mealsPlanned ?? 0} meals
                 </span>
               </p>
               <Progress className="mt-2 h-2" value={todayAdherence?.planCompletionPct ?? 0} />
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-footnote text-foreground-secondary">
                 {!todayAdherence?.hasPlan
                   ? "No plan loaded today — open Meal Logging to start one."
                   : todayAdherence.planFollowed
@@ -973,9 +970,9 @@ const LifestyleTracker = () => {
           </div>
 
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-medium text-gray-700">Last 7 days</h4>
-              <span className="text-xs text-gray-500">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-footnote font-medium text-foreground-secondary">Last 7 days</h4>
+              <span className="text-caption1 text-foreground-tertiary">
                 nutrition met {adherenceSummary.daysNutritionComplete}/7 · plan followed{" "}
                 {adherenceSummary.daysPlanFollowed}/7
               </span>
@@ -983,18 +980,17 @@ const LifestyleTracker = () => {
             <div className="grid grid-cols-7 gap-2">
               {adherence.map((day) => (
                 <div key={day.date} className="text-center">
-                  <div className="mb-1 text-xs text-gray-500">{dayLabel(day.date)}</div>
+                  <div className="mb-1 text-caption2 text-foreground-tertiary">{dayLabel(day.date)}</div>
                   <div
                     className="flex flex-col gap-1"
                     title={`${day.date}: ${day.caloriesConsumed} kcal, ${day.mealsEaten}/${day.mealsPlanned} meals`}
                   >
-                    {/* Filled = achieved, hollow = not. Two 100-level tints
-                        of the same family were indistinguishable at this size. */}
+                    {/* Filled = achieved, hollow = not. */}
                     <div
                       className={`h-5 rounded text-[10px] leading-5 ${
                         day.nutritionComplete
-                          ? "bg-rose-600 font-medium text-white"
-                          : "bg-gray-100 text-gray-400"
+                          ? "bg-primary font-medium text-primary-foreground"
+                          : "bg-muted text-foreground-tertiary"
                       }`}
                     >
                       kcal
@@ -1002,8 +998,8 @@ const LifestyleTracker = () => {
                     <div
                       className={`h-5 rounded text-[10px] leading-5 ${
                         day.planFollowed
-                          ? "bg-plum-600 font-medium text-white"
-                          : "bg-gray-100 text-gray-400"
+                          ? "bg-vata font-medium text-white"
+                          : "bg-muted text-foreground-tertiary"
                       }`}
                     >
                       plan
@@ -1020,14 +1016,14 @@ const LifestyleTracker = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
+            <TrendingUp className="h-5 w-5 text-primary" />
             Your Trends
           </CardTitle>
           <CardDescription>The last 14 days of everything you've logged</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-6 lg:grid-cols-3">
+        <CardContent className="grid gap-8 lg:grid-cols-3">
           <div>
-            <h4 className="mb-2 text-sm font-medium text-gray-700">Sleep (hours)</h4>
+            <h4 className="mb-2.5 text-footnote font-medium text-foreground-secondary">Sleep (hours)</h4>
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -1048,7 +1044,7 @@ const LifestyleTracker = () => {
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-medium text-gray-700">Activity (minutes)</h4>
+            <h4 className="mb-2.5 text-footnote font-medium text-foreground-secondary">Activity (minutes)</h4>
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
@@ -1060,13 +1056,13 @@ const LifestyleTracker = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1.5 text-caption1 text-foreground-tertiary">
               {averages.avgActivityMinutes} min/day average this week
             </p>
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-medium text-gray-700">Water (glasses)</h4>
+            <h4 className="mb-2.5 text-footnote font-medium text-foreground-secondary">Water (glasses)</h4>
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -1078,7 +1074,7 @@ const LifestyleTracker = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1.5 text-caption1 text-foreground-tertiary">
               {averages.avgWaterGlasses} glasses/day average this week
             </p>
           </div>

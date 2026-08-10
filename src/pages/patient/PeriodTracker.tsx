@@ -87,10 +87,10 @@ import {
 } from "@/services/diseaseDetectionService";
 
 const FLOW_STYLES: Record<FlowIntensity, string> = {
-  spotting: "bg-rose-50 text-rose-700 border-rose-200",
-  light: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-coral-100 text-coral-800 border-coral-300",
-  heavy: "bg-plum-600 text-white border-plum-700",
+  spotting: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  light: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  moderate: "bg-warning/15 text-warning border-warning/30",
+  heavy: "bg-primary text-primary-foreground border-transparent",
 };
 
 const prettyDate = (iso: string) =>
@@ -294,8 +294,11 @@ const PeriodTracker = () => {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center p-12">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="flex min-h-[60vh] flex-1 items-center justify-center p-12">
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
+          <p className="text-subhead text-foreground-secondary">Loading your cycle history…</p>
+        </div>
       </div>
     );
   }
@@ -308,14 +311,14 @@ const PeriodTracker = () => {
         : Scale;
 
   return (
-    <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl flex-1 space-y-8 p-6 sm:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Period & Weight Tracker</h1>
-          <p className="text-gray-600">
+          <h1 className="text-title1 text-foreground">Period &amp; Weight Tracker</h1>
+          <p className="mt-1.5 max-w-2xl text-body text-foreground-secondary">
             {isPregnant
-              ? "Your cycles are paused while you're pregnant — your history still shapes your plan"
-              : "Your cycle history and weight are what your PCOD/PCOS diet plan is built from"}
+              ? "Your cycles are paused while you're pregnant — your history still shapes your plan."
+              : "Your cycle history and weight are what your PCOD/PCOS diet plan is built from."}
           </p>
         </div>
         <Button
@@ -323,14 +326,14 @@ const PeriodTracker = () => {
           className="flex items-center gap-2"
           onClick={() => navigate("/patient/dashboard")}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Button>
       </div>
 
       {!isSynced && (
-        <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">
-          <CloudOff className="w-4 h-4 mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2.5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-footnote text-foreground">
+          <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>
             Saved on this device only — we couldn't reach the server. Nothing is lost;
             it will sync when the connection is back.
@@ -339,17 +342,17 @@ const PeriodTracker = () => {
       )}
 
       {/* ── Overview ── */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cycle Regularity</CardTitle>
-            <CalendarDays className="h-4 w-4 text-plum-600" />
+            <CardTitle className="text-caption1 font-medium text-foreground-secondary">Cycle Regularity</CardTitle>
+            <CalendarDays className="h-4 w-4 text-vata" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-title3 text-foreground">
               {REGULARITY_LABELS[analysis.regularity]}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-0.5 text-caption1 text-foreground-tertiary">
               {analysis.cycleCount} cycle{analysis.cycleCount === 1 ? "" : "s"} logged
             </p>
           </CardContent>
@@ -357,16 +360,16 @@ const PeriodTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Cycle</CardTitle>
-            <Sparkles className="h-4 w-4 text-rose-600" />
+            <CardTitle className="text-caption1 font-medium text-foreground-secondary">Average Cycle</CardTitle>
+            <Sparkles className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {analysis.averageCycleLength === null
                 ? "—"
                 : `${analysis.averageCycleLength} d`}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-0.5 text-caption1 text-foreground-tertiary">
               {analysis.shortestCycle !== null
                 ? `range ${analysis.shortestCycle}–${analysis.longestCycle} days`
                 : "log two periods to see this"}
@@ -376,14 +379,14 @@ const PeriodTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Days Since Period</CardTitle>
-            <Droplet className="h-4 w-4 text-coral-500" />
+            <CardTitle className="text-caption1 font-medium text-foreground-secondary">Days Since Period</CardTitle>
+            <Droplet className="h-4 w-4 text-pitta" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {analysis.daysSinceLastPeriod ?? "—"}
             </div>
-            <p className={`text-xs ${analysis.isOverdue ? "text-red-600" : "text-gray-600"}`}>
+            <p className={`mt-0.5 text-caption1 ${analysis.isOverdue ? "text-warning" : "text-foreground-tertiary"}`}>
               {analysis.predictedNextStart
                 ? analysis.isOverdue
                   ? `overdue since ${prettyDate(analysis.predictedNextStart)}`
@@ -395,14 +398,14 @@ const PeriodTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Weight</CardTitle>
-            <TrendIcon className="h-4 w-4 text-plum-600" />
+            <CardTitle className="text-caption1 font-medium text-foreground-secondary">Weight</CardTitle>
+            <TrendIcon className="h-4 w-4 text-vata" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-title2 text-foreground">
               {weightAnalysis.latest ? `${weightAnalysis.latest.weightKg} kg` : "—"}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-0.5 text-caption1 text-foreground-tertiary">
               {weightAnalysis.bmi !== null
                 ? `BMI ${weightAnalysis.bmi} · ${BMI_BAND_LABELS[bmiBand(weightAnalysis.bmi)]}`
                 : "add your height in your profile for BMI"}
@@ -415,8 +418,8 @@ const PeriodTracker = () => {
       {analysis.flags.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Info className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-title3">
+              <Info className="h-5 w-5 text-foreground-secondary" />
               What your cycles are saying
             </CardTitle>
             <CardDescription>
@@ -426,14 +429,14 @@ const PeriodTracker = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {analysis.flags.map((flag) => (
-              <div key={flag.key} className="rounded-lg border p-4">
+              <div key={flag.key} className="rounded-2xl border border-border bg-muted/30 p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="font-medium">{flag.label}</h4>
+                  <h4 className="text-subhead font-medium text-foreground">{flag.label}</h4>
                   <Badge variant="outline" className={RISK_STYLES[flag.severity].badge}>
                     {RISK_STYLES[flag.severity].label}
                   </Badge>
                 </div>
-                <p className="mt-1 text-sm text-gray-600">{flag.detail}</p>
+                <p className="mt-1 text-footnote text-foreground-secondary">{flag.detail}</p>
               </div>
             ))}
           </CardContent>
@@ -443,8 +446,10 @@ const PeriodTracker = () => {
       {/* ── Log a period ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Droplet className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-title3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <Droplet className="h-4 w-4" />
+            </span>
             Log a period
           </CardTitle>
           <CardDescription>
@@ -452,9 +457,9 @@ const PeriodTracker = () => {
             second one.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="period-start">Started on</Label>
               <Input
                 id="period-start"
@@ -464,7 +469,7 @@ const PeriodTracker = () => {
                 onChange={(e) => setDraft((p) => ({ ...p, startDate: e.target.value }))}
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="period-end">Ended on (leave blank if ongoing)</Label>
               <Input
                 id="period-end"
@@ -477,7 +482,7 @@ const PeriodTracker = () => {
           </div>
 
           <div>
-            <span className="text-sm font-medium">Flow</span>
+            <span className="text-subhead font-medium text-foreground">Flow</span>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {FLOW_INTENSITIES.map((flow) => (
                 <Button
@@ -494,7 +499,7 @@ const PeriodTracker = () => {
           </div>
 
           <div>
-            <span className="text-sm font-medium">Symptoms</span>
+            <span className="text-subhead font-medium text-foreground">Symptoms</span>
             <div className="mt-2 flex flex-wrap gap-2">
               {CYCLE_SYMPTOMS.map((symptom) => {
                 const selected = draft.symptoms.includes(symptom.value);
@@ -504,10 +509,10 @@ const PeriodTracker = () => {
                     type="button"
                     onClick={() => toggleSymptom(symptom.value)}
                     aria-pressed={selected}
-                    className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                    className={`rounded-full border px-3.5 py-1.5 text-footnote transition-colors ${
                       selected
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-gray-200 hover:bg-gray-50"
+                        : "border-border bg-accent-soft/40 text-foreground-secondary hover:bg-accent-soft"
                     }`}
                   >
                     {symptom.label}
@@ -517,14 +522,14 @@ const PeriodTracker = () => {
             </div>
           </div>
 
-          <div>
+          <div className="space-y-1.5">
             <Label htmlFor="period-notes">Notes</Label>
             <Textarea
               id="period-notes"
               rows={2}
               value={draft.notes}
               onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="Anything you want to remember about this cycle..."
+              placeholder="Anything you want to remember about this cycle…"
             />
           </div>
 
@@ -538,8 +543,10 @@ const PeriodTracker = () => {
       {/* ── Missed months ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarX className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-title3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <CalendarX className="h-4 w-4" />
+            </span>
             Months with no period
           </CardTitle>
           <CardDescription>
@@ -547,9 +554,9 @@ const PeriodTracker = () => {
             to fill in, and we won't treat it as a missed period unless you say so.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid gap-4 md:grid-cols-[200px_1fr_auto] md:items-end">
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="missed-month">Month</Label>
               <Input
                 id="missed-month"
@@ -561,7 +568,7 @@ const PeriodTracker = () => {
                 }
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="missed-notes">Notes</Label>
               <Input
                 id="missed-notes"
@@ -582,12 +589,12 @@ const PeriodTracker = () => {
               {[...missedMonths].reverse().map((missed) => (
                 <li
                   key={missed.month}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className="flex items-center justify-between rounded-2xl border border-border p-3.5"
                 >
                   <div>
-                    <span className="font-medium">{prettyMonth(missed.month)}</span>
+                    <span className="text-subhead font-medium text-foreground">{prettyMonth(missed.month)}</span>
                     {missed.notes && (
-                      <span className="ml-2 text-sm text-gray-600">{missed.notes}</span>
+                      <span className="ml-2 text-footnote text-foreground-tertiary">{missed.notes}</span>
                     )}
                   </div>
                   <Button
@@ -599,7 +606,7 @@ const PeriodTracker = () => {
                       setMissedMonths(await deleteMissedMonth(patientId, missed.month));
                     }}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-4 w-4 text-foreground-tertiary" />
                   </Button>
                 </li>
               ))}
@@ -611,8 +618,10 @@ const PeriodTracker = () => {
       {/* ── Weight ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Scale className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-title3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <Scale className="h-4 w-4" />
+            </span>
             Weight
           </CardTitle>
           <CardDescription>
@@ -623,7 +632,7 @@ const PeriodTracker = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-[160px_160px_1fr_auto] md:items-end">
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="weight-date">Date</Label>
               <Input
                 id="weight-date"
@@ -633,7 +642,7 @@ const PeriodTracker = () => {
                 onChange={(e) => setWeightDraft((p) => ({ ...p, date: e.target.value }))}
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="weight-kg">Weight (kg)</Label>
               <Input
                 id="weight-kg"
@@ -648,7 +657,7 @@ const PeriodTracker = () => {
                 placeholder="58.5"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="weight-notes">Notes</Label>
               <Input
                 id="weight-notes"
@@ -664,12 +673,12 @@ const PeriodTracker = () => {
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <h4 className="text-sm font-medium text-gray-700">Trend</h4>
-              <p className="mt-1 text-xl font-bold">
+            <div className="rounded-2xl border border-border bg-muted/30 p-4">
+              <h4 className="text-caption1 font-medium text-foreground-secondary">Trend</h4>
+              <p className="mt-1 text-title3 text-foreground">
                 {TREND_LABELS[weightAnalysis.trend]}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="mt-0.5 text-footnote text-foreground-tertiary">
                 {weightAnalysis.changeKg === null
                   ? "Log at least two readings a fortnight apart."
                   : `${weightAnalysis.changeKg > 0 ? "+" : ""}${weightAnalysis.changeKg} kg since ${prettyDate(
@@ -678,26 +687,26 @@ const PeriodTracker = () => {
               </p>
             </div>
 
-            <div className="rounded-lg border p-4">
-              <h4 className="text-sm font-medium text-gray-700">BMI</h4>
-              <p className="mt-1 text-xl font-bold">
+            <div className="rounded-2xl border border-border bg-muted/30 p-4">
+              <h4 className="text-caption1 font-medium text-foreground-secondary">BMI</h4>
+              <p className="mt-1 text-title3 text-foreground">
                 {weightAnalysis.bmi ?? "—"}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="mt-0.5 text-footnote text-foreground-tertiary">
                 {weightAnalysis.band
                   ? BMI_BAND_LABELS[weightAnalysis.band]
                   : "Add your height in the questionnaire to see this."}
               </p>
             </div>
 
-            <div className="rounded-lg border p-4">
-              <h4 className="text-sm font-medium text-gray-700">5% target</h4>
-              <p className="mt-1 text-xl font-bold">
+            <div className="rounded-2xl border border-border bg-muted/30 p-4">
+              <h4 className="text-caption1 font-medium text-foreground-secondary">5% target</h4>
+              <p className="mt-1 text-title3 text-foreground">
                 {weightAnalysis.fivePercentTargetKg
                   ? `${weightAnalysis.fivePercentTargetKg} kg`
                   : "—"}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="mt-0.5 text-footnote text-foreground-tertiary">
                 {isPregnant
                   ? "Not a target during pregnancy — shown for after."
                   : "Losing 5% of body weight is the change with the strongest evidence for restoring PCOS cycles."}
@@ -706,8 +715,8 @@ const PeriodTracker = () => {
           </div>
 
           {weightAnalysis.isRapidGain && !isPregnant && (
-            <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-900">
-              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex items-start gap-2.5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-footnote text-foreground">
+              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <span>
                 You've gained {weightAnalysis.changeKgPerMonth} kg/month recently. Your
                 next generated diet plan will move to a reduced-calorie, low-glycaemic
@@ -718,7 +727,7 @@ const PeriodTracker = () => {
 
           {weightChartData.length > 1 && (
             <div>
-              <h4 className="mb-2 text-sm font-medium text-gray-700">Your weight</h4>
+              <h4 className="mb-2 text-caption1 font-medium text-foreground-secondary">Your weight</h4>
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={weightChartData}>
@@ -745,28 +754,31 @@ const PeriodTracker = () => {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Logged periods</CardTitle>
+            <CardTitle className="text-title3">Logged periods</CardTitle>
             <CardDescription>
               {periods.length} entr{periods.length === 1 ? "y" : "ies"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {periods.length === 0 ? (
-              <p className="py-6 text-center text-sm text-gray-500">
-                Nothing logged yet. Add your last period above to get started.
-              </p>
+              <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center">
+                <Droplet className="mb-2 h-6 w-6 text-foreground-tertiary" />
+                <p className="text-footnote text-foreground-secondary">
+                  Nothing logged yet. Add your last period above to get started.
+                </p>
+              </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {[...periods].reverse().map((entry) => (
                   <li
                     key={entry.id}
-                    className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                    className="flex items-start justify-between gap-3 rounded-2xl border border-border p-3.5"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{prettyDate(entry.startDate)}</span>
+                        <span className="text-subhead font-medium text-foreground">{prettyDate(entry.startDate)}</span>
                         {entry.endDate && (
-                          <span className="text-sm text-gray-500">
+                          <span className="text-footnote text-foreground-tertiary">
                             → {prettyDate(entry.endDate)}
                           </span>
                         )}
@@ -777,7 +789,7 @@ const PeriodTracker = () => {
                         )}
                       </div>
                       {entry.symptoms.length > 0 && (
-                        <p className="mt-1 text-sm text-gray-600">
+                        <p className="mt-1 text-footnote text-foreground-secondary">
                           {entry.symptoms
                             .map(
                               (s) =>
@@ -787,7 +799,7 @@ const PeriodTracker = () => {
                         </p>
                       )}
                       {entry.notes && (
-                        <p className="mt-1 text-sm text-gray-500">{entry.notes}</p>
+                        <p className="mt-1 text-footnote text-foreground-tertiary">{entry.notes}</p>
                       )}
                     </div>
                     <Button
@@ -796,7 +808,7 @@ const PeriodTracker = () => {
                       aria-label={`Remove period starting ${prettyDate(entry.startDate)}`}
                       onClick={() => handleDeletePeriod(entry.id)}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Trash2 className="h-4 w-4 text-foreground-tertiary" />
                     </Button>
                   </li>
                 ))}
@@ -807,7 +819,7 @@ const PeriodTracker = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Patterns</CardTitle>
+            <CardTitle className="text-title3">Patterns</CardTitle>
             <CardDescription>Cycle lengths and your most common symptoms</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -830,20 +842,20 @@ const PeriodTracker = () => {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">
+              <p className="text-footnote text-foreground-tertiary">
                 Log two periods and your cycle length appears here.
               </p>
             )}
 
             {symptoms.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {symptoms.slice(0, 6).map(({ symptom, count }) => (
                   <div key={symptom}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>
+                    <div className="flex items-center justify-between text-footnote">
+                      <span className="text-foreground">
                         {CYCLE_SYMPTOMS.find((c) => c.value === symptom)?.label ?? symptom}
                       </span>
-                      <span className="text-gray-500">
+                      <span className="text-foreground-tertiary">
                         {count}/{periods.length}
                       </span>
                     </div>
@@ -857,7 +869,7 @@ const PeriodTracker = () => {
             )}
 
             {analysis.twiceInAMonth > 0 && (
-              <div className="flex items-start gap-2 rounded-lg border border-plum-200 bg-plum-50 p-3 text-sm text-plum-900">
+              <div className="flex items-start gap-2.5 rounded-2xl border border-accent-soft bg-accent-soft/60 p-4 text-footnote text-accent-soft-foreground">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   {analysis.twiceInAMonth} month
