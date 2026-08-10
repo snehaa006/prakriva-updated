@@ -485,9 +485,10 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     prompt = build_diet_prompt(payload, days, daily_calories)
 
-    # Roughly 220 tokens per meal slot, plus room for the summary blocks. A
+    # Roughly 240 tokens per meal slot, plus room for the summary blocks and
+    # for the model's own reasoning, which comes out of the same budget. A
     # 14-day plan is the reason this is computed rather than fixed.
-    max_tokens = min(8192, 900 + days * len(meal_structure) * 220)
+    max_tokens = min(16384, 2000 + days * len(meal_structure) * 240)
 
     raw = gemini_service.generate_json(
         prompt,

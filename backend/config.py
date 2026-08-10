@@ -58,10 +58,22 @@ class Settings:
         # The first key, kept as its own setting for backward compatibility with
         # callers and the health check that read it directly.
         self.GEMINI_API_KEY = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
-        self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        # Which model to call. Leave unset: Google retires model IDs on a
+        # published schedule and the endpoint answers 404 for every request
+        # once an ID is gone, so gemini_service works through a chain of
+        # current models (and, if they are all gone, asks the API which models
+        # the key can actually call) rather than trusting one name forever.
+        # This is not hypothetical — the old default here, gemini-2.0-flash,
+        # was shut down on 1 June 2026, which broke the chatbot outright while
+        # diet chart generation quietly fell back to its FoodOScope path.
+        # Set GEMINI_MODEL only to pin a specific model.
+        self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip()
         self.GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.3))
-        self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 900))
-        self.GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", 30))
+        # Current models spend part of this budget on internal reasoning before
+        # the visible answer, so it has to be roomier than it was for
+        # gemini-2.0-flash — too small and a reply comes back with no text.
+        self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 2048))
+        self.GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", 45))
 
         # Supabase. The service-role key bypasses RLS, so it must never be
         # exposed to the browser — server-side only.

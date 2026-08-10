@@ -783,10 +783,44 @@ beneath them, so the cause is visible without opening devtools:
 | `Could not reach the backend at <url>` | Flask is down, `VITE_API_URL` points somewhere wrong, or the origin is not in the backend's `ALLOWED_ORIGINS`. |
 | `Gemini returned HTTP 400 (INVALID_ARGUMENT — …)` | The request itself was rejected — a malformed conversation, not a key problem. |
 | `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured key is out of quota. Add a spare (`GEMINI_API_KEY2`) or wait. |
-| `Gemini returned HTTP 404 …` | `GEMINI_MODEL` names a model that no longer exists — check it against Google's current model list. |
+| `Gemini returned no usable model (…)` | Every model in the chain answered 404 *and* the live model list could not be fetched — see "Gemini model retirement" below. |
+| `Gemini used its whole output budget …` | The model spent `maxOutputTokens` reasoning without writing an answer, twice. Raise `GEMINI_MAX_TOKENS`. |
 | `No GEMINI_API_KEY is set` | The backend has no key; set it in the Render dashboard. |
 
 Keys are redacted out of anything shown or logged.
+
+#### Gemini model retirement
+
+Google shuts model IDs down on a published schedule, and a retired ID answers
+404 to every request made against it. This app has already been bitten once:
+`gemini-2.0-flash`, the original hard-coded default, was shut down on
+**1 June 2026**, and the two Gemini callers failed very differently —
+
+- the **chatbot** has no fallback, so every message came back "I couldn't
+  reach your assistant";
+- **diet chart generation** falls back to the FoodOScope recipe path on any
+  failure, so it kept producing charts and looked healthy, which made the
+  outage read as "the chatbot is broken" rather than "the model name is dead".
+
+So the model is resolved rather than declared. On its first call each process
+asks Gemini which models the key can actually serve (`ListModels`) and takes
+the best flash model on offer — stable over preview, full over lite, highest
+version. A hard-coded name is only correct until the next retirement, and
+those have arrived *ahead* of their published dates (`gemini-2.5-flash` began
+answering 404 more than three months before its announced shutdown), so one
+extra request per process buys a model that certainly exists. `_MODEL_CHAIN`
+in `backend/gemini_service.py` is only the backstop for when that listing call
+itself fails.
+
+On top of that, a 404 or `NOT_FOUND` from any call retires that ID for the
+life of the process and the next candidate is tried on the same request — so a
+model that dies mid-deployment costs one extra call, not an outage. Set
+`GEMINI_MODEL` only to pin a specific model; a pinned model that 404s is
+logged and routed around too.
+
+`GET /analysis/status` reports the model in use alongside `enabled`, and both
+generation endpoints return it in their response — that field is the quickest
+way to tell "the key is broken" apart from "the model name is gone".
 
 #### Gemini key rotation
 
@@ -1278,7 +1312,9 @@ committed.
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot, lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
 | `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
-| `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
+| `GEMINI_MODEL` | Backend | No | Pins one model ID. Leave unset: the backend then asks the API which models the key can actually call and uses the best flash model available, so a retired model ID cannot take the AI features down — see "Gemini model retirement". |
+| `GEMINI_MAX_TOKENS` | Backend | No | Output budget per call, defaults to `2048`. Current models spend part of it reasoning before they answer, so a small budget can return an empty reply. |
+| `GEMINI_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. Diet chart generation overrides this with its own longer timeout. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 | `RATELIMIT_STORAGE_URI` | Backend | No | Where flask-limiter keeps its request counters. Defaults to `memory://` (in-process), which is correct while the API runs as a single worker — the case on Render's free plan. Point it at a shared Redis instance (`redis://…`) before scaling past one worker, otherwise each process enforces its own separate copy of the limit. `REDIS_URL` is used as a fallback, so an attached Render Key Value instance works with no extra config. |

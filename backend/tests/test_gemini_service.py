@@ -19,13 +19,38 @@ def with_keys(monkeypatch, *keys):
 
 @pytest.fixture(autouse=True)
 def reset_key_pool_state(monkeypatch):
-    """Every test starts with a clean pool and no keys configured."""
+    """Every test starts with a clean pool and no keys configured.
+
+    The model chain is reset too, and discovery is stubbed out so no test can
+    reach the network by exhausting it.
+    """
     with_keys(monkeypatch)
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
+    gemini_service._retired_models.clear()
+    gemini_service._resolved_model = None
+    gemini_service._discovered_models = []
     yield
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
+    gemini_service._retired_models.clear()
+    gemini_service._resolved_model = None
+    gemini_service._discovered_models = None
+
+
+def model_gone_response() -> Mock:
+    """What Gemini answers for a model ID that has been shut down."""
+    response = Mock(status_code=404)
+    response.json.return_value = {
+        "error": {
+            "status": "NOT_FOUND",
+            "message": (
+                "models/gemini-2.0-flash is not found for API version v1beta, "
+                "or is not supported for generateContent."
+            ),
+        }
+    }
+    return response
 
 
 def candidates_response(text: str) -> Mock:
@@ -103,11 +128,13 @@ class TestPostGemini:
                 gemini_service._post_gemini({}, timeout=5)
 
     def test_a_non_key_error_is_not_retried_on_other_keys(self, monkeypatch):
-        """A 404 (e.g. unknown model) would fail identically on every key, so
-        it should be raised immediately rather than burning the rotation."""
+        """A 400 for a malformed request would fail identically on every key,
+        so it is raised immediately rather than burning the rotation."""
         with_keys(monkeypatch, "a", "b")
-        with patch("gemini_service.requests.post", return_value=Mock(status_code=404)) as mock_post:
-            with pytest.raises(GeminiUnavailable, match="404"):
+        response = Mock(status_code=400)
+        response.json.return_value = {"error": {"status": "INVALID_ARGUMENT", "message": "bad"}}
+        with patch("gemini_service.requests.post", return_value=response) as mock_post:
+            with pytest.raises(GeminiUnavailable, match="400"):
                 gemini_service._post_gemini({}, timeout=5)
         assert mock_post.call_count == 1
 
@@ -164,6 +191,197 @@ class TestPostGemini:
         ):
             body = gemini_service._post_gemini({}, timeout=5)
         assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+
+
+class TestModelFailover:
+    """What happens when Google retires the model ID the app is calling.
+
+    This is not hypothetical: gemini-2.0-flash — the default this app shipped
+    with — was shut down on 1 June 2026, after which every Gemini call
+    answered 404. The chatbot, which has no fallback path, failed on every
+    message, while diet chart generation silently served FoodOScope charts and
+    so still looked healthy. A retired ID must therefore cost one call and
+    then be routed around, not take the feature down until someone redeploys.
+    """
+
+    def test_the_url_names_the_active_model(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        with patch("gemini_service.requests.post", return_value=candidates_response("hi")) as post:
+            gemini_service._post_gemini({}, timeout=5)
+        assert gemini_service.active_model() in post.call_args.args[0]
+
+    def test_a_retired_model_falls_through_to_the_next_one(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[model_gone_response(), candidates_response("ok")],
+        ) as post:
+            body = gemini_service._post_gemini({}, timeout=5)
+
+        assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+        first, second = post.call_args_list[0].args[0], post.call_args_list[1].args[0]
+        assert first != second
+
+    def test_a_retired_model_does_not_burn_the_key_pool(self, monkeypatch):
+        """The model being gone says nothing about the keys — parking them for
+        it would take every other Gemini feature down too."""
+        with_keys(monkeypatch, "a", "b")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[model_gone_response(), candidates_response("ok")],
+        ) as post:
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert gemini_service._cooldown_until == {}
+        assert post.call_args_list[0].kwargs["params"] == {"key": "a"}
+        assert post.call_args_list[1].kwargs["params"] == {"key": "a"}
+
+    def test_the_working_model_sticks_for_later_calls(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[model_gone_response(), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+        survivor = gemini_service.active_model()
+
+        with patch("gemini_service.requests.post", return_value=candidates_response("ok")) as post:
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert post.call_count == 1
+        assert survivor in post.call_args.args[0]
+
+    def test_a_pinned_model_is_tried_first(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_MODEL", "gemini-pinned")
+        gemini_service._resolved_model = None
+        assert gemini_service.active_model() == "gemini-pinned"
+
+    def test_giving_up_names_the_model_problem(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        with patch("gemini_service.requests.post", return_value=model_gone_response()):
+            with pytest.raises(GeminiUnavailable, match="no usable model"):
+                gemini_service._post_gemini({}, timeout=5)
+
+
+class TestModelDiscovery:
+    """Asking Gemini which models exist — the safety net for the day the
+    static chain goes stale too."""
+
+    def test_flash_models_rank_above_pro_and_preview(self):
+        ranked = sorted(
+            [
+                "gemini-2.5-flash",
+                "gemini-3.6-flash",
+                "gemini-3.6-flash-lite",
+                "gemini-3.6-flash-preview",
+                "gemini-3.6-pro",
+            ],
+            key=gemini_service._model_rank,
+            reverse=True,
+        )
+        assert ranked[0] == "gemini-3.6-flash"
+        assert ranked[-1] == "gemini-3.6-pro"
+
+    def test_non_text_models_are_not_candidates(self):
+        assert gemini_service._is_usable_model("gemini-3.6-flash") is True
+        for name in ("gemini-embedding-001", "gemini-2.5-flash-tts", "imagen-4.0", "gemma-3"):
+            assert gemini_service._is_usable_model(name) is False
+
+    def test_discovery_reads_the_live_list(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        gemini_service._discovered_models = None
+        listing = Mock(status_code=200)
+        listing.json.return_value = {
+            "models": [
+                {"name": "models/gemini-3.6-flash", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/gemini-embedding-001", "supportedGenerationMethods": ["embedContent"]},
+            ]
+        }
+        with patch("gemini_service.requests.get", return_value=listing):
+            assert gemini_service._discover_models() == ["gemini-3.6-flash", "gemini-2.5-flash"]
+
+    def test_a_failed_listing_is_not_fatal(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        gemini_service._discovered_models = None
+        with patch("gemini_service.requests.get", side_effect=requests.ConnectionError("boom")):
+            assert gemini_service._discover_models() == []
+
+    def test_the_live_list_outranks_the_static_chain(self, monkeypatch):
+        """A hard-coded ID is only right until the next retirement, and those
+        have landed ahead of their published dates — so what the API says it
+        can serve wins over what this file was written believing."""
+        with_keys(monkeypatch, "k")
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_MODEL", "")
+        gemini_service._discovered_models = ["gemini-9.9-flash"]
+
+        assert gemini_service._model_candidates()[0] == "gemini-9.9-flash"
+        assert gemini_service.active_model() == "gemini-9.9-flash"
+
+    def test_a_pinned_model_still_outranks_the_live_list(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_MODEL", "gemini-pinned")
+        gemini_service._discovered_models = ["gemini-9.9-flash"]
+
+        assert gemini_service._model_candidates()[0] == "gemini-pinned"
+
+    def test_the_static_chain_backs_a_failed_listing(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        monkeypatch.setattr(gemini_service.settings, "GEMINI_MODEL", "")
+        gemini_service._discovered_models = None
+        with patch("gemini_service.requests.get", side_effect=requests.ConnectionError("boom")):
+            assert gemini_service.active_model() == gemini_service._MODEL_CHAIN[0]
+
+    def test_no_key_means_no_listing_request(self, monkeypatch):
+        with_keys(monkeypatch)
+        gemini_service._discovered_models = None
+        with patch("gemini_service.requests.get") as get:
+            assert gemini_service._discover_models() == []
+        assert get.call_count == 0
+        # Nothing was learned, so nothing should be remembered.
+        assert gemini_service._discovered_models is None
+
+
+class TestOutputBudget:
+    """A reply that never arrives because the model spent the whole token
+    budget thinking first — the migration hazard when moving off a model that
+    did no internal reasoning."""
+
+    def test_an_empty_reply_at_max_tokens_is_retried_with_more_room(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        spent = Mock(status_code=200)
+        spent.json.return_value = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {}}]}
+
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[spent, candidates_response("here you go")],
+        ) as post:
+            answer = gemini_service.generate("hello", "rules", max_tokens=700)
+
+        assert answer == "here you go"
+        assert post.call_count == 2
+        assert post.call_args_list[1].kwargs["json"]["generationConfig"]["maxOutputTokens"] == 2100
+
+    def test_it_gives_up_rather_than_retrying_forever(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        spent = Mock(status_code=200)
+        spent.json.return_value = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {}}]}
+
+        with patch("gemini_service.requests.post", return_value=spent) as post:
+            with pytest.raises(GeminiUnavailable, match="output budget"):
+                gemini_service.generate("hello", "rules", max_tokens=700)
+
+        assert post.call_count == 2
+
+    def test_a_blocked_prompt_says_so(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        blocked = Mock(status_code=200)
+        blocked.json.return_value = {"candidates": [], "promptFeedback": {"blockReason": "SAFETY"}}
+
+        with patch("gemini_service.requests.post", return_value=blocked):
+            with pytest.raises(GeminiUnavailable, match="SAFETY"):
+                gemini_service.generate("hello", "rules")
 
 
 class TestGenerateHistory:
