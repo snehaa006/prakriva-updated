@@ -89,6 +89,37 @@ class TestAppBasics:
             assert data['success'] is True
             assert 'dependencies' in data['data']
     
+    def test_health_check_is_exempt_from_rate_limiting(self, client):
+        """The platform's health probe must never be rate limited.
+
+        Render polls /health every few seconds — far more than the 500/hour
+        default limit — and treats any non-2xx as the instance being down. When
+        the probe fell under the default limit it started returning 429 partway
+        through each hour, so a healthy service was reported as failed and
+        restarted. Poll well past the limit and assert none of it is refused.
+        """
+        with patch('app.db_manager') as mock_db:
+            mock_db.health_check.return_value = {"status": "healthy"}
+
+            statuses = {client.get('/health').status_code for _ in range(600)}
+
+        assert statuses == {200}, f"health probe was refused: {statuses}"
+
+    def test_normal_routes_are_still_rate_limited(self, app, client):
+        """Exempting /health must not have disarmed the limiter everywhere.
+
+        The limiter counts in process memory against the module-level app, so
+        the drained bucket would otherwise leak into every later test that
+        calls this route. Reset it on the way out.
+        """
+        try:
+            statuses = {client.get('/disease/conditions').status_code
+                        for _ in range(200)}
+        finally:
+            app.limiter.reset()
+
+        assert 429 in statuses
+
     def test_cors_headers(self, client):
         """Test CORS configuration"""
         response = client.get('/')

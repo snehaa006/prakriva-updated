@@ -13,6 +13,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 from werkzeug.exceptions import BadRequest, InternalServerError
+from werkzeug.middleware.proxy_fix import ProxyFix
 from loguru import logger
 import traceback
 
@@ -47,7 +48,16 @@ def create_app() -> Flask:
     """Application factory pattern"""
     
     app = Flask(__name__)
-    
+
+    # Render (like any managed host) terminates TLS at its own proxy and
+    # forwards the request on, so request.remote_addr is the proxy's address
+    # rather than the caller's. get_remote_address keys the rate limiter off
+    # that value, so without this every visitor — and Render's health checker —
+    # shares a single bucket, and one busy user rate-limits everyone else.
+    # Trust exactly one hop: the proxy in front of us sets X-Forwarded-For, and
+    # trusting more would let a caller spoof its own address and its own quota.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     # Configure CORS. Exact origins come from settings.ALLOWED_ORIGINS (see
     # config.py — override with the ALLOWED_ORIGINS env var in production).
     # Vercel preview deployments get a new *.vercel.app subdomain per branch/PR,
@@ -223,8 +233,16 @@ def index():
 
 
 @app.route("/health", methods=["GET"])
+@app.limiter.exempt
 def health_check():
-    """Comprehensive health check endpoint"""
+    """Comprehensive health check endpoint.
+
+    Exempt from rate limiting. Render polls this path every few seconds, which
+    is well over the 500/hour default limit, so the probe used to start getting
+    429s partway through each hour. Render reads any non-2xx as the instance
+    being unavailable, so the limiter was reporting a healthy service as failed
+    and getting it restarted. A liveness probe must never be rate limited.
+    """
     try:
         # Check database
         db_status = db_manager.health_check()

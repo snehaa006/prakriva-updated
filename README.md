@@ -1317,6 +1317,8 @@ committed.
 | `GEMINI_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. Diet chart generation overrides this with its own longer timeout. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
+| `RATE_LIMIT_PER_MINUTE` | Backend | No | Per-caller ceiling for the routes that opt into a per-minute limit, defaults to `30`. |
+| `RATE_LIMIT_PER_HOUR` | Backend | No | Per-caller default limit applied to every route that does not set its own, defaults to `500`. Counted per client IP — see "Rate limiting behind Render's proxy". `/health` is exempt so the platform's health probe can never be throttled. |
 | `RATELIMIT_STORAGE_URI` | Backend | No | Where flask-limiter keeps its request counters. Defaults to `memory://` (in-process), which is correct while the API runs as a single worker — the case on Render's free plan. Point it at a shared Redis instance (`redis://…`) before scaling past one worker, otherwise each process enforces its own separate copy of the limit. `REDIS_URL` is used as a fallback, so an attached Render Key Value instance works with no extra config. |
 
 ### Credentials previously committed to this repo
@@ -1434,6 +1436,32 @@ writable. Expect `Running 'python run.py'` to be followed by the startup lines
 Render prints `No open ports detected, continuing to scan...` while the service
 loads its datasets and models; that is normal on the free plan and resolves once
 Waitress binds — the deploy has only failed if the scan never succeeds.
+
+#### Rate limiting behind Render's proxy
+
+Two things about flask-limiter only matter once the app is behind a proxy, and
+both of them caused Render to report a healthy service as failed:
+
+- **`/health` is exempt from rate limiting.** Render polls the health check
+  every few seconds, which is over 700 requests an hour against a
+  `RATE_LIMIT_PER_HOUR` default of 500. The probe used to fall under that
+  default and start answering 429 partway through each hour; Render reads any
+  non-2xx as the instance being unavailable, so it emailed
+  *"HTTP health check failed with status code 429"* and restarted an instance
+  that was fine. A liveness probe must never be throttled — leave the
+  `@app.limiter.exempt` on `health_check()` in place.
+- **The app trusts one proxy hop** (`ProxyFix` in `create_app()`). Render
+  terminates TLS at its own proxy and forwards the request on, so
+  `request.remote_addr` is the proxy's address rather than the caller's.
+  flask-limiter keys off that value, so without `ProxyFix` every visitor and
+  the health probe share a *single* bucket and one busy user rate-limits
+  everybody. Exactly one hop is trusted: the proxy in front sets
+  `X-Forwarded-For`, and trusting more hops would let a caller spoof its own
+  address and hand itself a fresh quota.
+
+`backend/tests/test_app.py` covers both — one test polls `/health` past the
+hourly limit and asserts it is never refused, the other asserts normal routes
+are still limited.
 
 ### Backend (Vercel, alternative)
 
