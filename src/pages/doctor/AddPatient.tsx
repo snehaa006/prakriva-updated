@@ -34,6 +34,7 @@ import {
   Thermometer,
   Droplet
 } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthUserId } from '@/hooks/useAuthUserId';
 import { useCachedPageData } from '@/hooks/useCachedPageData';
@@ -142,6 +143,7 @@ const fetchConsultationRequests = async (
 
 const ConsultationRequests: React.FC = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const doctorId = useAuthUserId();
 
   // Cached, so switching away and back shows the queue immediately; still
@@ -580,7 +582,16 @@ const ConsultationRequests: React.FC = () => {
                       )}
 
                       {request.status === 'accepted' && (
-                        <Button size="sm" variant="outline" className="gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            navigate(
+                              `/doctor/appointments?patientId=${request.patientId}`
+                            )
+                          }
+                          className="gap-1"
+                        >
                           <Calendar className="w-3 h-3" />
                           Schedule Appointment
                         </Button>

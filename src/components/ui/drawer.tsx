@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils";
 // Escape, and the close button all dismiss via the native dialog engine.
 // -----------------------------------------------------------------------
 
+/** Matches the `duration-300` exit transition on the panel below. */
+const EXIT_DURATION_MS = 300;
+
 interface DrawerContextValue {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -144,20 +147,33 @@ const DrawerContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 
     React.useImperativeHandle(ref, () => dialogRef.current as unknown as HTMLDivElement);
 
+    // Mounting has to happen before the <dialog> can be opened: the element is
+    // only rendered once `mounted` is true, so `dialogRef` is still null here on
+    // the render that first asks for `open`.
+    React.useEffect(() => {
+      if (open) setMounted(true);
+    }, [open]);
+
     React.useEffect(() => {
       const node = dialogRef.current;
       if (!node) return;
 
       if (open) {
-        setMounted(true);
         if (!node.open) node.showModal();
         const id = requestAnimationFrame(() => setVisible(true));
         return () => cancelAnimationFrame(id);
-      } else {
-        setVisible(false);
-        if (node.open) node.close();
       }
-    }, [open]);
+
+      // Play the exit transition, then close and unmount. A closed <dialog> is
+      // `display: none`, so the slide-down has to finish before close() —
+      // waiting on transitionend after closing would wait forever.
+      setVisible(false);
+      const id = setTimeout(() => {
+        if (node.open) node.close();
+        setMounted(false);
+      }, EXIT_DURATION_MS);
+      return () => clearTimeout(id);
+    }, [open, mounted]);
 
     React.useEffect(() => {
       const node = dialogRef.current;
@@ -172,16 +188,12 @@ const DrawerContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
       return () => {
         node.removeEventListener("close", handleClose);
       };
-    }, [onOpenChange]);
+    }, [onOpenChange, mounted]);
 
     const handleDialogClick = (e: React.MouseEvent<HTMLDialogElement>) => {
       if (e.target === dialogRef.current) {
         onOpenChange(false);
       }
-    };
-
-    const handleTransitionEnd = () => {
-      if (!open) setMounted(false);
     };
 
     if (!mounted) return null;
@@ -190,7 +202,6 @@ const DrawerContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
       <dialog
         ref={dialogRef}
         onClick={handleDialogClick}
-        onTransitionEnd={handleTransitionEnd}
         className={cn(
           "m-0 max-w-none w-full inset-x-0 bottom-0 top-auto h-auto max-h-[85vh] flex flex-col rounded-t-2xl border border-border bg-card",
           "backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",

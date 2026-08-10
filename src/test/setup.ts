@@ -35,6 +35,26 @@ if (!window.matchMedia) {
   }));
 }
 
+// Dialog/AlertDialog/Sheet/Drawer are built on the native <dialog> element,
+// which jsdom renders but does not give showModal/close. Without these the
+// overlays throw as soon as they open.
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
+if (!HTMLDialogElement.prototype.show) {
+  HTMLDialogElement.prototype.show = function show(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
+if (!HTMLDialogElement.prototype.close) {
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.open = false;
+    this.dispatchEvent(new Event("close"));
+  };
+}
+
 Element.prototype.scrollIntoView ??= vi.fn();
 Element.prototype.hasPointerCapture ??= vi.fn(() => false);
 Element.prototype.setPointerCapture ??= vi.fn();

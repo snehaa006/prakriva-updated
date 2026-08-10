@@ -190,9 +190,10 @@ with "Invalid credentials" on a password that was never set.
 Frontend tests run under Vitest in a jsdom environment, configured in
 `vitest.config.ts` (kept separate from `vite.config.ts` so the dev/build
 config stays free of test concerns). `src/test/setup.ts` loads the
-jest-dom matchers and shims the browser APIs Radix UI relies on
-(`ResizeObserver`, `matchMedia`, pointer capture), which jsdom does not
-implement.
+jest-dom matchers and shims the browser APIs the UI primitives rely on but
+jsdom does not implement: `ResizeObserver`, `matchMedia`, pointer capture, and
+`HTMLDialogElement`'s `showModal`/`show`/`close` (jsdom renders `<dialog>` but
+gives it no methods, and Dialog/AlertDialog/Sheet/Drawer are all built on it).
 
 Coverage is focused on authentication, since that is the gate on both roles:
 
@@ -217,6 +218,10 @@ Coverage is focused on authentication, since that is the gate on both roles:
   vocabulary from the API: frequency ordering, de-duplication across
   categories, alias carry-over, the merged staples, the offline fallback and
   the week-long cache.
+- `src/components/ui/__tests__/dialog.test.tsx` — that the native-`<dialog>`
+  overlays (Dialog, AlertDialog, Sheet, Drawer) actually appear when opened and
+  unmount again when closed. They share one lifecycle, and a regression in it
+  silently killed every "View profile"-style button in the app.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
 - `src/hooks/__tests__/useCachedPageData.test.tsx` — that a revisited page
@@ -1143,6 +1148,26 @@ The picker hands callers the patient's **`patients.id` UUID**, and shows the
 P001-style code as display text only. That distinction matters: `diet_plans`
 (and every other table) keys on the UUID, so saving a plan against the code
 fails on both the column type and the RLS check.
+
+## Appointments (doctors)
+
+`/doctor/appointments` (`src/pages/doctor/AppointmentScheduler.tsx`) books
+consultations. Two things about how it is reached:
+
+- **Its patient dropdown comes from `useDoctorPatients`** (accepted requests
+  only). It used to read `AppContext.patients`, which nothing ever populates —
+  so the list was always empty and no appointment could be booked at all. When a
+  doctor has no accepted patients the field says so instead of sitting there
+  blank.
+- **`?patientId=<patients.id UUID>` preselects that patient** and opens the
+  booking form straight away. The "Schedule" button on each card of the Patients
+  page, and "Schedule Appointment" on an accepted consultation request in
+  Consultation Requests, both link here that way. As everywhere else on the
+  doctor side, the link carries the `patients.id` UUID, never the P001-style
+  code.
+
+Appointments themselves are still component state — nothing is persisted to
+Supabase yet, so they do not survive a reload.
 
 ## Doctor verification
 
