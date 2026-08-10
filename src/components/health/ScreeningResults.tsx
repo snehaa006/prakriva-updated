@@ -182,7 +182,7 @@ export const ScreeningResultsView: React.FC<{
                 {/* Actionable guidance gets its own tinted block so it stands
                     apart from the "why" list above it — this is the part a
                     reader should walk away remembering. */}
-                <div className="rounded-lg border border-plum-100 bg-plum-50/60 p-3">
+                <div className="rounded-2xl border border-plum-100 bg-plum-50/60 p-3">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Lightbulb className="h-4 w-4 text-plum-600 shrink-0" />
                     <p className="text-sm font-medium text-plum-900">

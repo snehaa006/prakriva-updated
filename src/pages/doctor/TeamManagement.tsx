@@ -332,7 +332,7 @@ const TeamManagement = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {teamMembers.map(member => (
-              <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+              <div key={member.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50">
                 <div className="relative">
                   <Avatar className="w-10 h-10">
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground">
@@ -547,7 +547,7 @@ const TeamManagement = () => {
 
       {/* Invite Member Dialog */}
       {showInviteForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-foreground/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Invite Team Member</CardTitle>

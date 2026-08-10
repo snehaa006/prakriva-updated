@@ -418,7 +418,7 @@ const DietChart = () => {
           <CardContent>
             <div className="space-y-3">
               {savedPlans.map((plan) => (
-                <div key={plan.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={plan.id} className="flex items-center justify-between p-4 border border-border rounded-2xl">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold">{plan.patientName}</h3>
@@ -511,7 +511,7 @@ const DietChart = () => {
             </div>
           </div>
           {selectedPlan && (
-            <div className="mt-4 p-3 bg-plum-50 rounded-lg">
+            <div className="mt-4 p-3 bg-plum-50 rounded-xl">
               <p className="text-sm text-plum-700">
                 <AlertCircle className="w-4 h-4 inline mr-1" />
                 Viewing saved plan from {new Date(selectedPlan.createdAt).toLocaleDateString()}. 

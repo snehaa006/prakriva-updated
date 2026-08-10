@@ -1,49 +1,113 @@
 import * as React from "react";
-import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group";
 import { type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 import { toggleVariants } from "@/components/ui/toggle";
 
-const ToggleGroupContext = React.createContext<VariantProps<typeof toggleVariants>>({
+const ToggleGroupContext = React.createContext<
+  VariantProps<typeof toggleVariants> & {
+    type?: "single" | "multiple";
+    value?: string | string[];
+    onItemToggle?: (value: string) => void;
+  }
+>({
   size: "default",
   variant: "default",
 });
 
-const ToggleGroup = React.forwardRef<
-  React.ElementRef<typeof ToggleGroupPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ToggleGroupPrimitive.Root> & VariantProps<typeof toggleVariants>
->(({ className, variant, size, children, ...props }, ref) => (
-  <ToggleGroupPrimitive.Root ref={ref} className={cn("flex items-center justify-center gap-1", className)} {...props}>
-    <ToggleGroupContext.Provider value={{ variant, size }}>{children}</ToggleGroupContext.Provider>
-  </ToggleGroupPrimitive.Root>
-));
+export interface ToggleGroupSingleProps extends VariantProps<typeof toggleVariants> {
+  type?: "single";
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  className?: string;
+  children?: React.ReactNode;
+}
 
-ToggleGroup.displayName = ToggleGroupPrimitive.Root.displayName;
+export interface ToggleGroupMultipleProps extends VariantProps<typeof toggleVariants> {
+  type: "multiple";
+  value?: string[];
+  defaultValue?: string[];
+  onValueChange?: (value: string[]) => void;
+  className?: string;
+  children?: React.ReactNode;
+}
 
-const ToggleGroupItem = React.forwardRef<
-  React.ElementRef<typeof ToggleGroupPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof ToggleGroupPrimitive.Item> & VariantProps<typeof toggleVariants>
->(({ className, children, variant, size, ...props }, ref) => {
-  const context = React.useContext(ToggleGroupContext);
+export type ToggleGroupProps = ToggleGroupSingleProps | ToggleGroupMultipleProps;
 
-  return (
-    <ToggleGroupPrimitive.Item
-      ref={ref}
-      className={cn(
-        toggleVariants({
-          variant: context.variant || variant,
-          size: context.size || size,
-        }),
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </ToggleGroupPrimitive.Item>
-  );
-});
+const ToggleGroup = React.forwardRef<HTMLDivElement, ToggleGroupProps>(
+  ({ className, variant, size, children, type = "single", value, defaultValue, onValueChange, ...props }, ref) => {
+    const [internalValue, setInternalValue] = React.useState<string | string[] | undefined>(
+      defaultValue ?? (type === "multiple" ? [] : undefined),
+    );
+    const isControlled = value !== undefined;
+    const currentValue = isControlled ? value : internalValue;
 
-ToggleGroupItem.displayName = ToggleGroupPrimitive.Item.displayName;
+    const onItemToggle = React.useCallback(
+      (itemValue: string) => {
+        if (type === "multiple") {
+          const arr = Array.isArray(currentValue) ? currentValue : [];
+          const next = arr.includes(itemValue) ? arr.filter((v) => v !== itemValue) : [...arr, itemValue];
+          if (!isControlled) setInternalValue(next);
+          (onValueChange as ((value: string[]) => void) | undefined)?.(next);
+        } else {
+          const next = currentValue === itemValue ? "" : itemValue;
+          if (!isControlled) setInternalValue(next);
+          (onValueChange as ((value: string) => void) | undefined)?.(next);
+        }
+      },
+      [type, currentValue, isControlled, onValueChange],
+    );
+
+    return (
+      <div ref={ref} className={cn("flex items-center justify-center gap-1", className)} {...props}>
+        <ToggleGroupContext.Provider value={{ variant, size, type, value: currentValue, onItemToggle }}>
+          {children}
+        </ToggleGroupContext.Provider>
+      </div>
+    );
+  },
+);
+
+ToggleGroup.displayName = "ToggleGroup";
+
+export interface ToggleGroupItemProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value" | "onChange">,
+    VariantProps<typeof toggleVariants> {
+  value: string;
+}
+
+const ToggleGroupItem = React.forwardRef<HTMLButtonElement, ToggleGroupItemProps>(
+  ({ className, children, variant, size, value, ...props }, ref) => {
+    const context = React.useContext(ToggleGroupContext);
+    const isPressed =
+      context.type === "multiple"
+        ? Array.isArray(context.value) && context.value.includes(value)
+        : context.value === value;
+
+    return (
+      <button
+        type="button"
+        ref={ref}
+        aria-pressed={isPressed}
+        data-state={isPressed ? "on" : "off"}
+        onClick={() => context.onItemToggle?.(value)}
+        className={cn(
+          toggleVariants({
+            variant: context.variant || variant,
+            size: context.size || size,
+          }),
+          isPressed && "bg-accent text-accent-foreground",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  },
+);
+
+ToggleGroupItem.displayName = "ToggleGroupItem";
 
 export { ToggleGroup, ToggleGroupItem };

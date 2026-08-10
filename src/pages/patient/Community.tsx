@@ -346,11 +346,11 @@ const Community = () => {
   // snapshot while it refreshes underneath.
   if (isFirstLoad) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
-            <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">Loading your circles...</p>
+            <Loader2 className="mx-auto mb-4 h-9 w-9 animate-spin text-primary" />
+            <p className="text-footnote text-foreground-secondary">Finding your circles…</p>
           </div>
         </div>
       </div>
@@ -360,24 +360,28 @@ const Community = () => {
   const activeGroup = activeGroupId ? groupsById.get(activeGroupId) : undefined;
 
   return (
-    <div className="flex-1 space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
-          <Users className="h-7 w-7" />
-          Community
-        </h1>
-        <p className="text-muted-foreground">
-          Circles of women going through the same thing — pregnancy, PCOS, thyroid,
-          anaemia and more. Ask to join, and the conversation opens up.
-        </p>
+    <div className="flex-1 space-y-6 p-4 md:space-y-8 md:p-6">
+      <div className="flex items-center gap-3 md:gap-4">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-primary md:h-12 md:w-12">
+          <Users className="h-5 w-5 md:h-6 md:w-6" />
+        </span>
+        <div>
+          <h1 className="text-title1 text-foreground">Community</h1>
+          <p className="mt-1 text-body text-foreground-secondary">
+            Circles of women going through the same thing — pregnancy, PCOS, thyroid,
+            anaemia and more. Ask to join, and the conversation opens up.
+          </p>
+        </div>
       </div>
 
       {groups.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Users className="mx-auto mb-4 h-16 w-16 text-muted-foreground opacity-50" />
-            <h3 className="mb-2 text-xl font-semibold">No circles yet</h3>
-            <p className="text-muted-foreground">
+          <CardContent className="flex flex-col items-center p-12 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+              <Users className="h-6 w-6" />
+            </span>
+            <h3 className="mt-4 text-headline text-foreground">No circles yet</h3>
+            <p className="mt-1.5 max-w-sm text-footnote text-foreground-secondary">
               The community circles have not been set up for this project yet. Once
               they are, they will appear here.
             </p>
@@ -385,8 +389,8 @@ const Community = () => {
         </Card>
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="circles" className="gap-1">
+          <TabsList className="w-full max-w-full justify-start overflow-x-auto sm:w-auto sm:justify-center">
+            <TabsTrigger value="circles" className="shrink-0 gap-1">
               <MessageCircle className="h-4 w-4" />
               My circles
               {myCircles.length > 0 && (
@@ -395,11 +399,11 @@ const Community = () => {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="discover" className="gap-1">
+            <TabsTrigger value="discover" className="shrink-0 gap-1">
               <Sparkles className="h-4 w-4" />
               Discover
             </TabsTrigger>
-            <TabsTrigger value="requests" className="gap-1">
+            <TabsTrigger value="requests" className="shrink-0 gap-1">
               <UserPlus className="h-4 w-4" />
               Requests
               {incomingRequests.length > 0 && (
@@ -412,13 +416,15 @@ const Community = () => {
           <TabsContent value="circles">
             {myCircles.length === 0 ? (
               <Card>
-                <CardContent className="p-12 text-center">
-                  <MessageCircle className="mx-auto mb-4 h-16 w-16 text-muted-foreground opacity-50" />
-                  <h3 className="mb-2 text-xl font-semibold">
+                <CardContent className="flex flex-col items-center p-12 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                    <MessageCircle className="h-6 w-6" />
+                  </span>
+                  <h3 className="mt-4 text-headline text-foreground">
                     You haven't joined a circle yet
                   </h3>
-                  <p className="text-muted-foreground">
-                    Open <strong>Discover</strong> to find the circles that match what
+                  <p className="mt-1.5 max-w-sm text-footnote text-foreground-secondary">
+                    Open <strong className="font-medium text-foreground">Discover</strong> to find the circles that match what
                     you are going through.
                   </p>
                 </CardContent>
@@ -427,7 +433,7 @@ const Community = () => {
               <div className="grid gap-4 lg:grid-cols-3">
                 <Card className="lg:col-span-1">
                   <CardHeader>
-                    <CardTitle className="text-base">Your circles</CardTitle>
+                    <CardTitle className="text-headline">Your circles</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {myCircles.map((group) => (
@@ -435,14 +441,14 @@ const Community = () => {
                         key={group.id}
                         type="button"
                         onClick={() => setActiveGroupId(group.id)}
-                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        className={`w-full rounded-2xl border p-3.5 text-left transition-colors duration-150 ease-ios ${
                           group.id === activeGroupId
-                            ? "border-primary/40 bg-primary/5"
-                            : "hover:bg-muted/50"
+                            ? "border-primary/30 bg-accent-soft"
+                            : "border-border hover:bg-muted/50"
                         }`}
                       >
-                        <div className="font-medium">{group.name}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-subhead font-medium text-foreground">{group.name}</div>
+                        <div className="mt-0.5 text-caption1 text-foreground-secondary">
                           {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
                         </div>
                       </button>
@@ -454,7 +460,7 @@ const Community = () => {
                   <CardHeader>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <CardTitle className="text-base">
+                        <CardTitle className="text-headline">
                           {activeGroup?.name ?? "Pick a circle"}
                         </CardTitle>
                         <CardDescription>{activeGroup?.description}</CardDescription>
@@ -463,7 +469,7 @@ const Community = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="gap-1"
+                          className="gap-1.5 text-foreground-secondary"
                           onClick={() => leave(activeGroup)}
                         >
                           <LogOut className="h-4 w-4" />
@@ -473,15 +479,20 @@ const Community = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="h-96 space-y-3 overflow-y-auto rounded-lg bg-muted/30 p-3">
+                    <div className="h-[60vh] max-h-96 space-y-3 overflow-y-auto rounded-2xl bg-muted/40 p-3.5 sm:h-96">
                       {isLoadingMessages ? (
                         <div className="flex h-full items-center justify-center">
-                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          <Loader2 className="h-5 w-5 animate-spin text-foreground-tertiary" />
                         </div>
                       ) : messages.length === 0 ? (
-                        <p className="py-12 text-center text-sm text-muted-foreground">
-                          No messages yet. Be the first to say hello.
-                        </p>
+                        <div className="flex h-full flex-col items-center justify-center text-center">
+                          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-primary">
+                            <MessageCircle className="h-5 w-5" />
+                          </span>
+                          <p className="mt-3 text-footnote text-foreground-secondary">
+                            No messages yet. Be the first to say hello.
+                          </p>
+                        </div>
                       ) : (
                         messages.map((message) => {
                           const mine = message.authorId === patientId;
@@ -491,30 +502,30 @@ const Community = () => {
                               className={`flex gap-2 ${mine ? "justify-end" : "justify-start"}`}
                             >
                               {!mine && (
-                                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
+                                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-caption1 font-medium text-accent-soft-foreground">
                                   {initials(message.authorName)}
                                 </div>
                               )}
                               <div
-                                className={`max-w-[80%] rounded-lg p-3 ${
+                                className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${
                                   mine
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-background"
+                                    ? "rounded-br-md bg-primary text-primary-foreground"
+                                    : "rounded-bl-md bg-background-elevated shadow-xs"
                                 }`}
                               >
                                 {!mine && (
-                                  <p className="text-xs font-semibold">
+                                  <p className="text-caption1 font-semibold text-foreground">
                                     {message.authorName}
                                   </p>
                                 )}
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                                <p className="whitespace-pre-wrap text-footnote leading-relaxed">
                                   {message.body}
                                 </p>
                                 <p
-                                  className={`mt-1 text-xs ${
+                                  className={`mt-1 text-caption2 ${
                                     mine
                                       ? "text-primary-foreground/70"
-                                      : "text-muted-foreground"
+                                      : "text-foreground-tertiary"
                                   }`}
                                 >
                                   {timeLabel(message.createdAt)}
@@ -553,7 +564,7 @@ const Community = () => {
                       </Button>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-caption1 text-foreground-tertiary">
                       Members support each other here — it is not medical advice. Talk
                       to your doctor before acting on anything you read.
                     </p>
@@ -571,10 +582,13 @@ const Community = () => {
                 const recommended = isRecommendedFor(group, matchKeys);
 
                 return (
-                  <Card key={group.id} className={recommended ? "border-primary/30" : ""}>
+                  <Card
+                    key={group.id}
+                    className={recommended ? "border-primary/25 bg-accent-soft/25" : ""}
+                  >
                     <CardHeader>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <CardTitle className="text-base">{group.name}</CardTitle>
+                        <CardTitle className="text-headline">{group.name}</CardTitle>
                         {recommended && (
                           <Badge className="gap-1">
                             <Sparkles className="h-3 w-3" />
@@ -585,9 +599,9 @@ const Community = () => {
                       <CardDescription>{group.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <p className="text-sm text-muted-foreground">{group.whoItsFor}</p>
+                      <p className="text-footnote text-foreground-secondary">{group.whoItsFor}</p>
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-caption1 text-foreground-tertiary">
                           {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
                         </span>
 
@@ -636,7 +650,7 @@ const Community = () => {
           <TabsContent value="requests">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Requests to join your circles</CardTitle>
+                <CardTitle className="text-headline">Requests to join your circles</CardTitle>
                 <CardDescription>
                   Circles are kept by their members. Anyone you approve can read and
                   post in that circle.
@@ -644,24 +658,29 @@ const Community = () => {
               </CardHeader>
               <CardContent>
                 {incomingRequests.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Nobody is waiting right now.
-                  </p>
+                  <div className="flex flex-col items-center py-10 text-center">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-primary">
+                      <UserPlus className="h-5 w-5" />
+                    </span>
+                    <p className="mt-3 text-footnote text-foreground-secondary">
+                      Nobody is waiting right now.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {incomingRequests.map((request) => (
                       <div
                         key={request.id}
-                        className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3"
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border p-3.5"
                       >
                         <div className="min-w-0">
-                          <p className="font-medium">{request.displayName}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-subhead font-medium text-foreground">{request.displayName}</p>
+                          <p className="text-caption1 text-foreground-secondary">
                             {groupsById.get(request.groupId)?.name ?? "A circle"} ·
                             asked {timeLabel(request.requestedAt)}
                           </p>
                           {request.intro && (
-                            <p className="mt-1 text-sm text-muted-foreground">
+                            <p className="mt-1.5 text-footnote text-foreground-secondary">
                               “{request.intro}”
                             </p>
                           )}
@@ -715,7 +734,7 @@ const Community = () => {
                 onChange={(e) => setDisplayName(e.target.value)}
                 maxLength={60}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-caption1 text-foreground-tertiary">
                 Use whatever you're comfortable with — it doesn't have to be your real
                 name.
               </p>
@@ -731,7 +750,7 @@ const Community = () => {
                 rows={3}
                 maxLength={500}
               />
-              <p className="text-xs text-muted-foreground">Optional.</p>
+              <p className="text-caption1 text-foreground-tertiary">Optional.</p>
             </div>
           </div>
 

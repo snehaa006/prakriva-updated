@@ -440,7 +440,7 @@ const DiseaseDetection: React.FC = () => {
                     key={patient.patientId}
                     type="button"
                     onClick={() => selectPatient(patient)}
-                    className="text-left rounded-lg border p-3 transition-colors hover:border-primary hover:bg-primary/5"
+                    className="text-left rounded-xl border p-3 transition-colors hover:border-primary hover:bg-primary/5"
                   >
                     <p className="font-medium truncate">{patient.name}</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -490,7 +490,7 @@ const DiseaseDetection: React.FC = () => {
                 <h2 className="text-xl font-semibold">{selectedPatient.name}</h2>
                 <p className="text-sm text-muted-foreground">{selectedPatient.email}</p>
               </div>
-              <div className="flex items-center gap-1 rounded-lg border p-1">
+              <div className="flex items-center gap-1 rounded-xl border p-1">
                 {RANGE_OPTIONS.map((opt) => (
                   <Button
                     key={opt.value}
@@ -692,7 +692,7 @@ const DiseaseDetection: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Blood pressure — two same-axis series */}
                         {hasBP && (
-                          <div className="rounded-lg border p-4">
+                          <div className="rounded-xl border p-4">
                             <div className="flex items-baseline justify-between mb-1">
                               <h4 className="font-medium">Blood pressure</h4>
                               <span className="text-xs text-muted-foreground">mmHg</span>
@@ -748,7 +748,7 @@ const DiseaseDetection: React.FC = () => {
                         )}
 
                         {availableVitals.map((m) => (
-                          <div key={m.key as string} className="rounded-lg border p-4">
+                          <div key={m.key as string} className="rounded-xl border p-4">
                             <div className="flex items-baseline justify-between mb-1">
                               <h4 className="font-medium">{m.label}</h4>
                               {m.unit && (

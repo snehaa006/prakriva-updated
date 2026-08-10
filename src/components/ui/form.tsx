@@ -1,6 +1,4 @@
 import * as React from "react";
-import * as LabelPrimitive from "@radix-ui/react-label";
-import { Slot } from "@radix-ui/react-slot";
 import { Controller, ControllerProps, FieldPath, FieldValues, FormProvider, useFormContext } from "react-hook-form";
 
 import { cn } from "@/lib/utils";
@@ -73,8 +71,8 @@ const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
 FormItem.displayName = "FormItem";
 
 const FormLabel = React.forwardRef<
-  React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
+  React.ElementRef<typeof Label>,
+  React.ComponentPropsWithoutRef<typeof Label>
 >(({ className, ...props }, ref) => {
   const { error, formItemId } = useFormField();
 
@@ -82,28 +80,48 @@ const FormLabel = React.forwardRef<
 });
 FormLabel.displayName = "FormLabel";
 
-const FormControl = React.forwardRef<React.ElementRef<typeof Slot>, React.ComponentPropsWithoutRef<typeof Slot>>(
-  ({ ...props }, ref) => {
-    const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
+// Tiny local Slot clone (same pattern used elsewhere in this migration, e.g.
+// button.tsx's asChild): merges the field's a11y props onto the single child
+// element instead of relying on the Radix Slot primitive.
+type FormControlChildProps = {
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
+};
 
-    return (
-      <Slot
-        ref={ref}
-        id={formItemId}
-        aria-describedby={!error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`}
-        aria-invalid={!!error}
-        {...props}
-      />
-    );
-  },
-);
+const FormControl = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(({ children, ...props }, ref) => {
+  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
+
+  const childProps: FormControlChildProps = {
+    id: formItemId,
+    "aria-describedby": !error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`,
+    "aria-invalid": !!error,
+  };
+
+  if (React.isValidElement(children)) {
+    return React.cloneElement(children, {
+      ref,
+      ...props,
+      ...childProps,
+    } as React.HTMLAttributes<HTMLElement> & { ref?: typeof ref });
+  }
+
+  return null;
+});
 FormControl.displayName = "FormControl";
 
 const FormDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
     const { formDescriptionId } = useFormField();
 
-    return <p ref={ref} id={formDescriptionId} className={cn("text-sm text-muted-foreground", className)} {...props} />;
+    return (
+      <p
+        ref={ref}
+        id={formDescriptionId}
+        className={cn("text-footnote text-foreground-secondary", className)}
+        {...props}
+      />
+    );
   },
 );
 FormDescription.displayName = "FormDescription";
@@ -118,7 +136,7 @@ const FormMessage = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<
     }
 
     return (
-      <p ref={ref} id={formMessageId} className={cn("text-sm font-medium text-destructive", className)} {...props}>
+      <p ref={ref} id={formMessageId} className={cn("text-footnote text-destructive", className)} {...props}>
         {body}
       </p>
     );

@@ -232,7 +232,7 @@ const DynamicDoctorDashboard = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Schedule Overview</CardTitle>
-                <div className="flex bg-muted p-1 rounded-lg">
+                <div className="flex bg-muted p-1 rounded-xl">
                   {['today', 'week', 'month'].map((tab) => (
                     <Button
                       key={tab}
@@ -251,14 +251,14 @@ const DynamicDoctorDashboard = () => {
               <div className="space-y-3">
                 {selectedTab === 'today' && (
                   <>
-                    <div className="flex justify-between items-center p-3 bg-primary/5 rounded-lg">
+                    <div className="flex justify-between items-center p-3 bg-primary/5 rounded-xl">
                       <div className="flex items-center space-x-3">
                         <Clock className="h-4 w-4 text-primary" />
                         <span className="font-medium">Morning Consultations</span>
                       </div>
                       <Badge>9:00 - 12:00</Badge>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-success/5 rounded-lg">
+                    <div className="flex justify-between items-center p-3 bg-success/5 rounded-xl">
                       <div className="flex items-center space-x-3">
                         <Activity className="h-4 w-4 text-success" />
                         <span className="font-medium">Afternoon Sessions</span>
@@ -298,7 +298,7 @@ const DynamicDoctorDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-center p-4 bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg">
+              <div className="text-center p-4 bg-gradient-to-r from-primary/5 to-secondary/5 rounded-xl">
                 <p className="text-sm font-medium mb-2">5-minute breathing session</p>
                 <p className="text-xs text-muted-foreground mb-3">
                   {meditationActive ? 'Session in progress...' : 'Reduce stress and improve focus'}
@@ -349,21 +349,21 @@ const DynamicDoctorDashboard = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <div className="p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
+                <div className="p-3 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors">
                   <h4 className="font-medium text-sm">New Panchakarma Guidelines 2024</h4>
                   <p className="text-xs text-muted-foreground mt-1">AYUSH Ministry • Jan 2024</p>
                 </div>
-                <div className="p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
+                <div className="p-3 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors">
                   <h4 className="font-medium text-sm">Dosha-Based Nutrition Research</h4>
                   <p className="text-xs text-muted-foreground mt-1">Journal of Ayurveda • 3 days ago</p>
                 </div>
                 {knowledgeExpanded && (
                   <>
-                    <div className="p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
+                    <div className="p-3 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors">
                       <h4 className="font-medium text-sm">Herbal Medicine Safety Updates</h4>
                       <p className="text-xs text-muted-foreground mt-1">NIAM • 1 week ago</p>
                     </div>
-                    <div className="p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
+                    <div className="p-3 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors">
                       <h4 className="font-medium text-sm">Modern Ayurvedic Diagnostics</h4>
                       <p className="text-xs text-muted-foreground mt-1">Research Journal • 2 weeks ago</p>
                     </div>
@@ -404,7 +404,7 @@ const DynamicDoctorDashboard = () => {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
                     notification.read 
                       ? 'bg-muted/30 border-muted' 
                       : notification.type === 'warning' 

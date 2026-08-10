@@ -1,6 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Leaf, Sun, Moon, Droplets } from "lucide-react";
+import { Leaf, Sun, Droplets, Moon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AyurvedicTipProps {
   title: string;
@@ -10,72 +11,59 @@ interface AyurvedicTipProps {
   timeOfDay?: 'morning' | 'afternoon' | 'evening';
 }
 
-export const AyurvedicTip = ({ 
-  title, 
-  description, 
-  category, 
-  dosha, 
-  timeOfDay 
+const CATEGORY_INFO: Record<
+  AyurvedicTipProps["category"],
+  { icon: typeof Leaf; label: string }
+> = {
+  nutrition: { icon: Leaf, label: "Nutrition" },
+  lifestyle: { icon: Sun, label: "Lifestyle" },
+  seasonal: { icon: Droplets, label: "Seasonal" },
+  dosha: { icon: Moon, label: "Dosha" },
+};
+
+const DOSHA_TEXT: Record<NonNullable<AyurvedicTipProps["dosha"]>, string> = {
+  vata: "text-vata",
+  pitta: "text-pitta",
+  kapha: "text-kapha",
+};
+
+export const AyurvedicTip = ({
+  title,
+  description,
+  category,
+  dosha,
+  timeOfDay,
 }: AyurvedicTipProps) => {
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'nutrition': return Leaf;
-      case 'lifestyle': return Sun;
-      case 'seasonal': return Droplets;
-      case 'dosha': return Moon;
-      default: return Leaf;
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'nutrition': return 'bg-success text-white';
-      case 'lifestyle': return 'bg-warning text-white';
-      case 'seasonal': return 'bg-info text-white';
-      case 'dosha': return 'bg-primary text-white';
-      default: return 'bg-muted text-foreground';
-    }
-  };
-
-  const getDoshaColor = (dosha?: string) => {
-    if (!dosha) return '';
-    switch (dosha) {
-      case 'vata': return 'border-l-vata';
-      case 'pitta': return 'border-l-pitta';
-      case 'kapha': return 'border-l-kapha';
-      default: return '';
-    }
-  };
-
-  const Icon = getCategoryIcon(category);
+  const { icon: Icon, label } = CATEGORY_INFO[category];
 
   return (
-    <Card className={`border-l-4 ${getDoshaColor(dosha)} transition-smooth hover:shadow-lg`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Icon className="w-5 h-5 text-primary" />
-            {title}
-          </CardTitle>
-          <div className="flex gap-2">
-            <Badge className={getCategoryColor(category)}>
-              {category}
-            </Badge>
-            {dosha && (
-              <Badge variant="outline" className={`text-${dosha}`}>
-                {dosha}
+    <Card className="transition-all duration-200 ease-ios hover:shadow-md">
+      <CardContent className="flex gap-4 p-5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-primary">
+          <Icon className="h-5 w-5" />
+        </span>
+
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-subhead font-semibold text-foreground">{title}</h3>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="secondary" className="text-caption2">
+                {label}
               </Badge>
-            )}
-            {timeOfDay && (
-              <Badge variant="secondary">
-                {timeOfDay}
-              </Badge>
-            )}
+              {dosha && (
+                <Badge variant="outline" className={cn("text-caption2 capitalize", DOSHA_TEXT[dosha])}>
+                  {dosha}
+                </Badge>
+              )}
+              {timeOfDay && (
+                <Badge variant="outline" className="text-caption2 capitalize">
+                  {timeOfDay}
+                </Badge>
+              )}
+            </div>
           </div>
+          <p className="text-footnote leading-relaxed text-foreground-secondary">{description}</p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground leading-relaxed">{description}</p>
       </CardContent>
     </Card>
   );

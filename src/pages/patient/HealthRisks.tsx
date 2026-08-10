@@ -304,10 +304,10 @@ const HealthRisks: React.FC = () => {
   if (isFirstLoad) {
     return (
       <div className="flex-1 p-6">
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading your health check...</p>
+            <Loader2 className="mx-auto mb-4 h-9 w-9 animate-spin text-primary" />
+            <p className="text-subhead text-foreground-secondary">Getting your health check ready…</p>
           </div>
         </div>
       </div>
@@ -320,108 +320,109 @@ const HealthRisks: React.FC = () => {
   // one-off details) right here so the check opens without re-doing onboarding.
   if (!isPregnant) {
     return (
-      <div className="flex-1 p-6">
-        <Card className="max-w-2xl mx-auto mt-12">
-          <CardContent className="p-8">
-            <div className="text-center mb-6">
-              <Baby className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-60" />
-              <h3 className="text-xl font-semibold mb-2">
-                Set up your pregnancy health check
-              </h3>
-              <p className="text-muted-foreground">
-                Every risk score here is specific to pregnancy. If you are
-                pregnant, confirm below to open your health check. These details
-                are only asked once.
+      <div className="flex-1 p-6 sm:p-10">
+        <div className="mx-auto max-w-lg pt-10 text-center sm:pt-16">
+          <span className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-primary">
+            <Baby className="h-8 w-8" />
+          </span>
+          <h1 className="text-title2 text-foreground">Set up your pregnancy health check</h1>
+          <p className="mx-auto mt-3 max-w-sm text-body text-foreground-secondary">
+            Every risk score here is calibrated for pregnancy. If that's you, confirm
+            below to open your check — these details are only asked once.
+          </p>
+
+          <div className="mx-auto mt-10 max-w-sm space-y-5 text-left">
+            <div className="space-y-1.5">
+              <Label htmlFor="setup-due-date">Estimated due date (optional)</Label>
+              <Input
+                id="setup-due-date"
+                type="date"
+                value={setupDueDate}
+                onChange={(e) => setSetupDueDate(e.target.value)}
+              />
+              <p className="text-caption1 text-foreground-tertiary">
+                Used to work out how many weeks along you are.
               </p>
             </div>
-
-            <div className="space-y-4 max-w-sm mx-auto">
-              <div className="space-y-1">
-                <Label htmlFor="setup-due-date">Estimated due date (optional)</Label>
-                <Input
-                  id="setup-due-date"
-                  type="date"
-                  value={setupDueDate}
-                  onChange={(e) => setSetupDueDate(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used to work out how many weeks along you are.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="setup-height">Height in cm (optional)</Label>
-                <Input
-                  id="setup-height"
-                  type="number"
-                  min={100}
-                  max={220}
-                  placeholder="e.g. 160"
-                  value={setupHeightCm}
-                  onChange={(e) => setSetupHeightCm(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used with your weight to work out BMI.
-                </p>
-              </div>
-              <Button
-                onClick={savePregnancySetup}
-                disabled={savingSetup}
-                className="w-full gap-2"
-              >
-                {savingSetup ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Baby className="w-4 h-4" />
-                    Yes, I'm pregnant — start my health check
-                  </>
-                )}
-              </Button>
+            <div className="space-y-1.5">
+              <Label htmlFor="setup-height">Height in cm (optional)</Label>
+              <Input
+                id="setup-height"
+                type="number"
+                min={100}
+                max={220}
+                placeholder="e.g. 160"
+                value={setupHeightCm}
+                onChange={(e) => setSetupHeightCm(e.target.value)}
+              />
+              <p className="text-caption1 text-foreground-tertiary">
+                Used with your weight to work out BMI.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <Button
+              onClick={savePregnancySetup}
+              disabled={savingSetup}
+              size="lg"
+              className="w-full gap-2"
+            >
+              {savingSetup ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Baby className="h-4 w-4" />
+                  Yes, I'm pregnant — start my health check
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-          <HeartPulse className="w-7 h-7" />
-          Pregnancy Health Check
-        </h1>
-        <p className="text-muted-foreground">
-          Enter your latest antenatal details to check your anaemia, pregnancy
-          risk, gestational diabetes, thyroid and preeclampsia analysis.
-        </p>
+    <div className="flex-1 space-y-8 p-4 sm:p-8">
+      <div className="flex items-start gap-4">
+        <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary sm:flex">
+          <HeartPulse className="h-6 w-6" />
+        </span>
+        <div>
+          <h1 className="text-title1 text-foreground">Pregnancy Health Check</h1>
+          <p className="mt-1.5 max-w-2xl text-body text-foreground-secondary">
+            A calm, at-your-pace look at your anaemia, pregnancy risk, gestational
+            diabetes, thyroid and preeclampsia picture — based on what you share below.
+          </p>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="check" className="gap-1">
-            <ClipboardList className="w-4 h-4" />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        {/* Below `sm`, 3 icon+label tabs don't fit the default inline-flex
+            list without crowding — scroll horizontally instead of wrapping
+            or truncating labels. */}
+        <TabsList className="flex w-full justify-start gap-1 overflow-x-auto sm:inline-flex sm:w-auto sm:justify-center">
+          <TabsTrigger value="check" className="shrink-0 gap-1.5 whitespace-nowrap">
+            <ClipboardList className="h-4 w-4 shrink-0" />
             Health check
           </TabsTrigger>
-          <TabsTrigger value="results" className="gap-1">
-            <Activity className="w-4 h-4" />
+          <TabsTrigger value="results" className="shrink-0 gap-1.5 whitespace-nowrap">
+            <Activity className="h-4 w-4 shrink-0" />
             My results
           </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1">
-            <History className="w-4 h-4" />
+          <TabsTrigger value="history" className="shrink-0 gap-1.5 whitespace-nowrap">
+            <History className="h-4 w-4 shrink-0" />
             Past checks
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="check" className="space-y-4">
+        <TabsContent value="check" className="space-y-5">
           {canReadReports && <ReportUploadCard onApply={update} />}
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Your latest measurements</CardTitle>
+              <CardTitle className="text-title3">Your latest measurements</CardTitle>
               <CardDescription>
                 Enter the readings from your most recent antenatal check-up. Leave
                 a field blank if you do not have it — the check still runs on what
@@ -441,7 +442,7 @@ const HealthRisks: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Blood test results</CardTitle>
+              <CardTitle className="text-title3">Blood test results</CardTitle>
               <CardDescription>
                 Optional — these sharpen your gestational diabetes estimate.
               </CardDescription>
@@ -453,7 +454,7 @@ const HealthRisks: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Blood pressure & scan</CardTitle>
+              <CardTitle className="text-title3">Blood pressure &amp; scan</CardTitle>
               <CardDescription>
                 Optional — these sharpen your preeclampsia estimate.
               </CardDescription>
@@ -465,7 +466,7 @@ const HealthRisks: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Thyroid</CardTitle>
+              <CardTitle className="text-title3">Thyroid</CardTitle>
               <CardDescription>
                 Optional — your thyroid blood results and history.
               </CardDescription>
@@ -477,7 +478,7 @@ const HealthRisks: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Diabetes risk factors</CardTitle>
+              <CardTitle className="text-title3">Diabetes risk factors</CardTitle>
               <CardDescription>
                 Tick anything that applies to you. Some may already be filled in
                 from your questionnaire.
@@ -486,16 +487,16 @@ const HealthRisks: React.FC = () => {
             <CardContent>
               <DiabetesRiskFactorsSection form={form} update={update} />
 
-              <div className="flex justify-end pt-6">
-                <Button onClick={runCheck} disabled={isScreening} className="gap-2">
+              <div className="flex justify-end border-t border-border pt-6 mt-6">
+                <Button onClick={runCheck} disabled={isScreening} size="lg" className="gap-2">
                   {isScreening ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Checking...
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Checking…
                     </>
                   ) : (
                     <>
-                      <Activity className="w-4 h-4" />
+                      <Activity className="h-4 w-4" />
                       See my results
                     </>
                   )}
@@ -507,20 +508,20 @@ const HealthRisks: React.FC = () => {
 
         <TabsContent value="results">
           {!result ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Activity className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">No results yet</h3>
-                <p className="text-muted-foreground">
-                  Fill in the health check to see your results.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-16 text-center">
+              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <Activity className="h-7 w-7" />
+              </span>
+              <h3 className="text-title3 text-foreground">No results yet</h3>
+              <p className="mt-1.5 max-w-sm text-subhead text-foreground-secondary">
+                Fill in the health check and your results will appear here.
+              </p>
+            </div>
           ) : (
-            <>
-              <Card className="mb-4 border-primary/30 bg-primary/5">
-                <CardContent className="p-4 text-sm">
-                  These results are a guide, not a diagnosis. They are based only
+            <div className="space-y-5">
+              <Card className="border-accent-soft bg-accent-soft/50">
+                <CardContent className="p-5 text-footnote leading-relaxed text-accent-soft-foreground">
+                  These results are a guide, not a diagnosis. They're based only
                   on what you entered — a blood or urine test can change them.
                   Share them with your doctor, and seek care straight away if you
                   have bleeding, severe pain, a bad headache or blurred vision.
@@ -531,28 +532,28 @@ const HealthRisks: React.FC = () => {
               {/* What to *do* about the risks above. Kept on the same tab as the
                   results so a flagged condition and its exercises are read
                   together rather than a page apart. */}
-              <div className="mt-4">
+              <div className="mt-5">
                 <ScreeningExercisePlan
                   result={result}
                   isPregnant={isPregnant}
                   audience="patient"
                 />
               </div>
-            </>
+            </div>
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
+        <TabsContent value="history" className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold">Past Checks</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="text-title3 text-foreground">Past Checks</h3>
+              <p className="text-footnote text-foreground-secondary">
                 Checks you have completed, and screenings your doctor has run.
               </p>
             </div>
 
             {history.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1 rounded-lg border p-1">
+              <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-muted/40 p-1">
                 {RANGE_PRESETS.map((opt) => (
                   <Button
                     key={opt.value}
@@ -560,7 +561,7 @@ const HealthRisks: React.FC = () => {
                     size="sm"
                     variant={!useCustomRange && rangeDays === opt.value ? "default" : "ghost"}
                     onClick={() => selectPreset(opt.value)}
-                    className="h-8 px-3"
+                    className="h-9 px-3"
                   >
                     {opt.label}
                   </Button>
@@ -571,7 +572,7 @@ const HealthRisks: React.FC = () => {
                       type="button"
                       size="sm"
                       variant={useCustomRange ? "default" : "ghost"}
-                      className="h-8 px-3 gap-1.5"
+                      className="h-9 px-3 gap-1.5"
                     >
                       <CalendarRange className="w-3.5 h-3.5" />
                       {useCustomRange && customRange?.from ? rangeLabel : "Custom"}
@@ -595,36 +596,36 @@ const HealthRisks: React.FC = () => {
           </div>
 
           {history.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <History className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">No checks yet</h3>
-                <p className="text-muted-foreground">
-                  You have not completed a health check yet.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-16 text-center">
+              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <History className="h-7 w-7" />
+              </span>
+              <h3 className="text-title3 text-foreground">No checks yet</h3>
+              <p className="mt-1.5 max-w-sm text-subhead text-foreground-secondary">
+                You have not completed a health check yet.
+              </p>
+            </div>
           ) : filteredHistory.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <History className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">Nothing found for {rangeLabel}</h3>
-                <p className="text-muted-foreground">
-                  You have {history.length} recorded check{history.length === 1 ? "" : "s"},
-                  but none within this window.
-                </p>
-                <Button variant="outline" className="mt-4" onClick={() => selectPreset(0)}>
-                  Show all
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-16 text-center">
+              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <History className="h-7 w-7" />
+              </span>
+              <h3 className="text-title3 text-foreground">Nothing found for {rangeLabel}</h3>
+              <p className="mt-1.5 max-w-sm text-subhead text-foreground-secondary">
+                You have {history.length} recorded check{history.length === 1 ? "" : "s"},
+                just none within this window.
+              </p>
+              <Button variant="outline" className="mt-5" onClick={() => selectPreset(0)}>
+                Show all
+              </Button>
+            </div>
           ) : (
-            <>
+            <div className="space-y-5">
               <RiskScoreTrend screenings={filteredHistory} rangeLabel={rangeLabel} />
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">
+                  <CardTitle className="text-subhead font-semibold">
                     {filteredHistory.length === history.length
                       ? `All ${history.length} check${history.length === 1 ? "" : "s"}`
                       : `${filteredHistory.length} of ${history.length} checks`}
@@ -634,7 +635,7 @@ const HealthRisks: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {filteredHistory.map((entry) => (
                       <button
                         key={entry.id}
@@ -644,13 +645,13 @@ const HealthRisks: React.FC = () => {
                           setForm(entry.inputs);
                           setActiveTab("results");
                         }}
-                        className="w-full flex items-center justify-between gap-4 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
+                        className="flex w-full items-center justify-between gap-4 rounded-2xl border border-border p-4 text-left transition-colors hover:bg-muted/50"
                       >
                         <div>
-                          <p className="font-medium">
+                          <p className="text-subhead font-medium text-foreground">
                             {new Date(entry.createdAt).toLocaleString()}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="mt-0.5 text-caption1 text-foreground-tertiary">
                             {entry.submittedBy === "patient"
                               ? "Your health check"
                               : "Screening by your doctor"}
@@ -667,7 +668,7 @@ const HealthRisks: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
-            </>
+            </div>
           )}
         </TabsContent>
       </Tabs>

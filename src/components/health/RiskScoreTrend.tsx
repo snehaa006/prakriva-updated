@@ -107,7 +107,7 @@ export const RiskScoreTrend: React.FC<RiskScoreTrendProps> = ({
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {riskSeries.map((s) => (
-            <div key={s.condition} className="rounded-lg border p-3">
+            <div key={s.condition} className="rounded-2xl border p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-medium">{s.label}</h4>
                 <Badge variant="outline" className={RISK_STYLES[s.riskLevel].badge}>

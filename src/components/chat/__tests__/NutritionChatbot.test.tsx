@@ -46,7 +46,7 @@ const emptyContext = {
 
 const openChat = async (user: ReturnType<typeof userEvent.setup>) => {
   render(<NutritionChatbot />);
-  await user.click(screen.getByRole("button", { name: /open wellness chatbot/i }));
+  await user.click(screen.getByRole("button", { name: /open wellness companion/i }));
 };
 
 const send = async (user: ReturnType<typeof userEvent.setup>, text: string) => {

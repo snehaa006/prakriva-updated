@@ -359,7 +359,7 @@ const Login = () => {
             <span className="font-semibold capitalize text-primary">{role}</span>
             {/* A block element here would be invalid — CardDescription is a <p>. */}
             {isWizard && (
-              <span className="mt-2 block text-xs text-gray-500">
+              <span className="mt-2 block text-caption1 text-muted-foreground">
                 Step {currentStep} of {totalSteps}
               </span>
             )}
@@ -370,14 +370,14 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {isWizard && (
               <div className="mb-6">
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                <div className="flex items-center justify-between text-caption1 text-muted-foreground mb-2">
                   {stepLabels.map((label) => (
                     <span key={label}>{label}</span>
                   ))}
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-muted rounded-full h-2">
                   <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    className="bg-primary h-2 rounded-full transition-all duration-300 ease-ios"
                     style={{ width: `${(currentStep / totalSteps) * 100}%` }}
                   />
                 </div>

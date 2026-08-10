@@ -385,7 +385,7 @@ function RecipeDetailModal({
             <TabsContent value="overview" className="space-y-4 mt-4">
               {/* Time & Serving Info */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-coral-50">
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-coral-50">
                   <Clock className="w-4 h-4 text-coral-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Prep Time</p>
@@ -394,8 +394,8 @@ function RecipeDetailModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50">
-                  <Flame className="w-4 h-4 text-red-600" />
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10">
+                  <Flame className="w-4 h-4 text-destructive" />
                   <div>
                     <p className="text-xs text-muted-foreground">Cook Time</p>
                     <p className="font-medium text-sm">
@@ -403,7 +403,7 @@ function RecipeDetailModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-plum-50">
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-plum-50">
                   <Clock className="w-4 h-4 text-plum-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Total Time</p>
@@ -412,7 +412,7 @@ function RecipeDetailModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-plum-50">
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-plum-50">
                   <Users className="w-4 h-4 text-plum-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Servings</p>
@@ -430,25 +430,25 @@ function RecipeDetailModal({
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="text-center p-3 rounded-lg bg-coral-50">
+                    <div className="text-center p-3 rounded-xl bg-coral-50">
                       <p className="text-xl font-bold text-coral-700">
                         {formatNumber(recipe.Calories)}
                       </p>
                       <p className="text-xs text-muted-foreground">Calories</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-rose-50">
+                    <div className="text-center p-3 rounded-xl bg-rose-50">
                       <p className="text-xl font-bold text-rose-700">
                         {formatNumber(recipe["Protein (g)"])}g
                       </p>
                       <p className="text-xs text-muted-foreground">Protein</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-plum-50">
+                    <div className="text-center p-3 rounded-xl bg-plum-50">
                       <p className="text-xl font-bold text-plum-700">
                         {formatNumber(recipe["Carbohydrate, by difference (g)"])}g
                       </p>
                       <p className="text-xs text-muted-foreground">Carbs</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-rose-50">
+                    <div className="text-center p-3 rounded-xl bg-rose-50">
                       <p className="text-xl font-bold text-rose-700">
                         {formatNumber(recipe["Total lipid (fat) (g)"])}g
                       </p>
@@ -474,7 +474,7 @@ function RecipeDetailModal({
                       </Badge>
                     ))
                   ) : (
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                    <Badge variant="outline" className="bg-gray-100 text-gray-700 rounded-full">
                       Non-Vegetarian
                     </Badge>
                   )}
@@ -520,7 +520,7 @@ function RecipeDetailModal({
                   {ingredients.map((ing, idx) => (
                     <div
                       key={ing._id || idx}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                      className="flex items-start gap-3 p-3 rounded-xl bg-muted/50"
                     >
                       <span className="text-sm font-medium text-muted-foreground w-6">
                         {idx + 1}.
@@ -565,7 +565,7 @@ function RecipeDetailModal({
               ) : steps.length > 0 ? (
                 <ol className="space-y-3">
                   {steps.map((step, idx) => (
-                    <li key={idx} className="flex gap-3 p-3 rounded-lg bg-muted/50">
+                    <li key={idx} className="flex gap-3 p-3 rounded-xl bg-muted/50">
                       <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                         {idx + 1}
                       </span>
@@ -1235,7 +1235,7 @@ const FoodExplorer: React.FC = () => {
               ) : (
                 <Badge
                   variant="outline"
-                  className="text-xs bg-gray-50 text-gray-600"
+                  className="text-xs bg-gray-50 text-gray-600 rounded-full"
                 >
                   Non-Veg
                 </Badge>
@@ -1828,7 +1828,7 @@ const FoodExplorer: React.FC = () => {
                 <Badge
                   key={food.id}
                   variant="secondary"
-                  className="gap-1 cursor-pointer hover:bg-red-100"
+                  className="gap-1 cursor-pointer hover:bg-destructive/10 rounded-full"
                   onClick={() => {
                     removeFromSelectedFoods(food);
                     toast.success(`Removed ${food.Food_Item} from selection`);
@@ -1859,13 +1859,13 @@ const FoodExplorer: React.FC = () => {
 
       {/* Error State */}
       {isError && (
-        <Card className="mb-6 border-red-200 bg-red-50">
+        <Card className="mb-6 border-destructive/30 bg-destructive/5">
           <CardContent className="p-6 text-center">
-            <Info className="w-12 h-12 mx-auto mb-4 text-red-400" />
-            <p className="text-lg font-medium mb-2 text-red-800">
+            <Info className="w-12 h-12 mx-auto mb-4 text-destructive/60" />
+            <p className="text-lg font-medium mb-2 text-destructive">
               Failed to load recipes
             </p>
-            <p className="text-sm text-red-600 mb-4">
+            <p className="text-sm text-destructive/80 mb-4">
               {error instanceof Error ? error.message : "An error occurred"}
             </p>
             <Button

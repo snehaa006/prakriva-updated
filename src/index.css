@@ -2,136 +2,147 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ayurvedic Diet Management Platform Design System
-Modern Ayurvedic aesthetic in the Prakriva brand palette: deep maroon/
-burgundy on warm cream, matching public/logo.png and the pitch deck.
-All colors MUST be HSL.
+/* Prakriva Design System — iOS/visionOS-style minimalism.
+Neutral, near-achromatic grays with a single burgundy accent (kept for brand
+continuity with public/logo.png), plus three domain-critical Ayurvedic dosha
+colors (vata/pitta/kapha) that carry real clinical meaning and must stay
+visually distinct. All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Base colors - Warm cream background */
-    --background: 30 35% 97%;
-    --foreground: 345 30% 15%;
+    /* Base neutrals - cool, near-white, iOS systemGroupedBackground style */
+    --background: 0 0% 98%;
+    --background-elevated: 0 0% 100%;
+    --foreground: 240 6% 10%;
+    --foreground-secondary: 240 4% 46%;
+    --foreground-tertiary: 240 4% 66%;
 
-    /* Card colors - Clean white with warm maroon-tinted border */
+    /* Card colors - elevated surface over the grouped background */
     --card: 0 0% 100%;
-    --card-foreground: 345 30% 15%;
+    --card-foreground: 240 6% 10%;
 
     /* Popover colors */
     --popover: 0 0% 100%;
-    --popover-foreground: 345 30% 15%;
+    --popover-foreground: 240 6% 10%;
 
-    /* Primary - Deep maroon/burgundy, the Prakriva brand color */
-    --primary: 345 50% 24%;
-    --primary-foreground: 30 45% 96%;
+    /* Primary - the single accent. Kept close to the old Prakriva burgundy
+       for brand continuity, but tuned as a UI accent (buttons, links, active
+       states) rather than a palette-filling brand color. */
+    --primary: 340 45% 42%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Blush/cream */
-    --secondary: 14 45% 90%;
-    --secondary-foreground: 345 40% 22%;
+    /* Secondary - soft accent tint, used for selected/soft-badge backgrounds */
+    --secondary: 340 45% 96%;
+    --secondary-foreground: 340 45% 32%;
 
-    /* Muted - Soft warm neutral */
-    --muted: 30 30% 93%;
-    --muted-foreground: 345 12% 42%;
+    /* Muted - neutral gray, no warm/cool tint */
+    --muted: 240 5% 95%;
+    --muted-foreground: 240 4% 46%;
 
-    /* Accent - Peach */
-    --accent: 33 55% 90%;
-    --accent-foreground: 345 50% 24%;
+    /* Accent - alias of primary for shadcn-shaped components still expecting it */
+    --accent: 340 45% 96%;
+    --accent-foreground: 340 45% 32%;
 
-    /* Destructive - Soft red */
-    --destructive: 0 65% 55%;
-    --destructive-foreground: 0 0% 98%;
+    /* Destructive */
+    --destructive: 4 78% 52%;
+    --destructive-foreground: 0 0% 100%;
 
     /* Borders and inputs */
-    --border: 345 20% 86%;
-    --input: 345 15% 92%;
-    --ring: 345 50% 24%;
+    --border: 240 6% 90%;
+    --border-strong: 240 6% 82%;
+    --input: 240 6% 90%;
+    --ring: 340 45% 42%;
 
     --radius: 0.75rem;
 
     /* Dosha and status colors.
-       These used to sit outside the brand palette (blue/orange/green) so they
-       could carry meaning independently. The brand is pink end to end, so they
-       now live inside the pink family too, separated by hue (~30° apart) and
-       lightness rather than by leaving the palette. Every place they signal
-       something also carries a text label or an icon, so meaning never rests
-       on hue alone. See the `plum`/`rose`/`coral` ramps in tailwind.config.ts. */
-    --vata: 318 46% 64%;        /* Cool plum-pink for Vata */
-    --pitta: 12 48% 58%;        /* Warm coral-pink for Pitta */
-    --kapha: 345 40% 44%;       /* Deep rose for Kapha */
-    --success: 345 46% 48%;     /* Brand rose */
-    --warning: 12 50% 56%;      /* Warm coral */
-    --info: 318 46% 54%;        /* Cool plum */
+       Dosha colors are domain-critical (Ayurvedic vata/pitta/kapha), not
+       decorative, and are the one place saturated color lives outside the
+       accent. Remapped off the old all-pink family to three well-separated
+       hues (violet/orange/green) so they read as distinct against a neutral
+       backdrop and stay closer to their traditional air/fire/earth
+       associations. Every place they signal something also carries a text
+       label or icon, so meaning never rests on hue alone. */
+    --vata: 256 45% 58%;        /* Violet — air/space */
+    --pitta: 18 75% 55%;        /* Orange-red — fire */
+    --kapha: 152 40% 42%;       /* Green — earth/water */
+    --success: 145 62% 38%;
+    --warning: 38 92% 50%;
+    --info: 256 45% 58%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(345, 50%, 22%), hsl(344, 49%, 34%));
-    --gradient-secondary: linear-gradient(135deg, hsl(14, 45%, 90%), hsl(33, 55%, 92%));
-    --gradient-hero: linear-gradient(135deg, hsl(345, 50%, 20%), hsl(344, 49%, 36%), hsl(14, 45%, 88%));
+    --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 38%), hsl(340, 45%, 48%));
+    --gradient-secondary: linear-gradient(135deg, hsl(240, 5%, 95%), hsl(0, 0%, 100%));
+    --gradient-hero: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 46%), hsl(240, 5%, 95%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
     /* Sidebar colors */
-    --sidebar-background: 30 30% 96%;
-    --sidebar-foreground: 345 30% 20%;
-    --sidebar-primary: 345 50% 24%;
-    --sidebar-primary-foreground: 30 45% 96%;
-    --sidebar-accent: 14 40% 91%;
-    --sidebar-accent-foreground: 345 40% 22%;
-    --sidebar-border: 345 20% 86%;
-    --sidebar-ring: 345 50% 24%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 6% 10%;
+    --sidebar-primary: 340 45% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 340 45% 96%;
+    --sidebar-accent-foreground: 340 45% 32%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 340 45% 42%;
   }
 
   /* Dark mode is not reachable from the UI today (there is no theme toggle),
-     but these were still stock blue-slate from the shadcn starter, so a class
-     toggle would have dropped the app into a completely different palette.
-     Re-tinted onto the brand hue so it stays Prakriva if it is ever enabled. */
+     but kept in sync with the light palette so a class toggle would drop the
+     app into a dark iOS-style surface rather than a stale pink theme. */
   .dark {
-    --background: 345 25% 8%;
-    --foreground: 30 30% 96%;
+    --background: 240 8% 9%;
+    --background-elevated: 240 8% 13%;
+    --foreground: 0 0% 96%;
+    --foreground-secondary: 240 4% 66%;
+    --foreground-tertiary: 240 4% 46%;
 
-    --card: 345 22% 11%;
-    --card-foreground: 30 30% 96%;
+    --card: 240 8% 13%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 345 22% 11%;
-    --popover-foreground: 30 30% 96%;
+    --popover: 240 8% 13%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 345 45% 70%;
-    --primary-foreground: 345 40% 12%;
+    --primary: 340 55% 62%;
+    --primary-foreground: 240 8% 9%;
 
-    --secondary: 345 18% 18%;
-    --secondary-foreground: 30 30% 96%;
+    --secondary: 340 25% 18%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 345 15% 18%;
-    --muted-foreground: 345 12% 68%;
+    --muted: 240 6% 18%;
+    --muted-foreground: 240 4% 66%;
 
-    --accent: 12 25% 22%;
-    --accent-foreground: 30 30% 96%;
+    --accent: 340 25% 18%;
+    --accent-foreground: 0 0% 96%;
 
-    --destructive: 0 60% 45%;
-    --destructive-foreground: 30 30% 96%;
+    --destructive: 4 70% 58%;
+    --destructive-foreground: 0 0% 96%;
 
-    --border: 345 15% 22%;
-    --input: 345 15% 22%;
-    --ring: 345 45% 70%;
+    --border: 240 6% 20%;
+    --border-strong: 240 6% 28%;
+    --input: 240 6% 20%;
+    --ring: 340 55% 62%;
 
-    --vata: 318 40% 68%;
-    --pitta: 12 45% 62%;
-    --kapha: 345 38% 58%;
-    --success: 345 42% 62%;
-    --warning: 12 46% 62%;
-    --info: 318 42% 64%;
+    --vata: 256 50% 70%;
+    --pitta: 18 70% 62%;
+    --kapha: 152 40% 52%;
+    --success: 145 50% 50%;
+    --warning: 38 85% 58%;
+    --info: 256 50% 70%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(345, 40%, 18%), hsl(344, 38%, 28%));
-    --gradient-secondary: linear-gradient(135deg, hsl(345, 18%, 18%), hsl(12, 22%, 20%));
-    --gradient-hero: linear-gradient(135deg, hsl(345, 40%, 14%), hsl(344, 38%, 26%), hsl(318, 30%, 24%));
+    --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 42%));
+    --gradient-secondary: linear-gradient(135deg, hsl(240, 6%, 18%), hsl(240, 8%, 13%));
+    --gradient-hero: linear-gradient(135deg, hsl(340, 40%, 20%), hsl(340, 42%, 30%), hsl(240, 8%, 13%));
 
-    --sidebar-background: 345 24% 10%;
-    --sidebar-foreground: 30 28% 94%;
-    --sidebar-primary: 345 45% 70%;
-    --sidebar-primary-foreground: 345 40% 12%;
-    --sidebar-accent: 345 16% 18%;
-    --sidebar-accent-foreground: 30 28% 94%;
-    --sidebar-border: 345 15% 22%;
-    --sidebar-ring: 345 45% 70%;
+    --sidebar-background: 240 8% 11%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 340 55% 62%;
+    --sidebar-primary-foreground: 240 8% 9%;
+    --sidebar-accent: 340 25% 18%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 240 6% 20%;
+    --sidebar-ring: 340 55% 62%;
   }
 }
 
@@ -168,15 +179,15 @@ All colors MUST be HSL.
   .bg-gradient-primary {
     background: var(--gradient-primary);
   }
-  
+
   .bg-gradient-secondary {
     background: var(--gradient-secondary);
   }
-  
+
   .bg-gradient-hero {
     background: var(--gradient-hero);
   }
-  
+
   .bg-gradient-dosha {
     background: var(--gradient-dosha);
   }
@@ -197,13 +208,51 @@ All colors MUST be HSL.
   .bg-warning { background-color: hsl(var(--warning)); }
   .bg-info { background-color: hsl(var(--info)); }
 
-  /* Card hover effects */
+  /* iOS-style press feedback: scale down, no vertical lift. Replaces the old
+     shadow+translate hover lift, which reads more "web card" than "iOS card". */
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+    @apply transition-all duration-200 ease-ios hover:shadow-md active:scale-[0.98];
   }
 
   /* Smooth transitions */
   .transition-smooth {
     @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Frosted glass surface — reserved for chrome/overlay surfaces (sidebar,
+     sticky headers, dialogs/sheets, menus, toasts, chatbot panel). Not used
+     on dense content (tables, forms, list rows): blur under text-heavy
+     surfaces hurts legibility, and iOS itself avoids it there too. */
+  .glass {
+    background-color: hsl(var(--background-elevated) / 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid hsl(0 0% 100% / 0.5);
+  }
+
+  .dark .glass {
+    background-color: hsl(240 8% 13% / 0.55);
+    border-color: hsl(0 0% 100% / 0.12);
+  }
+
+  /* Slim, iOS-like scrollbar for ScrollArea and any other scrollable surface
+     that opts in. Native overflow scrolling, just restyled. */
+  .scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb {
+    background: hsl(var(--border-strong));
+    border-radius: 9999px;
   }
 }

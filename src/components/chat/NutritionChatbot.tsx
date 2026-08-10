@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2, ChevronDown, RotateCcw } from "lucide-react";
+import { MessageCircle, X, Send, ChevronDown, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import {
   AnalysisUnavailableError,
@@ -92,8 +93,21 @@ const buildHistory = (messages: ChatMessage[], limit = 8): ChatTurn[] => {
 // Component
 // ──────────────────────────────────────────────
 
-const NutritionChatbot: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface NutritionChatbotProps {
+  /** Optionally controlled from a parent, so the bottom-tab-bar's center AI
+   *  button can open the same conversation this component's own (desktop)
+   *  launcher does. Falls back to internal state when omitted. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide this component's own floating launcher button — used on phone,
+   *  where the bottom nav's center button is the entry point instead. */
+  hideTrigger?: boolean;
+}
+
+const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange, hideTrigger }) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setIsOpen = onOpenChange ?? setInternalOpen;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -155,13 +169,14 @@ const NutritionChatbot: React.FC = () => {
   }, [messages, isLoading]);
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
+    if (!isOpen) return;
+    setTimeout(() => inputRef.current?.focus(), 100);
+    // Seed the welcome message however the panel got opened — the launcher
+    // below and the bottom-tab-bar's center AI button both just flip `isOpen`.
+    setMessages((prev) => (prev.length === 0 ? [welcomeMessage()] : prev));
   }, [isOpen]);
 
-  const handleOpen = useCallback(() => {
-    setIsOpen(true);
-    setMessages((prev) => (prev.length === 0 ? [welcomeMessage()] : prev));
-  }, []);
+  const handleOpen = useCallback(() => setIsOpen(true), [setIsOpen]);
 
   const handleReset = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
@@ -234,72 +249,81 @@ const NutritionChatbot: React.FC = () => {
 
   return (
     <>
+      {/* On phone the bottom-tab-bar's center AI button is the entry point
+          instead — this floating launcher only shows on larger screens (or
+          everywhere, if a caller doesn't set hideTrigger). */}
       {!isOpen && (
         <button
           onClick={handleOpen}
-          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center group"
-          aria-label="Open wellness chatbot"
+          className={cn(
+            "fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-200 ease-ios-spring hover:scale-105 hover:shadow-xl active:scale-95 group",
+            hideTrigger && "hidden md:flex",
+          )}
+          aria-label="Open wellness companion"
         >
-          <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-coral-400 border-2 border-white animate-pulse" />
+          <MessageCircle className="h-6 w-6 transition-transform group-hover:scale-110" />
+          <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-success ring-2 ring-background" />
         </button>
       )}
 
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-4rem)] flex flex-col rounded-2xl shadow-2xl border border-gray-200 bg-white overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-600 text-white shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
-                <MessageCircle className="w-4 h-4" />
+        <div className="fixed inset-x-3 bottom-20 z-50 flex h-[calc(100vh-9rem)] flex-col overflow-hidden rounded-2xl border border-border glass shadow-glass animate-in slide-in-from-bottom-4 duration-300 ease-ios-spring md:inset-x-auto md:bottom-6 md:right-6 md:h-[600px] md:max-h-[calc(100vh-4rem)] md:w-[400px]">
+            <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-primary">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-subhead font-semibold leading-tight text-foreground">Your wellness companion</h3>
+                  <p className="flex items-center gap-1.5 text-caption1 text-foreground-secondary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                    Here for you, anytime
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-sm leading-tight">Prakriva Assistant</h3>
-                <p className="text-[10px] text-rose-100">Your Ayurvedic wellness companion</p>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={handleReset}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Reset chat"
+                  title="Start over"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Minimize chat"
+                  title="Minimize"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Close chat"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleReset}
-                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Reset chat"
-                title="Start over"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Minimize chat"
-                title="Minimize"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Close chat"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/50">
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 scroll-area">
             {statusChecked && !assistantEnabled && (
-              <div className="rounded-lg border border-coral-200 bg-coral-50 px-3 py-2 text-xs text-coral-800">
-                The wellness assistant isn't configured on this deployment yet, so it can't answer right now.
+              <div className="rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-footnote text-foreground">
+                Your companion isn't configured on this deployment yet, so it can't answer right now.
               </div>
             )}
 
             {messages.map((msg) => (
-              <div key={msg.id}>
+              <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
                 <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-footnote leading-relaxed whitespace-pre-line ${
                       msg.role === "user"
-                        ? "bg-rose-600 text-white rounded-br-md"
-                        : "bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-md"
+                        ? "rounded-br-md bg-primary text-primary-foreground"
+                        : "rounded-bl-md border border-border bg-card text-card-foreground shadow-xs"
                     }`}
                   >
                     {msg.text}
@@ -307,17 +331,17 @@ const NutritionChatbot: React.FC = () => {
                 </div>
 
                 {msg.detail && (
-                  <p className="mt-1 ml-1 text-[10px] text-gray-400 break-words">{msg.detail}</p>
+                  <p className="ml-1 mt-1 break-words text-caption2 text-foreground-tertiary">{msg.detail}</p>
                 )}
 
                 {msg.quickReplies && msg.id === messages[messages.length - 1]?.id && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 ml-1">
+                  <div className="ml-1 mt-2.5 flex flex-wrap gap-1.5">
                     {msg.quickReplies.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => handleQuickReply(opt.value)}
                         disabled={isLoading}
-                        className="text-xs px-3 py-1.5 rounded-full border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition-colors disabled:opacity-50"
+                        className="rounded-full border border-border bg-accent-soft px-3.5 py-1.5 text-caption1 font-medium text-accent-soft-foreground transition-colors hover:bg-accent-soft/70 disabled:opacity-50"
                       >
                         {opt.label}
                       </button>
@@ -328,12 +352,11 @@ const NutritionChatbot: React.FC = () => {
             ))}
 
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Thinking...</span>
-                  </div>
+              <div className="flex justify-start animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3.5 shadow-xs">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-tertiary [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-tertiary [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-tertiary" />
                 </div>
               </div>
             )}
@@ -341,7 +364,7 @@ const NutritionChatbot: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="shrink-0 border-t bg-white px-3 py-2.5">
+          <div className="shrink-0 border-t border-border bg-background-elevated px-3.5 py-3">
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
@@ -354,20 +377,20 @@ const NutritionChatbot: React.FC = () => {
                     handleSend();
                   }
                 }}
-                placeholder={isLoading ? "Please wait..." : "Ask me anything..."}
+                placeholder={isLoading ? "Thinking…" : "Ask me anything…"}
                 disabled={isLoading}
-                className="flex-1 text-sm rounded-full border border-gray-200 bg-gray-50 px-4 py-2 outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-full border border-input bg-muted px-4 py-2.5 text-footnote text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-ring focus:bg-background-elevated focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
               />
               <Button
                 onClick={handleSend}
                 disabled={!inputText.trim() || isLoading}
                 size="sm"
-                className="rounded-full h-9 w-9 p-0 bg-rose-600 hover:bg-rose-700 disabled:opacity-50"
+                className="h-10 w-10 shrink-0 rounded-full p-0"
               >
-                <Send className="w-4 h-4" />
+                <Send className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-[10px] text-gray-400 text-center mt-1.5">
+            <p className="mt-2 text-center text-caption2 text-foreground-tertiary">
               Not medical advice. Always consult your healthcare provider.
             </p>
           </div>

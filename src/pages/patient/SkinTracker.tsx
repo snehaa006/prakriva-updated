@@ -68,10 +68,10 @@ import {
 } from "@/services/analysisService";
 
 const SEVERITY_STYLES: Record<AcneSeverity, string> = {
-  clear: "bg-rose-50 text-rose-700 border-rose-200",
-  mild: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-coral-100 text-coral-800 border-coral-300",
-  severe: "bg-red-600 text-white border-red-700",
+  clear: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  mild: "bg-accent-soft text-accent-soft-foreground border-transparent",
+  moderate: "bg-warning/10 text-warning border-warning/20",
+  severe: "bg-destructive text-destructive-foreground border-transparent",
 };
 
 const prettyDate = (iso: string) =>
@@ -254,8 +254,8 @@ const SkinTracker = () => {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center p-12">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="flex flex-1 items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin text-foreground-tertiary" />
       </div>
     );
   }
@@ -268,28 +268,24 @@ const SkinTracker = () => {
         : Sparkles;
 
   return (
-    <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-5xl flex-1 space-y-8 p-6 sm:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Skin & Acne</h1>
-          <p className="text-gray-600">
+          <h1 className="text-title1 text-foreground">Skin &amp; Acne</h1>
+          <p className="mt-1.5 max-w-lg text-subhead text-foreground-secondary">
             Photograph your skin every couple of weeks — what changes tells us what your
-            nutrition should change
+            nutrition should change.
           </p>
         </div>
-        <Button
-          variant="outline"
-          className="flex items-center gap-2"
-          onClick={() => navigate("/patient/dashboard")}
-        >
-          <ArrowLeft className="w-4 h-4" />
+        <Button variant="outline" className="gap-2" onClick={() => navigate("/patient/dashboard")}>
+          <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Button>
       </div>
 
       {unavailable && (
-        <div className="flex items-start gap-2 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-900">
-          <X className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/20 bg-warning/10 p-4 text-footnote text-foreground">
+          <X className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>{unavailable}</span>
         </div>
       )}
@@ -298,7 +294,7 @@ const SkinTracker = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Camera className="w-5 h-5" />
+            <Camera className="h-5 w-5 text-primary" />
             New skin check-in
           </CardTitle>
           <CardDescription>
@@ -307,23 +303,22 @@ const SkinTracker = () => {
             shown to anyone but you and your doctor.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label htmlFor="skin-date">Date</Label>
-              <Input
-                id="skin-date"
-                type="date"
-                max={today}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
+        <CardContent className="space-y-6">
+          <div className="max-w-xs">
+            <Label htmlFor="skin-date">Date</Label>
+            <Input
+              id="skin-date"
+              type="date"
+              max={today}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1.5"
+            />
           </div>
 
           <div>
-            <span className="text-sm font-medium">How would you rate it today?</span>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <span className="text-subhead font-medium text-foreground">How would you rate it today?</span>
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
               {ACNE_SEVERITIES.map((level) => (
                 <Button
                   key={level}
@@ -339,8 +334,8 @@ const SkinTracker = () => {
           </div>
 
           <div>
-            <span className="text-sm font-medium">Where?</span>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-subhead font-medium text-foreground">Where?</span>
+            <div className="mt-2.5 flex flex-wrap gap-2">
               {ACNE_REGIONS.map((region) => {
                 const selected = regions.includes(region.value);
                 return (
@@ -349,10 +344,10 @@ const SkinTracker = () => {
                     type="button"
                     onClick={() => toggleRegion(region.value)}
                     aria-pressed={selected}
-                    className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                    className={`rounded-full border px-3.5 py-1.5 text-footnote font-medium transition-colors duration-200 ease-ios ${
                       selected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-gray-200 hover:bg-gray-50"
+                        ? "border-transparent bg-primary text-primary-foreground"
+                        : "border-border text-foreground-secondary hover:bg-muted"
                     }`}
                   >
                     {region.label}
@@ -363,7 +358,7 @@ const SkinTracker = () => {
           </div>
 
           <div>
-            <span className="text-sm font-medium">Photo (optional)</span>
+            <span className="text-subhead font-medium text-foreground">Photo (optional)</span>
             <input
               ref={fileRef}
               type="file"
@@ -387,7 +382,7 @@ const SkinTracker = () => {
                 e.target.value = "";
               }}
             />
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -422,11 +417,11 @@ const SkinTracker = () => {
               <img
                 src={photoPreview}
                 alt="Photo you are about to save"
-                className="mt-3 max-h-48 rounded-lg border object-contain"
+                className="mt-3 max-h-48 rounded-xl border border-border object-contain"
               />
             )}
             {photo && canAssessPhotos && (
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2.5 text-footnote text-foreground-tertiary">
                 We'll also ask our assistant what it can see in the photo. Your own
                 rating is what the recommendations use — that read is just recorded
                 beside it.
@@ -442,10 +437,11 @@ const SkinTracker = () => {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="New product, a stressful week, a change in your diet..."
+              className="mt-1.5"
             />
           </div>
 
-          <Button onClick={handleSave} disabled={isSaving || !!unavailable} className="gap-2">
+          <Button onClick={handleSave} disabled={isSaving || !!unavailable} size="lg" className="gap-2">
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -459,17 +455,17 @@ const SkinTracker = () => {
       </Card>
 
       {/* ── Where you are ── */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Right now</CardTitle>
-            <Sparkles className="h-4 w-4 text-rose-600" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Right now</CardTitle>
+            <Sparkles className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-title2 text-foreground">
               {analysis.severity ? ACNE_SEVERITY_LABELS[analysis.severity] : "—"}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-1 text-caption1 text-foreground-tertiary">
               {analysis.entryCount} check-in{analysis.entryCount === 1 ? "" : "s"} logged
             </p>
           </CardContent>
@@ -477,12 +473,12 @@ const SkinTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Direction</CardTitle>
-            <TrendIcon className="h-4 w-4 text-plum-600" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Direction</CardTitle>
+            <TrendIcon className="h-4 w-4 text-vata" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{ACNE_TREND_LABELS[analysis.trend]}</div>
-            <p className="text-xs text-gray-600">
+            <div className="text-title2 text-foreground">{ACNE_TREND_LABELS[analysis.trend]}</div>
+            <p className="mt-1 text-caption1 text-foreground-tertiary">
               across your last few check-ins
             </p>
           </CardContent>
@@ -490,14 +486,14 @@ const SkinTracker = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pattern</CardTitle>
-            <Stethoscope className="h-4 w-4 text-coral-500" />
+            <CardTitle className="text-footnote font-medium text-foreground-secondary">Pattern</CardTitle>
+            <Stethoscope className="h-4 w-4 text-pitta" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-title2 text-foreground">
               {analysis.isHormonalPattern ? "Hormonal" : "Mixed"}
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="mt-1 text-caption1 text-foreground-tertiary">
               {analysis.persistentRegions.length > 0
                 ? analysis.persistentRegions
                     .map((r) => ACNE_REGIONS.find((a) => a.value === r)?.label ?? r)
@@ -509,8 +505,8 @@ const SkinTracker = () => {
       </div>
 
       {guidance.seeADoctor && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-          <Stethoscope className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-footnote text-foreground">
+          <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <span>
             What you've logged is beyond what food and a routine will fix on their own.
             Scarring is much easier to prevent than to treat — book an appointment, and
@@ -520,11 +516,11 @@ const SkinTracker = () => {
       )}
 
       {/* ── What to change ── */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Apple className="w-5 h-5" />
+              <Apple className="h-5 w-5 text-primary" />
               Nutrition changes
             </CardTitle>
             <CardDescription>
@@ -533,9 +529,9 @@ const SkinTracker = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {guidance.nutrition.map((item) => (
-              <div key={item.key} className="rounded-lg border p-4">
-                <h4 className="font-medium">{item.title}</h4>
-                <p className="mt-1 text-sm text-gray-600">{item.detail}</p>
+              <div key={item.key} className="rounded-xl bg-accent-soft p-4">
+                <h4 className="text-subhead font-medium text-accent-soft-foreground">{item.title}</h4>
+                <p className="mt-1 text-footnote text-foreground-secondary">{item.detail}</p>
               </div>
             ))}
           </CardContent>
@@ -544,7 +540,7 @@ const SkinTracker = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
+              <Sparkles className="h-5 w-5 text-primary" />
               Skincare
             </CardTitle>
             <CardDescription>
@@ -553,9 +549,9 @@ const SkinTracker = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {guidance.skincare.map((item) => (
-              <div key={item.key} className="rounded-lg border p-4">
-                <h4 className="font-medium">{item.title}</h4>
-                <p className="mt-1 text-sm text-gray-600">{item.detail}</p>
+              <div key={item.key} className="rounded-xl bg-muted p-4">
+                <h4 className="text-subhead font-medium text-foreground">{item.title}</h4>
+                <p className="mt-1 text-footnote text-foreground-secondary">{item.detail}</p>
               </div>
             ))}
           </CardContent>
@@ -570,52 +566,60 @@ const SkinTracker = () => {
         </CardHeader>
         <CardContent>
           {entries.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              Nothing logged yet. Your first check-in is the baseline everything after it
-              is compared against.
-            </p>
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-primary">
+                <Camera className="h-5 w-5" />
+              </span>
+              <p className="max-w-xs text-footnote text-foreground-secondary">
+                Nothing logged yet. Your first check-in is the baseline everything after it
+                is compared against.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-3">
               {[...entries].reverse().map((entry) => (
-                <li key={entry.id} className="flex items-start gap-4 rounded-lg border p-4">
+                <li
+                  key={entry.id}
+                  className="flex items-start gap-4 rounded-xl border border-border p-4 transition-colors duration-200 ease-ios hover:bg-muted/40"
+                >
                   {photoUrls[entry.id] ? (
                     <img
                       src={photoUrls[entry.id]}
                       alt={`Skin on ${prettyDate(entry.date)}`}
-                      className="h-20 w-20 shrink-0 rounded-lg border object-cover"
+                      className="h-20 w-20 shrink-0 rounded-lg border border-border object-cover"
                     />
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border bg-gray-50">
-                      <Camera className="h-5 w-5 text-gray-300" />
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <Camera className="h-5 w-5 text-foreground-tertiary" />
                     </div>
                   )}
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{prettyDate(entry.date)}</span>
+                      <span className="text-subhead font-medium text-foreground">{prettyDate(entry.date)}</span>
                       <Badge variant="outline" className={SEVERITY_STYLES[entry.severity]}>
                         {ACNE_SEVERITY_LABELS[entry.severity]}
                       </Badge>
                       {entry.aiSeverity && entry.aiSeverity !== entry.severity && (
-                        <Badge variant="outline" className="border-gray-200 text-gray-600">
+                        <Badge variant="outline" className="border-border text-foreground-tertiary">
                           photo read: {entry.aiSeverity}
                         </Badge>
                       )}
                     </div>
                     {entry.regions.length > 0 && (
-                      <p className="mt-1 text-sm text-gray-600">
+                      <p className="mt-1 text-footnote text-foreground-secondary">
                         {entry.regions
                           .map((r) => ACNE_REGIONS.find((a) => a.value === r)?.label ?? r)
                           .join(", ")}
                       </p>
                     )}
                     {entry.aiObservations && (
-                      <p className="mt-1 text-sm italic text-gray-500">
+                      <p className="mt-1 text-footnote italic text-foreground-tertiary">
                         {entry.aiObservations}
                       </p>
                     )}
                     {entry.notes && (
-                      <p className="mt-1 text-sm text-gray-600">{entry.notes}</p>
+                      <p className="mt-1 text-footnote text-foreground-secondary">{entry.notes}</p>
                     )}
                   </div>
 
@@ -625,7 +629,7 @@ const SkinTracker = () => {
                     aria-label={`Remove check-in from ${prettyDate(entry.date)}`}
                     onClick={() => handleDelete(entry)}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-4 w-4 text-foreground-tertiary" />
                   </Button>
                 </li>
               ))}

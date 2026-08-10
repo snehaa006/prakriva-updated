@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import Questionnaire from "./pages/patient/Questionnaire";
 import PeriodTracker from "./pages/patient/PeriodTracker";
 import SkinTracker from "./pages/patient/SkinTracker";
+import TrackerHub from "./pages/patient/TrackerHub";
 import {
   requiresQuestionnaire,
   showsCycleTracking,
@@ -231,6 +232,8 @@ const AppRoutes = () => (
             </TrackRoute>
           }
         />
+        <Route path="tracker" element={<TrackerHub />} />
+        {/* Kept as deep links (e.g. from Reminders); day-to-day nav now goes through the "Track" hub above. */}
         <Route path="lifestyle-tracker" element={<LifestyleTracker />} />
         <Route path="community" element={<Community />} />
         {/* Social Support was replaced by Community; keep old links working. */}

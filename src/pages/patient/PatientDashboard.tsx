@@ -40,6 +40,13 @@ import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
 import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
+import { isPreviewMode } from "@/lib/previewMode";
+import {
+  PREVIEW_ALL_PLANS,
+  PREVIEW_DIET_PLAN_DOC,
+  PREVIEW_PROFILE,
+  PREVIEW_TODAY_MEALS,
+} from "@/lib/previewMockData";
 import {
   getRecipesByCalories,
   getRecipesByDiet,
@@ -144,7 +151,7 @@ const LIFE_STAGE_INFO: Record<string, { label: string; icon: any; color: string;
   pregnancy: {
     label: "Pregnancy",
     icon: Baby,
-    color: "bg-pink-100 text-pink-700 border-pink-200",
+    color: "bg-accent-soft text-accent-soft-foreground border-transparent",
     tips: [
       "Aim for 300-450 extra calories/day",
       "Include iron-rich foods like spinach and lentils",
@@ -155,7 +162,7 @@ const LIFE_STAGE_INFO: Record<string, { label: string; icon: any; color: string;
   postpartum: {
     label: "Postpartum",
     icon: Heart,
-    color: "bg-plum-100 text-plum-700 border-plum-200",
+    color: "bg-vata/10 text-vata border-transparent",
     tips: [
       "Focus on nutrient-dense recovery foods",
       "Include galactagogues if breastfeeding",
@@ -166,7 +173,7 @@ const LIFE_STAGE_INFO: Record<string, { label: string; icon: any; color: string;
   menopause: {
     label: "Menopause",
     icon: Flower2,
-    color: "bg-coral-100 text-coral-700 border-coral-200",
+    color: "bg-pitta/10 text-pitta border-transparent",
     tips: [
       "Calcium (1200mg/day) prevents bone loss",
       "Phytoestrogens in soy may help with symptoms",
@@ -177,7 +184,7 @@ const LIFE_STAGE_INFO: Record<string, { label: string; icon: any; color: string;
   not_applicable: {
     label: "General Wellness",
     icon: Sparkles,
-    color: "bg-rose-100 text-rose-700 border-rose-200",
+    color: "bg-accent-soft text-accent-soft-foreground border-transparent",
     tips: [
       "Balanced diet with all food groups",
       "5+ servings of fruits and vegetables daily",
@@ -243,6 +250,8 @@ const fetchDashboardProfile = async (
   patientId: string,
   fallbackName?: string
 ): Promise<PatientProfile | null> => {
+  if (isPreviewMode()) return PREVIEW_PROFILE;
+
   const { data, error } = await supabase
     .from("patients")
     .select("name, allergies, assessment_data")
@@ -333,6 +342,16 @@ const PatientDashboard = () => {
   // ── Load diet plans ──
   useEffect(() => {
     if (!user?.id) return;
+
+    // Preview: skip Supabase entirely — "preview-patient" has no real rows,
+    // so a doctor-assigned plan is faked here so the Today/My Plans tabs are
+    // populated instead of showing the empty states.
+    if (isPreviewMode()) {
+      setAllPlans(PREVIEW_ALL_PLANS as unknown as DietPlanDoc[]);
+      setActivePlan(PREVIEW_DIET_PLAN_DOC as unknown as DietPlanDoc);
+      return;
+    }
+
     const loadPlans = async () => {
       try {
         const { data, error } = await supabase
@@ -804,36 +823,38 @@ const PatientDashboard = () => {
   // ── Loading state ──
   if (loadingProfile) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-rose-600" />
-          <p className="text-muted-foreground">Loading your dashboard...</p>
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="space-y-3 text-center">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <p className="text-footnote text-foreground-secondary">Loading your dashboard…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
+    <div className="mx-auto max-w-7xl space-y-6">
       {/* ── Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-5 rounded-2xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center text-white font-semibold text-lg">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
             {(profile?.name || "P").charAt(0).toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-title2 text-foreground">
               {getGreeting()}, {(profile?.name || "there").split(" ")[0]}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <Badge className={`gap-1 ${stageInfo.color}`}>
-                <StageIcon className="w-3 h-3" />
+                <StageIcon className="h-3 w-3" />
                 {stageInfo.label}
                 {lifeStage === "pregnancy" && profile?.pregnancyTrimester && ` · T${profile.pregnancyTrimester}`}
               </Badge>
               {profile?.allergies && profile.allergies.length > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <AlertCircle className="w-3 h-3 mr-1" />
+                <Badge variant="outline" className="text-caption1">
+                  <AlertCircle className="mr-1 h-3 w-3" />
                   {profile.allergies.length} allergies
                 </Badge>
               )}
@@ -843,25 +864,29 @@ const PatientDashboard = () => {
 
         {/* Quick stats */}
         {todaysMeals.length > 0 && (
-          <div className="flex items-center gap-3">
-            <div className="text-center px-3">
-              <div className="text-lg font-bold text-rose-600">{todayStats.completionPct}%</div>
-              <p className="text-xs text-muted-foreground">Today</p>
+          <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-5">
+            <div className="text-center">
+              <div className="text-title3 text-primary">{todayStats.completionPct}%</div>
+              <p className="text-caption1 text-foreground-secondary">Today</p>
             </div>
-            <div className="text-center px-3 border-l">
-              <div className="text-lg font-bold">{todayStats.caloriesConsumed}</div>
-              <p className="text-xs text-muted-foreground">Cal eaten</p>
+            <div className="h-8 w-px bg-border" />
+            <div className="text-center">
+              <div className="text-title3 text-foreground">{todayStats.caloriesConsumed}</div>
+              <p className="text-caption1 text-foreground-secondary">Cal eaten</p>
             </div>
-            <div className="text-center px-3 border-l">
-              <div className="text-lg font-bold">{todayStats.eaten}/{todayStats.total}</div>
-              <p className="text-xs text-muted-foreground">Meals</p>
+            <div className="h-8 w-px bg-border" />
+            <div className="text-center">
+              <div className="text-title3 text-foreground">
+                {todayStats.eaten}/{todayStats.total}
+              </div>
+              <p className="text-caption1 text-foreground-secondary">Meals</p>
             </div>
           </div>
         )}
       </div>
 
       {/* ── Tabs ── */}
-      <div className="bg-white rounded-lg p-1 shadow-sm border">
+      <div className="rounded-2xl border border-border bg-card p-1 shadow-xs">
         <div className="flex gap-1">
           {([
             { id: "today" as TabId, label: "Today", icon: Sun },
@@ -874,11 +899,12 @@ const PatientDashboard = () => {
               <Button
                 key={tab.id}
                 variant={activeTab === tab.id ? "default" : "ghost"}
-                className={`flex-1 gap-2 ${activeTab === tab.id ? "bg-rose-600 text-white hover:bg-rose-700" : "text-slate-600"}`}
+                className={`h-11 flex-1 gap-2 px-1.5 sm:h-10 sm:px-4 ${activeTab === tab.id ? "" : "text-foreground-secondary"}`}
                 onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
               >
-                <Icon className="w-4 h-4" />
-                {tab.label}
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="hidden truncate text-caption1 sm:inline sm:text-sm">{tab.label}</span>
               </Button>
             );
           })}
@@ -892,34 +918,51 @@ const PatientDashboard = () => {
           <div className="lg:col-span-2 space-y-4">
             {todaysMeals.length === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <ChefHat className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No diet plan active</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {allPlans.length > 0
-                      ? "Select a plan from 'My Plans' or create a new one."
-                      : "Create your first diet plan using simple filters."}
-                  </p>
-                  <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => setActiveTab("create")}>
-                    <Filter className="w-4 h-4 mr-2" />
-                    Create Diet Plan
+                <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
+                    <ChefHat className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="max-w-sm space-y-1.5">
+                    <h3 className="text-headline text-foreground">No diet plan active yet</h3>
+                    <p className="text-footnote text-foreground-secondary">
+                      {allPlans.length > 0
+                        ? "Choose a plan from “My Plans”, or put together a new one."
+                        : "Let's put together your first diet plan — it only takes a couple of filters."}
+                    </p>
+                  </div>
+                  <Button onClick={() => setActiveTab("create")}>
+                    <Filter className="mr-2 h-4 w-4" />
+                    Create diet plan
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <>
-                {/* Progress bar */}
+                {/* Today's progress — the number that dominates this tab */}
                 <Card>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Today's Progress</span>
-                      <span className="text-sm font-bold text-rose-600">{todayStats.completionPct}%</span>
+                  <CardContent className="py-6">
+                    <div className="flex items-end justify-between gap-4">
+                      <div>
+                        <p className="text-caption1 uppercase tracking-wide text-foreground-tertiary">Today's progress</p>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <span className="text-large-title text-primary">{todayStats.completionPct}%</span>
+                          <span className="text-footnote text-foreground-secondary">
+                            {todayStats.eaten} of {todayStats.total} meals logged
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <Progress value={todayStats.completionPct} className="h-3" />
-                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                      <span>{todayStats.eaten} eaten</span>
-                      <span>{todayStats.skipped} skipped</span>
-                      <span>{todayStats.pending} pending</span>
+                    <Progress value={todayStats.completionPct} className="mt-4 h-2.5" />
+                    <div className="mt-3 flex gap-5 text-caption1 text-foreground-secondary">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success" /> {todayStats.eaten} eaten
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-warning" /> {todayStats.skipped} skipped
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-foreground-tertiary/50" /> {todayStats.pending} pending
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -927,44 +970,50 @@ const PatientDashboard = () => {
                 {/* Meal cards */}
                 {todaysMeals.map((meal) => {
                   const SlotIcon = MEAL_SLOTS.find(s => s.type === meal.type)?.icon || Utensils;
-                  const statusColors = {
-                    eaten: "border-l-rose-500 bg-rose-50/50",
-                    skipped: "border-l-red-400 bg-red-50/30",
-                    pending: "border-l-coral-400 bg-coral-50/30",
-                  };
+                  const isEaten = meal.status === "eaten";
+                  const isSkipped = meal.status === "skipped";
                   return (
-                    <Card key={meal.id} className={`border-l-4 ${statusColors[meal.status]} transition-all`}>
+                    <Card
+                      key={meal.id}
+                      className={`transition-all duration-200 ease-ios ${
+                        isEaten ? "bg-accent-soft/40" : isSkipped ? "bg-muted/40" : ""
+                      }`}
+                    >
                       <CardContent className="py-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 flex-1">
-                            <div className="mt-1 p-2 rounded-lg bg-white shadow-sm border">
-                              <SlotIcon className="w-4 h-4 text-rose-600" />
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                          <div className="flex flex-1 min-w-0 items-start gap-3.5">
+                            <div
+                              className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                                isEaten ? "bg-primary text-primary-foreground" : "bg-accent-soft text-primary"
+                              }`}
+                            >
+                              <SlotIcon className="h-4.5 w-4.5" />
                             </div>
-                            <div className="flex-1 min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <h3 className="font-semibold truncate">{meal.name}</h3>
-                                {meal.status === "eaten" && <CheckCircle className="w-4 h-4 text-rose-500 shrink-0" />}
-                                {meal.status === "skipped" && <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
+                                <h3 className="truncate text-subhead font-semibold text-foreground">{meal.name}</h3>
+                                {isEaten && <CheckCircle className="h-4 w-4 shrink-0 text-success" />}
+                                {isSkipped && <XCircle className="h-4 w-4 shrink-0 text-foreground-tertiary" />}
                               </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">
+                              <p className="mt-0.5 text-caption1 text-foreground-secondary">
                                 {meal.time} · {meal.type.charAt(0).toUpperCase() + meal.type.slice(1)}
                                 {meal.dayLabel && ` · ${meal.dayLabel}`}
                               </p>
-                              <div className="flex items-center gap-3 mt-2 text-xs">
+                              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
                                 <span className="flex items-center gap-1">
-                                  <Flame className="w-3 h-3 text-coral-500" />
+                                  <Flame className="h-3 w-3 text-pitta" />
                                   {meal.calories} cal
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Drumstick className="w-3 h-3 text-red-500" />
+                                  <Drumstick className="h-3 w-3 text-primary" />
                                   {meal.protein}g protein
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Wheat className="w-3 h-3 text-coral-600" />
+                                  <Wheat className="h-3 w-3 text-kapha" />
                                   {meal.carbs}g carbs
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <Droplets className="w-3 h-3 text-plum-500" />
+                                  <Droplets className="h-3 w-3 text-vata" />
                                   {meal.fat}g fat
                                 </span>
                               </div>
@@ -972,43 +1021,47 @@ const PatientDashboard = () => {
                           </div>
 
                           {/* Action buttons */}
-                          <div className="flex flex-col gap-1.5 shrink-0">
-                            <Button
-                              size="sm"
-                              variant={meal.status === "eaten" ? "default" : "outline"}
-                              className={`h-7 text-xs ${meal.status === "eaten" ? "bg-rose-600 hover:bg-rose-700" : ""}`}
-                              onClick={() => updateMealStatus(meal.id, meal.status === "eaten" ? "pending" : "eaten")}
-                            >
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              {meal.status === "eaten" ? "Eaten" : "Mark Eaten"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={meal.status === "skipped" ? "destructive" : "ghost"}
-                              className="h-7 text-xs"
-                              onClick={() => updateMealStatus(meal.id, meal.status === "skipped" ? "pending" : "skipped")}
-                            >
-                              <XCircle className="w-3 h-3 mr-1" />
-                              {meal.status === "skipped" ? "Skipped" : "Skip"}
-                            </Button>
+                          <div className="flex shrink-0 flex-row items-center justify-between gap-1.5 sm:flex-col sm:items-end">
+                            <div className="flex gap-1.5">
+                              <Button
+                                size="sm"
+                                variant={isEaten ? "default" : "outline"}
+                                className="h-10 gap-1.5 text-caption1 sm:h-8"
+                                onClick={() => updateMealStatus(meal.id, isEaten ? "pending" : "eaten")}
+                              >
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                {isEaten ? "Eaten" : "Mark eaten"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={isSkipped ? "secondary" : "ghost"}
+                                className="h-10 gap-1.5 text-caption1 text-foreground-secondary sm:h-8"
+                                onClick={() => updateMealStatus(meal.id, isSkipped ? "pending" : "skipped")}
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
+                                {isSkipped ? "Skipped" : "Skip"}
+                              </Button>
+                            </div>
                             <div className="flex gap-1">
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 text-xs px-2"
+                                className="h-10 w-10 px-2 text-foreground-tertiary sm:h-7 sm:w-auto"
                                 onClick={() => handleSwap(meal)}
+                                title="Swap meal"
                               >
-                                <ArrowRightLeft className="w-3 h-3" />
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
                               </Button>
                               {meal.recipeId && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 text-xs px-2"
+                                  className="h-10 w-10 px-2 text-foreground-tertiary sm:h-7 sm:w-auto"
                                   onClick={() => handleViewRecipe(meal.recipeId!)}
                                   disabled={loadingRecipe}
+                                  title="View recipe"
                                 >
-                                  <Eye className="w-3 h-3" />
+                                  <Eye className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                             </div>
@@ -1017,35 +1070,42 @@ const PatientDashboard = () => {
 
                         {/* Swap options */}
                         {swappingMealId === meal.id && (
-                          <div className="mt-3 pt-3 border-t">
-                            <p className="text-xs font-medium mb-2">Swap with:</p>
+                          <div className="mt-4 border-t border-border pt-4">
+                            <p className="mb-2 text-caption1 font-medium text-foreground-secondary">Swap with</p>
                             {loadingSwap ? (
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                Loading alternatives...
+                              <div className="flex items-center gap-2 py-2 text-caption1 text-foreground-secondary">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Finding alternatives…
                               </div>
                             ) : swapOptions.length === 0 ? (
-                              <p className="text-xs text-muted-foreground py-1">No alternatives found.</p>
+                              <p className="py-1 text-caption1 text-foreground-secondary">
+                                Couldn't find alternatives — try again in a moment.
+                              </p>
                             ) : (
                               <div className="space-y-1.5">
                                 {swapOptions.map(opt => (
                                   <button
                                     key={opt.Recipe_id}
                                     onClick={() => confirmSwap(meal, opt)}
-                                    className="w-full text-left p-2 rounded-lg border hover:bg-rose-50 hover:border-rose-200 transition-colors text-xs flex items-center justify-between"
+                                    className="flex w-full items-center justify-between rounded-xl border border-border px-3 py-2.5 text-left text-caption1 transition-colors hover:border-primary/30 hover:bg-accent-soft"
                                   >
-                                    <div>
-                                      <span className="font-medium">{opt.Recipe_title}</span>
-                                      <span className="text-muted-foreground ml-2">
+                                    <div className="min-w-0">
+                                      <span className="font-medium text-foreground">{opt.Recipe_title}</span>
+                                      <span className="ml-2 text-foreground-secondary">
                                         {Math.round(Number(opt.Calories || 0))} cal · {opt.Region || "Global"}
                                       </span>
                                     </div>
-                                    <ArrowRightLeft className="w-3 h-3 text-rose-500" />
+                                    <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-primary" />
                                   </button>
                                 ))}
                               </div>
                             )}
-                            <Button size="sm" variant="ghost" className="mt-2 text-xs" onClick={() => { setSwappingMealId(null); setSwapOptions([]); }}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="mt-2 text-caption1 text-foreground-secondary"
+                              onClick={() => { setSwappingMealId(null); setSwapOptions([]); }}
+                            >
                               Cancel
                             </Button>
                           </div>
@@ -1063,24 +1123,31 @@ const PatientDashboard = () => {
             {/* Nutrition summary */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Nutrition Summary</CardTitle>
+                <CardTitle className="text-subhead font-semibold">Nutrition summary</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Flame className="w-4 h-4 text-coral-500" />
-                    <span className="text-sm">Calories</span>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-foreground-secondary">
+                      <Flame className="h-4 w-4 text-pitta" />
+                      <span className="text-footnote">Calories</span>
+                    </div>
+                    <span className="text-footnote font-semibold text-foreground">
+                      {todayStats.caloriesConsumed} / {todayStats.totalCalories}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold">{todayStats.caloriesConsumed} / {todayStats.totalCalories}</span>
+                  <Progress
+                    value={todayStats.totalCalories > 0 ? (todayStats.caloriesConsumed / todayStats.totalCalories) * 100 : 0}
+                    className="mt-2 h-2"
+                  />
                 </div>
-                <Progress value={todayStats.totalCalories > 0 ? (todayStats.caloriesConsumed / todayStats.totalCalories) * 100 : 0} className="h-2" />
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Drumstick className="w-4 h-4 text-red-500" />
-                    <span className="text-sm">Protein</span>
+                  <div className="flex items-center gap-2 text-foreground-secondary">
+                    <Drumstick className="h-4 w-4 text-primary" />
+                    <span className="text-footnote">Protein</span>
                   </div>
-                  <span className="text-sm font-bold">{todayStats.proteinConsumed}g</span>
+                  <span className="text-footnote font-semibold text-foreground">{todayStats.proteinConsumed}g</span>
                 </div>
               </CardContent>
             </Card>
@@ -1088,16 +1155,16 @@ const PatientDashboard = () => {
             {/* Health tips based on life stage */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <StageIcon className="w-4 h-4" />
+                <CardTitle className="flex items-center gap-2 text-subhead font-semibold">
+                  <StageIcon className="h-4 w-4 text-primary" />
                   Tips for {stageInfo.label}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {stageInfo.tips.map((tip, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <CheckCircle className="w-3 h-3 text-rose-500 mt-0.5 shrink-0" />
+                    <li key={i} className="flex items-start gap-2 text-footnote text-foreground-secondary">
+                      <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                       {tip}
                     </li>
                   ))}
@@ -1107,18 +1174,18 @@ const PatientDashboard = () => {
 
             {/* Reminders */}
             {todaysMeals.filter(m => m.status === "pending").length > 0 && (
-              <Card className="border-coral-200 bg-coral-50/50">
+              <Card className="bg-accent-soft/50">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-coral-700">
-                    <Clock className="w-4 h-4" />
-                    Upcoming Meals
+                  <CardTitle className="flex items-center gap-2 text-subhead font-semibold text-accent-soft-foreground">
+                    <Clock className="h-4 w-4" />
+                    Upcoming meals
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {todaysMeals.filter(m => m.status === "pending").slice(0, 3).map(meal => (
-                    <div key={meal.id} className="flex items-center justify-between text-xs">
-                      <span className="font-medium truncate mr-2">{meal.name}</span>
-                      <Badge variant="outline" className="text-xs shrink-0">{meal.time}</Badge>
+                    <div key={meal.id} className="flex items-center justify-between text-footnote">
+                      <span className="mr-2 truncate font-medium text-foreground">{meal.name}</span>
+                      <Badge variant="outline" className="shrink-0">{meal.time}</Badge>
                     </div>
                   ))}
                 </CardContent>
@@ -1127,26 +1194,26 @@ const PatientDashboard = () => {
 
             {/* Quick actions */}
             <Card>
-              <CardContent className="py-4 space-y-2">
-                <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/meal-logging")}>
-                  <ChefHat className="w-4 h-4" /> Meal Logging & Feedback
+              <CardContent className="space-y-1.5 py-4">
+                <Button variant="ghost" className="w-full justify-start gap-2.5 text-footnote text-foreground-secondary" onClick={() => navigate("/patient/meal-logging")}>
+                  <ChefHat className="h-4 w-4" /> Meal logging & feedback
                 </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/consult-doctor")}>
-                  <User className="w-4 h-4" /> Consult Doctor
+                <Button variant="ghost" className="w-full justify-start gap-2.5 text-footnote text-foreground-secondary" onClick={() => navigate("/patient/consult-doctor")}>
+                  <User className="h-4 w-4" /> Consult doctor
                 </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/lifestyle-tracker")}>
-                  <Heart className="w-4 h-4" /> Tracker
+                <Button variant="ghost" className="w-full justify-start gap-2.5 text-footnote text-foreground-secondary" onClick={() => navigate("/patient/lifestyle-tracker")}>
+                  <Heart className="h-4 w-4" /> Tracker
                 </Button>
                 {/* PCOD/PCOS patients have no maternal health check; their
                     cycle and skin logs are what their diet plan is built
                     from, so they belong in reach from the dashboard. */}
                 {healthTracks?.includes("pcos") && (
                   <>
-                    <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/period-tracker")}>
-                      <Calendar className="w-4 h-4" /> Period & Weight Tracker
+                    <Button variant="ghost" className="w-full justify-start gap-2.5 text-footnote text-foreground-secondary" onClick={() => navigate("/patient/period-tracker")}>
+                      <Calendar className="h-4 w-4" /> Period & weight tracker
                     </Button>
-                    <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => navigate("/patient/skin-tracker")}>
-                      <Sparkles className="w-4 h-4" /> Skin & Acne
+                    <Button variant="ghost" className="w-full justify-start gap-2.5 text-footnote text-foreground-secondary" onClick={() => navigate("/patient/skin-tracker")}>
+                      <Sparkles className="h-4 w-4" /> Skin & acne
                     </Button>
                   </>
                 )}
@@ -1158,15 +1225,21 @@ const PatientDashboard = () => {
 
       {/* ── MY PLANS TAB ── */}
       {activeTab === "plan" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {allPlans.length === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center">
-                <Calendar className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                <h3 className="text-lg font-medium mb-2">No diet plans yet</h3>
-                <p className="text-muted-foreground mb-4">Create one using filters or wait for your doctor to assign one.</p>
-                <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => setActiveTab("create")}>
-                  <Filter className="w-4 h-4 mr-2" /> Create Plan
+              <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
+                  <Calendar className="h-7 w-7 text-primary" />
+                </div>
+                <div className="max-w-sm space-y-1.5">
+                  <h3 className="text-headline text-foreground">No diet plans yet</h3>
+                  <p className="text-footnote text-foreground-secondary">
+                    Create one using filters, or check back once your doctor assigns one.
+                  </p>
+                </div>
+                <Button onClick={() => setActiveTab("create")}>
+                  <Filter className="mr-2 h-4 w-4" /> Create plan
                 </Button>
               </CardContent>
             </Card>
@@ -1175,42 +1248,43 @@ const PatientDashboard = () => {
               const isActive = activePlan?.id === plan.id;
               const createdDate = new Date(plan.createdAt);
               return (
-                <Card key={plan.id} className={`transition-all ${isActive ? "border-rose-300 ring-1 ring-rose-200" : ""}`}>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">
-                            {plan.source === "patient-self-service" ? "Self-Created Plan" : plan.source === "personalized-diet-chart" ? "Doctor's Plan" : plan.planType || "Diet Plan"}
-                          </h3>
-                          {isActive && <Badge className="bg-rose-100 text-rose-700 text-xs">Active</Badge>}
-                          {plan.source === "personalized-diet-chart" && (
-                            <Badge variant="outline" className="text-xs">Doctor Assigned</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {plan.totalMeals} meals · {plan.planDuration} · Created {createdDate.toLocaleDateString()}
-                        </p>
-                        {plan.patientName && (
-                          <p className="text-xs text-muted-foreground">For: {plan.patientName}</p>
+                <Card
+                  key={plan.id}
+                  className={`transition-all duration-200 ease-ios ${isActive ? "ring-1 ring-primary/40" : ""}`}
+                >
+                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-subhead font-semibold text-foreground">
+                          {plan.source === "patient-self-service" ? "Self-created plan" : plan.source === "personalized-diet-chart" ? "Doctor's plan" : plan.planType || "Diet plan"}
+                        </h3>
+                        {isActive && (
+                          <Badge className="bg-accent-soft text-accent-soft-foreground">Active</Badge>
+                        )}
+                        {plan.source === "personalized-diet-chart" && (
+                          <Badge variant="outline">Doctor assigned</Badge>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        {!isActive && (
-                          <Button
-                            size="sm"
-                            className="bg-rose-600 hover:bg-rose-700"
-                            onClick={() => {
-                              setActivePlan(plan);
-                              setActiveTab("today");
-                              toast.success("Plan activated!");
-                            }}
-                          >
-                            Activate
-                          </Button>
-                        )}
-                      </div>
+                      <p className="mt-1 text-footnote text-foreground-secondary">
+                        {plan.totalMeals} meals · {plan.planDuration} · Created {createdDate.toLocaleDateString()}
+                      </p>
+                      {plan.patientName && (
+                        <p className="text-caption1 text-foreground-tertiary">For {plan.patientName}</p>
+                      )}
                     </div>
+                    {!isActive && (
+                      <Button
+                        size="sm"
+                        className="h-10 w-full sm:h-9 sm:w-auto"
+                        onClick={() => {
+                          setActivePlan(plan);
+                          setActiveTab("today");
+                          toast.success("Plan activated");
+                        }}
+                      >
+                        Activate
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -1223,20 +1297,20 @@ const PatientDashboard = () => {
       {activeTab === "create" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Filters */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 h-fit">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="w-4 h-4" /> Filters
+              <CardTitle className="flex items-center gap-2 text-subhead font-semibold">
+                <Filter className="h-4 w-4 text-primary" /> Filters
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-6">
               {/* Region */}
               <div>
-                <Label className="text-xs font-medium">Cuisine / Region</Label>
+                <Label className="text-caption1 font-medium text-foreground-secondary">Cuisine / region</Label>
                 <Select value={filters.region} onValueChange={v => setFilters(p => ({ ...p, region: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Any region" /></SelectTrigger>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Any region" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Any Region</SelectItem>
+                    <SelectItem value="any">Any region</SelectItem>
                     {REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -1244,9 +1318,9 @@ const PatientDashboard = () => {
 
               {/* Diet type */}
               <div>
-                <Label className="text-xs font-medium">Diet Type</Label>
+                <Label className="text-caption1 font-medium text-foreground-secondary">Diet type</Label>
                 <Select value={filters.dietType} onValueChange={v => setFilters(p => ({ ...p, dietType: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Any diet" /></SelectTrigger>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Any diet" /></SelectTrigger>
                   <SelectContent>
                     {DIET_TYPES.map(d => <SelectItem key={d.value || "any"} value={d.value || "any"}>{d.label}</SelectItem>)}
                   </SelectContent>
@@ -1255,8 +1329,10 @@ const PatientDashboard = () => {
 
               {/* Calories */}
               <div>
-                <Label className="text-xs font-medium">Calories per meal: {filters.minCalories} - {filters.maxCalories} kcal</Label>
-                <div className="mt-2 px-1">
+                <Label className="text-caption1 font-medium text-foreground-secondary">
+                  Calories per meal: <span className="text-foreground">{filters.minCalories}–{filters.maxCalories} kcal</span>
+                </Label>
+                <div className="mt-3 px-1">
                   <Slider
                     value={[filters.minCalories, filters.maxCalories]}
                     onValueChange={([min, max]) => setFilters(p => ({ ...p, minCalories: min, maxCalories: max }))}
@@ -1269,8 +1345,10 @@ const PatientDashboard = () => {
 
               {/* Protein */}
               <div>
-                <Label className="text-xs font-medium">Protein per meal: {filters.minProtein} - {filters.maxProtein}g</Label>
-                <div className="mt-2 px-1">
+                <Label className="text-caption1 font-medium text-foreground-secondary">
+                  Protein per meal: <span className="text-foreground">{filters.minProtein}–{filters.maxProtein}g</span>
+                </Label>
+                <div className="mt-3 px-1">
                   <Slider
                     value={[filters.minProtein, filters.maxProtein]}
                     onValueChange={([min, max]) => setFilters(p => ({ ...p, minProtein: min, maxProtein: max }))}
@@ -1283,27 +1361,27 @@ const PatientDashboard = () => {
 
               {/* Cook time */}
               <div>
-                <Label className="text-xs font-medium">Cook Time</Label>
+                <Label className="text-caption1 font-medium text-foreground-secondary">Cook time</Label>
                 <Select value={filters.cookTime} onValueChange={v => setFilters(p => ({ ...p, cookTime: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="any">Any</SelectItem>
                     <SelectItem value="quick">Quick (&lt; 30 min)</SelectItem>
-                    <SelectItem value="medium">Medium (30-60 min)</SelectItem>
+                    <SelectItem value="medium">Medium (30–60 min)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Exclude ingredients */}
               <div>
-                <Label className="text-xs font-medium">Exclude Ingredients</Label>
+                <Label className="text-caption1 font-medium text-foreground-secondary">Exclude ingredients</Label>
                 <Input
-                  className="mt-1"
+                  className="mt-1.5"
                   placeholder="e.g. peanut, shellfish"
                   value={filters.excludeIngredients}
                   onChange={e => setFilters(p => ({ ...p, excludeIngredients: e.target.value }))}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">Comma-separated</p>
+                <p className="mt-1 text-caption2 text-foreground-tertiary">Comma-separated</p>
               </div>
 
               {/* Pre-fill from profile allergies */}
@@ -1311,23 +1389,19 @@ const PatientDashboard = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full text-xs"
+                  className="w-full text-caption1"
                   onClick={() => setFilters(p => ({ ...p, excludeIngredients: profile!.allergies!.join(",") }))}
                 >
-                  <AlertCircle className="w-3 h-3 mr-1" />
+                  <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
                   Auto-fill my allergies ({profile.allergies.join(", ")})
                 </Button>
               )}
 
-              <Button
-                className="w-full bg-rose-600 hover:bg-rose-700"
-                onClick={generatePlan}
-                disabled={generating}
-              >
+              <Button className="w-full" onClick={generatePlan} disabled={generating}>
                 {generating ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
                 ) : (
-                  <><Sparkles className="w-4 h-4 mr-2" /> Generate Meal Plan</>
+                  <><Sparkles className="mr-2 h-4 w-4" /> Generate meal plan</>
                 )}
               </Button>
             </CardContent>
@@ -1337,20 +1411,26 @@ const PatientDashboard = () => {
           <div className="lg:col-span-2 space-y-4">
             {generatedMeals.length === 0 && !generating ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <Sparkles className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-                  <h3 className="font-medium mb-1">Set your filters and generate</h3>
-                  <p className="text-sm text-muted-foreground">
-                    We'll find recipes from 118,000+ options matching your preferences.
-                  </p>
+                <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
+                    <Sparkles className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="max-w-sm space-y-1">
+                    <h3 className="text-headline text-foreground">Set your filters and generate</h3>
+                    <p className="text-footnote text-foreground-secondary">
+                      We'll find recipes from 118,000+ options matching your preferences.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ) : generating ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-rose-600" />
-                  <p className="text-muted-foreground">Finding the best recipes for you...</p>
-                  <p className="text-xs text-muted-foreground mt-1">This may take a few seconds</p>
+                <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div className="space-y-1">
+                    <p className="text-footnote text-foreground">Finding the best recipes for you…</p>
+                    <p className="text-caption1 text-foreground-tertiary">This may take a few seconds</p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -1361,36 +1441,41 @@ const PatientDashboard = () => {
                     <Card key={idx}>
                       <CardContent className="py-4">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-rose-50 border border-rose-100">
-                              <SlotIcon className="w-4 h-4 text-rose-600" />
+                          <div className="flex items-start gap-3.5">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft">
+                              <SlotIcon className="h-4 w-4 text-primary" />
                             </div>
                             <div>
-                              <Badge variant="outline" className="text-xs mb-1">
+                              <Badge variant="outline" className="mb-1">
                                 {meal.type.charAt(0).toUpperCase() + meal.type.slice(1)} · {meal.time}
                               </Badge>
-                              <h3 className="font-semibold">{meal.name}</h3>
-                              <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                                <span><Flame className="w-3 h-3 inline mr-0.5 text-coral-500" />{meal.calories} cal</span>
-                                <span><Drumstick className="w-3 h-3 inline mr-0.5 text-red-500" />{meal.protein}g protein</span>
-                                <span><Wheat className="w-3 h-3 inline mr-0.5 text-coral-600" />{meal.carbs}g carbs</span>
-                                <span><Droplets className="w-3 h-3 inline mr-0.5 text-plum-500" />{meal.fat}g fat</span>
+                              <h3 className="text-subhead font-semibold text-foreground">{meal.name}</h3>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption1 text-foreground-secondary">
+                                <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-pitta" />{meal.calories} cal</span>
+                                <span className="inline-flex items-center gap-1"><Drumstick className="h-3 w-3 text-primary" />{meal.protein}g protein</span>
+                                <span className="inline-flex items-center gap-1"><Wheat className="h-3 w-3 text-kapha" />{meal.carbs}g carbs</span>
+                                <span className="inline-flex items-center gap-1"><Droplets className="h-3 w-3 text-vata" />{meal.fat}g fat</span>
                               </div>
-                              {meal.region && <p className="text-xs text-muted-foreground mt-1">Region: {meal.region}</p>}
-                              {meal.cookTime && <p className="text-xs text-muted-foreground">Cook: {meal.cookTime} min</p>}
+                              {(meal.region || meal.cookTime) && (
+                                <p className="mt-1 text-caption1 text-foreground-tertiary">
+                                  {meal.region && `${meal.region}`}
+                                  {meal.region && meal.cookTime && " · "}
+                                  {meal.cookTime && `${meal.cookTime} min`}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-xs"
+                            className="h-10 w-10 shrink-0 p-0 text-foreground-tertiary sm:h-8 sm:w-8"
                             onClick={() => {
                               const newMeals = [...generatedMeals];
                               newMeals.splice(idx, 1);
                               setGeneratedMeals(newMeals);
                             }}
                           >
-                            <XCircle className="w-4 h-4" />
+                            <XCircle className="h-4 w-4" />
                           </Button>
                         </div>
                       </CardContent>
@@ -1398,20 +1483,20 @@ const PatientDashboard = () => {
                   );
                 })}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
-                    className="flex-1 bg-rose-600 hover:bg-rose-700"
+                    className="h-11 flex-1 sm:h-10"
                     onClick={saveGeneratedPlan}
                     disabled={savingPlan || generatedMeals.length === 0}
                   >
                     {savingPlan ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
                     ) : (
-                      <><Save className="w-4 h-4 mr-2" /> Save & Activate Plan</>
+                      <><Save className="mr-2 h-4 w-4" /> Save & activate plan</>
                     )}
                   </Button>
-                  <Button variant="outline" onClick={() => { setGeneratedMeals([]); }}>
-                    <RefreshCw className="w-4 h-4 mr-2" /> Reset
+                  <Button variant="outline" className="h-11 sm:h-10" onClick={() => { setGeneratedMeals([]); }}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Reset
                   </Button>
                 </div>
               </>
@@ -1426,10 +1511,10 @@ const PatientDashboard = () => {
           {/* Weekly overview */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Last 7 Days</CardTitle>
+              <CardTitle className="text-subhead font-semibold">Last 7 days</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 {Array.from({ length: 7 }, (_, i) => {
                   const d = new Date();
                   d.setDate(d.getDate() - i);
@@ -1440,11 +1525,11 @@ const PatientDashboard = () => {
 
                   return (
                     <div key={key} className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground w-24 shrink-0">{dayLabel}</span>
+                      <span className="w-24 shrink-0 text-caption1 text-foreground-secondary">{dayLabel}</span>
                       <div className="flex-1">
-                        <Progress value={pct} className="h-2.5" />
+                        <Progress value={pct} className="h-2" />
                       </div>
-                      <span className="text-xs font-medium w-10 text-right">
+                      <span className="w-10 shrink-0 text-right text-caption1 font-medium text-foreground">
                         {data ? `${pct}%` : "—"}
                       </span>
                     </div>
@@ -1456,24 +1541,24 @@ const PatientDashboard = () => {
 
           {/* Stats */}
           <div className="space-y-4">
+            {/* Headline stat dominates; the rest are a supporting row */}
             <Card>
-              <CardContent className="py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-rose-50 rounded-lg">
-                    <div className="text-2xl font-bold text-rose-600">{todayStats.completionPct}%</div>
-                    <p className="text-xs text-muted-foreground mt-1">Today's Completion</p>
+              <CardContent className="py-6">
+                <p className="text-caption1 uppercase tracking-wide text-foreground-tertiary">Today's completion</p>
+                <span className="mt-1 block text-large-title text-primary">{todayStats.completionPct}%</span>
+
+                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 sm:gap-3">
+                  <div className="min-w-0">
+                    <div className="text-title3 text-foreground">{todayStats.caloriesConsumed}</div>
+                    <p className="mt-0.5 truncate text-caption1 text-foreground-secondary">Calories today</p>
                   </div>
-                  <div className="text-center p-3 bg-plum-50 rounded-lg">
-                    <div className="text-2xl font-bold text-plum-600">{todayStats.caloriesConsumed}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Calories Today</p>
+                  <div className="min-w-0">
+                    <div className="text-title3 text-foreground">{todayStats.proteinConsumed}g</div>
+                    <p className="mt-0.5 truncate text-caption1 text-foreground-secondary">Protein today</p>
                   </div>
-                  <div className="text-center p-3 bg-plum-50 rounded-lg">
-                    <div className="text-2xl font-bold text-plum-600">{todayStats.proteinConsumed}g</div>
-                    <p className="text-xs text-muted-foreground mt-1">Protein Today</p>
-                  </div>
-                  <div className="text-center p-3 bg-coral-50 rounded-lg">
-                    <div className="text-2xl font-bold text-coral-600">{allPlans.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Total Plans</p>
+                  <div className="min-w-0">
+                    <div className="text-title3 text-foreground">{allPlans.length}</div>
+                    <p className="mt-0.5 truncate text-caption1 text-foreground-secondary">Total plans</p>
                   </div>
                 </div>
               </CardContent>
@@ -1482,7 +1567,7 @@ const PatientDashboard = () => {
             {/* Weekly avg */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Weekly Average</CardTitle>
+                <CardTitle className="text-subhead font-semibold">Weekly average</CardTitle>
               </CardHeader>
               <CardContent>
                 {(() => {
@@ -1490,21 +1575,21 @@ const PatientDashboard = () => {
                   const avgPct = days.length > 0 ? Math.round(days.reduce((s, d) => s + (d.eaten / d.total) * 100, 0) / days.length) : 0;
                   const avgCal = days.length > 0 ? Math.round(days.reduce((s, d) => s + d.calories, 0) / days.length) : 0;
                   return (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Avg Completion</span>
-                          <span className="font-bold">{avgPct}%</span>
+                        <div className="mb-1.5 flex justify-between text-footnote text-foreground-secondary">
+                          <span>Avg completion</span>
+                          <span className="font-semibold text-foreground">{avgPct}%</span>
                         </div>
                         <Progress value={avgPct} className="h-2" />
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Avg Calories/day</span>
-                        <span className="font-bold">{avgCal} kcal</span>
+                      <div className="flex justify-between text-footnote text-foreground-secondary">
+                        <span>Avg calories / day</span>
+                        <span className="font-semibold text-foreground">{avgCal} kcal</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-footnote text-foreground-secondary">
                         <span>Days tracked</span>
-                        <span className="font-bold">{days.length} / 7</span>
+                        <span className="font-semibold text-foreground">{days.length} / 7</span>
                       </div>
                     </div>
                   );
@@ -1517,39 +1602,45 @@ const PatientDashboard = () => {
 
       {/* ── Recipe Detail Modal ── */}
       {viewingRecipe && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingRecipe(null)}>
-          <Card className="max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-200"
+          onClick={() => setViewingRecipe(null)}
+        >
+          <Card
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{viewingRecipe.recipe.Recipe_title}</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => setViewingRecipe(null)}>
-                  <XCircle className="w-4 h-4" />
+              <div className="flex items-start justify-between gap-3">
+                <CardTitle className="text-title3">{viewingRecipe.recipe.Recipe_title}</CardTitle>
+                <Button variant="ghost" size="sm" className="h-10 w-10 shrink-0 p-0 text-foreground-tertiary sm:h-8 sm:w-8" onClick={() => setViewingRecipe(null)}>
+                  <XCircle className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="p-2 bg-slate-50 rounded">
-                  <span className="text-muted-foreground">Calories: </span>
-                  <span className="font-medium">{viewingRecipe.recipe.Calories || viewingRecipe.recipe["Energy (kcal)"] || "N/A"}</span>
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-xl bg-accent-soft px-3 py-2.5">
+                  <span className="block text-caption1 text-foreground-secondary">Calories</span>
+                  <span className="text-subhead font-semibold text-foreground">{viewingRecipe.recipe.Calories || viewingRecipe.recipe["Energy (kcal)"] || "N/A"}</span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded">
-                  <span className="text-muted-foreground">Protein: </span>
-                  <span className="font-medium">{viewingRecipe.recipe["Protein (g)"] || "N/A"}g</span>
+                <div className="rounded-xl bg-accent-soft px-3 py-2.5">
+                  <span className="block text-caption1 text-foreground-secondary">Protein</span>
+                  <span className="text-subhead font-semibold text-foreground">{viewingRecipe.recipe["Protein (g)"] || "N/A"}g</span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded">
-                  <span className="text-muted-foreground">Region: </span>
-                  <span className="font-medium">{viewingRecipe.recipe.Region || "Global"}</span>
+                <div className="rounded-xl bg-accent-soft px-3 py-2.5">
+                  <span className="block text-caption1 text-foreground-secondary">Region</span>
+                  <span className="text-subhead font-semibold text-foreground">{viewingRecipe.recipe.Region || "Global"}</span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded">
-                  <span className="text-muted-foreground">Cook Time: </span>
-                  <span className="font-medium">{viewingRecipe.recipe.cook_time || viewingRecipe.recipe.total_time || "N/A"} min</span>
+                <div className="rounded-xl bg-accent-soft px-3 py-2.5">
+                  <span className="block text-caption1 text-foreground-secondary">Cook time</span>
+                  <span className="text-subhead font-semibold text-foreground">{viewingRecipe.recipe.cook_time || viewingRecipe.recipe.total_time || "N/A"} min</span>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium text-sm mb-2">Instructions</h4>
-                <div className="text-sm text-muted-foreground whitespace-pre-line bg-slate-50 p-3 rounded">
+                <h4 className="mb-2 text-footnote font-semibold text-foreground">Instructions</h4>
+                <div className="whitespace-pre-line rounded-xl bg-muted/50 p-3.5 text-footnote text-foreground-secondary">
                   {viewingRecipe.instructions}
                 </div>
               </div>
@@ -1560,10 +1651,10 @@ const PatientDashboard = () => {
 
       {/* Loading recipe overlay */}
       {loadingRecipe && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 shadow-lg flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-rose-600" />
-            <span>Loading recipe details...</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 animate-in fade-in duration-150">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-5 shadow-lg">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-footnote text-foreground">Loading recipe details…</span>
           </div>
         </div>
       )}

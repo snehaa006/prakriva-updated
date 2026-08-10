@@ -91,12 +91,12 @@ const TestDoctorIds = () => (
             <div key={number}>
               <code>{number}</code> - {entry.doctorName}
               {!entry.isValid && (
-                <span className="textplum-500"> (rejected: {entry.status})</span>
+                <span className="text-plum-500"> (rejected: {entry.status})</span>
               )}
             </div>
           ))}
         </div>
-        <p className="textplum-500 text-xs mt-2">
+        <p className="text-plum-500 text-xs mt-2">
           Passing this check records your claim only. Your account stays pending
           until it is verified.
         </p>
@@ -140,8 +140,8 @@ const DoctorSignupSteps = ({
       return (
         <div className="space-y-4">
           <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold">Basic Information</h3>
-            <p className="text-sm text-gray-600">Let's start with your basic details</p>
+            <h3 className="text-title3">Basic Information</h3>
+            <p className="text-subhead text-muted-foreground">Let's start with your basic details</p>
           </div>
           <AccountFields
             values={formData}
@@ -158,11 +158,11 @@ const DoctorSignupSteps = ({
       return (
         <div className="space-y-4">
           <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold flex items-center justify-center gap-2">
+            <h3 className="text-title3 flex items-center justify-center gap-2">
               <Shield className="w-5 h-5" />
               License Verification
             </h3>
-            <p className="text-sm text-gray-600">Verify your medical credentials</p>
+            <p className="text-subhead text-muted-foreground">Verify your medical credentials</p>
           </div>
 
           <TestDoctorIds />
@@ -222,7 +222,7 @@ const DoctorSignupSteps = ({
                 )}
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-caption1 text-muted-foreground mt-1">
               {getLicenseFormatHint(verificationData.medicalCouncil)}
             </p>
           </div>
@@ -232,14 +232,14 @@ const DoctorSignupSteps = ({
               className={
                 verificationResult.isValid
                   ? "border-rose-200 bg-rose-50"
-                  : "border-red-200 bg-red-50"
+                  : "border-destructive/30 bg-destructive/5"
               }
             >
               <div className="flex items-start gap-2">
                 {verificationResult.isValid ? (
                   <CheckCircle className="w-4 h-4 text-rose-500" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-red-500" />
+                  <XCircle className="w-4 h-4 text-destructive" />
                 )}
                 <div className="flex-1">
                   <AlertDescription>
@@ -265,8 +265,8 @@ const DoctorSignupSteps = ({
                       </div>
                     ) : (
                       <div>
-                        <p className="font-medium text-red-700">License Verification Failed</p>
-                        <p className="text-sm text-red-600 mt-1">{verificationResult.error}</p>
+                        <p className="font-medium text-destructive">License Verification Failed</p>
+                        <p className="text-sm text-destructive/80 mt-1">{verificationResult.error}</p>
                       </div>
                     )}
                   </AlertDescription>
@@ -314,11 +314,11 @@ const DoctorSignupSteps = ({
       return (
         <div className="space-y-4">
           <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold flex items-center justify-center gap-2">
+            <h3 className="text-title3 flex items-center justify-center gap-2">
               <Leaf className="w-5 h-5" />
               Ayurvedic Expertise
             </h3>
-            <p className="text-sm text-gray-600">
+            <p className="text-subhead text-muted-foreground">
               Tell us about your Ayurvedic specialization
             </p>
           </div>
@@ -380,8 +380,8 @@ const DoctorSignupSteps = ({
       return (
         <div className="space-y-4">
           <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold">Practice Details</h3>
-            <p className="text-sm text-gray-600">Complete your professional profile</p>
+            <h3 className="text-title3">Practice Details</h3>
+            <p className="text-subhead text-muted-foreground">Complete your professional profile</p>
           </div>
 
           <div>
@@ -452,13 +452,13 @@ const DoctorSignupSteps = ({
             />
           </div>
 
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+          <div className="mt-6 p-4 bg-muted/50 rounded-xl border">
             <h4 className="font-medium mb-3">Profile Verification Status</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm">Verification Score:</span>
                 <div className="flex items-center gap-2">
-                  <div className="w-24 bg-gray-200 rounded-full h-2">
+                  <div className="w-24 bg-muted rounded-full h-2">
                     <div
                       className="bg-plum-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${score}%` }}
