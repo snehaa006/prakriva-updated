@@ -157,6 +157,22 @@ Backend (run from `/backend`):
   supplies placeholder Supabase credentials, so this needs no `.env` and makes
   no network calls.
 
+### Signing up with an email that already has an account
+
+Worth knowing when testing the auth screen, because Supabase makes this case
+look like the opposite of what it is. With **Confirm email** on (the default),
+Supabase will not confirm or deny that an address is taken: `signUp()` for an
+existing account returns *success* — no error, no session, and an obfuscated
+user whose `identities` array is empty. A genuinely new signup always comes
+back with one identity, and that is the only thing separating the two.
+
+`signUpUser()` (`src/services/authService.ts`) checks for it and raises
+`EmailAlreadyRegisteredError`, so the screen sends the person to sign-in with
+her email kept and the password she just chose cleared. Without that check the
+response is indistinguishable from "confirmation email sent", and the account
+she is told was created does not exist — leaving every later sign-in failing
+with "Invalid credentials" on a password that was never set.
+
 ## Testing
 
 Frontend tests run under Vitest in a jsdom environment, configured in

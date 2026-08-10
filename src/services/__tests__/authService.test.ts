@@ -247,6 +247,51 @@ describe("signUpUser", () => {
     ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
   });
 
+  // The failure a PCOD/PCOS patient reported: with email confirmation on,
+  // Supabase answers a repeat signup with success and an obfuscated user
+  // rather than an error, so the screen used to promise an account that was
+  // never created and every sign-in after it failed on a password that was
+  // never set.
+  it("raises a typed error when a repeat signup is disguised as a success", async () => {
+    supabaseMock.signUp.mockResolvedValueOnce({
+      data: { user: { id: "obfuscated-user", identities: [] }, session: null },
+      error: null,
+    } as never);
+
+    await expect(
+      signUpUser({
+        role: "patient",
+        name: "Asha",
+        email: "taken@example.com",
+        password: "secret123",
+        healthTracks: ["pcos"],
+        trackDetails: { diagnosisStatus: "diagnosed-pcos" },
+      })
+    ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
+
+    // Nothing may be written for an account that does not belong to her.
+    expect(supabaseMock.from).not.toHaveBeenCalled();
+  });
+
+  it("treats a genuine signup with one identity as new", async () => {
+    supabaseMock.signUp.mockResolvedValueOnce({
+      data: {
+        user: { id: "user-1", identities: [{ id: "identity-1" }] },
+        session: null,
+      },
+      error: null,
+    } as never);
+
+    await expect(
+      signUpUser({
+        role: "patient",
+        name: "Asha",
+        email: "asha@example.com",
+        password: "secret123",
+      })
+    ).resolves.toEqual({ userId: "user-1", hasSession: false });
+  });
+
   it("rethrows other signup failures untouched", async () => {
     supabaseMock.signUp.mockResolvedValueOnce({
       data: { user: null, session: null },

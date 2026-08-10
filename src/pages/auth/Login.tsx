@@ -312,7 +312,12 @@ const Login = () => {
       }
     } catch (error) {
       if (error instanceof EmailAlreadyRegisteredError) {
+        // Drop her on the sign-in form with her email already filled in, and
+        // clear the password she picked for an account that was never created
+        // — leaving it there invites her to submit it as her existing one.
         setIsSignup(false);
+        setCurrentStep(1);
+        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }));
       }
       toast.error(describeAuthError(error));
     } finally {
