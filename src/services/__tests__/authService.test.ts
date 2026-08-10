@@ -339,7 +339,7 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: { questionnaire_completed: true } });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: true,
     });
@@ -349,7 +349,7 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: { questionnaire_completed: false } });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: false,
     });
@@ -359,9 +359,28 @@ describe("getUserRole", () => {
     supabaseMock.setTable("profiles", { data: { role: "patient" } });
     supabaseMock.setTable("patients", { data: null });
 
-    await expect(getUserRole("user-1", noWait)).resolves.toEqual({
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
       role: "patient",
       hasCompletedQuestionnaire: false,
+    });
+  });
+
+  // Read alongside the role because the two decide the landing route together
+  // — a PCOD/PCOS patient is not sent to the questionnaire.
+  it("reports the patient's care tracks alongside her role", async () => {
+    supabaseMock.setTable("profiles", { data: { role: "patient" } });
+    supabaseMock.setTable("patients", {
+      data: {
+        questionnaire_completed: false,
+        health_tracks: ["pcos"],
+        assessment_data: null,
+      },
+    });
+
+    await expect(getUserRole("user-1", noWait)).resolves.toMatchObject({
+      role: "patient",
+      hasCompletedQuestionnaire: false,
+      healthTracks: ["pcos"],
     });
   });
 
@@ -420,6 +439,46 @@ describe("resolveDashboardPath", () => {
 
   it("falls back to the landing page for an unknown role", () => {
     expect(resolveDashboardPath(null)).toBe("/");
+  });
+
+  // The questionnaire is offered to a PCOD/PCOS patient, not demanded: she has
+  // just answered a form of her own at signup, and the trackers she came for
+  // are worth more to her early than a constitution questionnaire.
+  it("sends a brand new PCOD/PCOS signup straight to her dashboard", () => {
+    expect(resolveDashboardPath("patient", undefined, true, ["pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("does not hold a returning PCOD/PCOS patient at the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("exempts a patient who is both pregnant and PCOD/PCOS", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pregnancy", "pcos"])).toBe(
+      "/patient/dashboard"
+    );
+  });
+
+  it("still asks a pregnancy-track patient to finish the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, ["pregnancy"])).toBe(
+      "/patient/questionnaire"
+    );
+  });
+
+  it("still asks a general-wellness patient to finish the questionnaire", () => {
+    expect(resolveDashboardPath("patient", false, false, [])).toBe(
+      "/patient/questionnaire"
+    );
+  });
+
+  // Unreadable tracks must not open the gate for someone it applies to.
+  it("asks when the tracks could not be read at all", () => {
+    expect(resolveDashboardPath("patient", false, false, null)).toBe(
+      "/patient/questionnaire"
+    );
   });
 });
 

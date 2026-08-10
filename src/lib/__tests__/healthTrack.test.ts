@@ -4,6 +4,7 @@ import {
   lifeStageForTracks,
   parseHealthTrack,
   parseHealthTracks,
+  requiresQuestionnaire,
   resolveHealthTracks,
   showsCycleTracking,
   showsDiseaseDetection,
@@ -115,6 +116,25 @@ describe("track capabilities", () => {
     expect(showsCycleTracking(["pregnancy", "pcos"])).toBe(true);
     expect(showsCycleTracking(["pregnancy"])).toBe(false);
     expect(showsCycleTracking([])).toBe(false);
+  });
+});
+
+describe("requiresQuestionnaire", () => {
+  // She answered a form of her own at signup, and the trackers she came for
+  // only become useful once she has been logging for a while.
+  it("does not demand it of a PCOD/PCOS patient", () => {
+    expect(requiresQuestionnaire(["pcos"])).toBe(false);
+  });
+
+  // The exemption follows the PCOS half, not the whole set — she has still
+  // answered the PCOS questions at signup either way.
+  it("carries the exemption through a pregnancy that also has PCOS", () => {
+    expect(requiresQuestionnaire(["pregnancy", "pcos"])).toBe(false);
+  });
+
+  it("still demands it on the other pathways", () => {
+    expect(requiresQuestionnaire(["pregnancy"])).toBe(true);
+    expect(requiresQuestionnaire([])).toBe(true);
   });
 });
 

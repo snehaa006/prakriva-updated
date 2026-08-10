@@ -296,12 +296,12 @@ not stop having it the month she conceives. A form that forced a choice would
 make a pregnant PCOS patient pick which half of her care to give up, so the
 signup step is checkboxes and ticking both shows both sets of questions.
 
-| Tracks | Tabs she gets | Analysis her plan is built from | Calorie band |
-|---|---|---|---|
-| `pregnancy` | Health Check (maternal screening) | `disease_screenings` — the trained models | ACOG, per trimester |
-| `pcos` | Period & Weight Tracker, Skin & Acne | Her cycle, weight, exercise and skin logs | PCOS band, tuned per patient |
-| both | All three | Both — screening *and* logs | ACOG (pregnancy wins) |
-| neither (general) | Neither | — | General adult |
+| Tracks | Tabs she gets | Analysis her plan is built from | Calorie band | Questionnaire |
+|---|---|---|---|---|
+| `pregnancy` | Health Check (maternal screening) | `disease_screenings` — the trained models | ACOG, per trimester | Required |
+| `pcos` | Period & Weight Tracker, Skin & Acne | Her cycle, weight, exercise and skin logs | PCOS band, tuned per patient | Optional |
+| both | All three | Both — screening *and* logs | ACOG (pregnancy wins) | Optional |
+| neither (general) | Neither | — | General adult | Required |
 
 **Only pregnancy gets disease detection.** The screening models are trained on
 pregnancy conditions (gestational diabetes, preeclampsia, maternal anaemia);
@@ -311,6 +311,33 @@ showing nothing. That applies to PCOS-only *and* general-wellness patients.
 `showsDiseaseDetection()` in `src/lib/healthTrack.ts` is the single place the
 decision lives — the sidebar hides the tab, `TrackRoute` in `App.tsx` redirects
 a hand-typed URL, and the doctor's Patient Analysis page never lists her.
+
+### The questionnaire is offered on the PCOS track, not demanded
+
+Every other patient completes the onboarding questionnaire before the rest of
+the app opens up. A PCOD/PCOS patient does not: `requiresQuestionnaire()` in
+`src/lib/healthTrack.ts` returns false for her, so sign-in lands her on her
+dashboard and `PatientProtectedRoute` lets her through.
+
+She has just answered a form of her own at signup — diagnosis, cycle, height
+and weight, what she wants tracked — and a five-section Ayurvedic assessment
+straight afterwards reads as being asked the same thing twice. It also stands
+between her and the trackers she came for, which are the one part of the app
+that is useless unless she starts logging early: a cycle history only becomes
+an analysis after a few entries.
+
+It is **not removed**, only un-gated. The Prakriti answers (body frame, skin,
+appetite, temperament) are what `dietChartService.ts` builds her dosha from,
+and without them it falls back to a default constitution — so her profile
+carries a "Finish your Ayurvedic profile" card explaining what is still missing
+and what it buys her. The exemption follows the PCOS half of the set: a patient
+who is both pregnant and PCOS is exempt too, having answered those questions
+either way.
+
+As with the other track rules, one function decides it — `resolveDashboardPath()`
+picks the landing route from it, `PatientProtectedRoute` and `AuthRedirect` in
+`App.tsx` enforce it, and tracks that cannot be read fall back to asking, so an
+unknown patient is never let past a gate that does apply to her.
 
 ### Pregnancy takes precedence, and that is a safety rule
 

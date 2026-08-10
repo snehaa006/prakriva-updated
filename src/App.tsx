@@ -35,6 +35,7 @@ import Questionnaire from "./pages/patient/Questionnaire";
 import PeriodTracker from "./pages/patient/PeriodTracker";
 import SkinTracker from "./pages/patient/SkinTracker";
 import {
+  requiresQuestionnaire,
   showsCycleTracking,
   showsDiseaseDetection,
   type HealthTracks,
@@ -88,11 +89,15 @@ const ProtectedRoute = ({
 };
 
 const PatientProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, questionnaireCompleted, isLoading } = useApp();
+  const { user, questionnaireCompleted, healthTracks, isLoading } = useApp();
 
   if (isLoading) return <LoadingScreen message="Loading your profile..." />;
   if (!user || user.role !== "patient") return <Navigate to="/" replace />;
-  if (questionnaireCompleted === false || questionnaireCompleted === null)
+  // Tracks decide whether the questionnaire is a gate at all, so a redirect
+  // taken before they resolve would bounce a PCOD/PCOS patient to the very
+  // form she is exempt from. Wait, as `TrackRoute` does.
+  if (healthTracks === null) return <LoadingScreen message="Loading your profile..." />;
+  if (requiresQuestionnaire(healthTracks) && !questionnaireCompleted)
     return <Navigate to="/patient/questionnaire" replace />;
 
   return <>{children}</>;
@@ -126,13 +131,15 @@ const TrackRoute = ({
 
 // --- Auth Redirect ---
 const AuthRedirect = () => {
-  const { user, questionnaireCompleted, isLoading } = useApp();
+  const { user, questionnaireCompleted, healthTracks, isLoading } = useApp();
 
   if (isLoading) return <LoadingScreen message="Setting up your dashboard..." />;
   if (!user) return <Navigate to="/" replace />;
   if (user.role === "doctor") return <Navigate to="/doctor/dashboard" replace />;
   if (user.role === "patient") {
-    if (questionnaireCompleted === false || questionnaireCompleted === null)
+    if (healthTracks === null)
+      return <LoadingScreen message="Setting up your dashboard..." />;
+    if (requiresQuestionnaire(healthTracks) && !questionnaireCompleted)
       return <Navigate to="/patient/questionnaire" replace />;
     return <Navigate to="/patient/dashboard" replace />;
   }

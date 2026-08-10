@@ -131,6 +131,28 @@ describe("patient sign in", () => {
     );
   });
 
+  // She answered the PCOD/PCOS form at signup; sending her to the Ayurvedic
+  // questionnaire on every sign-in reads as being asked the same thing twice,
+  // and stands between her and the trackers she actually came for.
+  it("takes a PCOD/PCOS patient to her dashboard, questionnaire or not", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("profiles", { data: { role: "patient" } });
+    supabaseMock.setTable("patients", {
+      data: { questionnaire_completed: false, health_tracks: ["pcos"], assessment_data: null },
+    });
+
+    renderLogin("patient");
+    await fillCredentials(user, { email: "asha@example.com", password: "secret123" });
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() =>
+      expect(mock.navigate).toHaveBeenCalledWith("/patient/dashboard", { replace: true })
+    );
+    expect(mock.navigate).not.toHaveBeenCalledWith("/patient/questionnaire", {
+      replace: true,
+    });
+  });
+
   it("routes by the role on the account, not the role in the URL", async () => {
     const user = userEvent.setup();
     // A doctor signing in through the patient door still lands on /doctor.
@@ -320,6 +342,12 @@ describe("patient sign up", () => {
       diagnosisStatus: "diagnosed-pcos",
       typicalCycleLength: "45",
     });
+
+    // And she goes straight to her dashboard — she has just answered a form,
+    // and the questionnaire is offered from her profile rather than demanded.
+    await waitFor(() =>
+      expect(mock.navigate).toHaveBeenCalledWith("/patient/dashboard", { replace: true })
+    );
   });
 
   // Pregnancy and PCOS routinely coexist; forcing a choice between them would

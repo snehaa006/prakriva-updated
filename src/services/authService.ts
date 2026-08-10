@@ -19,13 +19,24 @@
 import { supabase } from "@/lib/supabase";
 import type { DoctorVerificationData } from "@/lib/licenseVerification";
 import type { HealthTracks } from "@/lib/healthTrack";
-import { saveHealthTracks, type TrackSignupDetails } from "@/services/healthTrackService";
+import { requiresQuestionnaire } from "@/lib/healthTrack";
+import {
+  fetchHealthTracks,
+  saveHealthTracks,
+  type TrackSignupDetails,
+} from "@/services/healthTrackService";
 
 export type AuthRole = "doctor" | "patient";
 
 export interface RoleLookupResult {
   role: AuthRole | null;
   hasCompletedQuestionnaire?: boolean;
+  /**
+   * The patient's care pathways, so the caller can route without waiting for
+   * `AppContext` to resolve them. Null when they could not be read, and for
+   * doctors.
+   */
+  healthTracks?: HealthTracks | null;
 }
 
 export interface SignUpParams {
@@ -244,9 +255,21 @@ export const getUserRole = async (
           .eq("id", uid)
           .maybeSingle();
 
+        // Read alongside the questionnaire flag because the two decide the
+        // landing route together: a PCOD/PCOS patient is not held at the
+        // questionnaire. Never fatal — a track that cannot be read just falls
+        // back to the old behaviour of asking.
+        let healthTracks: HealthTracks | null = null;
+        try {
+          healthTracks = (await fetchHealthTracks(uid)).tracks;
+        } catch (trackError) {
+          console.error("Could not read the patient's health tracks:", trackError);
+        }
+
         return {
           role: "patient",
           hasCompletedQuestionnaire: Boolean(patient?.questionnaire_completed),
+          healthTracks,
         };
       }
     } catch (error) {
@@ -264,14 +287,22 @@ export const getUserRole = async (
 /**
  * Where an authenticated user belongs. Patients must clear the questionnaire
  * before the rest of the app; a brand new signup never has.
+ *
+ * Except on the PCOD/PCOS pathway, where it is offered rather than demanded —
+ * see `requiresQuestionnaire`. Tracks that could not be read (null) fall back
+ * to asking, so an unknown patient is never let past a gate that applies to
+ * her.
  */
 export const resolveDashboardPath = (
   role: AuthRole | null,
   hasCompletedQuestionnaire?: boolean,
-  isNewSignup = false
+  isNewSignup = false,
+  healthTracks?: HealthTracks | null
 ): string => {
   if (role === "doctor") return "/doctor/dashboard";
   if (role === "patient") {
+    if (healthTracks && !requiresQuestionnaire(healthTracks)) return "/patient/dashboard";
+
     return isNewSignup || !hasCompletedQuestionnaire
       ? "/patient/questionnaire"
       : "/patient/dashboard";
