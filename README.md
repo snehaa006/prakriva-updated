@@ -35,6 +35,21 @@ kitchen, and get a personalized diet plan.
   with the name in text (pass `alt=""` where nearby copy names the brand). It
   appears on the landing hero, the auth card, both sidebars, and the mobile
   header of both layouts.
+- `src/pages/Landing.tsx` + `src/components/landing/` — the public marketing
+  page at `/`. `Landing.tsx` only composes the sections; each one owns its own
+  layout and motion: `LandingNav` (floating glass navbar), `Hero` (full-screen
+  editorial hero over drifting blush colour fields), `CareSection` (the
+  product's real features), `AssistantSection` (glassmorphism still of the
+  in-app AI assistant), `CommunitySection` (stats + testimonials),
+  `PractitionerSection` (the doctor pitch) and `LandingFooter`. Every call to
+  action lands on `/auth/patient` or `/auth/doctor`. See "Landing page" below.
+- `src/components/settings/SettingsScreen.tsx` — the Settings screen shared by
+  `src/pages/patient/Settings.tsx` and `src/pages/doctor/DoctorSettings.tsx`;
+  the pages supply only their role's notification and privacy rows. See
+  "Theme, language and settings" below.
+- `src/hooks/useReveal.ts` — `useReveal` (IntersectionObserver scroll-reveal for
+  `.reveal` elements) and `useParallaxLayer` (scroll-linked drift written
+  straight to the node). Both no-op under `prefers-reduced-motion`.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -708,6 +723,73 @@ which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
 
+## Landing page
+
+`/` is a marketing page, not product chrome, and is styled accordingly: warm
+cream ground, blush→rose gradients, an editorial serif, and a lot of space.
+
+- **Typography.** Fraunces (display serif) for headings, Inter for body and UI,
+  both loaded from Google Fonts in `index.html` and exposed as `font-display` /
+  `font-sans` in `tailwind.config.ts`. The fallback stacks keep the layout
+  stable while the webfonts arrive, so a blocked font request degrades to a
+  system serif rather than to a broken page.
+- **The hero background is CSS, not a photograph.** Three heavily blurred
+  colour fields (`.blush-field`) drift on long offset loops under a film-grain
+  overlay (`.grain`, an inline SVG turbulence — no asset, no request). That is
+  what keeps the section weightless and what lets it invert in dark mode: every
+  field is a theme token, so nothing has to be re-shot for a dark palette.
+- **Glass surfaces.** `.glass-panel` (navbar, trust badges, AI chat mock) is a
+  translucent token background plus `backdrop-filter`, behind a `@supports`
+  guard so browsers without it get a solid panel rather than a transparent one.
+- **Motion.** `.reveal` elements fade up as they enter the viewport via
+  `useReveal`; the hero layers drift with `useParallaxLayer`. Everything
+  decorative is stilled under `prefers-reduced-motion`, and revealed content is
+  forced visible there so it can never be stranded in its hidden start state.
+- **The AI assistant panel is a still, not a live model call.** The transcript
+  is written to match what the real in-app assistant can actually do (it reads
+  the patient's plan, pantry, logs and screenings) so the page doesn't promise
+  behaviour the product lacks.
+- **The testimonials and the stat row are placeholder copy.** They are marked
+  as such in `CommunitySection.tsx`; replace them with consented, attributable
+  quotes and real numbers before the page goes public.
+
+## Theme, language and settings
+
+`ThemeContext`, `I18nContext` and `userSettingsService` landed earlier without
+anything wired to them, so the Theme dropdown set a piece of component state
+and no more. `SettingsScreen` is what connects them, on both
+`/patient/settings` and `/doctor/settings` (the doctor route was a "Coming
+Soon" placeholder, which meant doctors could not reach the theme control at
+all).
+
+- **Light / Dark / System all work.** `ThemeContext` toggles the `dark` class
+  and `color-scheme` on `<html>`; "System" resolves through
+  `prefers-color-scheme` and keeps following the OS while the app is open. An
+  inline script in `index.html` applies the saved choice before the first
+  paint, so dark-mode users never get a flash of cream. Keep its storage key in
+  step with `CACHE_KEY` in `ThemeContext` and `PREFIX` in `localCache.ts`.
+- **The provider is the source of truth, not the stored settings object.** The
+  select reads `theme` from the provider, so the control can never disagree
+  with the page it is sitting on; a choice applies immediately and persists
+  after.
+- **Saving is local-first.** Changes write to `localStorage` and mirror to the
+  `user_settings` table, debounced so a run of toggles is one write. When the
+  table is missing or the server is unreachable the page says "Saved on this
+  device" instead of pretending to have synced.
+- `src/components/settings/__tests__/SettingsScreen.test.tsx` covers the three
+  theme modes, persistence, applying a stored preference on load, and the
+  device-only notice.
+
+Dark mode also had to survive the pages that predate it. Much of the product UI
+paints surfaces with literal light utilities (`bg-white`, `bg-gray-50`,
+`text-gray-600`), which stayed bright when the rest of the app went dark. A
+compatibility block at the end of `src/index.css` remaps those to theme tokens
+under `.dark`, fixing every page at once. It lives in the `components` layer on
+purpose: an explicit `dark:` class on an element is emitted later, in
+`utilities`, so any page that has opted into its own dark treatment still wins.
+`text-white` and `bg-black` are left alone — those sit on coloured buttons and
+overlays where white-on-brand is correct in both themes.
+
 ## Color
 
 The app is pink end to end. It used to mix in the stock Tailwind ramps —
@@ -741,6 +823,13 @@ rendered pages rather than the code:
   as well as hue (pale rose → coral → saturated red), so the ordering survives
   greyscale and colour vision deficiency, and high risk is the only filled
   badge. Every level also renders its `label` in words.
+
+**Editorial tokens.** The marketing surface leans on a softer set than the deep
+maroon used for dense product chrome: `--cream`, `--blush`, `--petal`,
+`--apricot`, `--rose-accent` and the `--gradient-blush` / `--gradient-rose` /
+`--gradient-cream` gradients, all defined in `src/index.css` and redefined
+under `.dark`. Use the tokens rather than literal pinks so new marketing
+sections invert with the theme for free.
 
 Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
 blue that no class on the element can reach; `src/index.css` sets `accent-color`

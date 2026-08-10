@@ -10,9 +10,9 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Base colors - Warm cream background */
+    /* Base colors - Warm cream background, dark warm charcoal text */
     --background: 30 35% 97%;
-    --foreground: 345 30% 15%;
+    --foreground: 20 16% 16%;
 
     /* Card colors - Clean white with warm maroon-tinted border */
     --card: 0 0% 100%;
@@ -69,6 +69,28 @@ All colors MUST be HSL.
     --gradient-hero: linear-gradient(135deg, hsl(345, 50%, 20%), hsl(344, 49%, 36%), hsl(14, 45%, 88%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
+    /* --- Editorial / landing surface tokens ------------------------------
+       The marketing surface leans on blush→rose gradients over warm cream,
+       rather than the deep maroon used for dense product chrome. Kept as
+       tokens (not literals) so the landing page inverts with the theme like
+       everything else. */
+    --cream: 32 48% 96%;
+    --cream-deep: 26 42% 92%;
+    --blush: 348 70% 90%;
+    --blush-deep: 344 62% 80%;
+    --rose-accent: 345 55% 55%;
+    --petal: 320 55% 88%;
+    --apricot: 20 70% 90%;
+
+    --gradient-blush: linear-gradient(135deg, hsl(348 72% 92%), hsl(330 55% 88%) 45%, hsl(20 70% 92%));
+    --gradient-rose: linear-gradient(135deg, hsl(345 55% 48%), hsl(330 48% 40%));
+    --gradient-cream: linear-gradient(180deg, hsl(32 48% 97%), hsl(28 40% 94%));
+
+    /* Frosted panels (navbar, chat UI, badges). */
+    --glass: 0 0% 100%;
+    --glass-opacity: 0.62;
+    --glass-border: 345 40% 88%;
+
     /* Sidebar colors */
     --sidebar-background: 30 30% 96%;
     --sidebar-foreground: 345 30% 20%;
@@ -80,10 +102,9 @@ All colors MUST be HSL.
     --sidebar-ring: 345 50% 24%;
   }
 
-  /* Dark mode is not reachable from the UI today (there is no theme toggle),
-     but these were still stock blue-slate from the shadcn starter, so a class
-     toggle would have dropped the app into a completely different palette.
-     Re-tinted onto the brand hue so it stays Prakriva if it is ever enabled. */
+  /* Dark mode, reachable from the Theme control on both Settings pages. The
+     palette is the same brand hue at low lightness — warm plum-charcoal rather
+     than the stock blue-slate that shipped with shadcn. */
   .dark {
     --background: 345 25% 8%;
     --foreground: 30 30% 96%;
@@ -123,6 +144,24 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(345, 40%, 18%), hsl(344, 38%, 28%));
     --gradient-secondary: linear-gradient(135deg, hsl(345, 18%, 18%), hsl(12, 22%, 20%));
     --gradient-hero: linear-gradient(135deg, hsl(345, 40%, 14%), hsl(344, 38%, 26%), hsl(318, 30%, 24%));
+
+    /* Editorial / landing tokens, inverted. The blush fields stay saturated
+       but drop to low lightness so the hero still reads as pink at night. */
+    --cream: 345 20% 10%;
+    --cream-deep: 345 20% 8%;
+    --blush: 345 35% 26%;
+    --blush-deep: 340 38% 34%;
+    --rose-accent: 345 55% 70%;
+    --petal: 320 32% 28%;
+    --apricot: 18 34% 26%;
+
+    --gradient-blush: linear-gradient(135deg, hsl(345 40% 24%), hsl(325 34% 20%) 45%, hsl(16 36% 22%));
+    --gradient-rose: linear-gradient(135deg, hsl(345 48% 46%), hsl(330 42% 34%));
+    --gradient-cream: linear-gradient(180deg, hsl(345 22% 11%), hsl(345 22% 8%));
+
+    --glass: 345 22% 16%;
+    --glass-opacity: 0.55;
+    --glass-border: 345 22% 30%;
 
     --sidebar-background: 345 24% 10%;
     --sidebar-foreground: 30 28% 94%;
@@ -205,5 +244,208 @@ All colors MUST be HSL.
   /* Smooth transitions */
   .transition-smooth {
     @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* --- Editorial / landing utilities ------------------------------------ */
+
+  .bg-gradient-blush {
+    background: var(--gradient-blush);
+  }
+
+  .bg-gradient-rose {
+    background: var(--gradient-rose);
+  }
+
+  .bg-gradient-cream {
+    background: var(--gradient-cream);
+  }
+
+  /* Frosted panel used by the floating navbar, trust badges and the AI chat
+     mock. `supports` keeps a solid fallback where backdrop-filter is absent. */
+  .glass-panel {
+    background-color: hsl(var(--glass) / var(--glass-opacity));
+    border: 1px solid hsl(var(--glass-border) / 0.7);
+    box-shadow: 0 8px 40px -12px hsl(345 40% 30% / 0.18);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .glass-panel {
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      backdrop-filter: blur(20px) saturate(1.4);
+    }
+  }
+
+  /* Large soft colour field behind the hero. Blurred to the point of being
+     pure atmosphere, which is what makes the hero read as a photograph of
+     light rather than a flat gradient. */
+  .blush-field {
+    @apply pointer-events-none absolute rounded-full;
+    filter: blur(72px);
+    opacity: 0.75;
+  }
+
+  /* Fine film grain over the hero, so the gradient doesn't band on wide
+     screens. Inline SVG turbulence — no network request, no image asset. */
+  .grain::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0;
+    opacity: 0.28;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .text-gradient-rose {
+    background: var(--gradient-rose);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Scroll-reveal: elements start hidden and are un-hidden by the
+     `useReveal` observer adding `data-revealed`. Without JS (or with reduced
+     motion) they simply stay visible — see the media query below. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+      opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal[data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .lift {
+    @apply transition-all duration-500;
+  }
+
+  .lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 60px -24px hsl(345 45% 35% / 0.35);
+  }
+}
+
+/* --- Dark-mode surface compatibility ------------------------------------
+   Much of the product UI predates the theme switch and paints surfaces with
+   literal light utilities (`bg-white`, `bg-gray-50`, `text-gray-600`). Left
+   alone those stay bright when the rest of the app goes dark, which is what
+   made dark mode look broken rather than dark.
+
+   Remapping them here fixes every page at once instead of rewriting 24 files.
+   Placement matters: these live in `components`, so an explicit `dark:` class
+   on an element (same specificity, emitted later in `utilities`) still wins
+   wherever a page has opted into its own dark treatment. `text-white` and
+   `bg-black` are deliberately untouched — those sit on coloured buttons and
+   overlays where white-on-brand is correct in both themes. */
+@layer components {
+  .dark .bg-white {
+    background-color: hsl(var(--card));
+  }
+
+  .dark .bg-gray-50,
+  .dark .bg-slate-50,
+  .dark .bg-gray-100,
+  .dark .bg-slate-100 {
+    background-color: hsl(var(--muted));
+  }
+
+  .dark .bg-gray-200,
+  .dark .bg-slate-200 {
+    background-color: hsl(var(--border));
+  }
+
+  .dark .bg-gray-800,
+  .dark .bg-gray-900,
+  .dark .bg-slate-800,
+  .dark .bg-slate-900 {
+    background-color: hsl(var(--card));
+  }
+
+  .dark .text-gray-900,
+  .dark .text-gray-800,
+  .dark .text-gray-700,
+  .dark .text-slate-900,
+  .dark .text-slate-800,
+  .dark .text-slate-700 {
+    color: hsl(var(--foreground));
+  }
+
+  .dark .text-gray-600,
+  .dark .text-gray-500,
+  .dark .text-slate-600,
+  .dark .text-slate-500 {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark .text-gray-400,
+  .dark .text-gray-300,
+  .dark .text-slate-400,
+  .dark .text-slate-300 {
+    color: hsl(var(--muted-foreground) / 0.75);
+  }
+
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300,
+  .dark .border-slate-200 {
+    border-color: hsl(var(--border));
+  }
+
+  /* Pale brand tints read as "almost white" panels in light mode; at night
+     they need to be dark tints of the same hue, not bright pink slabs. */
+  .dark .bg-rose-50,
+  .dark .bg-plum-50,
+  .dark .bg-coral-50 {
+    background-color: hsl(345 22% 15%);
+  }
+
+  .dark .bg-rose-100,
+  .dark .bg-plum-100,
+  .dark .bg-coral-100 {
+    background-color: hsl(345 22% 19%);
+  }
+
+  .dark .text-rose-700,
+  .dark .text-rose-800,
+  .dark .text-rose-900 {
+    color: hsl(345 55% 76%);
+  }
+
+  .dark .text-plum-700,
+  .dark .text-plum-800,
+  .dark .text-plum-900 {
+    color: hsl(318 50% 76%);
+  }
+
+  .dark .text-coral-700,
+  .dark .text-coral-800,
+  .dark .text-coral-900 {
+    color: hsl(8 60% 74%);
+  }
+}
+
+/* Decoration is motion; content is not. Everything that only exists to move
+   is stilled here, while scroll-revealed content is forced visible so it can
+   never be trapped in its hidden start state. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .animate-drift,
+  .animate-drift-slow,
+  .animate-float,
+  .animate-shimmer,
+  .animate-fade-up,
+  .animate-fade-in {
+    animation: none !important;
+  }
+
+  .lift:hover {
+    transform: none;
   }
 }

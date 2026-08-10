@@ -153,10 +153,30 @@ export default {
           900: "hsl(8 52% 23%)",
         },
       },
+      fontFamily: {
+        // Inter for UI and body copy, Fraunces for editorial display headings.
+        // Both are loaded in index.html; the fallbacks keep the layout stable
+        // while the webfonts arrive.
+        sans: [
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
+        display: ["Fraunces", "ui-serif", "Georgia", "Cambria", "serif"],
+        serif: ["Fraunces", "ui-serif", "Georgia", "Cambria", "serif"],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "4xl": "2rem",
+        "5xl": "2.5rem",
       },
       keyframes: {
         "accordion-down": {
@@ -175,10 +195,40 @@ export default {
             height: "0",
           },
         },
+        // Landing-page motion. Everything below is decorative and is disabled
+        // wholesale under `prefers-reduced-motion` (see index.css).
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(24px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        // Slow, organic drift for the blurred colour fields behind the hero.
+        drift: {
+          "0%, 100%": { transform: "translate3d(0, 0, 0) scale(1)" },
+          "33%": { transform: "translate3d(3%, -4%, 0) scale(1.08)" },
+          "66%": { transform: "translate3d(-3%, 3%, 0) scale(0.95)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        shimmer: {
+          from: { backgroundPosition: "200% 0" },
+          to: { backgroundPosition: "-200% 0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-up": "fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "fade-in": "fade-in 0.8s ease-out both",
+        drift: "drift 22s ease-in-out infinite",
+        "drift-slow": "drift 34s ease-in-out infinite",
+        float: "float 6s ease-in-out infinite",
+        shimmer: "shimmer 6s linear infinite",
       },
     },
   },

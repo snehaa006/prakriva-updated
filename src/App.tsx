@@ -38,6 +38,7 @@ import Reminders from "./pages/patient/Reminders";
 import Pantry from "./pages/patient/Pantry";
 import Settings from "./pages/patient/Settings";
 import DoctorProfile from "./pages/doctor/DoctorProfile";
+import DoctorSettings from "./pages/doctor/DoctorSettings";
 import ConsultDoctor from "./components/ConsultDoctor";
 
 // Shared cache for every `useQuery` in the app. The defaults matter: without
@@ -140,7 +141,7 @@ const AppRoutes = () => (
       <Route path="personalized-diet" element={<Navigate to="/doctor/recipes" replace />} />
       <Route path="profile" element={<DoctorProfile />} />
       <Route path="consult-doctor" element={<ConsultDoctor />} />
-      <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
+      <Route path="settings" element={<DoctorSettings />} />
       <Route index element={<Navigate to="/doctor/dashboard" replace />} />
     </Route>
 

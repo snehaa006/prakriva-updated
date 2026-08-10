@@ -11,6 +11,19 @@
     <link rel="apple-touch-icon" href="/logo.png" />
 
     <!--
+      Brand typography: Fraunces is the editorial serif used for display
+      headings (landing hero, section titles), Inter carries body and UI text.
+      Both are loaded `display=swap` so text paints immediately in the fallback
+      stack declared in tailwind.config.ts.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@300..700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
       Apply the saved theme before the first paint. Without this, a dark-mode
       user gets a flash of the light cream background on every page load, while
       React boots and ThemeContext gets a chance to add the class.
