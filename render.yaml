@@ -25,6 +25,13 @@ services:
         value: production
       - key: DEBUG
         value: "false"
+      # Rate-limit counters. The free plan runs a single worker
+      # (WEB_CONCURRENCY=1), so in-process memory is correct and cheap.
+      # Setting it explicitly is what stops flask-limiter warning on every
+      # boot. Change this to a redis:// URL (e.g. a Render Key Value instance)
+      # if the service is ever scaled past one worker or instance.
+      - key: RATELIMIT_STORAGE_URI
+        value: memory://
       # Render injects PORT automatically; config.py reads it.
       # Secrets — set these in the Render dashboard, they are not committed.
       # Both come from your (free) Supabase project: Project Settings -> API.

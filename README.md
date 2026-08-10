@@ -187,6 +187,9 @@ Coverage is focused on authentication, since that is the gate on both roles:
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
 a detector out) and the `/disease/*` endpoints.
+`backend/tests/test_dataset_loader.py` covers `load_all_datasets` directly —
+the API tests patch `app.get_datasets`, so without it nothing exercises the
+real loader or its critical-dataset guard.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
@@ -938,6 +941,7 @@ committed.
 | `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
+| `RATELIMIT_STORAGE_URI` | Backend | No | Where flask-limiter keeps its request counters. Defaults to `memory://` (in-process), which is correct while the API runs as a single worker — the case on Render's free plan. Point it at a shared Redis instance (`redis://…`) before scaling past one worker, otherwise each process enforces its own separate copy of the limit. `REDIS_URL` is used as a fallback, so an attached Render Key Value instance works with no extra config. |
 
 ### Credentials previously committed to this repo
 
@@ -1036,6 +1040,15 @@ in the dashboard. Once the service is live, copy its URL into the frontend's
 The model artifacts in `backend/disease_detection/ml/*.json` are committed, so no
 training step runs on deploy; the service loads them at startup and falls back to
 the rule-based baseline if they are missing.
+
+**Reading the deploy log.** `run.py` logs to stdout in every environment, which
+is the only stream Render captures — the container's `logs/app.log` is discarded
+on each redeploy, and file logging is skipped entirely if the directory is not
+writable. Expect `Running 'python run.py'` to be followed by the startup lines
+(environment validation, dataset counts, database health) before the port opens.
+Render prints `No open ports detected, continuing to scan...` while the service
+loads its datasets and models; that is normal on the free plan and resolves once
+Waitress binds — the deploy has only failed if the scan never succeeds.
 
 ### Backend (Vercel, alternative)
 
