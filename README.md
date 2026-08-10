@@ -1303,9 +1303,18 @@ keys are per-app quota tokens, which is why this is fine; genuine secrets still
 belong in `backend/.env`. If a key must stay private, proxy the calls through
 the Flask backend instead.
 
-One exception, unchanged from before: `public/mealCompatibility.html` is a
-standalone static page with no bundler and no Supabase client, so it keeps its
-own `API_TOKENS` array. It is not part of the rotation described above.
+`public/mealCompatibility.html` is a standalone static page with no bundler and
+no Supabase client, so it cannot read the table itself. When it runs embedded in
+the patient **Food Compatibility** page it borrows the app's pool over a
+`postMessage` bridge instead: the iframe posts
+`{ type: "foodoscope-request", id, path }`, `FoodCompatibility.tsx` calls
+`fetchFoodoscopePath()` with the rotating keys and posts the JSON back as
+`{ type: "foodoscope-response", id, ok, data | status }`. The host only answers
+its own same-origin iframe, and only for `/recipe-bytitle/…` and
+`/search-recipe/…`. Opened directly at `/mealCompatibility.html` — or if the
+host doesn't answer — the page falls back to its own hardcoded `API_TOKENS`
+array, which is a stale last resort rather than the intended path (food search
+there breaks once that key expires).
 
 ## Deployment
 
