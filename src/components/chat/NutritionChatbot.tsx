@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, ChevronDown, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { askChat, isAnalysisEnabled, type ChatTurn } from "@/services/analysisService";
+import {
+  AnalysisUnavailableError,
+  askChat,
+  isAnalysisEnabled,
+  type ChatTurn,
+} from "@/services/analysisService";
 import {
   fetchPatientChatContext,
   looksLikeRecipeRequest,
@@ -20,6 +25,10 @@ interface ChatMessage {
   text: string;
   quickReplies?: { label: string; value: string }[];
   timestamp: number;
+  /** A failure notice rather than a real reply — see `buildHistory`. */
+  isError?: boolean;
+  /** Why it failed, shown small under the bubble so it can be acted on. */
+  detail?: string;
 }
 
 // Bumped from the old `nourish_chatbot_*` keys: this version's messages have a
@@ -60,9 +69,24 @@ const welcomeMessage = (): ChatMessage => ({
   timestamp: Date.now(),
 });
 
-/** Last few turns, oldest first, in the shape Gemini expects. */
-const buildHistory = (messages: ChatMessage[], limit = 8): ChatTurn[] =>
-  messages.slice(-limit).map((m) => ({ role: m.role === "assistant" ? "model" : "user", text: m.text }));
+/**
+ * Last few turns, oldest first, in the shape Gemini expects.
+ *
+ * Failure notices ("I couldn't reach your assistant…") are left out: they were
+ * never the assistant's answer, and replaying them as model turns teaches the
+ * conversation that it is broken. Leading model turns go too — the transcript
+ * opens with the canned welcome, and Gemini requires a conversation to start
+ * with a user turn.
+ */
+const buildHistory = (messages: ChatMessage[], limit = 8): ChatTurn[] => {
+  const turns = messages
+    .filter((m) => !m.isError)
+    .slice(-limit)
+    .map((m): ChatTurn => ({ role: m.role === "assistant" ? "model" : "user", text: m.text }));
+
+  const firstUser = turns.findIndex((t) => t.role === "user");
+  return firstUser === -1 ? [] : turns.slice(firstUser);
+};
 
 // ──────────────────────────────────────────────
 // Component
@@ -155,9 +179,11 @@ const NutritionChatbot: React.FC = () => {
       setIsLoading(true);
 
       try {
-        if (!assistantEnabled) {
-          throw new Error("assistant not configured");
-        }
+        // Deliberately not gated on `assistantEnabled`: that flag is still
+        // false while the status check is in flight, and refusing to send
+        // meant the first message of a session was answered with "isn't
+        // available" even on a perfectly healthy deployment. An unconfigured
+        // backend answers this call with a 503 that says so.
         const baseContext = context ?? EMPTY_CONTEXT;
         const recipeCandidates = looksLikeRecipeRequest(text)
           ? await maybeFetchRecipeCandidates(text, baseContext.pantry.atHome, baseContext.profile.dietaryPreference)
@@ -170,15 +196,29 @@ const NutritionChatbot: React.FC = () => {
         ]);
       } catch (error) {
         console.error("Chat message failed:", error);
-        const fallback = assistantEnabled
-          ? "I couldn't reach your assistant just now — please try again in a moment."
-          : "Your wellness assistant isn't available right now. Please check back later.";
-        setMessages((prev) => [...prev, { id: msgId(), role: "assistant", text: fallback, timestamp: Date.now() }]);
+        const unavailable = error instanceof AnalysisUnavailableError;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: msgId(),
+            role: "assistant",
+            text: unavailable
+              ? "Your wellness assistant isn't available right now. Please try again shortly."
+              : "I couldn't reach your assistant just now — please try again in a moment.",
+            // Kept visible rather than only in the console: on a deployed
+            // frontend this line is the only clue whether the backend is
+            // unreachable, out of Gemini quota, or misconfigured.
+            detail: error instanceof Error ? error.message : String(error),
+            isError: true,
+            quickReplies: [{ label: "Try again", value: text }],
+            timestamp: Date.now(),
+          },
+        ]);
       } finally {
         setIsLoading(false);
       }
     },
-    [messages, isLoading, assistantEnabled, context]
+    [messages, isLoading, context]
   );
 
   const handleSend = () => {
@@ -265,6 +305,10 @@ const NutritionChatbot: React.FC = () => {
                     {msg.text}
                   </div>
                 </div>
+
+                {msg.detail && (
+                  <p className="mt-1 ml-1 text-[10px] text-gray-400 break-words">{msg.detail}</p>
+                )}
 
                 {msg.quickReplies && msg.id === messages[messages.length - 1]?.id && (
                   <div className="flex flex-wrap gap-1.5 mt-2 ml-1">

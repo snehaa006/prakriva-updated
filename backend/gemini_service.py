@@ -83,15 +83,80 @@ def _report_key_result(key: str, *, status: Optional[int], ok: bool) -> None:
         _active_key_index = (keys.index(key) + 1) % len(keys)
 
 
+def _redact_keys(text: str) -> str:
+    """`text` with any configured API key replaced, so it is safe to log.
+
+    Gemini error bodies can echo the request back, and the key travels in the
+    query string — this is what lets the reason for a failure be reported
+    instead of only its status code.
+    """
+    for key in settings.GEMINI_API_KEYS:
+        if key:
+            text = text.replace(key, "***")
+    return text
+
+
+def _error_reason(response: requests.Response) -> tuple[Optional[str], str]:
+    """`(status, message)` out of a Gemini error body, both possibly empty.
+
+    `status` is Gemini's own code — "INVALID_ARGUMENT", "RESOURCE_EXHAUSTED",
+    "UNAUTHENTICATED", … — which says far more about a failure than the HTTP
+    code does, because Gemini answers both "your key is bad" and "your request
+    is malformed" with a 400.
+    """
+    def fallback() -> tuple[Optional[str], str]:
+        """Whatever the body said, for a response that is not the usual JSON."""
+        text = getattr(response, "text", "")
+        if not isinstance(text, str):
+            return None, ""
+        return None, _redact_keys(text).strip()[:300]
+
+    try:
+        body = response.json()
+    except ValueError:
+        return fallback()
+    error = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(error, dict):
+        return fallback()
+    return (
+        str(error.get("status") or "") or None,
+        _redact_keys(str(error.get("message") or "")).strip(),
+    )
+
+
+#: Gemini statuses that mean "this particular key can't be used right now" —
+#: out of quota, not authenticated, or not permitted. Anything else is a
+#: property of the request and will fail identically on every key.
+_KEY_FAULT_STATUSES = {"RESOURCE_EXHAUSTED", "UNAUTHENTICATED", "PERMISSION_DENIED"}
+
+
+def _is_key_at_fault(http_status: int, gemini_status: Optional[str], message: str) -> bool:
+    """Whether to blame the key for a failure and move on to the next one.
+
+    A 400 is the case that matters: Gemini returns it both for an invalid or
+    disabled key *and* for a request it could not parse. Treating every 400 as
+    a bad key means one malformed request rotates through the whole pool and
+    parks each key for fifteen minutes, turning a single failed reply into a
+    Gemini outage across the whole app — so a 400 only counts against the key
+    when Gemini's own status (or its message) actually says so.
+    """
+    if http_status in (401, 403, 429):
+        return True
+    if http_status == 400:
+        if gemini_status in _KEY_FAULT_STATUSES:
+            return True
+        return "api key" in message.lower() or "api_key" in message.lower()
+    return False
+
+
 def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
     """POST `payload` to Gemini, rotating across configured keys on failure.
 
-    A request moves on to the next key for a network error/timeout, or any
-    HTTP status that plausibly means "this key is the problem" (429 rate
-    limited; 401/403 invalid, revoked or suspended; 400, which Gemini also
-    returns for a malformed or disabled key). Any other status (e.g. a 404 for
-    an unknown model) would fail identically on every key, so it is raised
-    immediately rather than burning through the rotation.
+    A request moves on to the next key for a network error/timeout, a 5xx, or
+    a status that means this key is the problem (see `_is_key_at_fault`).
+    Anything else — a 404 for an unknown model, a 400 for a request Gemini
+    could not parse — would fail identically on every key, so it is raised
+    immediately with its reason rather than burning through the rotation.
     """
     if not is_configured():
         raise GeminiUnavailable("No GEMINI_API_KEY is set")
@@ -111,16 +176,27 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
             _report_key_result(key, status=200, ok=True)
             return response.json()
 
-        # The body can echo the key back in an error message, so log the
-        # status only and keep the response body out of the logs.
-        last_error = f"HTTP {response.status_code}"
-        if response.status_code in (400, 401, 403, 429) or response.status_code >= 500:
-            logger.warning(f"Gemini returned HTTP {response.status_code} for one key; trying the next")
+        # The key itself is redacted out of anything logged or raised below;
+        # the reason is kept, because "HTTP 400" alone is undebuggable from a
+        # deployed frontend.
+        gemini_status, message = _error_reason(response)
+        detail = " — ".join(part for part in (gemini_status, message) if part)
+        last_error = f"HTTP {response.status_code}" + (f" ({detail})" if detail else "")
+
+        if _is_key_at_fault(response.status_code, gemini_status, message):
+            logger.warning(
+                f"Gemini rejected one key ({last_error}); trying the next"
+            )
             _report_key_result(key, status=response.status_code, ok=False)
             continue
 
-        logger.error(f"Gemini returned HTTP {response.status_code}")
-        raise GeminiUnavailable(f"Gemini returned HTTP {response.status_code}")
+        if response.status_code >= 500:
+            logger.warning(f"Gemini returned {last_error} for one key; trying the next")
+            _report_key_result(key, status=response.status_code, ok=False)
+            continue
+
+        logger.error(f"Gemini returned {last_error}")
+        raise GeminiUnavailable(f"Gemini returned {last_error}")
 
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
 
@@ -206,6 +282,31 @@ def is_configured() -> bool:
     return bool(settings.GEMINI_API_KEYS)
 
 
+def _history_contents(history: Optional[List[Dict[str, str]]]) -> List[Dict[str, Any]]:
+    """Prior turns as Gemini `contents`, in a shape the API will accept.
+
+    Gemini requires a conversation to begin with a user turn and to alternate
+    from there. The chatbot's transcript does neither on its own: it opens with
+    the assistant's welcome message, and can hold two assistant messages in a
+    row (a reply followed by an error notice). Sending that verbatim is a 400
+    on every message — so leading model turns are dropped and consecutive turns
+    of the same role are merged rather than rejected.
+    """
+    contents: List[Dict[str, Any]] = []
+    for turn in history or []:
+        role = turn.get("role")
+        text = str(turn.get("text") or "").strip()
+        if role not in ("user", "model") or not text:
+            continue
+        if not contents and role == "model":
+            continue  # a conversation cannot open with a model turn
+        if contents and contents[-1]["role"] == role:
+            contents[-1]["parts"][0]["text"] += f"\n\n{text}"
+            continue
+        contents.append({"role": role, "parts": [{"text": text}]})
+    return contents
+
+
 def generate(
     prompt: str,
     system_rules: str,
@@ -222,14 +323,13 @@ def generate(
     like "yes I have that" is answered as part of the same conversation
     instead of a question with no context behind it.
     """
-    contents = []
-    for turn in history or []:
-        role = turn.get("role")
-        text = str(turn.get("text") or "").strip()
-        if role not in ("user", "model") or not text:
-            continue
-        contents.append({"role": role, "parts": [{"text": text}]})
-    contents.append({"role": "user", "parts": [{"text": prompt}]})
+    contents = _history_contents(history)
+    if contents and contents[-1]["role"] == "user":
+        # The history ended on an unanswered question (the previous reply
+        # failed). Fold it into this prompt rather than sending two user turns.
+        contents[-1]["parts"][0]["text"] += f"\n\n{prompt}"
+    else:
+        contents.append({"role": "user", "parts": [{"text": prompt}]})
 
     payload = {
         "systemInstruction": {"parts": [{"text": system_rules}]},

@@ -669,7 +669,13 @@ Flask (`backend/gemini_service.py`):
   (flavour-word lookup, e.g. "sweet", intersected with what's marked
   "at home") rather than an invented dish. Conversation history is kept
   client-side and replayed on each turn, so a follow-up like "yes I have
-  that" is understood in context.
+  that" is understood in context. Only real turns are replayed: the canned
+  welcome message and any "couldn't reach your assistant" notice are left out,
+  because Gemini requires a conversation to open with a *user* turn and
+  replaying a failure notice as a model turn teaches the conversation that it
+  is broken. When a turn does fail, the reply says so and carries the reason
+  underneath it in small print (see the troubleshooting note below) plus a
+  "Try again" button that re-sends the same question.
 - **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
   panel that turns the selected patient's screening history into prose: how
   the risk picture has moved, which measurements drive it, what to check
@@ -717,7 +723,27 @@ Four things are deliberate here:
 
 All Gemini features hide themselves when no key is set (the frontend asks
 `/analysis/status` first), and a Gemini outage degrades to the existing
-behaviour rather than an error state.
+behaviour rather than an error state. The chatbot is the exception to the
+"ask `/analysis/status` first" rule for *sending*: it always attempts the
+call, because that check is still in flight for the first second or so after
+the widget opens and refusing to send during it answered the opening question
+with "your assistant isn't available" on a perfectly healthy deployment. The
+banner at the top of the chat still uses the status check.
+
+#### When the chatbot answers "I couldn't reach your assistant"
+
+Failure notices in the chat carry the underlying reason in small grey text
+beneath them, so the cause is visible without opening devtools:
+
+| Detail line | What it means |
+| --- | --- |
+| `Could not reach the backend at <url>` | Flask is down, `VITE_API_URL` points somewhere wrong, or the origin is not in the backend's `ALLOWED_ORIGINS`. |
+| `Gemini returned HTTP 400 (INVALID_ARGUMENT — …)` | The request itself was rejected — a malformed conversation, not a key problem. |
+| `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured key is out of quota. Add a spare (`GEMINI_API_KEY2`) or wait. |
+| `Gemini returned HTTP 404 …` | `GEMINI_MODEL` names a model that no longer exists — check it against Google's current model list. |
+| `No GEMINI_API_KEY is set` | The backend has no key; set it in the Render dashboard. |
+
+Keys are redacted out of anything shown or logged.
 
 #### Gemini key rotation
 
@@ -735,8 +761,20 @@ in server environment variables rather than a browser-readable Supabase table.
 A key still cooling down is sorted to the back rather than dropped, so a call
 can still get through when every key is cooling.
 
-Response bodies are never logged, only status codes — Google's error messages
-can echo the key back. When every key fails the endpoint answers 503 and each
+A failure is only charged to the key when it is actually the key's fault.
+This matters most for 400, which Gemini returns both for an invalid or
+disabled key *and* for a request it could not parse: counting every 400
+against the key meant one malformed request rotated through the whole pool and
+parked each key for fifteen minutes, turning a single bad reply into an
+app-wide Gemini outage. The decision now reads Gemini's own error status
+(`RESOURCE_EXHAUSTED`, `UNAUTHENTICATED`, `PERMISSION_DENIED`, or a message
+naming the API key) and raises anything else immediately, untried on the other
+keys.
+
+Error messages are reported with any configured key string replaced by `***`,
+so the reason for a failure can be logged and shown in the UI without the
+risk that made this "status codes only" before — Google's messages can echo
+the request, and the key travels in the query string. When every key fails the endpoint answers 503 and each
 caller degrades on its own terms: diet chart generation falls back to the
 FoodOScope recipe path, and the analysis panels hide themselves.
 
