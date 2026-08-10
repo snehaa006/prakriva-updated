@@ -86,10 +86,11 @@ risks their health check flagged, and join peer-support community circles.
 - `src/pages/doctor/RecipeBuilder.tsx` — one screen that combines dosha-based
   generation with hand editing. Picking a patient shows their dosha profile,
   nutritional targets and restrictions (via `dietChartService.ts`); hitting
-  Generate calls the FoodOScope API and drops the resulting days straight into
-  the same drag-and-drop Daily/Weekly board used for building a plan by hand,
-  so the doctor can rearrange or leave it as-is before saving. Loading an
-  existing saved plan for editing (from the Diet Chart viewer's Edit button,
+  Generate composes a plan with Gemini and drops the resulting days straight
+  into the same drag-and-drop Daily/Weekly board used for building a plan by
+  hand, so the doctor can rearrange or leave it as-is before saving. See "Diet
+  chart generation" below for what feeds the generator. Loading an existing
+  saved plan for editing (from the Diet Chart viewer's Edit button,
   `?editPlanId=&patientId=`) populates the same board.
 - `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
   localStorage cache that keeps in-progress work (meal-plan drafts, the food
@@ -520,15 +521,24 @@ behaviour rather than an error state.
 
 #### Gemini key rotation
 
-Up to three keys — `GEMINI_API_KEY`, `GEMINI_API_KEY2`, `GEMINI_API_KEY3` — can
-be set. Only the first is required; the extra two exist so the chatbot (used
-far more than the occasional screening write-up) can roll over to the next key
-instead of hard-failing when one hits its rate limit or quota. The pool lives
-in `backend/gemini_service.py`: the last-successful key is tried first, a
-failed key is parked for 60 seconds (rate limited) to 15 minutes
+Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY2` … `GEMINI_API_KEY10`,
+or one comma-separated `GEMINI_API_KEY` — can be set (blanks and duplicates are
+dropped). Only the first is required; the extras exist so the chatbot (used far
+more than the occasional screening write-up) and diet chart generation (one
+large request per plan) can roll over to the next key instead of hard-failing
+when one hits its rate limit or quota. The pool lives in
+`backend/gemini_service.py`: the last-successful key is tried first, a failed
+key is parked for 60 seconds (rate limited) to 15 minutes
 (invalid/revoked/suspended) before being retried, and state is in-memory only
 — unlike the FoodOScope rotation below, these are real secrets, so they stay
 in server environment variables rather than a browser-readable Supabase table.
+A key still cooling down is sorted to the back rather than dropped, so a call
+can still get through when every key is cooling.
+
+Response bodies are never logged, only status codes — Google's error messages
+can echo the key back. When every key fails the endpoint answers 503 and each
+caller degrades on its own terms: diet chart generation falls back to the
+FoodOScope recipe path, and the analysis panels hide themselves.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
@@ -647,6 +657,50 @@ give a current activity streak of 4 with an earlier best of 6;
 the production streak functions over the generated month, and
 `src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
 checks they reach the UI.
+
+## Diet chart generation
+
+Generate on the doctor's Recipe Builder (`/doctor/recipe-builder`) composes the
+plan with **Gemini**, from four inputs:
+
+1. **The dosha and the clinical targets** — computed in the browser by
+   `src/services/dietChartService.ts`, exactly as before: the dosha scoring
+   table, the life-stage calorie/micronutrient tables (ACOG for pregnancy, WHO
+   for postpartum, NAMS for menopause), the allergy→ingredient exclusions and
+   the five-slot meal structure.
+2. **The patient's kitchen** — her `patient_pantry_items` rows, split into what
+   she has at home and what is already on her shopping list. Meals are built
+   around what she has; a plan that needs a shop she hasn't done is a plan that
+   doesn't get cooked.
+3. **Her disease screening results** — the flagged conditions from her recent
+   `disease_screenings` rows, so an anaemia flag pushes iron and vitamin C
+   pairings and a gestational diabetes flag pushes low-glycaemic carbohydrates.
+   Low-risk conditions are left out; a diet does not need to react to something
+   the models did not flag.
+4. **Her assessment** — life stage, dietary preference, digestion issues, goals.
+
+The split of responsibilities matters: **the app decides the constraints, Gemini
+composes within them.** The prompt (`backend/diet_planner.py`) states the dosha,
+the calorie band and the exclusion list as fixed, and forbids re-grading any of
+them. Nothing identifying is sent — no name, email or patient ID — and the
+frontend re-attaches the patient's name to the plan that comes back.
+
+The reply is validated server-side before it reaches the board. Every meal is
+checked against the exclusion list, matching whole words for short terms so
+"egg" doesn't reject an aubergine dish, and any meal naming an excluded
+ingredient is **dropped rather than corrected** — the doctor sees a gap they can
+fill, which beats a plausible-looking meal nobody checked. The count of dropped
+meals is surfaced as a toast.
+
+Generated meals arrive in the same shape FoodOScope recipes do, so the
+drag-and-drop board, the save path and the saved-plan schema needed no changes.
+
+**Fallback.** If the backend is unreachable, has no Gemini key, or every key is
+exhausted (`POST /diet-chart/generate` → 503), generation falls back to the
+original FoodOScope path: recipes filtered by dosha, life stage and calorie
+range, dealt into meal slots. That chart is tagged `source: "foodoscope"` and
+the toast says so — it knows nothing about the kitchen or the screening, and the
+doctor should be told which one they got.
 
 ## Community
 
@@ -936,8 +990,8 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
-| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis and the patient chatbot. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables both features cleanly. |
-| `GEMINI_API_KEY2`, `GEMINI_API_KEY3` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" below. Only `GEMINI_API_KEY` is required. |
+| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot and lab-report extraction. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
+| `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
 | `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |

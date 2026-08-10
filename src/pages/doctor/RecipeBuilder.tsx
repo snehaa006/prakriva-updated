@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useFoodContext } from "@/context/FoodContext";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,12 @@ import {
   type PatientProfile,
   type GeneratedDietChart,
   type LifeStage,
+  type DietChartContext,
 } from "@/services/dietChartService";
+import { fetchPantryItems, type PantryItem } from "@/services/pantryService";
+import { fetchScreenings } from "@/services/diseaseDetectionService";
+import type { RiskLevel, StoredScreening } from "@/types/diseaseDetection";
+import { RISK_STYLES } from "@/lib/riskLevels";
 
 const mealSlots = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const weekDays = [
@@ -311,6 +317,64 @@ const RecipeBuilder = () => {
     return match ? toPatientProfile(match) : null;
   }, [patientId, doctorPatients]);
 
+  // The two extra sources the AI generator plans around: what the patient
+  // actually has in her kitchen, and what her disease screenings found. Both
+  // are optional — a patient with neither still gets a chart, just one built
+  // from the dosha and life-stage rules alone.
+  const { data: pantryItems = [] } = useQuery<PantryItem[]>({
+    queryKey: ["recipe-builder-pantry", patientId],
+    queryFn: () => fetchPantryItems(patientId),
+    enabled: !!patientId,
+    // The doctor can't edit it from here, so a stale read costs nothing.
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: screenings = [] } = useQuery<StoredScreening[]>({
+    queryKey: ["recipe-builder-screenings", patientId],
+    queryFn: () => fetchScreenings(patientId),
+    enabled: !!patientId,
+    staleTime: 5 * 60_000,
+  });
+
+  /** The pantry and screening payload the generator sends to the backend. */
+  const generationContext = useMemo<DietChartContext>(() => {
+    const toEntries = (availability: PantryItem["availability"]) =>
+      pantryItems
+        .filter((item) => item.availability === availability)
+        .map((item) => ({
+          name: item.foodName,
+          quantity: item.quantity,
+          category: item.category,
+        }));
+
+    return {
+      pantry: { atHome: toEntries("at_home"), toBuy: toEntries("to_buy") },
+      // Only the risk picture is needed; `result` carries it and the raw
+      // measurements stay on the screening page where they belong.
+      screenings: screenings.map((screening) => ({
+        createdAt: screening.createdAt,
+        result: screening.result,
+      })),
+    };
+  }, [pantryItems, screenings]);
+
+  const pantryAtHomeCount = useMemo(
+    () => pantryItems.filter((item) => item.availability === "at_home").length,
+    [pantryItems]
+  );
+
+  /** The most recent screening's flagged conditions, for the context banner. */
+  const flaggedConditions = useMemo(() => {
+    const latest = screenings[0];
+    if (!latest) return [];
+    return (latest.result?.conditions ?? [])
+      .filter((condition) => condition.risk_level !== "low")
+      .map((condition) => ({
+        label: condition.label,
+        level: condition.risk_level as RiskLevel,
+      }));
+  }, [screenings]);
+
   const [numDays, setNumDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -440,7 +504,7 @@ const RecipeBuilder = () => {
     }
     setIsGenerating(true);
     try {
-      const chart = await generateDietChart(patientProfile, numDays);
+      const chart = await generateDietChart(patientProfile, numDays, generationContext);
       const { Daily, Weekly } = chartToMealPlans(chart);
       setMealPlans({ Daily, Weekly });
       setActiveFilter("Weekly");
@@ -454,17 +518,37 @@ const RecipeBuilder = () => {
         doshaRecommendations: chart.doshaRecommendations,
         medicalNotes: chart.medicalNotes,
         excludedIngredients: chart.excludedIngredients,
+        source: chart.source,
+        clinicalFocus: chart.clinicalFocus,
+        pantryGaps: chart.pantryGaps,
+        summary: chart.summary,
         generatedAt: chart.generatedAt,
       });
       setPlanDuration(`${numDays} days`);
-      toast.success(`${chart.days.length}-day plan generated (${chart.primaryDosha.toUpperCase()} dosha). Drag & drop to adjust, then save.`);
+
+      // Which generator ran matters to the doctor: a fallback chart knows
+      // nothing about the kitchen or the screening, so say so rather than let
+      // it pass for the personalised one.
+      toast.success(
+        chart.source === "gemini"
+          ? `${chart.days.length}-day plan generated (${chart.primaryDosha.toUpperCase()} dosha, personalised to her kitchen). Drag & drop to adjust, then save.`
+          : `${chart.days.length}-day plan generated from the recipe database (${chart.primaryDosha.toUpperCase()} dosha) — the AI planner was unavailable. Drag & drop to adjust, then save.`
+      );
+
+      // A dropped meal leaves a hole in the board; the doctor needs to know it
+      // was removed on purpose.
+      if (chart.rejectedMeals?.length) {
+        toast.warning(
+          `${chart.rejectedMeals.length} generated meal(s) were dropped for naming a restricted ingredient. Fill those slots by hand.`
+        );
+      }
     } catch (err) {
       console.error("Error generating diet chart:", err);
       toast.error("Generation failed. Please try again.");
     } finally {
       setIsGenerating(false);
     }
-  }, [patientProfile, numDays, setMealPlans, setActiveFilter, setPlanDuration]);
+  }, [patientProfile, numDays, generationContext, setMealPlans, setActiveFilter, setPlanDuration]);
 
   const handleClearBoard = useCallback(() => {
     const wasEditingSavedDraft = !!editingDraftId;
@@ -914,9 +998,50 @@ const RecipeBuilder = () => {
 
                 {isGenerating && (
                   <span className="text-xs text-gray-400">
-                    Fetching recipes from FoodOScope with dosha and life-stage filters — this drops straight into the board below.
+                    Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below.
                   </span>
                 )}
+              </div>
+
+              {/* What the generator is planning around, so the doctor can see
+                  the inputs before spending a generation on them. */}
+              <Separator className="my-4" />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5">
+                  <Apple className="w-3.5 h-3.5 text-gray-400" />
+                  {pantryItems.length > 0 ? (
+                    <span>
+                      Kitchen: <span className="font-medium text-gray-700">{pantryAtHomeCount} at home</span>
+                      {pantryItems.length - pantryAtHomeCount > 0 && (
+                        <span>, {pantryItems.length - pantryAtHomeCount} on the shopping list</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span>No pantry recorded — meals will use common staples.</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-gray-400" />
+                  {screenings.length === 0 ? (
+                    <span>No disease screening on record.</span>
+                  ) : flaggedConditions.length === 0 ? (
+                    <span>{screenings.length} screening(s) on record, none above low risk.</span>
+                  ) : (
+                    <span className="flex flex-wrap items-center gap-1">
+                      Screening flags:
+                      {flaggedConditions.map((condition) => (
+                        <Badge
+                          key={condition.label}
+                          variant="outline"
+                          className={`text-[10px] h-5 ${RISK_STYLES[condition.level].badge}`}
+                        >
+                          {condition.label}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
