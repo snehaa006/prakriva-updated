@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Target, MapPin, Apple, HeartPulse, IdCard, Copy, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -64,11 +65,37 @@ interface PatientData {
   updatedAt?: string;
 }
 
+/** The patient's own record, mapped out of the `patients` row. */
+const fetchPatientProfile = async (patientId: string): Promise<PatientData | null> => {
+  const { data: row, error } = await supabase
+    .from("patients")
+    .select("*")
+    .eq("id", patientId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!row) return null;
+
+  return {
+    patientId: row.patient_code,
+    name: row.name,
+    email: row.email,
+    uid: row.id,
+    role: "patient",
+    questionnaireCompleted: row.questionnaire_completed,
+    createdAt: row.created_at,
+    profileCompleted: row.profile_completed,
+    registrationDate: row.registration_date,
+    status: row.status,
+    assessmentData: row.assessment_data ?? undefined,
+    updatedAt: row.updated_at,
+  };
+};
+
 export default function Profile() {
   const { user, setUser } = useApp();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
   const [originalData, setOriginalData] = useState<AssessmentData | null>(null);
   const [patientData, setPatientData] = useState<PatientData | null>(null);
@@ -80,73 +107,49 @@ export default function Profile() {
     category: "general" as "general" | "features" | "bug" | "suggestion"
   });
 
-  // Fetch patient data including patient ID and assessment data from Firebase
+  // Cached, so leaving the profile and coming back re-renders it rather than
+  // reloading the same row behind a spinner.
+  const { data: loadedProfile, error, isFirstLoad: loading } = useCachedPageData(
+    ["patient-profile", user?.id ?? null],
+    () => fetchPatientProfile(user!.id),
+    { enabled: !!user?.id }
+  );
+
   useEffect(() => {
-    const fetchPatientData = async () => {
-      if (!user?.id) return;
+    if (!error) return;
+    console.error("Error fetching patient data:", error);
+    toast({
+      title: "Error",
+      description: "Failed to load profile data. Please try again.",
+      variant: "destructive",
+    });
+  }, [error, toast]);
 
-      try {
-        setLoading(true);
-        console.log("Fetching patient data for user:", user.id);
-        
-        const { data: row, error } = await supabase
-          .from("patients")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle();
+  useEffect(() => {
+    if (loadedProfile === undefined) return;
 
-        if (error) throw error;
+    if (loadedProfile === null) {
+      toast({
+        title: "Profile Not Found",
+        description: "Your profile could not be found. Please contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-        if (row) {
-          const data: PatientData = {
-            patientId: row.patient_code,
-            name: row.name,
-            email: row.email,
-            uid: row.id,
-            role: "patient",
-            questionnaireCompleted: row.questionnaire_completed,
-            createdAt: row.created_at,
-            profileCompleted: row.profile_completed,
-            registrationDate: row.registration_date,
-            status: row.status,
-            assessmentData: row.assessment_data ?? undefined,
-            updatedAt: row.updated_at,
-          };
-          console.log("Patient data fetched:", data);
+    setPatientData(loadedProfile);
 
-          // Set the complete patient data
-          setPatientData(data);
-
-          // Extract assessment data if it exists
-          const assessment = data.assessmentData as AssessmentData;
-          if (assessment) {
-            setAssessmentData(assessment);
-            setOriginalData(assessment);
-          } else {
-            console.log("No assessment data found for patient");
-          }
-        } else {
-          console.log("Patient document not found");
-          toast({
-            title: "Profile Not Found",
-            description: "Your profile could not be found. Please contact support.",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching patient data:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load profile data. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPatientData();
-  }, [user, toast]);
+    // Editing works off a local copy, so only seed it when the form is not
+    // open — a background refresh must not discard changes being made.
+    const assessment = loadedProfile.assessmentData as AssessmentData | undefined;
+    if (assessment && !isEditing) {
+      setAssessmentData(assessment);
+      setOriginalData(assessment);
+    }
+    // `isEditing` is deliberately not a dependency: this seeds from loaded data,
+    // and re-running it when the form opens or closes would undo edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedProfile, toast]);
 
   const handleSave = async () => {
     if (!user?.id || !assessmentData || !patientData) return;

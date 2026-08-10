@@ -173,6 +173,8 @@ EXTRACTABLE_FIELDS = {
     "tt4": "Total T4 / TT4 / total thyroxine, in ug/dL. NOT free T4 or FT4",
     "t4u": "T4 uptake / T3 uptake ratio",
     "fti": "Free thyroxine index / FTI",
+    "fetal_weight_kg": "Estimated fetal weight / EFW on an ultrasound, in kg",
+    "amniotic_fluid_cm": "Amniotic fluid index / AFI on an ultrasound, in cm",
     "bp_systolic": "Systolic blood pressure, the upper number, in mmHg",
     "bp_diastolic": "Diastolic blood pressure, the lower number, in mmHg",
 }
@@ -251,6 +253,60 @@ def generate(
     return text
 
 
+def _first_text(body: Dict[str, Any]) -> str:
+    """The text of the first candidate, or a useful failure.
+
+    Same extraction `generate` does inline, factored out for the callers that
+    build their own payload (JSON replies, report images).
+    """
+    candidates = body.get("candidates") or []
+    if not candidates:
+        # Usually a safety block; surface it as unavailable rather than empty.
+        raise GeminiUnavailable("Gemini returned no candidates")
+
+    parts = candidates[0].get("content", {}).get("parts") or []
+    text = "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise GeminiUnavailable("Gemini returned an empty response")
+    return text
+
+
+def generate_json(
+    prompt: str,
+    system_rules: str,
+    *,
+    max_tokens: Optional[int] = None,
+    temperature: float = 0.4,
+    timeout: Optional[int] = None,
+) -> Any:
+    """Send one prompt and parse the reply as JSON.
+
+    `responseMimeType` makes Gemini emit bare JSON, but a truncated reply is
+    still possible on a long generation (a 14-day diet chart is the reason this
+    exists), so the decode failure is reported as an unavailability rather than
+    crashing the request.
+    """
+    body = _post_gemini(
+        {
+            "systemInstruction": {"parts": [{"text": system_rules}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
+                "responseMimeType": "application/json",
+            },
+        },
+        timeout=timeout or settings.GEMINI_TIMEOUT_SECONDS,
+    )
+
+    text = _first_text(body)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Gemini returned unparseable JSON: {exc}")
+        raise GeminiUnavailable("Gemini returned an unreadable response") from exc
+
+
 # ---------------------------------------------------------------------------
 # Report extraction
 # ---------------------------------------------------------------------------
@@ -269,6 +325,8 @@ _PLAUSIBLE_RANGES = {
     "tt4": (0, 400),
     "t4u": (0, 5),
     "fti": (0, 500),
+    "fetal_weight_kg": (0, 8),
+    "amniotic_fluid_cm": (0, 40),
     "bp_systolic": (60, 300),
     "bp_diastolic": (30, 200),
 }

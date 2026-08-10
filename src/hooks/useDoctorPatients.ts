@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
 
 /**
  * A patient the signed-in doctor is allowed to work with.
@@ -124,16 +125,9 @@ export async function fetchDoctorPatients(
 export function useDoctorPatients(options: UseDoctorPatientsOptions = {}) {
   const { statuses = TREATED_STATUSES, enabled = true } = options;
 
-  const sessionQuery = useQuery({
-    queryKey: ["auth-user-id"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      return data.user?.id ?? null;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const doctorId = sessionQuery.data ?? undefined;
+  // Shared with every other page through `useAuthUserId`'s cache key, so the
+  // auth server is asked once rather than per page.
+  const doctorId = useAuthUserId() ?? undefined;
 
   const patientsQuery = useQuery({
     queryKey: doctorPatientsQueryKey(doctorId, statuses),
@@ -145,7 +139,9 @@ export function useDoctorPatients(options: UseDoctorPatientsOptions = {}) {
   return {
     doctorId,
     patients: patientsQuery.data ?? [],
-    isLoading: sessionQuery.isLoading || patientsQuery.isLoading,
+    // Still resolving who is signed in counts as loading — the patients query
+    // has not been allowed to start yet.
+    isLoading: !doctorId || patientsQuery.isLoading,
     isFetching: patientsQuery.isFetching,
     error: patientsQuery.error as Error | null,
     refetch: patientsQuery.refetch,

@@ -80,6 +80,8 @@ export type ExtractedValues = Partial<
     | "tt4"
     | "t4u"
     | "fti"
+    | "fetal_weight_kg"
+    | "amniotic_fluid_cm"
     | "bp_systolic"
     | "bp_diastolic",
     number

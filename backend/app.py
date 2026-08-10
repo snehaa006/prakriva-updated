@@ -35,6 +35,7 @@ from disease_detection import (
 )
 from disease_detection.pipeline import UnknownConditionError
 import gemini_service
+import diet_planner
 from exceptions import (
     AyurvedicPlannerError, ValidationError, ModelError,
     DoshaPredictionError, MealPlanGenerationError, DatabaseError
@@ -54,12 +55,28 @@ def create_app() -> Flask:
     vercel_preview_pattern = re.compile(r"^https://[a-z0-9-]+\.vercel\.app$")
     CORS(app, origins=[*settings.ALLOWED_ORIGINS, vercel_preview_pattern])
     
-    # Configure rate limiting
+    # Configure rate limiting. storage_uri is passed explicitly (see
+    # settings.RATELIMIT_STORAGE_URI) — without it flask-limiter falls back to
+    # in-memory storage *and* emits a UserWarning on every boot.
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
-        default_limits=[f"{settings.RATE_LIMIT_PER_HOUR} per hour"]
+        default_limits=[f"{settings.RATE_LIMIT_PER_HOUR} per hour"],
+        storage_uri=settings.RATELIMIT_STORAGE_URI,
     )
+
+    if settings.RATELIMIT_STORAGE_URI.startswith("memory://"):
+        # Fine for the single-process deployment we run today, but worth
+        # saying out loud so it is obvious what to change when scaling out.
+        logger.info(
+            "Rate limits are counted in process memory. Set RATELIMIT_STORAGE_URI "
+            "(or REDIS_URL) to a shared Redis instance before running more than "
+            "one worker, otherwise each worker enforces its own separate limit."
+        )
+    else:
+        logger.info(
+            f"Rate limit storage: {settings.RATELIMIT_STORAGE_URI.split('://')[0]}://…"
+        )
     
     # Configure caching
     cache = Cache(app, config={
@@ -394,6 +411,52 @@ def generate_meal_plan():
     except Exception as e:
         logger.error(f"Unexpected error in meal plan generation: {e}\n{traceback.format_exc()}")
         raise AyurvedicPlannerError(f"Meal plan generation failed: {str(e)}")
+
+
+@app.route("/diet-chart/generate", methods=["POST"])
+@app.limiter.limit("30 per hour")
+def generate_diet_chart():
+    """Compose a diet chart with Gemini from the context the frontend holds.
+
+    Body: the profile summary, the already-determined dosha, the clinical
+    targets, the exclude/focus ingredient lists, the patient's pantry and her
+    recent disease screenings — see `diet_planner.build_diet_prompt`. Nothing
+    identifying is required or used, and no patient lookup happens here: the
+    caller passes in exactly the rows it is already allowed to read.
+
+    Returns 503 when Gemini is unconfigured or every key failed, which is the
+    frontend's cue to fall back to the FoodOScope recipe path.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        targets = payload.get("targets")
+        if not isinstance(targets, dict) or not isinstance(targets.get("calories"), dict):
+            raise ValidationError("Nutritional targets are required")
+
+        dosha = payload.get("dosha")
+        if not isinstance(dosha, dict) or not dosha.get("primary"):
+            raise ValidationError("A determined dosha is required")
+
+        plan = diet_planner.generate_diet_chart(payload)
+
+        return jsonify(APIResponse(
+            success=True,
+            data={**plan, "model": settings.GEMINI_MODEL},
+            message="Diet chart generated successfully",
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Gemini diet chart unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Diet chart generation unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Diet chart generation failed: {e}")
+        raise MealPlanGenerationError(f"Diet chart generation failed: {e}")
 
 
 @app.route("/plan/<plan_id>", methods=["GET"])

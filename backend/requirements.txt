@@ -12,7 +12,10 @@
 # Web framework — app.py builds a Flask app via create_app()
 flask==3.1.2
 flask-cors==6.0.1
-flask-limiter==3.12.0
+# The [redis] extra pulls in the redis client so RATELIMIT_STORAGE_URI /
+# REDIS_URL can point at a real shared store; it is unused (and costs a couple
+# of pure-Python wheels) while the default "memory://" storage is in effect.
+flask-limiter[redis]==3.12.0
 flask-caching==2.3.1
 werkzeug==3.1.3
 

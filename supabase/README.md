@@ -24,6 +24,9 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | `foodoscope_api_keys`   | — (new; FoodOScope keys the frontend rotates through) |
 | `disease_screenings`    | — (new; maternal disease screening runs, see `disease_screenings.sql`) |
 | `patient_pantry_items`  | — (new; foods a patient has at home / plans to buy, see `patient_pantry_items.sql`) |
+| `community_groups`      | — (new; the peer support circles, see `community.sql`) |
+| `community_memberships` | — (new; request-to-join rows, one per patient per circle) |
+| `community_messages`    | — (new; the chat inside a circle)            |
 | `menstrual_cycle_logs`  | — (new; the PCOD/PCOS period log, see `pcos_tracking.sql`) |
 | `missed_cycle_months`   | — (new; months explicitly reported as having no period) |
 | `weight_logs`           | — (new; one weight reading per patient per day)   |
@@ -152,6 +155,21 @@ policies are the access control:
   rather than secrets — any signed-in user can read them, which is the same
   exposure as baking them into the bundle. Nothing that must stay private
   belongs in this table.
+- The community tables are gated on `public.community_member(group_id)`: only an
+  approved member of a circle reads or writes its `community_messages`, so a
+  signed-in stranger cannot read a pregnancy or PCOS conversation. Memberships
+  are readable by the patient herself and by approved members of the same circle
+  (which is what makes peer approval possible), insertable only for herself, and
+  updatable only by approved members. `community_admit()` is the second layer
+  under that update policy: it forces every new request to `pending` (except the
+  founding member of an empty circle, admitted immediately so a new circle is
+  joinable at all), restores every column but `status` on update, and refuses a
+  status change from anyone who is not an approved member. There is no update
+  policy on messages — a message cannot be rewritten after it is read — but an
+  author may delete her own.
+- `community_member` is `SECURITY DEFINER` for the same reason as `doctor_treats`,
+  with one addition: a policy on `community_memberships` that queried
+  `community_memberships` directly would recurse.
 - `current_role_is` and `doctor_treats` are `SECURITY DEFINER` and must stay
   executable by `authenticated`, because RLS policy expressions are evaluated as
   the querying role. `EXECUTE` is revoked from `anon`.
@@ -186,11 +204,19 @@ Applied so far: `init_core_schema`, `backend_plan_tables`,
 `diet_plan_authorship`, `diet_plan_builder_payloads`, `seed_demo_doctors`,
 `foodoscope_api_keys`, `disease_screenings`, `patient_pantry_items`,
 `diet_plans_medical_notes_array`, `create_lifestyle_logs`,
-`patient_pantry_items_search_term`, `pcos_tracking`.
+`patient_pantry_items_search_term`, `community_circles`, `pcos_tracking`.
 
-`disease_screenings.sql`, `patient_pantry_items.sql`, `lifestyle_logs.sql` and
-`pcos_tracking.sql` in this folder are the sources for the matching migrations,
-kept here so the tables can be recreated in a fresh project.
+`disease_screenings.sql`, `patient_pantry_items.sql`, `lifestyle_logs.sql`,
+`community.sql` and `pcos_tracking.sql` in this folder are the sources for the
+matching migrations, kept here so the tables can be recreated in a fresh
+project.
+
+`community_circles` added the Community tab's three tables, the
+`community_member()` / `community_admit()` / `community_recount()` functions and
+the eight seed circles. The file is re-runnable: every policy is dropped before
+it is recreated and the seed insert is `on conflict (slug) do nothing`. It also
+adds `community_messages` to the `supabase_realtime` publication so the chat
+updates live; that step is guarded, so re-applying it is harmless.
 
 `pcos_tracking` added the PCOD/PCOS care track: `patients.health_tracks`, the
 `on_auth_user_created_track` trigger that fills it from signup metadata, the

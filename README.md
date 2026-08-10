@@ -4,7 +4,8 @@ An Ayurvedic diet/wellness planning app connecting doctors and patients. Doctors
 manage patients, build recipes and diet charts, review dosha/consultation
 data, and run maternal disease-risk screening for their pregnant patients;
 patients complete an Ayurvedic health questionnaire, list the foods in their
-kitchen, and get a personalized diet plan.
+kitchen, get a personalized diet plan, get exercise suggestions matched to the
+risks their health check flagged, and join peer-support community circles.
 
 Patients pick their **care tracks** at signup — pregnancy, PCOD/PCOS, both, or
 neither — which decides which tabs they see and which nutritional targets their
@@ -16,8 +17,8 @@ plan starts from. See "Care tracks" below.
   React Router.
 - **Backend**: Python/Flask API providing dosha estimation, calorie
   calculation, meal planning, plan storage, and the maternal disease detection
-  pipeline (XGBoost anaemia + pregnancy-risk, a GDM logistic regression, and a
-  thyroid neural network run in numpy).
+  pipeline (XGBoost anaemia + pregnancy-risk, GDM and preeclampsia logistic
+  regressions, and a thyroid neural network — all run in numpy).
 - **Supabase**: Postgres database + auth, using row-level security.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
@@ -51,9 +52,11 @@ plan starts from. See "Care tracks" below.
     `patientTrackOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
-- `src/test/` — Vitest setup (`setup.ts`) and the Supabase client mock
-  (`supabaseMock.ts`) shared across frontend tests. Tests themselves sit in
-  `__tests__/` folders next to the code they cover.
+- `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
+  (`supabaseMock.ts`) and `renderPage.tsx` (renders a page with the router and
+  a fresh react-query client, which pages need since they load through
+  `useCachedPageData`). Tests themselves sit in `__tests__/` folders next to
+  the code they cover.
 - `backend/` — Flask API (`app.py`) providing dosha estimation
   (`dosha_estimator.py`, `dosha_model.pkl`), calorie calculation
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
@@ -68,15 +71,23 @@ plan starts from. See "Care tracks" below.
   (`train_maternal_models.py`), plus the GDM logistic regression
   (`gdm_featurize.py`, `train_gdm_model.py`, `gdm_model.json`) and the thyroid
   network (`thyroid_featurize.py`, `convert_thyroid_model.py`,
-  `thyroid_model.npz`). See "Disease detection" below.
+  `thyroid_model.npz`) and the preeclampsia logistic regression
+  (`preeclampsia_featurize.py`, `convert_preeclampsia_model.py`,
+  `preeclampsia_model.json`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
   hydration log, `patient_pantry_items.sql` for the patient kitchen list and
-  `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
+  `community.sql` for the community circles, their memberships and their chat,
+  and `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
   (`menstrual_cycle_logs`, `missed_cycle_months`, `weight_logs`, `acne_logs`)
   and the private `acne-photos` storage bucket.
+- `src/components/wellness/ExercisePlan.tsx` — the one rendering of an exercise
+  suggestion, shared by the Lifestyle Tracker (where minutes are logged against
+  each exercise), the patient's health-check results and the doctor's Patient
+  Analysis, so the three cannot drift apart. The picks themselves come from
+  `src/lib/exerciseRecommendations.ts`. See "Exercise suggestions" below.
 - `src/lib/healthTrack.ts` + `src/services/healthTrackService.ts` — which care
   tracks a patient is on (a set — pregnancy and PCOS can both apply), and the
   two places they are stored. See "Care tracks".
@@ -93,10 +104,11 @@ plan starts from. See "Care tracks" below.
 - `src/pages/doctor/RecipeBuilder.tsx` — one screen that combines dosha-based
   generation with hand editing. Picking a patient shows their dosha profile,
   nutritional targets and restrictions (via `dietChartService.ts`); hitting
-  Generate calls the FoodOScope API and drops the resulting days straight into
-  the same drag-and-drop Daily/Weekly board used for building a plan by hand,
-  so the doctor can rearrange or leave it as-is before saving. Loading an
-  existing saved plan for editing (from the Diet Chart viewer's Edit button,
+  Generate composes a plan with Gemini and drops the resulting days straight
+  into the same drag-and-drop Daily/Weekly board used for building a plan by
+  hand, so the doctor can rearrange or leave it as-is before saving. See "Diet
+  chart generation" below for what feeds the generator. Loading an existing
+  saved plan for editing (from the Diet Chart viewer's Edit button,
   `?editPlanId=&patientId=`) populates the same board.
 - `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
   localStorage cache that keeps in-progress work (meal-plan drafts, the food
@@ -112,8 +124,11 @@ plan starts from. See "Care tracks" below.
   strings and so can't use Tailwind classes.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
-  standalone `mealCompatibility.html` visualisation (reachable at
-  `/mealCompatibility.html`; it is not a React route).
+  standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
+  viruddha ahara / incompatible-combination checker). It is served directly at
+  `/mealCompatibility.html`, and the patient **Food Compatibility** page
+  (`/patient/food-compatibility`, `src/pages/patient/FoodCompatibility.tsx`)
+  embeds it in an iframe so it is reachable from the patient sidebar.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
 
@@ -176,10 +191,24 @@ Coverage is focused on authentication, since that is the gate on both roles:
   the week-long cache.
 - `src/lib/__tests__/localCache.test.ts` — the localStorage cache: namespacing,
   expiry, corrupted-entry handling and prefix clearing.
+- `src/hooks/__tests__/useCachedPageData.test.tsx` — that a revisited page
+  renders from cache without a spinner and without re-fetching. See
+  "Page loads" under Caching.
+- `src/lib/__tests__/exerciseRecommendations.test.ts` — condition → exercise
+  matching, the screening findings that feed it, the pregnancy substitutions,
+  and a working video link for every recommended exercise.
+- `src/lib/__tests__/community.test.ts` — which circles suit a patient, the
+  browse ordering, display-name defaulting and message validation.
+- `src/services/__tests__/communityService.test.ts` — the community row
+  mapping, that a join request never sends its own status, and the
+  missing-table fallbacks.
 
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
 a detector out) and the `/disease/*` endpoints.
+`backend/tests/test_dataset_loader.py` covers `load_all_datasets` directly —
+the API tests patch `app.get_datasets`, so without it nothing exercises the
+real loader or its critical-dataset guard.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
@@ -407,10 +436,10 @@ Screens a pregnant patient for eight maternal risks — anaemia, an overall
 miscarriage risk and perinatal mental health. Each comes back with a 0-100 risk
 score, a low/moderate/high level, the factors that drove it, and next steps.
 
-Four conditions are scored by trained models (see "Trained models" below) —
-anaemia and pregnancy risk by **XGBoost**, gestational diabetes by a **logistic
-regression**, thyroid disorder by a **neural network** — and the remaining four
-by the rule-based scorers.
+Five conditions are scored by trained models (see "Trained models" below) —
+anaemia and pregnancy risk by **XGBoost**, gestational diabetes and preeclampsia
+by **logistic regressions**, thyroid disorder by a **neural network** — and the
+remaining three by the rule-based scorers.
 Because every detector shares the same `(ScreeningInput) -> ConditionRisk`
 contract, the two kinds mix transparently and `ConditionRisk.detector` records
 which one answered.
@@ -422,11 +451,16 @@ different places:
   trained models' inputs, in three cards: **measurements** (weeks pregnant,
   weight → BMI using the height captured at onboarding, haemoglobin, blood
   pressure, iron supplements), **blood test results** (HbA1c, HDL,
-  triglycerides — all optional), **thyroid** (TSH, T3, total T4, T4 uptake, FTI
+  triglycerides — all optional), **blood pressure & scan** (fetal weight,
+  amniotic fluid, urine protein, hypertension and diabetes history),
+  **thyroid** (TSH, T3, total T4, T4 uptake, FTI
   plus the thyroid history flags), and **diabetes risk factors** (prior GDM,
   prediabetes, family history, PCOS, previous large baby, unexplained loss,
-  inactivity). She sees anaemia, pregnancy risk, gestational diabetes and
-  thyroid disorder immediately. The rule-only conditions are not run here, since they need
+  inactivity). She sees anaemia, pregnancy risk, gestational diabetes, thyroid
+  disorder and preeclampsia immediately, and — on the same tab — an **exercise
+  plan built from those results**, grouped by the condition that asked for it
+  (see "Exercise suggestions" below).
+  The rule-only conditions are not run here, since they need
   clinical findings and lab panels this form deliberately does not ask for.
   The page is only offered to patients whose stored `assessment_data` has a life
   stage of `pregnancy` — captured, along with the estimated due date and height,
@@ -438,13 +472,20 @@ different places:
   everything the patient has submitted: trend line charts of her vitals, labs and
   wellbeing scores (hemoglobin, blood pressure, BMI, HbA1c, TSH, PHQ-9, EPDS, …)
   over a selectable 7 / 15 / 30-day or all-time window, a per-condition risk-score
-  trend, and the detected conditions with their current risk. The doctor no
+  trend, the detected conditions with their current risk, and the **exercise
+  plan those conditions imply** — the same suggestions the patient sees, so the
+  doctor can talk through or correct them in the consultation. The doctor no
   longer fills in or re-runs the screening form here — the analysis is built from
   the patient's own Health Check submissions.
 
-The patient sees every run in her own History tab. Charts only render for values
-that were actually recorded; laboratory fields left blank mean "not performed" —
-they never score as a normal result.
+The patient sees her full history in a **Past Checks** tab: date-range presets
+(today, 7/30/90 days, all) plus a custom start/end range via a calendar picker,
+scoping both a per-condition risk-score trend chart and the list beneath it
+together. The trend chart (`RiskScoreTrend.tsx`, the same component the
+doctor's Patient Analysis page uses) only appears once at least two checks fall
+in the selected range — a single point has nothing to trend. Charts only render
+for values that were actually recorded; laboratory fields left blank mean "not
+performed" — they never score as a normal result.
 
 **Measurement bounds.** `src/lib/screeningValidation.ts` mirrors the
 `Field(ge=..., le=...)` constraints in `backend/disease_detection/schemas.py` so
@@ -461,10 +502,10 @@ by two endpoints:
 | `/disease/conditions` | GET | Conditions the pipeline covers, the active detector for each, and the accepted symptom vocabulary. |
 | `/disease/screen` | POST | Runs a screening. Body is a `ScreeningInput` payload, optionally with `conditions: [...]` to restrict the run to a subset. |
 
-Four conditions are scored by the rule-based analytics ported from the Neuviaa
+Three conditions are scored by the rule-based analytics ported from the Neuviaa
 prototype (`rules.py`), registered per condition through
-`pipeline.register_detector`. Anaemia, pregnancy risk, gestational diabetes and
-thyroid disorder are scored by the trained models in `disease_detection/ml/`
+`pipeline.register_detector`. Anaemia, pregnancy risk, gestational diabetes,
+thyroid disorder and preeclampsia are scored by the trained models in `disease_detection/ml/`
 (see below), which register over their rule-based baselines at import. A detector is any callable of
 `(ScreeningInput) -> ConditionRisk`, so swapping model for rules — or the
 reverse — touches neither the API nor the frontend; `ConditionRisk.detector`
@@ -569,16 +610,37 @@ The conversion asserts the numpy forward pass reproduces Keras (max drift
 cd backend && python -m disease_detection.ml.convert_thyroid_model
 ```
 
+**Preeclampsia (logistic regression).** A class-balanced logistic regression over
+13 antenatal features, converted from its pickled scikit-learn Pipeline the same
+way (`convert_preeclampsia_model.py` → `preeclampsia_model.json`, verified to
+reproduce the pipeline exactly, drift 0).
+
+Nine of the thirteen already existed on the screening form. The four added for
+it are **diabetes**, **history of hypertension**, and the two ultrasound values
+**estimated fetal weight** and **amniotic fluid index**.
+
+Proteinuria is deliberately three-way here: "not tested" falls back to the
+training-set default rather than being scored as a negative result the patient
+never had.
+
+That pickle is the sharpest illustration of why none of these models are shipped
+as pickles. Under a newer scikit-learn it fails twice — `_RemainderColsList` no
+longer exists (so it will not unpickle), and `SimpleImputer._fit_dtype` was
+renamed (so it loads but raises the moment it transforms). The conversion script
+shims both to read the parameters out once; the deployed backend never unpickles
+anything.
+
 **Fallbacks.** When a model needs an input it does not have — haemoglobin for
 anaemia, haemoglobin and blood pressure for pregnancy risk, BMI for GDM, TSH for
-thyroid — the
+thyroid, blood pressure for preeclampsia — the
 detector falls back to the rule-based baseline rather than scoring on imputed
 values. If XGBoost or the model files are absent, the whole pipeline runs on the
 rule-based baseline.
 
 **Frontend layout.** The form sections
-(`src/components/health/ScreeningFields.tsx`) and the results rendering
-(`ScreeningResults.tsx`) are shared by both pages; only the sections each role
+(`src/components/health/ScreeningFields.tsx`), the results rendering
+(`ScreeningResults.tsx`) and the per-condition risk-score trend
+(`RiskScoreTrend.tsx`) are shared by both pages; only the sections each role
 gets and the wording differ. Risk-level styling lives in `src/lib/riskLevels.ts`.
 
 **Storage.** Screening runs are recorded in the `disease_screenings` Supabase
@@ -659,17 +721,79 @@ behaviour rather than an error state.
 
 #### Gemini key rotation
 
-Up to three keys — `GEMINI_API_KEY`, `GEMINI_API_KEY2`, `GEMINI_API_KEY3` — can
-be set. Only the first is required; the extra two exist so the chatbot (used
-far more than the occasional screening write-up) can roll over to the next key
-instead of hard-failing when one hits its rate limit or quota. The pool lives
-in `backend/gemini_service.py`: the last-successful key is tried first, a
-failed key is parked for 60 seconds (rate limited) to 15 minutes
+Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY2` … `GEMINI_API_KEY10`,
+or one comma-separated `GEMINI_API_KEY` — can be set (blanks and duplicates are
+dropped). Only the first is required; the extras exist so the chatbot (used far
+more than the occasional screening write-up) and diet chart generation (one
+large request per plan) can roll over to the next key instead of hard-failing
+when one hits its rate limit or quota. The pool lives in
+`backend/gemini_service.py`: the last-successful key is tried first, a failed
+key is parked for 60 seconds (rate limited) to 15 minutes
 (invalid/revoked/suspended) before being retried, and state is in-memory only
 — unlike the FoodOScope rotation below, these are real secrets, so they stay
 in server environment variables rather than a browser-readable Supabase table.
+A key still cooling down is sorted to the back rather than dropped, so a call
+can still get through when every key is cooling.
+
+Response bodies are never logged, only status codes — Google's error messages
+can echo the key back. When every key fails the endpoint answers 503 and each
+caller degrades on its own terms: diet chart generation falls back to the
+FoodOScope recipe path, and the analysis panels hide themselves.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
+
+## Exercise suggestions
+
+A risk score on its own tells a patient nothing she can act on. Every place a
+risk is shown, the exercise that answers it is shown with it — thyroid risk
+gets brisk walking, resistance work and pranayama; anaemia gets the gentle,
+oxygen-conservative opposite — and each exercise links to a how-to video.
+
+**Where they appear.**
+
+- `/patient/health-check` → **My results** — under the screening results,
+  grouped **per flagged condition** ("Exercise for Thyroid Disorder", with its
+  risk badge, why it is prescribed that way, its videos, and what to avoid).
+  The question on that tab is "my thyroid came back moderate — now what?", and
+  one merged list of ten exercises does not answer it.
+- `/doctor/patient-analysis` — the same plan for the selected patient's latest
+  screening, in clinician wording, so the doctor can talk it through or correct
+  it in the consultation.
+- `/patient/lifestyle-tracker` — merged into one list instead, because the
+  question there is *what to do today*: an exercise two conditions both ask for
+  should appear once, with minute logging attached.
+
+**How the picks are made.** `src/lib/exerciseRecommendations.ts` holds the
+exercise catalog and a plan per condition — the exercises, the reason they suit
+that condition, and what to avoid.
+
+- Conditions come from two sources: **moderate/high findings** on the latest
+  maternal screening (`disease_screenings`, via `conditionsFromScreening()`) and
+  the conditions in her profile (`patients.assessment_data`). A low-risk finding
+  is reassurance, not something to train around, so it is dropped — otherwise
+  the one risk that needs tailoring is buried under four that don't.
+- Free text is matched through an alias table, so "Anemia", "PCOD" and "high BP"
+  all land correctly; anything unrecognised is dropped rather than guessed at,
+  and a patient with no known conditions gets a general balanced plan.
+- Plans are ordered by risk, so the most pressing condition leads.
+- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins (`Surya
+  Namaskar` → prenatal yoga, strength training → light resistance) and adds its
+  own "avoid" notes on top of the condition's. Every patient on the doctor's
+  Patient Analysis page is pregnant, so that view always applies them.
+- `videoUrl()` builds a YouTube **search** URL from the exercise's `videoQuery`
+  rather than embedding a video id: a specific id can be taken down, go private,
+  or be re-uploaded as something else, and a dead or wrong-content link on a page
+  giving health guidance is worse than no link. Swap in
+  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
+
+The module is pure and Supabase-free, and unit tested in
+`src/lib/__tests__/exerciseRecommendations.test.ts` — including that every
+recommended exercise across every condition (pregnant and not) has a working
+video link. Rendering is shared through
+`src/components/wellness/ExercisePlan.tsx`.
+
+*These are general wellness suggestions, not a prescription — every surface says
+so, and says to check with a doctor first.*
 
 ## Lifestyle Tracker
 
@@ -679,29 +803,9 @@ are sections of a single view rather than separate tabs, because they are all
 answered in the same sitting. Everything logged here is real and persisted.
 
 **Movement & exercise.** The exercises offered are chosen from the patient's
-conditions, not a fixed list: what helps anaemia (gentle, oxygen-conservative
-work) is close to the opposite of what helps PCOS (sustained aerobic plus
-resistance training), and several conditions have movements that are actively
-unsafe.
-
-- `src/lib/exerciseRecommendations.ts` holds the exercise catalog and a plan per
-  condition — the exercises, the reason they suit that condition, and what to
-  avoid. Conditions come from two sources: moderate/high findings on her latest
-  maternal screening (`disease_screenings`) and the conditions in her profile
-  (`patients.assessment_data`). Free text is matched through an alias table, so
-  "Anemia", "PCOD" and "high BP" all land correctly; anything unrecognised is
-  dropped rather than guessed at, and a patient with no known conditions gets a
-  general balanced plan.
-- Pregnancy swaps unsafe movements for pregnancy-safe stand-ins and adds its own
-  "avoid" notes on top of the condition's.
-- Minutes are logged against the recommended exercises themselves, so the log
-  always matches the recommendation.
-- Each exercise card links to a how-to video. `videoUrl()` builds a YouTube
-  **search** URL from the exercise's `videoQuery` rather than embedding a video
-  id: a specific id can be taken down, go private, or be re-uploaded as
-  something else, and a dead or wrong-content link on a page giving health
-  guidance is worse than no link. Swap in
-  `https://www.youtube.com/watch?v=<id>` per exercise to curate specific videos.
+conditions, not a fixed list — see "Exercise suggestions" below for how they are
+picked. Minutes are logged against the recommended exercises themselves, so the
+log always matches the recommendation.
 
 **Streaks.** The activity streak counts consecutive days with *any* movement
 logged; the hydration section counts days the daily water target was met. Streak
@@ -753,6 +857,106 @@ give a current activity streak of 4 with an earlier best of 6;
 the production streak functions over the generated month, and
 `src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
 checks they reach the UI.
+
+## Diet chart generation
+
+Generate on the doctor's Recipe Builder (`/doctor/recipe-builder`) composes the
+plan with **Gemini**, from four inputs:
+
+1. **The dosha and the clinical targets** — computed in the browser by
+   `src/services/dietChartService.ts`, exactly as before: the dosha scoring
+   table, the life-stage calorie/micronutrient tables (ACOG for pregnancy, WHO
+   for postpartum, NAMS for menopause), the allergy→ingredient exclusions and
+   the five-slot meal structure.
+2. **The patient's kitchen** — her `patient_pantry_items` rows, split into what
+   she has at home and what is already on her shopping list. Meals are built
+   around what she has; a plan that needs a shop she hasn't done is a plan that
+   doesn't get cooked.
+3. **Her disease screening results** — the flagged conditions from her recent
+   `disease_screenings` rows, so an anaemia flag pushes iron and vitamin C
+   pairings and a gestational diabetes flag pushes low-glycaemic carbohydrates.
+   Low-risk conditions are left out; a diet does not need to react to something
+   the models did not flag.
+4. **Her assessment** — life stage, dietary preference, digestion issues, goals.
+
+The split of responsibilities matters: **the app decides the constraints, Gemini
+composes within them.** The prompt (`backend/diet_planner.py`) states the dosha,
+the calorie band and the exclusion list as fixed, and forbids re-grading any of
+them. Nothing identifying is sent — no name, email or patient ID — and the
+frontend re-attaches the patient's name to the plan that comes back.
+
+The reply is validated server-side before it reaches the board. Every meal is
+checked against the exclusion list, matching whole words for short terms so
+"egg" doesn't reject an aubergine dish, and any meal naming an excluded
+ingredient is **dropped rather than corrected** — the doctor sees a gap they can
+fill, which beats a plausible-looking meal nobody checked. The count of dropped
+meals is surfaced as a toast.
+
+Generated meals arrive in the same shape FoodOScope recipes do, so the
+drag-and-drop board, the save path and the saved-plan schema needed no changes.
+
+**Fallback.** If the backend is unreachable, has no Gemini key, or every key is
+exhausted (`POST /diet-chart/generate` → 503), generation falls back to the
+original FoodOScope path: recipes filtered by dosha, life stage and calorie
+range, dealt into meal slots. That chart is tagged `source: "foodoscope"` and
+the toast says so — it knows nothing about the kitchen or the screening, and the
+doctor should be told which one they got.
+
+## Community
+
+`/patient/community` (`src/pages/patient/Community.tsx`) — peer support
+circles. **This replaces the old Social Support tab**, whose feed and doctor
+chat were hardcoded mock data; the route `/patient/social-support` now redirects
+here.
+
+Circles are condition-shaped, because that is what women actually want to
+compare notes about: **Pregnancy**, **PCOS & PCOD**, **Thyroid**, **Iron &
+Anaemia**, **Blood Sugar** (gestational and type 2), **New Mothers**, **Mind &
+Mood**, and an open **Women's Wellness** circle. They are seeded by
+`supabase/community.sql`; edit the copy freely, but keep the slugs — the
+matching keys off them.
+
+**Three tabs.**
+
+- **Discover** — every circle, with the ones matching her own profile badged
+  *"Suits your profile"* and sorted to the top. The match runs off her reported
+  conditions, her latest screening findings and her life stage, through the same
+  alias table the exercise plans use (`src/lib/community.ts` →
+  `profileMatchKeys`), so "PCOD" in a questionnaire reaches the PCOS circle.
+  The open circle is deliberately never badged: it suits everyone, so saying so
+  carries no information.
+- **My circles** — the chat. Messages are live where Supabase realtime is
+  enabled on `community_messages`, and still work without it (new messages
+  appear on the next send or reload).
+- **Requests** — who is waiting to be let into her circles.
+
+**Joining is always a request.** She picks a display name (defaulted to a first
+name plus an initial — these are circles about miscarriage, mental health and
+PCOS, so the default should not be her full name) and can add a line about
+herself. The status is the **database's** decision, never the browser's: the
+`community_admit()` trigger forces every insert to `pending`, except into a
+circle with no approved members yet, which would otherwise be un-joinable — that
+founding member is admitted immediately. After that, **existing members approve
+the next person**, which keeps moderation inside the circle rather than needing
+an admin the app does not have.
+
+**Privacy is enforced in Postgres, not in the page.** `public.community_member()`
+(SECURITY DEFINER, so the membership policies don't recurse on their own table)
+gates reads and writes on `community_messages`: a signed-in stranger cannot read
+a circle she has not been approved into. The same guard trigger that admits the
+founding member also restores every column except `status` on an update, so an
+approving member cannot rewrite a peer's display name or move her request to
+another circle, and a pending patient cannot wave herself through. Messages
+cannot be edited after they are read; an author can delete her own.
+
+**Storage** — `community_groups`, `community_memberships` and
+`community_messages` (`supabase/community.sql`), read and written through
+`src/services/communityService.ts`. A missing table degrades gracefully, as
+elsewhere: the page shows "No circles yet" rather than erroring, so a deploy
+that has not applied the SQL does not take the page down. Matching and message
+validation are pure functions in `src/lib/community.ts`, unit tested in
+`src/lib/__tests__/community.test.ts`; the service's row mapping and its
+missing-table fallbacks in `src/services/__tests__/communityService.test.ts`.
 
 ## Patient kitchen (pantry)
 
@@ -941,6 +1145,42 @@ Long-running work no longer disappears on a page refresh:
   `src/App.tsx` (`staleTime` 5 min, `gcTime` 30 min, no refetch on window
   focus), so switching pages serves from cache instead of refetching.
 
+### Page loads (why tabs no longer flash a spinner)
+
+Pages used to load themselves in a `useEffect` with their own `isLoading`
+starting at `true`. React Router unmounts the page you leave, so the fresh
+mount knew nothing about what the previous one had fetched: **every** tab
+switch — not just the first visit — put a full-page spinner over data that had
+been on screen a second earlier, and refetched all of it.
+
+Two hooks fix that for good, and both are the pattern to follow for any new
+page:
+
+- `src/hooks/useCachedPageData.ts` wraps `useQuery` for a page's whole
+  snapshot. The query cache lives at the app root and outlives the unmount, so
+  a return visit renders the previous answer in its first frame and
+  revalidates underneath. It hands back `isFirstLoad` — true only when there is
+  genuinely nothing to show — which is the *only* state a page should block
+  on. A query still waiting on `enabled` counts as loading, because rendering
+  the page empty for that beat is the same flicker. `refreshMs` keeps the
+  polling that the doctor's request queue and patient list rely on.
+  Unit tested in `src/hooks/__tests__/useCachedPageData.test.tsx`, including
+  that a second mount neither spins nor re-fetches.
+- `src/hooks/useAuthUserId.ts` is one cached answer for "who is signed in".
+  Eleven call sites each ran their own `supabase.auth.getUser()` — a round trip
+  to the auth server that every page waited on before its first query could
+  even start. `useDoctorPatients` owns the same cache key, so they share it.
+
+Converted so far: the patient's Dashboard, Health Check, Tracker, Community and
+Profile, and the doctor's Patients, Consultation Requests and Patient Analysis.
+Page tests render through `src/test/renderPage.tsx`, which supplies a **fresh**
+query client per test so one test's cache cannot satisfy the next test's query.
+
+Two rules keep the cache honest where a page also owns editable state: seed
+local state from the snapshot **once** (a background refresh must never
+overwrite half-typed input), and after a write, re-read the snapshot rather
+than patching a second copy of it.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` (frontend, repo root) and `backend/.env.example`
@@ -955,11 +1195,12 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
-| `GEMINI_API_KEY` | Backend | No | Powers the written analysis on Patient Analysis, the patient chatbot, lab-report reading, and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables all of them cleanly. |
-| `GEMINI_API_KEY2`, `GEMINI_API_KEY3` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" below. Only `GEMINI_API_KEY` is required. |
+| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot, lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
+| `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
 | `GEMINI_MODEL` | Backend | No | Defaults to `gemini-2.0-flash`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
+| `RATELIMIT_STORAGE_URI` | Backend | No | Where flask-limiter keeps its request counters. Defaults to `memory://` (in-process), which is correct while the API runs as a single worker — the case on Render's free plan. Point it at a shared Redis instance (`redis://…`) before scaling past one worker, otherwise each process enforces its own separate copy of the limit. `REDIS_URL` is used as a fallback, so an attached Render Key Value instance works with no extra config. |
 
 ### Credentials previously committed to this repo
 
@@ -1058,6 +1299,15 @@ in the dashboard. Once the service is live, copy its URL into the frontend's
 The model artifacts in `backend/disease_detection/ml/*.json` are committed, so no
 training step runs on deploy; the service loads them at startup and falls back to
 the rule-based baseline if they are missing.
+
+**Reading the deploy log.** `run.py` logs to stdout in every environment, which
+is the only stream Render captures — the container's `logs/app.log` is discarded
+on each redeploy, and file logging is skipped entirely if the directory is not
+writable. Expect `Running 'python run.py'` to be followed by the startup lines
+(environment validation, dataset counts, database health) before the port opens.
+Render prints `No open ports detected, continuing to scan...` while the service
+loads its datasets and models; that is normal on the free plan and resolves once
+Waitress binds — the deploy has only failed if the scan never succeeds.
 
 ### Backend (Vercel, alternative)
 
