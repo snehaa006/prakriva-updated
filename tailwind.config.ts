@@ -183,14 +183,20 @@ export default {
           900: "hsl(12 44% 23%)",
         },
       },
+      // Corners were 12/20/28/36px — soft enough that a card, a dialog and a
+      // pill all read as the same lozenge, and large enough on a 200px card
+      // that the radius competed with the content. Tightened to a scale where
+      // each step is a distinguishable surface: chips stay pill-shaped, cards
+      // are quietly rounded, and only genuinely large surfaces take a big
+      // radius. `full` is unchanged, so buttons and avatars are untouched.
       borderRadius: {
         none: "0px",
-        sm: "8px",
-        DEFAULT: "12px",
-        md: "14px",
-        lg: "20px",
-        xl: "28px",
-        "2xl": "36px",
+        sm: "6px",
+        DEFAULT: "8px",
+        md: "10px",
+        lg: "12px",
+        xl: "16px",
+        "2xl": "20px",
         full: "9999px",
       },
       // Shadows are cast in the warm neutral rather than a cool gray, so
@@ -211,6 +217,10 @@ export default {
       transitionDuration: {
         DEFAULT: "250ms",
       },
+      // One small motion vocabulary, defined once here and used everywhere,
+      // rather than a bespoke transition per component. All of it is switched
+      // off by the `prefers-reduced-motion` block in src/index.css — motion is
+      // decoration in this app, never the only way something is communicated.
       keyframes: {
         "accordion-down": {
           from: {
@@ -228,10 +238,34 @@ export default {
             height: "0",
           },
         },
+        // Content entering the page: a short rise, never a slide from off-screen.
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        // Line-art illustrations draw themselves. Paths carry pathLength={1},
+        // so one keyframe works for every path regardless of its real length.
+        "draw-stroke": {
+          from: { strokeDashoffset: "1" },
+          to: { strokeDashoffset: "0" },
+        },
+        // A slow, shallow swell — used once, on the pregnancy illustration.
+        breathe: {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.025)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "rise-in": "rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in": "fade-in 0.4s ease-out both",
+        "draw-stroke": "draw-stroke 1.2s cubic-bezier(0.65, 0, 0.35, 1) both",
+        breathe: "breathe 5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },
   },

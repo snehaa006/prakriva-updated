@@ -123,6 +123,17 @@ plan starts from. See "Care tracks" below.
   "Color" below.
 - `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
   strings and so can't use Tailwind classes.
+- `src/components/illustrations/LineArt.tsx` — the app's line-art marks
+  (`Bloom`, `Expecting`, `Cradle`, `Cycle`, `Plate`), which draw their own
+  strokes on mount. `lifeStageArt.tsx` maps a life stage to one of them. See
+  "Motion and illustration" below.
+- `src/lib/lifeStage.ts` — what life stage a patient is in (pregnancy,
+  postpartum, menopause, general wellness) and what the app shows for it:
+  label, illustration, badge styling and nutrition tips. Pure and testable;
+  distinct from `healthTrack.ts`, which is the set of *care pathways* she opted
+  into and can hold several of at once.
+- `src/components/ui/reveal.tsx` and `src/hooks/useCountUp.ts` — the two motion
+  primitives: staggered entrance, and figures that count up.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
@@ -1249,6 +1260,45 @@ globally to fix that.
 `src/lib/__tests__/brandPalette.test.ts` fails the build if an off-brand
 utility or a hardcoded chart hex reappears — the drift happened once already,
 one reasonable-looking green badge at a time.
+
+**Corners.** The radius scale is 6/8/10/12/16/20px (`sm` → `2xl`). It used to
+be 12/20/28/36, soft enough that a chip, a card and a dialog all read as the
+same lozenge, and large enough that on a small card the radius competed with
+the content. `full` is unchanged, so pills and avatars are untouched.
+
+## Motion and illustration
+
+Animation is defined once, in `tailwind.config.ts` (`rise-in`, `fade-in`,
+`draw-stroke`, `breathe`), and reached through two primitives rather than
+hand-rolled per component:
+
+- `<Reveal index={n}>` (`src/components/ui/reveal.tsx`) fades content up on
+  mount, 70ms apart. Long lists should cap `index` — a 40-row table where row
+  39 waits three seconds is worse than no animation.
+- `useCountUp(value)` (`src/hooks/useCountUp.ts`) counts a figure up when it
+  changes. It **always lands on the exact value**, only animates *upward*, and
+  never renders `NaN`/`Infinity` — these are calories and adherence scores, and
+  an animated number is an easy place to show a patient something untrue.
+  Pair it with `tabular-nums` or the layout jitters as it settles.
+
+**Illustrations** (`src/components/illustrations/LineArt.tsx`) are inline SVG
+line art on a shared 64×64 viewBox, one stroke weight, `currentColor`, no
+fills — so they sit beside 1.5px Lucide icons as the same family of marks and
+follow whatever `text-*` colour the surface sets. Every stroke carries
+`pathLength={1}`, which normalises path length so a single keyframe
+(dashoffset 1 → 0) draws any path and strokes can be staggered by index
+without measuring anything in JS.
+
+They are deliberately abstract — a contour, no faces, no skin tone. A patient
+looking at a pregnancy illustration should see a pictogram of her situation,
+not a character who doesn't look like her.
+
+**All of it is switched off under `prefers-reduced-motion`**, by a blanket
+guard in `src/index.css` that collapses every animation and transition to
+0.01ms. Motion in this app is always decoration — nothing is communicated by
+movement alone — and migraine and pregnancy both raise motion sensitivity, so
+honouring the OS setting is a requirement here rather than a nicety. Playwright
+can verify both paths with `reducedMotion: 'reduce' | 'no-preference'`.
 
 ## Caching
 

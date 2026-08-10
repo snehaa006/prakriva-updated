@@ -187,6 +187,27 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
     background-color: hsl(var(--secondary));
     color: hsl(var(--secondary-foreground));
   }
+
+  /* Every animation in this app is decoration — an illustration drawing
+     itself, a figure counting up, a card rising in. None of it carries
+     information that isn't also in the text, so all of it can be switched
+     off wholesale. Vestibular disorders are common enough in this app's
+     audience (migraine and pregnancy both raise motion sensitivity) that
+     honouring the OS setting is a requirement, not a nicety.
+
+     `0.01ms` rather than `none`: animations still fire and complete, so
+     anything relying on `animationend` or on a `both` fill mode holding its
+     final state keeps working — it just arrives instantly. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
