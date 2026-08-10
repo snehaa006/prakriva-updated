@@ -137,6 +137,15 @@ plan starts from. See "Care tracks" below.
   file in a browser is enough. It is deliberately outside `src/` and is not
   part of the Vite build.
 
+  Its palette is not a copy of the Canva deck's — it is `src/index.css`'s own
+  design system converted from HSL to hex (warm cream `--background`, deep
+  maroon `--primary`, blush and peach `--secondary`/`--accent`, and the
+  `--vata`/`--pitta`/`--kapha` ramp as the categorical accent), so the deck and
+  the running app read as one system. The cover reuses
+  `src/assets/ayurveda-hero.jpg` under the same maroon gradient the landing
+  hero composes it with. **If the brand tokens in `src/index.css` change, the
+  deck's `:root` block needs the same change.**
+
   Its content tracks this README rather than the original Canva deck, so
   **when a feature here changes, check the deck too** — the care tracks table
   (slide 4), the screening models (slide 5), the diet-generation inputs and
