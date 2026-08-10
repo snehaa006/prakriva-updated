@@ -132,12 +132,23 @@ plan starts from. See "Care tracks" below.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
 - `presentation/index.html` — the HackNite 2026 pitch deck as a standalone,
-  self-contained HTML presentation (16 slides, converted from the original
-  Canva deck). It has no build step and no external requests: all styles,
-  scripts and screenshots are inlined, so opening the file in a browser is
-  enough. Navigate with `←` / `→` (or space, or the on-hover control bar) and
-  press `F` for fullscreen. It is deliberately outside `src/` and is not part
-  of the Vite build.
+  self-contained HTML presentation (15 slides). No build step and no external
+  requests: styles, scripts and screenshots are all inlined, so opening the
+  file in a browser is enough. It is deliberately outside `src/` and is not
+  part of the Vite build.
+
+  Its content tracks this README rather than the original Canva deck, so
+  **when a feature here changes, check the deck too** — the care tracks table
+  (slide 4), the screening models (slide 5), the diet-generation inputs and
+  guardrails (slide 6) and the architecture lanes (slide 11) all restate what
+  is documented below.
+
+  Presenter controls: `←` / `→` / space to move, `S` for the speaker-notes
+  drawer, `O` for the slide overview (click a card or press `1`–`9` to jump),
+  `T` / `R` to run and reset the talk timer, `B` to black out the screen for a
+  live demo or Q&A, `F` for fullscreen and `?` for the shortcut list. Each
+  slide carries a suggested duration; they total the ~10:45 shown next to the
+  timer.
 
 ## Getting started
 
