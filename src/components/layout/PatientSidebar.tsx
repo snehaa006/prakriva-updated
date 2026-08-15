@@ -6,6 +6,7 @@ import {
   Home,
   Bell,
   ShoppingCart,
+  ShoppingBag,
   Settings,
   User,
   LogOut,
@@ -57,6 +58,11 @@ const navigationItems: {
     title: "Community",
     url: "/patient/community",
     icon: Users,
+  },
+  {
+    title: "Shop",
+    url: "/patient/shop",
+    icon: ShoppingBag,
   },
 ];
 

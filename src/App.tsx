@@ -44,6 +44,8 @@ import {
 import PatientProfile from "./pages/patient/PatientProfile";
 import Reminders from "./pages/patient/Reminders";
 import Pantry from "./pages/patient/Pantry";
+import Shop from "./pages/patient/Shop";
+import ShopProduct from "./pages/patient/ShopProduct";
 import Settings from "./pages/patient/Settings";
 import DoctorProfile from "./pages/doctor/DoctorProfile";
 import ConsultDoctor from "./components/ConsultDoctor";
@@ -244,6 +246,10 @@ const AppRoutes = () => (
         <Route path="progress" element={<div className="p-6">Progress Tracking - Coming Soon</div>} />
         <Route path="wellness" element={<div className="p-6">Wellness Tips - Coming Soon</div>} />
         <Route path="pantry" element={<Pantry />} />
+        {/* The shop: a comparison and referral surface, open to every patient
+            regardless of care track — everyone needs something. */}
+        <Route path="shop" element={<Shop />} />
+        <Route path="shop/:productId" element={<ShopProduct />} />
         <Route path="shopping" element={<Navigate to="/patient/pantry" replace />} />
         <Route path="appointments" element={<AppointmentScheduler/>} />
         <Route path="reminders" element={<Reminders />} />
