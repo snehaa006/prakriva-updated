@@ -67,6 +67,25 @@ function useSelectContext(name: string) {
   return ctx;
 }
 
+/**
+ * Recursively find every `SelectItem` in a children tree and record its label
+ * against its value. Used to populate the label map without mounting the
+ * (closed, and therefore unrendered) dropdown content.
+ */
+function collectItemLabels(
+  children: React.ReactNode,
+  into: Map<string, React.ReactNode>,
+): void {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as { value?: unknown; children?: React.ReactNode };
+    if (child.type === SelectItem && typeof props.value === "string") {
+      into.set(props.value, props.children);
+    }
+    if (props.children) collectItemLabels(props.children, into);
+  });
+}
+
 /* -------------------------------------------------------------------------
  * Root
  * ---------------------------------------------------------------------- */
@@ -126,6 +145,16 @@ const Select = ({
   const registerItemLabel = React.useCallback((itemValue: string, label: React.ReactNode) => {
     itemLabels.current.set(itemValue, label);
   }, []);
+
+  // Seed the label map straight from the element tree, before anything mounts.
+  //
+  // `SelectContent` renders `null` while closed, so its `SelectItem` children
+  // never run and never call `registerItemLabel`. That left `SelectValue`
+  // blank on first paint for every select in the app — a settings page of
+  // empty boxes until you opened each dropdown once. Walking the children here
+  // is a pure read of the props tree, so the label is available immediately
+  // and the runtime registration above still covers dynamic items.
+  collectItemLabels(children, itemLabels.current);
 
   return (
     <SelectContext.Provider

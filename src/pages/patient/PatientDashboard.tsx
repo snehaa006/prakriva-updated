@@ -36,6 +36,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Reveal } from "@/components/ui/reveal";
+import { ShopSuggestions } from "@/components/shop/ShopSuggestions";
 import { Plate } from "@/components/illustrations/LineArt";
 import { LIFE_STAGE_ART } from "@/components/illustrations/lifeStageArt";
 import { describeLifeStage, lifeStageInfo } from "@/lib/lifeStage";
@@ -1172,6 +1173,11 @@ const PatientDashboard = () => {
                 </ul>
               </CardContent>
             </Card>
+
+            {/* Things she may need to buy for this stage. Sits below the
+                nutrition tips deliberately — the dashboard is for her plan,
+                and shopping is a side door off it, not the point of it. */}
+            <ShopSuggestions />
 
             {/* Reminders */}
             {todaysMeals.filter(m => m.status === "pending").length > 0 && (

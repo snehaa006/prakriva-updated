@@ -5,7 +5,8 @@ manage patients, build recipes and diet charts, review dosha/consultation
 data, and run maternal disease-risk screening for their pregnant patients;
 patients complete an Ayurvedic health questionnaire, list the foods in their
 kitchen, get a personalized diet plan, get exercise suggestions matched to the
-risks their health check flagged, and join peer-support community circles.
+risks their health check flagged, compare prices on the kit their stage of care
+calls for, and join peer-support community circles.
 
 Patients pick their **care tracks** at signup — pregnancy, PCOD/PCOS, both, or
 neither — which decides which tabs they see and which nutritional targets their
@@ -134,6 +135,9 @@ plan starts from. See "Care tracks" below.
   into and can hold several of at once.
 - `src/components/ui/reveal.tsx` and `src/hooks/useCountUp.ts` — the two motion
   primitives: staggered entrance, and figures that count up.
+- `src/lib/shop/` + `src/data/shopCatalogue.ts` — the patient shop: search,
+  stage-aware recommendations, and the outbound-link host allow-list. See
+  "Shop (price comparison and referral)" below.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
   also used as the browser-tab favicon and the social preview image) and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
@@ -1128,6 +1132,60 @@ can cook rather than what a generator picked.
   read and written through `src/services/pantryService.ts`. RLS makes the list
   the patient's own: they insert/update/delete only their rows, and a treating
   doctor can read but never write them.
+
+## Shop (price comparison and referral)
+
+`/patient/shop` and `/patient/shop/:productId` — a curated catalogue of the
+things patients at each life stage commonly need, with every seller's price
+side by side and a link out to whichever she picks.
+
+**It is a comparison surface, not a store.** Prakriva takes no payment, holds
+no stock and fulfils nothing; there is no cart, no order and no address. That
+constraint shapes the whole feature, and the UI states it on both pages.
+
+- `src/data/shopCatalogue.ts` — the catalogue (~32 products across 9
+  categories). **Seeded data, not a live feed**: prices are indicative and
+  dated by `PRICE_CHECKED_ON`, which the UI always shows next to them, and the
+  seller's own page is always presented as the authority. Adding a price API
+  later means replacing this file; nothing around it changes.
+- `src/lib/shop/search.ts` — relevance scoring, filters and sorting, all pure.
+  Ranking is title phrase → title word → keyword → category → brand, and every
+  typed word must hit something, so "pregnancy pillow" can't match everything
+  merely tagged pregnancy. Ties break deterministically (relevance → stage's
+  shelf order → id) so the grid never reshuffles between renders.
+- `src/lib/shop/recommendations.ts` — what to suggest, from her life stage,
+  trimester and care tracks. At most one product per category, so a pregnant
+  patient gets a pillow, a cream and compression socks rather than four
+  pillows. Every suggestion carries a `reason` phrased as context ("Often
+  wanted in the second trimester"), never as a directive.
+- `src/lib/shop/retailers.ts` — the security boundary. A direct product URL is
+  only used if it is https **and** on that retailer's own host, matched on a
+  dot boundary so `amazon.in.evil.example` fails; anything else degrades to a
+  retailer search rather than a wrong destination. Outbound links carry
+  `noopener noreferrer nofollow sponsored` and open in a new tab.
+- `src/hooks/usePatientStage.ts` — the small slice of the patient record
+  (life stage, trimester, tracks) that pages other than the dashboard need in
+  order to tailor themselves. Shares react-query's cache with the dashboard.
+- **On the dashboard** — `ShopSuggestions` renders a short "Things you might
+  need" list in the sidebar, below the nutrition tips. Deliberately compact:
+  the dashboard is for her plan, and shopping is a side door off it.
+
+**Editorial rules**, enforced by `src/data/__tests__/shopCatalogue.test.ts` so
+a later edit can't quietly break them:
+
+- A `blurb` says what the product *is*, never what it does to a body. The test
+  fails on "prevents", "treats", "clinically proven" and friends.
+- Anything ingested carries `clinicianAdvised`, and the product page shows a
+  full-width notice rather than fine print. A nutrition app should not be the
+  reason someone starts iron on her own.
+- **No home fetal dopplers, at any price.** They would rank well here, and
+  obstetric bodies advise against home use precisely because a reassuring
+  heartbeat found by an untrained user delays presentation when something is
+  wrong. Selling reassurance is the one thing this catalogue must not do.
+
+There is no product photography: Prakriva doesn't own these images, so tiles
+are typographic and led by the category glyph. It also keeps the grid honest —
+the comparison here is about price and seller.
 
 ## Patient selection (doctors)
 
