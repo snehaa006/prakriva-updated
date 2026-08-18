@@ -1,24 +1,32 @@
-// The plan hub — everything about *managing* a diet plan, in one place.
+// The plan hub — your plans and the logging you do against them.
 //
-// This merges four surfaces that used to be scattered: "My Plans", "Create
-// Plan" and "Progress" (three tabs inside the old dashboard, wedged next to
-// the daily meal checklist) and "My Kitchen" (a separate page filed under
-// "More"). They belong together: you look at your plans, make a new one when
-// none fit, check how the week went, and keep the kitchen list the plans are
-// built from. The daily checklist — the thing you open every day — moved out
-// to its own "Today" tab instead of competing with all of this.
+// This merges what used to be "My Plans", "Create Plan" and "Progress" (three
+// tabs inside the old dashboard, wedged next to the daily checklist) with the
+// Meal Logging page. Logging is the work here, so it gets the room: the plan
+// list is a narrow rail on the left that answers "which plan am I on?" and
+// then gets out of the way, and the rest of the width belongs to today's
+// meals — tap one to read how it's prepared, mark it eaten, skipped or
+// pending, and rate how it made you feel, all without leaving the row.
 //
-// The Plans tab answers "which plan am I on?" by showing every plan with the
-// current one opened in place, so choosing and reviewing are the same view
-// rather than two.
+// What the old Meal Logging page lost in the move was only the parts that
+// duplicated something else: a patient-ID search box (she is signed in), a
+// second plan picker, and a recipe lookup backed by three hardcoded strings
+// where the real recipe API was already a click away.
 
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -33,6 +41,12 @@ import {
   Filter,
   TrendingUp,
   Refrigerator,
+  ChefHat,
+  Utensils,
+  Clock,
+  Activity,
+  Heart,
+  Zap,
   Loader2,
   Save,
   Sparkles,
@@ -62,6 +76,7 @@ import {
   recipeToMeal,
   slotFor,
   type DietPlanDoc,
+  type MealStatus,
   type PlanFilters,
   type TrackedMeal,
 } from "@/lib/dietPlan";
@@ -84,6 +99,61 @@ const TABS: { id: HubTab; label: string; shortLabel: string; icon: typeof Calend
 
 const isHubTab = (v: string | null): v is HubTab =>
   TABS.some((t) => t.id === v);
+
+const RATING_EMOJI = {
+  digestion: ["😰", "😕", "😐", "😊", "😄"],
+  mood: ["😢", "😟", "😐", "🙂", "😊"],
+  energy: ["😴", "🥱", "😐", "⚡", "🚀"],
+} as const;
+
+/** One 1–5 slider with its emoji, as used for digestion, mood and energy. */
+function FeelingSlider({
+  label,
+  icon: Icon,
+  kind,
+  value,
+  onChange,
+  low,
+  high,
+}: {
+  label: string;
+  icon: typeof Heart;
+  kind: keyof typeof RATING_EMOJI;
+  value: number;
+  onChange: (v: number) => void;
+  low: string;
+  high: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2 text-footnote font-medium text-foreground">
+          <Icon className="h-4 w-4 text-primary" />
+          {label}
+        </span>
+        <span className="text-2xl">{RATING_EMOJI[kind][value - 1] ?? "😐"}</span>
+      </div>
+      <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={1} max={5} step={1} />
+      <div className="flex justify-between text-caption1 text-foreground-tertiary">
+        <span>{low}</span>
+        <span>{high}</span>
+      </div>
+    </div>
+  );
+}
+
+function StatusIcon({ status }: { status: MealStatus }) {
+  if (status === "eaten") return <CheckCircle className="h-5 w-5 text-success" />;
+  if (status === "skipped") return <XCircle className="h-5 w-5 text-foreground-tertiary" />;
+  return <Clock className="h-5 w-5 text-warning" />;
+}
+
+/** The card tint that carries a meal's status without reading the icon. */
+function statusTone(status: MealStatus): string {
+  if (status === "eaten") return "bg-accent-soft/60 border-accent-soft";
+  if (status === "skipped") return "bg-muted border-border";
+  return "bg-warning/5 border-warning/20";
+}
 
 /** The macro strip shown under a meal name, in a plan preview or a draft. */
 function Macros({ meal }: { meal: TrackedMeal }) {
@@ -119,12 +189,13 @@ const PlanHub = () => {
     addPlan,
     todaysMeals,
     todayStats,
+    updateMealStatus,
     trackingHistory,
   } = useDietPlan();
   const recipe = useRecipeViewer();
 
-  // The tab lives in the URL so "My Kitchen" in the menu, and a link from
-  // Today, can land on the right panel instead of always opening on Plans.
+  // The tab lives in the URL so a link from Today can land on the right panel
+  // instead of always opening on Plans.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: HubTab = isHubTab(tabParam) ? tabParam : "plans";
@@ -133,6 +204,53 @@ const PlanHub = () => {
       setSearchParams(tab === "plans" ? {} : { tab }, { replace: true });
     },
     [setSearchParams]
+  );
+
+  // Meal logging: which meal is open, and the feedback being written about it.
+  // The ratings reset per meal — carrying yesterday's slider positions into
+  // the next meal would quietly submit numbers she never chose.
+  const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
+  const [digestion, setDigestion] = useState(3);
+  const [mood, setMood] = useState(3);
+  const [energy, setEnergy] = useState(3);
+  const [feedbackNotes, setFeedbackNotes] = useState("");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+
+  const selectMeal = useCallback((mealId: string) => {
+    setSelectedMealId((current) => (current === mealId ? null : mealId));
+    setDigestion(3);
+    setMood(3);
+    setEnergy(3);
+    setFeedbackNotes("");
+  }, []);
+
+  const saveFeedback = useCallback(
+    async (meal: TrackedMeal) => {
+      if (!user?.id) return;
+      setSavingFeedback(true);
+      try {
+        const { error } = await supabase.from("meal_feedback").insert({
+          patient_id: user.id,
+          patient_name: user.name || "Patient",
+          meal_id: meal.id,
+          meal_name: meal.name,
+          digestion_rating: digestion,
+          mood_rating: mood,
+          energy_rating: energy,
+          notes: feedbackNotes,
+          date: dayKey(),
+        });
+        if (error) throw error;
+        toast.success("Feedback saved — thank you for sharing how you feel");
+        setFeedbackNotes("");
+      } catch (e) {
+        console.error("Error saving feedback:", e);
+        toast.error("Failed to save feedback. Please try again.");
+      } finally {
+        setSavingFeedback(false);
+      }
+    },
+    [user?.id, user?.name, digestion, mood, energy, feedbackNotes]
   );
 
   // Create-plan state
@@ -349,8 +467,9 @@ const PlanHub = () => {
       <div>
         <h1 className="text-title2 text-foreground">Your plan</h1>
         <p className="mt-1 text-footnote text-foreground-secondary">
-          Choose what you're following, build a new plan, see how the week went,
-          and keep your kitchen list up to date.
+          Log today's meals and how they made you feel, switch between your
+          plans, build a new one, see how the week went, and keep your kitchen
+          list up to date.
         </p>
       </div>
 
@@ -380,159 +499,359 @@ const PlanHub = () => {
         </div>
       </div>
 
-      {/* ── MY PLANS ── */}
+      {/* ── MY PLANS + MEAL LOGGING ──
+          The plan list is a narrow rail, not a full-width tab of its own: it
+          answers "which plan am I on?" in a glance and then gets out of the
+          way. The space it used to take goes to logging, which is the thing
+          you actually do here — pick a meal, read how it should be prepared,
+          say whether you ate it, and rate how it felt. */}
       {activeTab === "plans" && (
-        <div className="space-y-3">
-          {loadingPlans && plans.length === 0 ? (
-            <Card>
-              <CardContent className="flex items-center justify-center gap-3 py-16 text-footnote text-foreground-secondary">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                Loading your plans…
-              </CardContent>
-            </Card>
-          ) : plans.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
-                  <Calendar className="h-7 w-7 text-primary" />
-                </div>
-                <div className="max-w-sm space-y-1.5">
-                  <h3 className="text-headline text-foreground">No diet plans yet</h3>
-                  <p className="text-footnote text-foreground-secondary">
-                    Create one using filters, or check back once your doctor assigns one.
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+          {/* Plans rail */}
+          <div className="space-y-2.5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-subhead font-semibold text-foreground">Your plans</h2>
+              <span className="text-caption1 tabular-nums text-foreground-tertiary">
+                {plans.length}
+              </span>
+            </div>
+
+            {loadingPlans && plans.length === 0 ? (
+              <Card>
+                <CardContent className="flex items-center gap-2.5 py-6 text-caption1 text-foreground-secondary">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  Loading…
+                </CardContent>
+              </Card>
+            ) : plans.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft">
+                    <Calendar className="h-5 w-5 text-primary" />
+                  </div>
+                  <p className="text-caption1 text-foreground-secondary">
+                    No plans yet. Create one, or wait for your doctor to assign one.
                   </p>
-                </div>
-                <Button onClick={() => setActiveTab("create")}>
-                  <Filter className="mr-2 h-4 w-4" /> Create plan
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            plans.map((plan) => {
-              const isActive = activePlan?.id === plan.id;
-              // The plan you are following opens in place, so picking a plan
-              // and reading it are one view rather than two screens. The rows
-              // come from the same live list Today renders — not a second
-              // derivation of the stored plan — so a meal swapped on Today
-              // shows here as the meal she actually has, and each row carries
-              // the status she gave it.
-              const preview = isActive ? todaysMeals : [];
-              return (
-                <Card
-                  key={plan.id}
-                  className={`transition-all duration-200 ease-ios ${
-                    isActive ? "ring-1 ring-primary/40" : ""
-                  }`}
+                  <Button size="sm" onClick={() => setActiveTab("create")}>
+                    <Filter className="mr-1.5 h-3.5 w-3.5" /> Create plan
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {plans.map((plan) => {
+                  const isActive = activePlan?.id === plan.id;
+                  return (
+                    <button
+                      key={plan.id}
+                      onClick={() => {
+                        if (isActive) return;
+                        activatePlan(plan);
+                        setSelectedMealId(null);
+                        toast.success("You're following this plan now.");
+                      }}
+                      className={`w-full rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 ease-ios ${
+                        isActive
+                          ? "border-primary/40 bg-accent-soft/50 ring-1 ring-primary/25"
+                          : "border-border bg-card hover:border-primary/25 hover:bg-accent-soft/25"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0 truncate text-footnote font-semibold text-foreground">
+                          {describePlanSource(plan)}
+                        </p>
+                        {isActive && (
+                          <Badge className="shrink-0 bg-primary text-caption2 text-primary-foreground">
+                            Following
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-caption1 text-foreground-secondary">
+                        {plan.totalMeals} meals · {plan.planDuration}
+                      </p>
+                      <p className="text-caption2 text-foreground-tertiary">
+                        {new Date(plan.createdAt).toLocaleDateString()}
+                        {plan.source === "personalized-diet-chart" && " · Doctor assigned"}
+                      </p>
+                    </button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setActiveTab("create")}
                 >
-                  <CardContent className="py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-subhead font-semibold text-foreground">
-                            {describePlanSource(plan)}
-                          </h3>
-                          {isActive && (
-                            <Badge className="bg-accent-soft text-accent-soft-foreground">
-                              Following
-                            </Badge>
-                          )}
-                          {plan.source === "personalized-diet-chart" && (
-                            <Badge variant="outline">Doctor assigned</Badge>
-                          )}
+                  <Filter className="mr-1.5 h-3.5 w-3.5" /> Create another plan
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Meal logging for the plan she is following */}
+          <div className="space-y-4">
+            {!activePlan ? (
+              <Card>
+                <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
+                    <ChefHat className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="max-w-sm space-y-1">
+                    <h3 className="text-headline text-foreground">No plan selected</h3>
+                    <p className="text-footnote text-foreground-secondary">
+                      Pick a plan on the left and today's meals will show up here to log.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Today at a glance for this plan */}
+                <Card>
+                  <CardContent className="py-5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+                      <div>
+                        <div className="text-caption1 text-foreground-secondary">Today's meals</div>
+                        <div className="mt-0.5 text-title2 tabular-nums text-foreground">
+                          {todayStats.total}
                         </div>
-                        <p className="mt-1 text-footnote text-foreground-secondary">
-                          {plan.totalMeals} meals · {plan.planDuration} · Created{" "}
-                          {new Date(plan.createdAt).toLocaleDateString()}
+                      </div>
+                      <div>
+                        <div className="text-caption1 text-foreground-secondary">Eaten</div>
+                        <div className="mt-0.5 text-title2 tabular-nums text-primary">
+                          {todayStats.eaten}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-caption1 text-foreground-secondary">Still pending</div>
+                        <div className="mt-0.5 text-title2 tabular-nums text-foreground">
+                          {todayStats.pending}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-caption1 text-foreground-secondary">Calories eaten</div>
+                        <div className="mt-0.5 text-title2 tabular-nums text-foreground">
+                          {todayStats.caloriesConsumed}
+                        </div>
+                      </div>
+                    </div>
+                    <Progress value={todayStats.completionPct} className="mt-4 h-2" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-headline">
+                      <ChefHat className="h-5 w-5 text-primary" />
+                      Today's meals
+                    </CardTitle>
+                    <CardDescription>
+                      {todaysMeals.length > 0
+                        ? "Tap a meal to see how it's prepared, log it, and rate how it felt."
+                        : "This plan has no meals scheduled for today."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {todaysMeals.length === 0 ? (
+                      <div className="flex flex-col items-center py-12 text-center">
+                        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
+                          <Utensils className="h-6 w-6" />
+                        </span>
+                        <p className="mt-4 text-subhead font-medium text-foreground">
+                          Nothing scheduled today
+                        </p>
+                        <p className="mt-1.5 max-w-xs text-footnote text-foreground-secondary">
+                          Try another plan, or create one that covers today.
                         </p>
                       </div>
-                      {!isActive && (
-                        <Button
-                          size="sm"
-                          className="h-10 w-full sm:h-9 sm:w-auto"
-                          onClick={() => {
-                            activatePlan(plan);
-                            toast.success("You're following this plan now.");
-                          }}
-                        >
-                          Follow this plan
-                        </Button>
-                      )}
-                    </div>
-
-                    {isActive && (
-                      <div className="mt-4 border-t border-border pt-4">
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="text-caption1 font-medium uppercase tracking-wide text-foreground-tertiary">
-                            Today from this plan
-                          </h4>
-                          <span className="text-caption1 tabular-nums text-foreground-secondary">
-                            {todayStats.eaten} of {todayStats.total} logged
-                          </span>
-                        </div>
-
-                        {preview.length === 0 ? (
-                          <p className="mt-3 text-footnote text-foreground-secondary">
-                            This plan has no meals scheduled for today.
-                          </p>
-                        ) : (
-                          <ul className="mt-3 divide-y divide-border">
-                            {preview.map((meal) => {
-                              const SlotIcon = slotFor(meal.type).icon;
-                              return (
-                                <li
-                                  key={meal.id}
-                                  className="flex items-start justify-between gap-3 py-2.5"
-                                >
-                                  <div className="flex min-w-0 items-start gap-3">
-                                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
-                                      <SlotIcon className="h-3.5 w-3.5" />
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="truncate text-footnote font-medium text-foreground">
-                                        {meal.name}
-                                      </p>
-                                      <p className="text-caption1 text-foreground-tertiary">
-                                        {meal.time} ·{" "}
-                                        {meal.type.charAt(0).toUpperCase() + meal.type.slice(1)}
-                                        {meal.status !== "pending" && ` · ${meal.status}`}
-                                      </p>
-                                    </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {todaysMeals.map((meal) => {
+                          const SlotIcon = slotFor(meal.type).icon;
+                          const isSelected = selectedMealId === meal.id;
+                          return (
+                            <div
+                              key={meal.id}
+                              className={`cursor-pointer rounded-xl border p-4 transition-colors duration-200 ease-ios ${statusTone(
+                                meal.status
+                              )} ${isSelected ? "ring-2 ring-primary" : ""}`}
+                              onClick={() => selectMeal(meal.id)}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-primary">
+                                    <SlotIcon className="h-4 w-4" />
+                                  </span>
+                                  <div className="min-w-0">
+                                    <h3 className="truncate text-subhead font-medium text-foreground">
+                                      {meal.name}
+                                    </h3>
+                                    <p className="text-footnote text-foreground-secondary">
+                                      {meal.time} · {meal.calories} cal
+                                    </p>
+                                    {meal.doshaBalance && (
+                                      <Badge variant="outline" className="mt-1.5 text-caption2">
+                                        {meal.doshaBalance}
+                                      </Badge>
+                                    )}
                                   </div>
-                                  {meal.recipeId && (
+                                </div>
+                                <span className="shrink-0">
+                                  <StatusIcon status={meal.status} />
+                                </span>
+                              </div>
+
+                              {/* Meal detail — preparation, benefits, the three
+                                  status buttons, and the feedback form for
+                                  this meal. All of it in place, so rating a
+                                  meal never means finding it again in a
+                                  second list. */}
+                              {isSelected && (
+                                <div
+                                  className="mt-3.5 space-y-3 border-t border-border/60 pt-3.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Macros meal={meal} />
+
+                                  {meal.quantity && (
+                                    <p className="text-footnote text-foreground-secondary">
+                                      <span className="font-medium text-foreground">Quantity:</span>{" "}
+                                      {meal.quantity}
+                                    </p>
+                                  )}
+                                  {meal.preparation && (
+                                    <p className="text-footnote text-foreground-secondary">
+                                      <span className="font-medium text-foreground">
+                                        Preparation:
+                                      </span>{" "}
+                                      {meal.preparation}
+                                    </p>
+                                  )}
+                                  {meal.benefits && (
+                                    <p className="text-footnote text-foreground-secondary">
+                                      <span className="font-medium text-foreground">Benefits:</span>{" "}
+                                      {meal.benefits}
+                                    </p>
+                                  )}
+
+                                  <div className="grid grid-cols-3 gap-2">
                                     <Button
                                       size="sm"
-                                      variant="ghost"
-                                      className="h-8 w-8 shrink-0 p-0 text-foreground-tertiary"
-                                      onClick={() => recipe.open(meal.recipeId)}
-                                      disabled={recipe.loading}
-                                      title="View recipe"
+                                      variant={meal.status === "eaten" ? "default" : "outline"}
+                                      className="h-10 gap-1.5"
+                                      onClick={() => updateMealStatus(meal.id, "eaten")}
                                     >
-                                      <Eye className="h-3.5 w-3.5" />
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                      Eaten
                                     </Button>
-                                  )}
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
+                                    <Button
+                                      size="sm"
+                                      variant={meal.status === "skipped" ? "secondary" : "outline"}
+                                      className="h-10 gap-1.5"
+                                      onClick={() => updateMealStatus(meal.id, "skipped")}
+                                    >
+                                      <XCircle className="h-3.5 w-3.5" />
+                                      Skip
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={meal.status === "pending" ? "secondary" : "outline"}
+                                      className="h-10 gap-1.5"
+                                      onClick={() => updateMealStatus(meal.id, "pending")}
+                                    >
+                                      <Clock className="h-3.5 w-3.5" />
+                                      Pending
+                                    </Button>
+                                  </div>
 
-                        <p className="mt-3 text-caption1 text-foreground-tertiary">
-                          Mark these eaten or skipped on the{" "}
-                          <Link
-                            to="/patient/today"
-                            className="font-medium text-primary underline underline-offset-2"
-                          >
-                            Today
-                          </Link>{" "}
-                          tab.
-                        </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {meal.recipeId && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="gap-1.5 text-caption1 text-foreground-secondary"
+                                        disabled={recipe.loading}
+                                        onClick={() => recipe.open(meal.recipeId)}
+                                      >
+                                        <Eye className="h-3.5 w-3.5" /> Full recipe
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  {/* Post-meal feedback — available on any
+                                      meal you've selected, the way it was on
+                                      the old Meal Logging page. */}
+                                  <div className="space-y-5 rounded-xl border border-border bg-background/60 p-4">
+                                    <div>
+                                      <p className="text-footnote font-medium text-foreground">
+                                        How did it make you feel?
+                                      </p>
+                                      <p className="text-caption1 text-foreground-tertiary">
+                                        Your doctor sees these ratings alongside the plan.
+                                      </p>
+                                    </div>
+
+                                    <FeelingSlider
+                                      label="Digestion"
+                                      icon={Activity}
+                                      kind="digestion"
+                                      value={digestion}
+                                      onChange={setDigestion}
+                                      low="Poor"
+                                      high="Excellent"
+                                    />
+                                    <FeelingSlider
+                                      label="Mood"
+                                      icon={Heart}
+                                      kind="mood"
+                                      value={mood}
+                                      onChange={setMood}
+                                      low="Low"
+                                      high="High"
+                                    />
+                                    <FeelingSlider
+                                      label="Energy"
+                                      icon={Zap}
+                                      kind="energy"
+                                      value={energy}
+                                      onChange={setEnergy}
+                                      low="Tired"
+                                      high="Energetic"
+                                    />
+
+                                    <Textarea
+                                      rows={3}
+                                      placeholder="Anything else about how this meal made you feel…"
+                                      value={feedbackNotes}
+                                      onChange={(e) => setFeedbackNotes(e.target.value)}
+                                    />
+
+                                    <Button
+                                      className="w-full"
+                                      disabled={savingFeedback}
+                                      onClick={() => saveFeedback(meal)}
+                                    >
+                                      {savingFeedback ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                                        </>
+                                      ) : (
+                                        "Save feedback"
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
                 </Card>
-              );
-            })
-          )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -930,7 +1249,11 @@ const PlanHub = () => {
         </div>
       )}
 
-      {/* ── MY KITCHEN ── */}
+      {/* ── MY KITCHEN ──
+          The foods she has at home and the ones she needs to buy. It sits
+          here rather than in its own corner of the menu because it is the
+          input to a plan: the doctor builds around what she can actually
+          cook, and she updates it while looking at the plan that used it. */}
       {activeTab === "kitchen" && <PantryPanel />}
 
       {recipe.element}
