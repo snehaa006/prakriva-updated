@@ -5,10 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Edit, Save, X, User, Heart, Star, MessageSquare, Phone, Mail, Calendar, Target, MapPin, Apple, HeartPulse, IdCard, Copy, Check, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { useToast } from "@/hooks/use-toast";
 import { useCachedPageData } from "@/hooks/useCachedPageData";
 import { supabase } from "@/lib/supabase";
@@ -317,11 +317,10 @@ export default function Profile() {
       <div className="rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="flex items-center gap-4 sm:gap-5">
-            <Avatar className="h-16 w-16 shrink-0 shadow-sm sm:h-20 sm:w-20">
-              <AvatarFallback className="bg-accent-soft text-title3 font-semibold text-primary sm:text-title2">
-                {patientData.name.split(' ').map(n => n[0]).join('')}
-              </AvatarFallback>
-            </Avatar>
+            {/* Editable: tapping the camera badge uploads, replaces or
+                removes the photo, and the new one appears in the sidebar and
+                the header immediately. */}
+            <ProfilePhoto name={patientData.name} />
             <div className="min-w-0">
               <h1 className="text-title2 text-foreground sm:text-title1">{patientData.name}</h1>
               <p className="mt-0.5 truncate text-footnote text-foreground-secondary">{patientData.email}</p>

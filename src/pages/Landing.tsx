@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { Bloom } from "@/components/illustrations/LineArt";
 import { Logo } from "@/components/ui/logo";
+import { LanguageSwitcher } from "@/components/LanguageSelect";
 import { Stethoscope, User, Brain, Heart, Users, Leaf, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -68,9 +69,14 @@ const Landing = () => {
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Logo size="sm" />
-        <Button variant="ghost" size="sm" onClick={() => navigate("/auth/patient")}>
-          Sign in
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Language first, before sign-in: someone who cannot read the page
+              cannot read the sign-in button either. */}
+          <LanguageSwitcher />
+          <Button variant="ghost" size="sm" onClick={() => navigate("/auth/patient")}>
+            Sign in
+          </Button>
+        </div>
       </header>
 
       {/* ── Hero ──

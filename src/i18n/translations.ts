@@ -1,36 +1,103 @@
-// Translation dictionaries.
+// Translation dictionaries and the language catalogue.
 //
-// Scope, stated plainly: English and Hindi are complete for the app *chrome* —
-// navigation, settings, profile labels and the shared actions. Page body copy
-// (clinical guidance, exercise instructions, screening questions) is not
-// translated. Machine-translating medical instructions into languages nobody on
-// the team reads would be worse than leaving them in English, so those strings
-// stay English until a speaker reviews them.
+// Two layers work together, and the split matters:
 //
-// `LANGUAGES` below marks which options are actually available; the Settings
-// dropdown disables the rest rather than silently showing English and looking
-// broken.
+// 1. **This file** — a hand-written dictionary for the app *chrome*
+//    (navigation, settings, profile labels, shared actions). It is exact,
+//    instant and works offline, so the parts of the UI a user navigates by
+//    never depend on the network.
+// 2. **`src/i18n/pageTranslator.ts`** — a runtime translator that walks the
+//    live DOM and machine-translates everything else, in any of the languages
+//    below. That is what makes the *whole* site multilingual rather than just
+//    the menus.
+//
+// Layer 1 is consulted first (by exact English string as well as by key), so
+// where a curated phrase exists it wins over the machine one.
 
-export type LanguageCode = "en" | "hi" | "mr" | "gu" | "bn" | "ta";
+export type LanguageCode =
+  // Indian languages
+  | "en"
+  | "hi"
+  | "mr"
+  | "gu"
+  | "bn"
+  | "ta"
+  | "te"
+  | "kn"
+  | "ml"
+  | "pa"
+  | "or"
+  | "as"
+  | "ur"
+  | "sa"
+  | "ne"
+  // International
+  | "es"
+  | "fr"
+  | "de"
+  | "pt"
+  | "ru"
+  | "ar"
+  | "zh-CN"
+  | "ja"
+  | "ko"
+  | "id"
+  | "sw";
 
 export interface LanguageOption {
   code: LanguageCode;
   /** Shown in the picker, in the language itself. */
   label: string;
-  /** False when there is no dictionary yet — the picker disables it. */
-  available: boolean;
+  /** The same name in English, so the picker is readable in any script. */
+  englishLabel: string;
+  /**
+   * True when this file carries a hand-written dictionary for the chrome.
+   * Everything else is machine-translated at runtime; the picker says so
+   * rather than pretending the two are the same quality.
+   */
+  curated: boolean;
+  /** Right-to-left script — the document direction follows it. */
+  rtl?: boolean;
+  /** Which region this language is grouped under in the picker. */
+  group: "India" | "International";
 }
 
 export const LANGUAGES: LanguageOption[] = [
-  { code: "en", label: "English", available: true },
-  { code: "hi", label: "हिंदी (Hindi)", available: true },
-  { code: "mr", label: "मराठी (Marathi)", available: false },
-  { code: "gu", label: "ગુજરાતી (Gujarati)", available: false },
-  { code: "bn", label: "বাংলা (Bengali)", available: false },
-  { code: "ta", label: "தமிழ் (Tamil)", available: false },
+  { code: "en", label: "English", englishLabel: "English", curated: true, group: "India" },
+  { code: "hi", label: "हिंदी", englishLabel: "Hindi", curated: true, group: "India" },
+  { code: "mr", label: "मराठी", englishLabel: "Marathi", curated: false, group: "India" },
+  { code: "gu", label: "ગુજરાતી", englishLabel: "Gujarati", curated: false, group: "India" },
+  { code: "bn", label: "বাংলা", englishLabel: "Bengali", curated: false, group: "India" },
+  { code: "ta", label: "தமிழ்", englishLabel: "Tamil", curated: false, group: "India" },
+  { code: "te", label: "తెలుగు", englishLabel: "Telugu", curated: false, group: "India" },
+  { code: "kn", label: "ಕನ್ನಡ", englishLabel: "Kannada", curated: false, group: "India" },
+  { code: "ml", label: "മലയാളം", englishLabel: "Malayalam", curated: false, group: "India" },
+  { code: "pa", label: "ਪੰਜਾਬੀ", englishLabel: "Punjabi", curated: false, group: "India" },
+  { code: "or", label: "ଓଡ଼ିଆ", englishLabel: "Odia", curated: false, group: "India" },
+  { code: "as", label: "অসমীয়া", englishLabel: "Assamese", curated: false, group: "India" },
+  { code: "ur", label: "اردو", englishLabel: "Urdu", curated: false, rtl: true, group: "India" },
+  { code: "sa", label: "संस्कृतम्", englishLabel: "Sanskrit", curated: false, group: "India" },
+  { code: "ne", label: "नेपाली", englishLabel: "Nepali", curated: false, group: "India" },
+  { code: "es", label: "Español", englishLabel: "Spanish", curated: false, group: "International" },
+  { code: "fr", label: "Français", englishLabel: "French", curated: false, group: "International" },
+  { code: "de", label: "Deutsch", englishLabel: "German", curated: false, group: "International" },
+  { code: "pt", label: "Português", englishLabel: "Portuguese", curated: false, group: "International" },
+  { code: "ru", label: "Русский", englishLabel: "Russian", curated: false, group: "International" },
+  { code: "ar", label: "العربية", englishLabel: "Arabic", curated: false, rtl: true, group: "International" },
+  { code: "zh-CN", label: "中文（简体）", englishLabel: "Chinese (Simplified)", curated: false, group: "International" },
+  { code: "ja", label: "日本語", englishLabel: "Japanese", curated: false, group: "International" },
+  { code: "ko", label: "한국어", englishLabel: "Korean", curated: false, group: "International" },
+  { code: "id", label: "Bahasa Indonesia", englishLabel: "Indonesian", curated: false, group: "International" },
+  { code: "sw", label: "Kiswahili", englishLabel: "Swahili", curated: false, group: "International" },
 ];
 
 export const DEFAULT_LANGUAGE: LanguageCode = "en";
+
+export const isLanguageCode = (value: unknown): value is LanguageCode =>
+  LANGUAGES.some((l) => l.code === value);
+
+export const findLanguage = (code: LanguageCode): LanguageOption | undefined =>
+  LANGUAGES.find((l) => l.code === code);
 
 /** Every translatable key. English doubles as the fallback. */
 const en = {
@@ -88,9 +155,10 @@ const en = {
   "settings.preferences": "App Preferences",
   "settings.preferences.desc": "Customize your app experience",
   "settings.language": "Preferred Language",
-  "settings.language.partial":
-    "Menus and settings are translated. Clinical guidance stays in English until a speaker reviews it.",
-  "settings.language.unavailable": "coming soon",
+  "settings.language.desc":
+    "Changes the whole app, on every page. Menus and settings use hand-checked wording; everything else is translated automatically as you browse.",
+  "settings.language.curated": "hand-checked",
+  "settings.language.translating": "Translating this page…",
   "settings.theme": "Theme",
   "settings.theme.light": "Light",
   "settings.theme.dark": "Dark",
@@ -109,8 +177,16 @@ const en = {
   "settings.privacy.directory": "List me in the doctor directory",
   "settings.privacy.directory.desc": "Patients can find and request a consultation with you",
 
+  "settings.appearance": "Appearance",
+  "settings.appearance.desc": "How the app looks on this device",
+
   "settings.account": "Account",
-  "settings.account.desc": "Your data and your account",
+  "settings.account.desc": "Your data, your session and your account",
+  "settings.logout": "Log out",
+  "settings.logout.desc": "Sign out of Prakriva on this device",
+  "settings.logout.confirm": "Log out of Prakriva?",
+  "settings.logout.confirmDesc":
+    "You will need to sign in again to see your plan, your logs and your reminders.",
   "settings.export": "Export my data",
   "settings.export.desc": "Download everything stored about you as a JSON file",
   "settings.delete": "Delete my account",
@@ -122,6 +198,8 @@ const en = {
 
   // --- profile ------------------------------------------------------------
   "profile.title": "Profile",
+  "profile.photo": "Profile photo",
+  "profile.photo.desc": "Shown next to your name across the app",
   "profile.personalInfo": "Personal Information",
   "profile.name": "Name",
   "profile.email": "Email",
@@ -197,9 +275,10 @@ const hi: Partial<Record<TranslationKey, string>> = {
   "settings.preferences": "ऐप प्राथमिकताएँ",
   "settings.preferences.desc": "अपने ऐप अनुभव को अनुकूलित करें",
   "settings.language": "पसंदीदा भाषा",
-  "settings.language.partial":
-    "मेन्यू और सेटिंग्स अनुवादित हैं। चिकित्सा संबंधी मार्गदर्शन तब तक अंग्रेज़ी में रहेगा जब तक कोई जानकार उसकी समीक्षा न कर ले।",
-  "settings.language.unavailable": "जल्द आ रहा है",
+  "settings.language.desc":
+    "यह पूरे ऐप की भाषा बदलता है, हर पेज पर। मेन्यू और सेटिंग्स की शब्दावली जाँची हुई है; बाकी सामग्री ब्राउज़ करते समय स्वतः अनुवादित होती है।",
+  "settings.language.curated": "जाँचा हुआ",
+  "settings.language.translating": "इस पेज का अनुवाद हो रहा है…",
   "settings.theme": "थीम",
   "settings.theme.light": "हल्का",
   "settings.theme.dark": "गहरा",
@@ -220,7 +299,14 @@ const hi: Partial<Record<TranslationKey, string>> = {
   "settings.privacy.directory.desc": "मरीज़ आपको ढूँढ़कर परामर्श का अनुरोध कर सकते हैं",
 
   "settings.account": "खाता",
-  "settings.account.desc": "आपका डेटा और आपका खाता",
+  "settings.account.desc": "आपका डेटा, आपका सत्र और आपका खाता",
+  "settings.appearance": "रूप-रंग",
+  "settings.appearance.desc": "इस डिवाइस पर ऐप कैसा दिखे",
+  "settings.logout": "लॉग आउट",
+  "settings.logout.desc": "इस डिवाइस पर प्रकृवा से साइन आउट करें",
+  "settings.logout.confirm": "प्रकृवा से लॉग आउट करें?",
+  "settings.logout.confirmDesc":
+    "अपनी योजना, लॉग और अनुस्मारक देखने के लिए आपको फिर से साइन इन करना होगा।",
   "settings.export": "मेरा डेटा निर्यात करें",
   "settings.export.desc": "आपके बारे में संग्रहीत सब कुछ JSON फ़ाइल में डाउनलोड करें",
   "settings.delete": "मेरा खाता हटाएँ",
@@ -231,6 +317,8 @@ const hi: Partial<Record<TranslationKey, string>> = {
   "settings.saveFailed": "सेटिंग्स सहेजी नहीं जा सकीं",
 
   "profile.title": "प्रोफ़ाइल",
+  "profile.photo": "प्रोफ़ाइल फ़ोटो",
+  "profile.photo.desc": "पूरे ऐप में आपके नाम के साथ दिखती है",
   "profile.personalInfo": "व्यक्तिगत जानकारी",
   "profile.name": "नाम",
   "profile.email": "ईमेल",
@@ -248,15 +336,33 @@ const hi: Partial<Record<TranslationKey, string>> = {
   "profile.loadFailed": "आपकी प्रोफ़ाइल लोड नहीं हो सकी",
 };
 
-export const DICTIONARIES: Record<LanguageCode, Partial<Record<TranslationKey, string>>> = {
+export const DICTIONARIES: Partial<Record<LanguageCode, Partial<Record<TranslationKey, string>>>> = {
   en,
   hi,
-  mr: {},
-  gu: {},
-  bn: {},
-  ta: {},
 };
 
 /** Translate `key`, falling back to English, then to the key itself. */
 export const translate = (language: LanguageCode, key: TranslationKey): string =>
   DICTIONARIES[language]?.[key] ?? en[key] ?? key;
+
+/**
+ * The curated dictionary as an English-phrase → translation map.
+ *
+ * The runtime page translator sees rendered text, not keys, so this is how a
+ * hand-written phrase gets to win over the machine translation of the same
+ * words. Keys whose English value is duplicated are fine — they translate to
+ * the same thing by construction.
+ */
+export const curatedPhrases = (
+  language: LanguageCode
+): Record<string, string> => {
+  const dictionary = DICTIONARIES[language];
+  if (!dictionary || language === DEFAULT_LANGUAGE) return {};
+
+  const phrases: Record<string, string> = {};
+  (Object.keys(en) as TranslationKey[]).forEach((key) => {
+    const translated = dictionary[key];
+    if (translated) phrases[en[key]] = translated;
+  });
+  return phrases;
+};

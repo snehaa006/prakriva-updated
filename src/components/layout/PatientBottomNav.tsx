@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, ChefHat, Heart, MoreHorizontal, Sparkles } from "lucide-react";
+import { Home, ChefHat, Activity, MoreHorizontal, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -7,8 +7,12 @@ const tabs = [
   { title: "Meals", url: "/patient/meal-logging", icon: ChefHat },
 ];
 
+// The daily tracker, not the old combined "Track" tab: lifestyle logging is
+// the one thing a patient opens every day, so it gets the thumb-reachable
+// slot. The health check and the cycle trackers are one tap further, under
+// "More" (and in the sidebar's main menu on a larger screen).
 const tabsAfterAI = [
-  { title: "Track", url: "/patient/tracker", icon: Heart },
+  { title: "Lifestyle", url: "/patient/lifestyle-tracker", icon: Activity },
 ];
 
 function TabLink({ tab }: { tab: (typeof tabs)[number] }) {

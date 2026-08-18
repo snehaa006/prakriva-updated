@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
   Users,
@@ -11,10 +11,10 @@ import {
   FileText,
   Settings,
   User,
-  LogOut,
   Stethoscope,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { initialsOf } from "@/services/avatarService";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +56,11 @@ const navigationItems = [
   },
 ];
 
+/**
+ * Profile is its own page; signing out sits inside Settings rather than as a
+ * row in the navigation, where it was one slip away from opening a patient
+ * record. Same arrangement as the patient sidebar.
+ */
 const accountItems = [
   {
     title: "Profile",
@@ -63,7 +68,7 @@ const accountItems = [
     icon: User,
   },
   {
-    title: "Settings",
+    title: "Settings & Logout",
     url: "/doctor/settings",
     icon: Settings,
   },
@@ -128,11 +133,7 @@ function SidebarBody({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
-  const { user, setUser } = useApp();
-
-  const handleLogout = () => {
-    setUser(null);
-  };
+  const { user } = useApp();
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -146,10 +147,18 @@ function SidebarBody({
       {/* User Info */}
       {user && (
         <div className="border-b border-sidebar-border p-4">
-          <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
+          <NavLink
+            to="/doctor/profile"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center rounded-xl transition-colors hover:bg-accent-soft/60",
+              collapsed ? "justify-center" : "space-x-3 p-1",
+            )}
+          >
             <Avatar className="h-10 w-10 bg-gradient-primary">
-              <AvatarFallback className="bg-transparent">
-                <User className="h-5 w-5 text-primary-foreground" />
+              {user.avatar && <AvatarImage src={user.avatar} alt="" />}
+              <AvatarFallback className="bg-transparent text-sm font-semibold text-primary-foreground">
+                {initialsOf(user.name) || <User className="h-5 w-5 text-primary-foreground" />}
               </AvatarFallback>
             </Avatar>
             {!collapsed && (
@@ -158,7 +167,7 @@ function SidebarBody({
                 <p className="truncate text-xs text-sidebar-foreground/70">Healthcare Provider</p>
               </div>
             )}
-          </div>
+          </NavLink>
         </div>
       )}
 
@@ -202,29 +211,6 @@ function SidebarBody({
                 onNavigate={onNavigate}
               />
             ))}
-            <li>
-              {collapsed ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleLogout}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl px-0 py-2.5 text-sm font-medium text-sidebar-foreground transition-all duration-150 ease-ios hover:bg-accent-soft/60"
-                    >
-                      <LogOut className="h-4 w-4 shrink-0" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Logout</TooltipContent>
-                </Tooltip>
-              ) : (
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-sidebar-foreground transition-all duration-150 ease-ios hover:bg-accent-soft/60"
-                >
-                  <LogOut className="h-4 w-4 shrink-0" />
-                  <span>Logout</span>
-                </button>
-              )}
-            </li>
           </ul>
         </div>
       </div>

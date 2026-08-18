@@ -6,6 +6,7 @@ import { PatientBottomNav } from "./PatientBottomNav";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import NutritionChatbot from "@/components/chat/NutritionChatbot";
+import { LanguageSwitcher } from "@/components/LanguageSelect";
 
 const PatientLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -47,6 +48,11 @@ const PatientLayout = () => {
           </Button>
 
           <div className="flex-1" />
+
+          {/* The language is changeable from every screen, not only from
+              Settings — that is the difference between "the app has a language
+              setting" and "the app is multilingual". */}
+          <LanguageSwitcher />
         </header>
         <main className="flex-1 overflow-auto p-4 pb-28 md:p-6 md:pb-6 lg:p-8">
           <Outlet />

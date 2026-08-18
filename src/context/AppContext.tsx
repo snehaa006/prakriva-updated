@@ -11,6 +11,7 @@ import {
   fetchHealthTracks,
   syncHealthTracksFromMetadata,
 } from "@/services/healthTrackService";
+import { resolveAvatar } from "@/services/avatarService";
 
 /* ----------------------------- Type Definitions ----------------------------- */
 
@@ -220,7 +221,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       ? localStorage.getItem("prakriva_preview_bypass") ?? "patient"
       : "off";
     if (previewRole === "patient") {
-      setUser({ id: "preview-patient", name: "Preview Patient", email: "preview@example.com", role: "patient" });
+      setUser({
+        id: "preview-patient",
+        name: "Preview Patient",
+        email: "preview@example.com",
+        role: "patient",
+        avatar: resolveAvatar("preview-patient"),
+      });
       setQuestionnaireCompleted(true);
       // Both tracks on, not [] — a preview should surface every track-gated
       // feature (Health Check, Period Tracker, Skin & Acne) at once, not
@@ -231,7 +238,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       return;
     }
     if (previewRole === "doctor") {
-      setUser({ id: "preview-doctor", name: "Preview Doctor", email: "preview@example.com", role: "doctor" });
+      setUser({
+        id: "preview-doctor",
+        name: "Preview Doctor",
+        email: "preview@example.com",
+        role: "doctor",
+        avatar: resolveAvatar("preview-doctor"),
+      });
       setDoctor({ id: "preview-doctor", name: "Preview Doctor", email: "preview@example.com", specialization: "General Ayurveda" });
       setIsLoading(false);
       return;
@@ -279,6 +292,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             name: data?.name || profile.name || "Patient",
             email: authUser.email || "",
             role: "patient",
+            // The photo lives in auth metadata when it was uploaded, and in
+            // this device's cache when storage wasn't available.
+            avatar: resolveAvatar(
+              authUser.id,
+              authUser.user_metadata?.avatar_url as string | undefined
+            ),
           });
           setQuestionnaireCompleted(Boolean(data?.questionnaire_completed));
 
@@ -304,7 +323,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             email: authUser.email || "",
             specialization: data?.ayurvedic_specialization?.[0] || "",
           });
-          setUser({ id: authUser.id, name, email: authUser.email || "", role: "doctor" });
+          setUser({
+            id: authUser.id,
+            name,
+            email: authUser.email || "",
+            role: "doctor",
+            avatar: resolveAvatar(
+              authUser.id,
+              authUser.user_metadata?.avatar_url as string | undefined
+            ),
+          });
           setQuestionnaireCompleted(null);
           setHealthTracks(null);
 
