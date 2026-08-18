@@ -40,13 +40,16 @@ const navigationItems: {
   tracks?: HealthTrack[];
 }[] = [
   {
-    title: "Dashboard",
-    url: "/patient/dashboard",
+    title: "Today",
+    url: "/patient/today",
     icon: Home,
   },
   {
-    title: "Meal Logging",
-    url: "/patient/meal-logging",
+    // My Plans, Create Plan, Progress and My Kitchen are tabs inside this one
+    // page now, instead of three tabs on the dashboard plus a page under
+    // "More" — they are all the same job, done weekly rather than daily.
+    title: "My Plan",
+    url: "/patient/plans",
     icon: ChefHat,
   },
   {
@@ -83,8 +86,9 @@ const moreItems: {
     icon: Stethoscope,
   },
   {
+    // Deep link into the hub's Kitchen tab — it is no longer a page of its own.
     title: "My Kitchen",
-    url: "/patient/pantry",
+    url: "/patient/plans?tab=kitchen",
     icon: ShoppingCart,
   },
   {
@@ -195,7 +199,7 @@ function SidebarBody({
           collapsed ? "justify-center" : "justify-center",
         )}
       >
-        <NavLink to="/patient/dashboard" className="flex items-center justify-center">
+        <NavLink to="/patient/today" className="flex items-center justify-center">
           <Logo size={collapsed ? "sm" : "lg"} />
         </NavLink>
       </div>
