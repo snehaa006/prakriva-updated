@@ -46,6 +46,7 @@ import Reminders from "./pages/patient/Reminders";
 import Shop from "./pages/patient/Shop";
 import ShopProduct from "./pages/patient/ShopProduct";
 import Settings from "./pages/patient/Settings";
+import DoctorSettings from "./pages/doctor/Settings";
 import DoctorProfile from "./pages/doctor/DoctorProfile";
 import ConsultDoctor from "./components/ConsultDoctor";
 
@@ -181,7 +182,7 @@ const AppRoutes = () => (
       <Route path="personalized-diet" element={<Navigate to="/doctor/recipes" replace />} />
       <Route path="profile" element={<DoctorProfile />} />
       <Route path="consult-doctor" element={<ConsultDoctor />} />
-      <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
+      <Route path="settings" element={<DoctorSettings />} />
       <Route index element={<Navigate to="/doctor/dashboard" replace />} />
     </Route>
 

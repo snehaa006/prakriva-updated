@@ -1,23 +1,24 @@
 import { NavLink } from "react-router-dom";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Home,
   Bell,
   ShoppingBag,
   Settings,
   User,
-  LogOut,
-  Heart,
+  Activity,
+  HeartPulse,
+  CalendarHeart,
   ChefHat,
   Users,
   Stethoscope,
   Utensils,
-  MoreHorizontal,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { useApp } from "@/context/AppContext";
+import { initialsOf } from "@/services/avatarService";
 import { describeHealthTracks, type HealthTrack } from "@/lib/healthTrack";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,12 @@ import { cn } from "@/lib/utils";
  * Items every patient sees, plus the ones that only apply to a care pathway.
  * `tracks` is the whitelist: absent means "everyone", and an item shows when
  * the patient is on *any* of its tracks.
+ *
+ * The Lifestyle Tracker and the Health Check each get their own entry rather
+ * than sharing a "Track" tab: they are used daily and weekly respectively, by
+ * different patients, and burying both behind one label meant every visit
+ * started with picking a tab. Cycle and skin logging still share an entry,
+ * because those two genuinely are one routine.
  *
  * Health Check is the maternal disease screening, so it is pregnancy-only —
  * the models behind it are trained on pregnancy conditions and would score a
@@ -52,9 +59,21 @@ const navigationItems: {
     icon: ChefHat,
   },
   {
-    title: "Track",
+    title: "Lifestyle Tracker",
+    url: "/patient/lifestyle-tracker",
+    icon: Activity,
+  },
+  {
+    title: "Health Check",
+    url: "/patient/health-check",
+    icon: HeartPulse,
+    tracks: ["pregnancy"],
+  },
+  {
+    title: "Cycle & Skin",
     url: "/patient/tracker",
-    icon: Heart,
+    icon: CalendarHeart,
+    tracks: ["pcos"],
   },
   {
     title: "Community",
@@ -96,6 +115,12 @@ const moreItems: {
   },
 ];
 
+/**
+ * Account entries. Profile is its own page — it is where the photo and the
+ * constitutional assessment live — while signing out sits inside Settings
+ * rather than as a third item here: it is an account action, and a Logout
+ * button one slip away from Settings is easy to hit by accident.
+ */
 const accountItems = [
   {
     title: "Profile",
@@ -103,7 +128,7 @@ const accountItems = [
     icon: User,
   },
   {
-    title: "Settings",
+    title: "Settings & Logout",
     url: "/patient/settings",
     icon: Settings,
   },
@@ -168,7 +193,7 @@ function SidebarBody({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
-  const { user, setUser, healthTracks } = useApp();
+  const { user, healthTracks } = useApp();
 
   // Until the tracks have loaded, show only the items that apply to everyone —
   // better a menu that fills in than one that shows a maternal health check to
@@ -178,10 +203,6 @@ function SidebarBody({
       !item.tracks ||
       (healthTracks !== null && item.tracks.some((t) => healthTracks.includes(t))),
   );
-
-  const handleLogout = () => {
-    setUser(null);
-  };
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -200,10 +221,20 @@ function SidebarBody({
       {/* User Info */}
       {user && (
         <div className="border-b border-sidebar-border p-4">
-          <div className={cn("flex items-center", collapsed ? "justify-center" : "space-x-3")}>
+          {/* The whole block is a link to the profile — that is where the photo
+              is changed, and a face is the thing people click to get there. */}
+          <NavLink
+            to="/patient/profile"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center rounded-xl transition-colors hover:bg-accent-soft/60",
+              collapsed ? "justify-center" : "space-x-3 p-1",
+            )}
+          >
             <Avatar className="h-10 w-10 bg-gradient-secondary">
-              <AvatarFallback className="bg-transparent">
-                <User className="h-5 w-5 text-secondary-foreground" />
+              {user.avatar && <AvatarImage src={user.avatar} alt="" />}
+              <AvatarFallback className="bg-transparent text-sm font-semibold text-secondary-foreground">
+                {initialsOf(user.name) || <User className="h-5 w-5 text-secondary-foreground" />}
               </AvatarFallback>
             </Avatar>
             {!collapsed && (
@@ -214,7 +245,7 @@ function SidebarBody({
                 </p>
               </div>
             )}
-          </div>
+          </NavLink>
         </div>
       )}
 
@@ -285,29 +316,6 @@ function SidebarBody({
                 onNavigate={onNavigate}
               />
             ))}
-            <li>
-              {collapsed ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleLogout}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl px-0 py-2.5 text-sm font-medium text-sidebar-foreground transition-all duration-150 ease-ios hover:bg-accent-soft/60"
-                    >
-                      <LogOut className="h-4 w-4 shrink-0" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Logout</TooltipContent>
-                </Tooltip>
-              ) : (
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-sidebar-foreground transition-all duration-150 ease-ios hover:bg-accent-soft/60"
-                >
-                  <LogOut className="h-4 w-4 shrink-0" />
-                  <span>Logout</span>
-                </button>
-              )}
-            </li>
           </ul>
         </div>
       </div>

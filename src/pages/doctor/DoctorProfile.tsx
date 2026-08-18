@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { ProfilePhoto } from '@/components/ProfilePhoto';
 import { 
   Users, 
   Calendar, 
@@ -99,11 +100,9 @@ const DynamicDoctorDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-gradient-secondary rounded-full flex items-center justify-center">
-            <span className="text-secondary-foreground font-semibold text-lg">
-              {user?.name?.charAt(0) || 'D'}
-            </span>
-          </div>
+          {/* Editable, same control the patient profile uses — the photo it
+              sets is what the sidebar and the patient-facing directory show. */}
+          <ProfilePhoto name={user?.name} size="md" />
           <div>
             <h1 className="text-3xl font-bold text-foreground">
               Welcome back, {user?.name || 'Doctor'}

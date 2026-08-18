@@ -12,6 +12,10 @@ Patients pick their **care tracks** at signup — pregnancy, PCOD/PCOS, both, or
 neither — which decides which tabs they see and which nutritional targets their
 plan starts from. See "Care tracks" below.
 
+The whole app is **multilingual**: a language picker in the header of every
+screen translates the entire site — not just menus — into any of the languages
+listed under "Language and translation" below.
+
 ## Tech stack
 
 - **Frontend**: React + TypeScript + Vite, shadcn/ui + Radix + Tailwind CSS,
@@ -20,7 +24,13 @@ plan starts from. See "Care tracks" below.
   calculation, meal planning, plan storage, and the maternal disease detection
   pipeline (XGBoost anaemia + pregnancy-risk, GDM and preeclampsia logistic
   regressions, and a thyroid neural network — all run in numpy).
-- **Supabase**: Postgres database + auth, using row-level security.
+- **Supabase**: Postgres database + auth, using row-level security. Profile
+  photos use the optional `avatars` storage bucket, and fall back to a local
+  copy when it does not exist.
+- **Translation**: a curated dictionary for the app chrome plus a runtime page
+  translator that machine-translates everything else, in the browser. No key
+  and no service to run; the Flask backend exposes `/translate` only as a
+  fallback for networks that block the public endpoint.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
 - **Deployment**: the frontend deploys to **Vercel** (Root Directory = repo
@@ -53,6 +63,21 @@ plan starts from. See "Care tracks" below.
     `patientTrackOptions.ts`.
   - Auth calls live in `src/services/authService.ts`; license formats,
     the registry lookup and profile scoring in `src/lib/licenseVerification.ts`.
+- `src/i18n/` — language support. `translations.ts` holds the language
+  catalogue and the hand-written dictionary for the app chrome;
+  `pageTranslator.ts` is the runtime DOM translator that covers everything
+  else. `src/context/I18nContext.tsx` owns the current language and starts and
+  stops the translator; `src/services/translationService.ts` does the
+  batching, caching and provider fallback. See "Language and translation".
+- `src/components/settings/AccountSettings.tsx` — the settings screen both
+  roles share (`src/pages/patient/Settings.tsx`, `src/pages/doctor/Settings.tsx`
+  pass in their own toggles). Signing out lives here, not in the sidebar.
+- `src/components/ProfilePhoto.tsx` + `src/services/avatarService.ts` — the
+  profile picture and its upload/replace/remove flow.
+- `src/services/dataExportService.ts` — "Export my data" in Settings; collects
+  the signed-in patient's own rows and downloads them as JSON.
+- `src/lib/theme.ts` — light/dark/system theme, applied as a class on `<html>`
+  before the first render (`src/main.tsx`).
 - `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
   (`supabaseMock.ts`) and `renderPage.tsx` (renders a page with the router and
   a fresh react-query client, which pages need since they load through
@@ -239,6 +264,14 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/communityService.test.ts` — the community row
   mapping, that a join request never sends its own status, and the
   missing-table fallbacks.
+- `src/services/__tests__/translationService.test.ts` — batching and caching,
+  the curated dictionary winning over machine translation, the phrase-by-phrase
+  retry when a batch comes back misaligned, the backend fallback, the backoff
+  after a failure, and text staying English when every provider fails.
+- `src/i18n/__tests__/pageTranslator.test.ts` — the DOM translator: text nodes
+  and attributes, opted-out content left alone, content rendered *after* it
+  started, re-translating what a re-render puts back in English, preserved
+  whitespace, and an exact restore on stop.
 
 On the backend, `backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
@@ -246,6 +279,10 @@ a detector out) and the `/disease/*` endpoints.
 `backend/tests/test_dataset_loader.py` covers `load_all_datasets` directly —
 the API tests patch `app.get_datasets`, so without it nothing exercises the
 real loader or its critical-dataset guard.
+`backend/tests/test_translation_service.py` covers the translation fallback:
+batching, the in-process cache, the misaligned-batch retry, degrading to the
+source text when the upstream call fails, and the `/translate` route's
+validation.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
@@ -303,6 +340,151 @@ keys simply read as absent. Worth knowing:
 - `buildScreeningInputFromAssessment` prefills age, gestational week (from
   `dueDate`), trimester and history; labs and today's measurements stay blank
   for the patient or doctor to enter.
+
+## Patient navigation
+
+The patient sidebar (and the phone tab bar) is grouped rather than flat:
+
+| Group | Items |
+|---|---|
+| Main menu | Today, My Plan, **Lifestyle Tracker**, **Health Check** (pregnancy track), **Cycle & Skin** (PCOD/PCOS track), Community, Shop |
+| More | Consult Doctor, Food Compatibility, Reminders |
+| Account | Profile, **Settings & Logout** |
+
+Today (`/patient/today`) is the daily screen and absorbed meal logging; My Plan
+(`/patient/plans`) is the weekly one, with plans, plan creation, progress and
+the kitchen list as tabs inside it. `/patient/dashboard`,
+`/patient/meal-logging`, `/patient/pantry` and `/patient/progress` redirect
+there.
+
+Two things about that list are deliberate:
+
+- **The Lifestyle Tracker and the Health Check are separate entries.** They
+  used to share one "Track" tab (`/patient/tracker`), so a patient logging her
+  water intake and a patient running a maternal screening both had to pick a
+  sub-tab before they could do anything. Only the cycle and skin trackers still
+  share a tab — a PCOS patient logs both in the same sitting, and each
+  analysis reads the other's data. `/patient/tracker` now holds just those two,
+  and redirects to the Lifestyle Tracker for a patient who is not on the cycle
+  track.
+- **Signing out is inside Settings**, not a row in the navigation. It was one
+  slip away from "open my meal log", and — worse — it only cleared React state,
+  so a refresh brought the "logged out" session straight back. It now ends the
+  Supabase session for real (`signOutUser` in `src/services/authService.ts`),
+  behind a confirmation.
+
+Every route still exists on its own: `/patient/lifestyle-tracker`,
+`/patient/health-check`, `/patient/period-tracker` and `/patient/skin-tracker`
+all work as direct links, and the track-gated ones redirect a patient who is
+not on that track to her dashboard.
+
+The phone tab bar is Today · Plan · AI · Lifestyle · More, with everything else
+under "More" (which opens the same sidebar).
+
+## Profile photo
+
+`/patient/profile` and `/doctor/profile` carry an editable profile picture
+(`src/components/ProfilePhoto.tsx`). The camera badge opens a menu to upload,
+replace or remove it; the picture then appears next to the name in the sidebar
+immediately, because it is stored on `user.avatar` in `AppContext`.
+
+Storage degrades rather than failing (`src/services/avatarService.ts`):
+
+1. The image is cropped square, resized to 512px and re-encoded as JPEG in the
+   browser — a 6 MB phone photo has no business being a 40px avatar, and an
+   un-resized one would not fit in localStorage either.
+2. It is uploaded to the Supabase **`avatars` storage bucket** and its public
+   URL is written to the auth user's metadata, so the photo follows the account
+   to another device with no schema change.
+3. If that bucket does not exist (the state of a fresh Supabase project) or RLS
+   refuses, the photo is kept as a data URL on the device instead and the app
+   says so in the toast rather than reporting a failure.
+
+To enable the synced path, create a public bucket named `avatars` in the
+Supabase dashboard and allow authenticated users to write to their own
+`{user_id}/…` prefix.
+
+## Language and translation
+
+The language picker sits in the header of every screen (and in Settings), and
+it changes **the whole site**, on whatever page you are looking at — this is
+the "Google Translate the page" behaviour, running inside the app so it
+survives navigation, dialogs and data arriving late.
+
+How it works, in two layers:
+
+1. **Curated dictionary** (`src/i18n/translations.ts`) — hand-written
+   translations for the app chrome: navigation, settings, profile labels,
+   shared actions. Exact, instant, and works offline. English and Hindi are
+   complete; other languages fall through to layer 2 for everything.
+2. **Runtime page translator** (`src/i18n/pageTranslator.ts`) — walks the
+   rendered DOM, collects the visible text and the prose in `placeholder`,
+   `title`, `alt` and `aria-label`, translates it and writes it back. A
+   `MutationObserver` re-translates whatever React renders next, and every node
+   remembers the English it came from, so switching back to English is a
+   restore rather than a second round of translation.
+
+Translations are fetched by `src/services/translationService.ts`:
+
+- **Cached** in memory and in localStorage per language, so a page you have
+  already seen re-translates instantly, offline, with no request.
+- **Batched** — phrases are packed into ~1.2 KB newline-separated requests, at
+  most four in flight. The response echoes each source segment, so a batch whose
+  line count does not match the request is retried phrase by phrase rather than
+  applied misaligned.
+- **Fetched from Google's public `translate_a/single` endpoint**, the one the
+  Chrome translate bar uses. It is CORS-enabled and needs no key, which is what
+  makes whole-site translation possible with no infrastructure. If it is
+  blocked (some campus and corporate networks filter it), the service falls
+  back to the Flask backend's `POST /translate`, which makes the same call
+  server-side. Whichever provider answers is remembered, so a blocked endpoint
+  is not retried on every batch.
+- **Bounded on failure** — requests time out after 6s, a total failure pauses
+  calls for a minute, and text simply stays English in the meantime. The
+  translator retries a few times so a blip does not leave a page half in two
+  languages.
+
+Languages offered (`LANGUAGES` in `src/i18n/translations.ts`): English, Hindi,
+Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia,
+Assamese, Urdu, Sanskrit, Nepali, plus Spanish, French, German, Portuguese,
+Russian, Arabic, Chinese (Simplified), Japanese, Korean, Indonesian and
+Swahili. Urdu and Arabic set `<html dir="rtl">`.
+
+**Opting text out.** Anything inside `[translate="no"]`, `.notranslate`,
+`<code>`, `<pre>` or an SVG is left alone — brand names, code samples and chart
+axis labels should not be machine-translated. The language picker itself is
+marked this way so language names always render in their own script.
+
+The choice is stored per device and mirrored to the account (`user_settings`),
+so a new device inherits the account's language while a choice made on *this*
+device is never overwritten by it.
+
+## Settings and signing out
+
+`/patient/settings` and `/doctor/settings` render the same screen
+(`src/components/settings/AccountSettings.tsx`) with role-specific toggles; the
+doctor route used to say "Coming Soon". Sections:
+
+| Section | What it does |
+|---|---|
+| Preferred language | The picker described above, plus the timezone. |
+| Notifications | Per-role reminder switches. |
+| Appearance | Light / dark / system theme, applied immediately and re-applied before the first render on the next load (`src/lib/theme.ts`). |
+| Privacy | Data sharing, analytics, online status (doctors: directory listing). |
+| Account | Export my data, **Log out**, delete account. |
+
+Every toggle **persists**: it is written to this device first and mirrored to
+the `user_settings` table (`src/services/userSettingsService.ts`), with a line
+under the page title saying which of the two happened. Settings used to be
+component state that reset the moment you navigated away.
+
+"Export my data" is a real export (`src/services/dataExportService.ts`): it
+reads the signed-in patient's own rows — profile, lifestyle logs, cycle and
+weight logs, acne logs, screenings, pantry, meal tracking and feedback, diet
+plans, settings — and downloads them as JSON. Row level security is the access
+control, so it can only ever return that user's data; tables a deployment does
+not have are listed under `unavailable` rather than failing the export. It is
+patient-only: a doctor's records are their patients' data.
 
 ## Care tracks
 
@@ -1454,7 +1636,7 @@ committed.
 |---|---|---|---|
 | `VITE_SUPABASE_URL` | Frontend | Yes | Supabase project URL. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`) | Frontend | Yes | Supabase anon/publishable key. Safe to expose — protected by RLS. |
-| `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder and disease detection screening. Defaults to `http://localhost:8000`. |
+| `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder, disease detection screening, and the translation fallback (`POST /translate`). Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot, lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |

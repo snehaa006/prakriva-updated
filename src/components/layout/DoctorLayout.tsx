@@ -4,6 +4,7 @@ import { Menu, PanelLeft } from "lucide-react";
 import { DoctorSidebar } from "./DoctorSidebar";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSelect";
 
 const DoctorLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -38,6 +39,8 @@ const DoctorLayout = () => {
           </Button>
 
           <div className="flex-1" />
+
+          <LanguageSwitcher />
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           <Outlet />

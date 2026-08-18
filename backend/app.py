@@ -37,6 +37,7 @@ from disease_detection import (
 from disease_detection.pipeline import UnknownConditionError
 import gemini_service
 import diet_planner
+import translation_service
 from exceptions import (
     AyurvedicPlannerError, ValidationError, ModelError,
     DoshaPredictionError, MealPlanGenerationError, DatabaseError
@@ -1074,6 +1075,59 @@ def assess_acne_photo():
     except Exception as e:
         logger.error(f"Acne photo assessment failed: {e}")
         raise ModelError(f"Acne photo assessment failed: {e}")
+
+
+@app.route("/translate", methods=["POST"])
+@app.limiter.limit("120 per minute")
+def translate_texts():
+    """Machine-translate UI strings.
+
+    The frontend translates the page in the browser, calling Google's public
+    translate endpoint directly — it is CORS-enabled, so no backend is needed
+    for that. This endpoint is the fallback for networks that block it (some
+    campus and corporate proxies do), so a user on such a network still gets a
+    translated site instead of a silent failure.
+
+    Body: {"texts": ["...", ...], "target": "hi", "source": "en"}
+    Returns: {"translations": ["...", ...]} — same order, same length.
+    Anything that could not be translated comes back as its own source string,
+    so the caller never has to reason about holes in the array.
+    """
+    try:
+        if not request.is_json:
+            raise ValidationError("Content-Type must be application/json")
+
+        payload = request.json or {}
+        texts = payload.get("texts")
+        target = payload.get("target")
+        source = payload.get("source", "en")
+
+        if not isinstance(texts, list) or not texts:
+            raise ValidationError("`texts` must be a non-empty array of strings")
+        if len(texts) > 200:
+            raise ValidationError("`texts` may hold at most 200 strings per request")
+        if not isinstance(target, str) or not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z]{2,4})?", target):
+            raise ValidationError("`target` must be a language code, e.g. 'hi'")
+        if not isinstance(source, str) or not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z]{2,4})?", source):
+            raise ValidationError("`source` must be a language code, e.g. 'en'")
+
+        cleaned = []
+        for text in texts:
+            if not isinstance(text, str):
+                raise ValidationError("`texts` must hold strings only")
+            # Newlines are the record separator downstream, so they cannot
+            # survive inside a record.
+            cleaned.append(" ".join(text.split())[:2000])
+
+        translations = translation_service.translate_batch(cleaned, target, source)
+
+        return jsonify({"translations": translations})
+
+    except ValidationError:
+        raise
+    except Exception as e:
+        logger.error(f"Translation failed: {e}")
+        raise AyurvedicPlannerError(f"Translation failed: {e}")
 
 
 @app.route("/analytics", methods=["GET"])

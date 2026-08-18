@@ -1,30 +1,37 @@
 import { useMemo, useState, type ComponentType } from "react";
+import { Navigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/context/AppContext";
-import { showsCycleTracking, showsDiseaseDetection } from "@/lib/healthTrack";
-import { Heart, HeartPulse, CalendarHeart, Sparkles } from "lucide-react";
-import LifestyleTracker from "./LifestyleTracker";
-import HealthRisks from "./HealthRisks";
+import { showsCycleTracking } from "@/lib/healthTrack";
+import { CalendarHeart, Sparkles } from "lucide-react";
 import PeriodTracker from "./PeriodTracker";
 import SkinTracker from "./SkinTracker";
 
 /**
- * One destination for everything trackable, instead of a separate sidebar
- * item per tracker. The individual routes (/patient/health-check,
- * /patient/period-tracker, /patient/skin-tracker, /patient/lifestyle-tracker)
- * still work standalone for deep links — this just gives day-to-day
- * navigation a single "Track" entry instead of four.
+ * Cycle and skin logging, together.
+ *
+ * This used to hold every tracker — lifestyle, health check, period and skin —
+ * behind one "Track" tab, which meant a patient logging her water intake and a
+ * patient running a maternal screening both landed on the same tab picker
+ * first. Those two now have their own navigation entries
+ * (`/patient/lifestyle-tracker` and `/patient/health-check`).
+ *
+ * What is left is the pair that really is one routine: a PCOS patient logging
+ * a cycle usually logs her skin in the same sitting, and the analyses read
+ * each other's data. A patient who isn't on the cycle track has nothing here,
+ * so she goes to her daily tracker instead of an empty page.
  */
 const TrackerHub = () => {
   const { healthTracks } = useApp();
 
   const tabs = useMemo(() => {
-    const list: { id: string; label: string; icon: typeof Heart; Content: ComponentType }[] = [
-      { id: "lifestyle", label: "Lifestyle", icon: Heart, Content: LifestyleTracker },
-    ];
-    if (healthTracks && showsDiseaseDetection(healthTracks)) {
-      list.push({ id: "health-check", label: "Health Check", icon: HeartPulse, Content: HealthRisks });
-    }
+    const list: {
+      id: string;
+      label: string;
+      icon: typeof CalendarHeart;
+      Content: ComponentType;
+    }[] = [];
+
     if (healthTracks && showsCycleTracking(healthTracks)) {
       list.push({ id: "period", label: "Period", icon: CalendarHeart, Content: PeriodTracker });
       list.push({ id: "skin", label: "Skin & Acne", icon: Sparkles, Content: SkinTracker });
@@ -32,28 +39,19 @@ const TrackerHub = () => {
     return list;
   }, [healthTracks]);
 
-  const [active, setActive] = useState(tabs[0]?.id ?? "lifestyle");
+  const [active, setActive] = useState("period");
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[0];
 
-  if (!activeTab) return null;
+  // Still loading her tracks — render nothing rather than redirecting a
+  // patient who does belong here.
+  if (healthTracks === null) return null;
+  if (!activeTab) return <Navigate to="/patient/lifestyle-tracker" replace />;
 
   return (
     <div>
       {tabs.length > 1 && (
         <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-border bg-background-elevated/95 px-4 pb-3 pt-4 backdrop-blur sm:mx-0 sm:mt-0 sm:border-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-0 sm:backdrop-blur-none">
-          {/* The overflowing row used to end in a tab sliced down the middle,
-              which reads as a layout bug rather than as "there is more this
-              way". A fade at the right edge (phone only, where the row
-              actually scrolls) says it's scrollable. */}
-          <Tabs
-            value={active}
-            onValueChange={setActive}
-            className="relative after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-10 after:bg-gradient-to-l after:from-background-elevated after:to-transparent sm:after:hidden"
-          >
-            {/* Below `sm`, 4 icon+label tabs don't fit a `w-full` flex row
-                without squeezing each label — let the list scroll horizontally
-                instead of wrapping or truncating. `scroll-area` gives the
-                overflow a slim, on-theme scrollbar. */}
+          <Tabs value={activeTab.id} onValueChange={setActive}>
             <TabsList className="scroll-area flex w-full justify-start gap-1 overflow-x-auto sm:w-auto sm:justify-center">
               {tabs.map((tab) => (
                 <TabsTrigger

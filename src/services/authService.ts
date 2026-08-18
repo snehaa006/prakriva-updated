@@ -293,6 +293,23 @@ export const getUserRole = async (
  * to asking, so an unknown patient is never let past a gate that applies to
  * her.
  */
+/**
+ * End the session.
+ *
+ * Clearing the user in React state is not signing out: the Supabase session
+ * lives in localStorage and is restored on the next page load, so a "logged
+ * out" user came back signed in after a refresh. This ends the session for
+ * real, and resolves even when the network call fails — a user who asked to
+ * log out should be logged out of this device either way.
+ */
+export const signOutUser = async (): Promise<void> => {
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("Sign out failed; clearing the local session anyway:", error);
+  }
+};
+
 export const resolveDashboardPath = (
   role: AuthRole | null,
   hasCompletedQuestionnaire?: boolean,
