@@ -347,9 +347,15 @@ The patient sidebar (and the phone tab bar) is grouped rather than flat:
 
 | Group | Items |
 |---|---|
-| Main menu | Dashboard, Meal Logging, **Lifestyle Tracker**, **Health Check** (pregnancy track), **Cycle & Skin** (PCOD/PCOS track), Community, Shop |
-| More | Consult Doctor, My Kitchen, Food Compatibility, Reminders |
+| Main menu | Today, My Plan, **Lifestyle Tracker**, **Health Check** (pregnancy track), **Cycle & Skin** (PCOD/PCOS track), Community, Shop |
+| More | Consult Doctor, Food Compatibility, Reminders |
 | Account | Profile, **Settings & Logout** |
+
+Today (`/patient/today`) is the daily screen and absorbed meal logging; My Plan
+(`/patient/plans`) is the weekly one, with plans, plan creation, progress and
+the kitchen list as tabs inside it. `/patient/dashboard`,
+`/patient/meal-logging`, `/patient/pantry` and `/patient/progress` redirect
+there.
 
 Two things about that list are deliberate:
 
@@ -372,7 +378,7 @@ Every route still exists on its own: `/patient/lifestyle-tracker`,
 all work as direct links, and the track-gated ones redirect a patient who is
 not on that track to her dashboard.
 
-The phone tab bar is Home · Meals · AI · Lifestyle · More, with everything else
+The phone tab bar is Today · Plan · AI · Lifestyle · More, with everything else
 under "More" (which opens the same sidebar).
 
 ## Profile photo

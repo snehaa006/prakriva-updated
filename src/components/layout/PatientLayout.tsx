@@ -7,6 +7,7 @@ import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import NutritionChatbot from "@/components/chat/NutritionChatbot";
 import { LanguageSwitcher } from "@/components/LanguageSelect";
+import { DietPlanProvider } from "@/context/DietPlanContext";
 
 const PatientLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -14,6 +15,10 @@ const PatientLayout = () => {
   const [chatOpen, setChatOpen] = useState(false);
 
   return (
+    // The plans and today's meals live above the outlet, so switching between
+    // "Today" and the plan hub doesn't refetch them — and following a
+    // different plan on one tab is already reflected on the other.
+    <DietPlanProvider>
     <div className="relative flex min-h-screen w-full bg-background">
       {/* Soft warm wash instead of a flat background — a companion app should
           feel a little less clinical than a settings screen. Both layers are
@@ -61,6 +66,7 @@ const PatientLayout = () => {
       <PatientBottomNav onMoreClick={() => setMobileOpen(true)} onAIClick={() => setChatOpen(true)} />
       <NutritionChatbot open={chatOpen} onOpenChange={setChatOpen} hideTrigger />
     </div>
+    </DietPlanProvider>
   );
 };
 

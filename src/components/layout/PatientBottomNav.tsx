@@ -3,8 +3,9 @@ import { Home, ChefHat, Activity, MoreHorizontal, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { title: "Home", url: "/patient/dashboard", icon: Home },
-  { title: "Meals", url: "/patient/meal-logging", icon: ChefHat },
+  { title: "Today", url: "/patient/today", icon: Home },
+  // Plans, plan creation, progress and the kitchen list — one destination.
+  { title: "Plan", url: "/patient/plans", icon: ChefHat },
 ];
 
 // The daily tracker, not the old combined "Track" tab: lifestyle logging is

@@ -12,8 +12,8 @@ import Login from "./pages/auth/Login";
 import DoctorLayout from "./components/layout/DoctorLayout";
 import PatientLayout from "./components/layout/PatientLayout";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard";
-import PatientDashboard from "./pages/patient/PatientDashboard";
-import MealLogging from "./pages/patient/MealLogging";
+import Today from "./pages/patient/Today";
+import PlanHub from "./pages/patient/PlanHub";
 import FoodCompatibility from "./pages/patient/FoodCompatibility";
 import SymptomTracking from "./pages/patient/SymptomTracking";
 import LifestyleTracker from "./pages/patient/LifestyleTracker";
@@ -43,7 +43,6 @@ import {
 } from "@/lib/healthTrack";
 import PatientProfile from "./pages/patient/PatientProfile";
 import Reminders from "./pages/patient/Reminders";
-import Pantry from "./pages/patient/Pantry";
 import Shop from "./pages/patient/Shop";
 import ShopProduct from "./pages/patient/ShopProduct";
 import Settings from "./pages/patient/Settings";
@@ -207,8 +206,16 @@ const AppRoutes = () => (
           </PatientProtectedRoute>
         }
       >
-        <Route path="dashboard" element={<PatientDashboard />} />
-        <Route path="meal-logging" element={<MealLogging />} />
+        {/* "Today" is the daily surface — the meal checklist and how each meal
+            made her feel. The plan hub holds My Plans, Create Plan, Progress
+            and My Kitchen, which used to be three tabs inside the dashboard
+            plus a page of its own under "More". Every old path still resolves:
+            the login redirect, Reminders and the trackers all link to
+            /patient/dashboard, and meal-logging is folded into Today. */}
+        <Route path="today" element={<Today />} />
+        <Route path="plans" element={<PlanHub />} />
+        <Route path="dashboard" element={<Navigate to="/patient/today" replace />} />
+        <Route path="meal-logging" element={<Navigate to="/patient/today" replace />} />
         <Route path="food-compatibility" element={<FoodCompatibility />} />
         {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
         <Route
@@ -243,20 +250,22 @@ const AppRoutes = () => (
         <Route path="social-support" element={<Navigate to="/patient/community" replace />} />
         <Route path="consult-doctor" element={<ConsultDoctor />} />
         <Route path="doctor-profile/:doctorId" element={<div className="p-6">Doctor Profile - Coming Soon</div>} />
-        <Route path="meal-plan" element={<div className="p-6">Meal Plan - Coming Soon</div>} />
-        <Route path="progress" element={<div className="p-6">Progress Tracking - Coming Soon</div>} />
+        {/* These three were "Coming Soon" placeholders; the hub is where they
+            actually live now. */}
+        <Route path="meal-plan" element={<Navigate to="/patient/plans" replace />} />
+        <Route path="progress" element={<Navigate to="/patient/plans?tab=progress" replace />} />
         <Route path="wellness" element={<div className="p-6">Wellness Tips - Coming Soon</div>} />
-        <Route path="pantry" element={<Pantry />} />
+        <Route path="pantry" element={<Navigate to="/patient/plans?tab=kitchen" replace />} />
         {/* The shop: a comparison and referral surface, open to every patient
             regardless of care track — everyone needs something. */}
         <Route path="shop" element={<Shop />} />
         <Route path="shop/:productId" element={<ShopProduct />} />
-        <Route path="shopping" element={<Navigate to="/patient/pantry" replace />} />
+        <Route path="shopping" element={<Navigate to="/patient/plans?tab=kitchen" replace />} />
         <Route path="appointments" element={<AppointmentScheduler/>} />
         <Route path="reminders" element={<Reminders />} />
         <Route path="profile" element={<PatientProfile />} />
         <Route path="settings" element={<Settings />} />
-        <Route index element={<Navigate to="/patient/dashboard" replace />} />
+        <Route index element={<Navigate to="/patient/today" replace />} />
       </Route>
     </Route>
 
