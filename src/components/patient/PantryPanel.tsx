@@ -1,7 +1,11 @@
-// src/pages/patient/Pantry.tsx
 // "My Kitchen" — the patient records what food they already have at home and
 // what they plan to buy. Their doctor reads this from the Food Explorer, so
 // plans can be built around what is actually available.
+//
+// This was its own page filed under "More"; it is now a panel inside the plan
+// hub, a tab away from the plan she is cooking from. Keeping it a component
+// rather than a page is what lets it sit there without a second page header
+// restating what the tab above it already says.
 
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,7 +141,7 @@ const PantryItemCard: React.FC<{
   </div>
 );
 
-const Pantry: React.FC = () => {
+export const PantryPanel: React.FC = () => {
   const { user } = useApp();
   const queryClient = useQueryClient();
   const patientId = user?.id ?? "";
@@ -334,19 +338,11 @@ const Pantry: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 p-4 md:p-6">
-      <div className="flex items-center gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-primary">
-          <Refrigerator className="h-6 w-6" />
-        </span>
-        <div>
-          <h1 className="text-title1 text-foreground">My Kitchen</h1>
-          <p className="mt-1 text-body text-foreground-secondary">
-            List the foods you have at home and the ones you plan to buy — your
-            doctor uses this to build a plan you can actually cook.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <p className="text-footnote text-foreground-secondary">
+        List the foods you have at home and the ones you plan to buy — your
+        doctor uses this to build a plan you can actually cook.
+      </p>
 
       {error && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-footnote text-destructive">
@@ -563,4 +559,4 @@ const Pantry: React.FC = () => {
   );
 };
 
-export default Pantry;
+export default PantryPanel;
