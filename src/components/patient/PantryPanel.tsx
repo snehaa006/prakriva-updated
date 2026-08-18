@@ -2,10 +2,11 @@
 // what they plan to buy. Their doctor reads this from the Food Explorer, so
 // plans can be built around what is actually available.
 //
-// This was its own page filed under "More"; it is now a panel inside the plan
-// hub, a tab away from the plan she is cooking from. Keeping it a component
-// rather than a page is what lets it sit there without a second page header
-// restating what the tab above it already says.
+// This was its own page filed under "More", a menu away from everything it
+// relates to. It is now a tab inside the plan hub, next to the plan she is
+// cooking from — the kitchen list is the input to a plan, so it belongs
+// beside one. Keeping it a component rather than a page is what lets it sit
+// there without a second page header restating what the tab above it says.
 
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

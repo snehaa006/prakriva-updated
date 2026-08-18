@@ -5,7 +5,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Home,
   Bell,
-  ShoppingCart,
   ShoppingBag,
   Settings,
   User,
@@ -84,12 +83,6 @@ const moreItems: {
     title: "Consult Doctor",
     url: "/patient/consult-doctor",
     icon: Stethoscope,
-  },
-  {
-    // Deep link into the hub's Kitchen tab — it is no longer a page of its own.
-    title: "My Kitchen",
-    url: "/patient/plans?tab=kitchen",
-    icon: ShoppingCart,
   },
   {
     title: "Food Compatibility",

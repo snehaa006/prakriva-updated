@@ -2,20 +2,20 @@
 //
 // This used to be a tab inside the dashboard, sitting next to plan management
 // and plan creation, which are things she does once a week at most. It is now
-// its own destination, and it has absorbed the Meal Logging page: that page
-// re-loaded the same plan behind a patient-ID search box, re-listed the same
-// meals and re-implemented the same eaten/skipped buttons, so the only thing
-// on it that Today did not already do was the post-meal feedback — which is
-// now attached to the meal row it is about, instead of a form on another page
-// that made you re-find the meal in a second list.
+// its own destination: the quick daily pass — what am I eating, tick it off,
+// swap it if it doesn't suit, glance at the day's totals.
+//
+// The detailed work — reading how a meal is prepared, the three-way
+// eaten/skipped/pending status, and rating digestion, mood and energy — lives
+// in the logging workspace under My Plan, so the two are one job in one place
+// rather than half a form on each screen. Both read the same state, so a meal
+// ticked here is already ticked there.
 
 import { useCallback, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Slider } from "@/components/ui/slider";
-import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle,
   XCircle,
@@ -33,8 +33,6 @@ import {
   Eye,
   AlertCircle,
   Heart,
-  Activity,
-  Zap,
   User,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -53,7 +51,6 @@ import { supabase } from "@/lib/supabase";
 import { isPreviewMode } from "@/lib/previewMode";
 import { PREVIEW_PROFILE } from "@/lib/previewMockData";
 import {
-  dayKey,
   recipeToMeal,
   slotFor,
   type TrackedMeal,
@@ -123,48 +120,6 @@ function HeaderStat({
   );
 }
 
-const RATING_EMOJI = {
-  digestion: ["😰", "😕", "😐", "😊", "😄"],
-  mood: ["😢", "😟", "😐", "🙂", "😊"],
-  energy: ["😴", "🥱", "😐", "⚡", "🚀"],
-} as const;
-
-/** One 1–5 slider with its emoji, as used for digestion, mood and energy. */
-function FeelingSlider({
-  label,
-  icon: Icon,
-  kind,
-  value,
-  onChange,
-  low,
-  high,
-}: {
-  label: string;
-  icon: typeof Heart;
-  kind: keyof typeof RATING_EMOJI;
-  value: number;
-  onChange: (v: number) => void;
-  low: string;
-  high: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-2 text-footnote font-medium text-foreground">
-          <Icon className="h-4 w-4 text-primary" />
-          {label}
-        </span>
-        <span className="text-xl">{RATING_EMOJI[kind][value - 1] ?? "😐"}</span>
-      </div>
-      <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={1} max={5} step={1} />
-      <div className="flex justify-between text-caption2 text-foreground-tertiary">
-        <span>{low}</span>
-        <span>{high}</span>
-      </div>
-    </div>
-  );
-}
-
 const Today = () => {
   const navigate = useNavigate();
   const { user, healthTracks } = useApp();
@@ -184,55 +139,10 @@ const Today = () => {
   const [swapOptions, setSwapOptions] = useState<RecipeBasic[]>([]);
   const [loadingSwap, setLoadingSwap] = useState(false);
 
-  // Post-meal feedback, expanded under the meal it is about.
-  const [feedbackMealId, setFeedbackMealId] = useState<string | null>(null);
-  const [digestion, setDigestion] = useState(3);
-  const [mood, setMood] = useState(3);
-  const [energy, setEnergy] = useState(3);
-  const [notes, setNotes] = useState("");
-  const [savingFeedback, setSavingFeedback] = useState(false);
-
   const { data: profile, isFirstLoad: loadingProfile } = useCachedPageData(
     ["patient-today-profile", user?.id ?? null],
     () => fetchTodayProfile(user!.id, user?.name),
     { enabled: !!user?.id }
-  );
-
-  const openFeedback = useCallback((mealId: string) => {
-    setFeedbackMealId((current) => (current === mealId ? null : mealId));
-    setDigestion(3);
-    setMood(3);
-    setEnergy(3);
-    setNotes("");
-  }, []);
-
-  const saveFeedback = useCallback(
-    async (meal: TrackedMeal) => {
-      if (!user?.id) return;
-      setSavingFeedback(true);
-      try {
-        const { error } = await supabase.from("meal_feedback").insert({
-          patient_id: user.id,
-          patient_name: profile?.name || user.name || "Patient",
-          meal_id: meal.id,
-          meal_name: meal.name,
-          digestion_rating: digestion,
-          mood_rating: mood,
-          energy_rating: energy,
-          notes,
-          date: dayKey(),
-        });
-        if (error) throw error;
-        toast.success("Feedback saved — thank you for sharing how you feel");
-        setFeedbackMealId(null);
-      } catch (e) {
-        console.error("Error saving feedback:", e);
-        toast.error("Failed to save feedback. Please try again.");
-      } finally {
-        setSavingFeedback(false);
-      }
-    },
-    [user?.id, user?.name, profile?.name, digestion, mood, energy, notes]
   );
 
   const handleSwap = useCallback(async (meal: TrackedMeal) => {
@@ -411,7 +321,6 @@ const Today = () => {
                   const SlotIcon = slotFor(meal.type).icon;
                   const isEaten = meal.status === "eaten";
                   const isSkipped = meal.status === "skipped";
-                  const showFeedback = feedbackMealId === meal.id;
                   return (
                     <Reveal
                       key={meal.id}
@@ -507,23 +416,20 @@ const Today = () => {
                               </Button>
                             </div>
                             <div className="flex gap-1">
-                              {/* Feedback is offered once the meal has actually
-                                  been eaten — there is nothing to rate about a
-                                  meal she has not had yet. */}
-                              {isEaten && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className={`h-10 gap-1 px-2 text-caption1 sm:h-7 ${
-                                    showFeedback ? "text-primary" : "text-foreground-tertiary"
-                                  }`}
-                                  onClick={() => openFeedback(meal.id)}
-                                  title="How did it feel?"
-                                >
-                                  <Heart className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">How did it feel?</span>
-                                </Button>
-                              )}
+                              {/* Rating a meal, reading how it is prepared and
+                                  the three-way status live together in the
+                                  logging workspace under My Plan — this is the
+                                  quick pass, not the detailed one. */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-10 gap-1 px-2 text-caption1 text-foreground-tertiary sm:h-7"
+                                onClick={() => navigate("/patient/plans")}
+                                title="Log this meal in detail and rate how it felt"
+                              >
+                                <Heart className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">How did it feel?</span>
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -548,72 +454,6 @@ const Today = () => {
                             </div>
                           </div>
                         </div>
-
-                        {/* Post-meal feedback, in place */}
-                        {showFeedback && (
-                          <div className="mt-4 space-y-5 rounded-xl border border-border bg-background/60 p-4">
-                            <p className="text-caption1 font-medium text-foreground-secondary">
-                              How did “{meal.name}” make you feel?
-                            </p>
-                            <FeelingSlider
-                              label="Digestion"
-                              icon={Activity}
-                              kind="digestion"
-                              value={digestion}
-                              onChange={setDigestion}
-                              low="Poor"
-                              high="Excellent"
-                            />
-                            <FeelingSlider
-                              label="Mood"
-                              icon={Heart}
-                              kind="mood"
-                              value={mood}
-                              onChange={setMood}
-                              low="Low"
-                              high="High"
-                            />
-                            <FeelingSlider
-                              label="Energy"
-                              icon={Zap}
-                              kind="energy"
-                              value={energy}
-                              onChange={setEnergy}
-                              low="Tired"
-                              high="Energetic"
-                            />
-                            <Textarea
-                              rows={2}
-                              placeholder="Anything else about how this meal made you feel…"
-                              value={notes}
-                              onChange={(e) => setNotes(e.target.value)}
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                className="flex-1"
-                                disabled={savingFeedback}
-                                onClick={() => saveFeedback(meal)}
-                              >
-                                {savingFeedback ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Saving…
-                                  </>
-                                ) : (
-                                  "Save feedback"
-                                )}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-foreground-secondary"
-                                onClick={() => setFeedbackMealId(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
 
                         {/* Swap options */}
                         {swappingMealId === meal.id && (
