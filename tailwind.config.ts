@@ -258,6 +258,46 @@ export default {
           "0%, 100%": { transform: "scale(1)" },
           "50%": { transform: "scale(1.025)" },
         },
+        // --- Chat companion -------------------------------------------------
+        // The character in the chat panel (components/chat/CompanionCharacter)
+        // is alive in a very small way: it breathes, it blinks, its eyes scan
+        // while reading, and it thinks in dots. Every one of these is idle
+        // decoration on a loop, so they are shallow and slow on purpose.
+        "companion-bob": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-2.5px)" },
+        },
+        "companion-blink": {
+          "0%, 90%, 100%": { transform: "scaleY(1)" },
+          "95%": { transform: "scaleY(0.12)" },
+        },
+        "companion-scan": {
+          "0%, 100%": { transform: "translateX(-1.6px)" },
+          "50%": { transform: "translateX(1.6px)" },
+        },
+        "companion-think": {
+          "0%, 100%": { transform: "translateY(0)", opacity: "0.35" },
+          "50%": { transform: "translateY(-2.5px)", opacity: "1" },
+        },
+        "companion-sparkle": {
+          "0%, 100%": { transform: "scale(1)", opacity: "0.65" },
+          "50%": { transform: "scale(1.15)", opacity: "1" },
+        },
+        // A message, a suggestion chip or a card arriving in the transcript.
+        "message-in": {
+          from: { opacity: "0", transform: "translateY(8px) scale(0.99)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        // The unprompted nudge that pops up beside the closed launcher.
+        "nudge-in": {
+          from: { opacity: "0", transform: "translateY(10px) scale(0.94)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        // The three dots the assistant shows while an answer is on its way.
+        "typing-dot": {
+          "0%, 60%, 100%": { transform: "translateY(0)", opacity: "0.4" },
+          "30%": { transform: "translateY(-3px)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -266,6 +306,14 @@ export default {
         "fade-in": "fade-in 0.4s ease-out both",
         "draw-stroke": "draw-stroke 1.2s cubic-bezier(0.65, 0, 0.35, 1) both",
         breathe: "breathe 5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-bob": "companion-bob 3.6s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-blink": "companion-blink 5.5s ease-in-out infinite",
+        "companion-scan": "companion-scan 1.6s ease-in-out infinite",
+        "companion-think": "companion-think 1.1s ease-in-out infinite",
+        "companion-sparkle": "companion-sparkle 1.8s ease-in-out infinite",
+        "message-in": "message-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "nudge-in": "nudge-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both",
+        "typing-dot": "typing-dot 1.2s ease-in-out infinite",
       },
     },
   },
