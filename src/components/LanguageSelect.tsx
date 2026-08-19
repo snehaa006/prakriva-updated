@@ -5,6 +5,7 @@
 // anywhere changes it everywhere, immediately, on whatever page the user is
 // looking at.
 
+import { useState } from "react";
 import { Check, Globe, Loader2 } from "lucide-react";
 import { useTranslation } from "@/context/I18nContext";
 import type { LanguageCode, LanguageOption } from "@/i18n/translations";
@@ -79,11 +80,19 @@ export function LanguageSelect({ className }: { className?: string }) {
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
   const { language, setLanguage, languages, isTranslating } = useTranslation();
+  const [open, setOpen] = useState(false);
   const groups = byGroup(languages);
   const current = languages.find((l) => l.code === language);
 
+  const choose = (code: LanguageCode) => {
+    setLanguage(code);
+    // This project's menu items don't close the menu themselves, so the open
+    // state is driven from here.
+    setOpen(false);
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -111,7 +120,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
             {groups[group].map((option) => (
               <DropdownMenuItem
                 key={option.code}
-                onSelect={() => setLanguage(option.code)}
+                onClick={() => choose(option.code)}
                 className="gap-2"
               >
                 <Check
