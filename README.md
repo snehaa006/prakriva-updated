@@ -921,7 +921,8 @@ Flask (`backend/gemini_service.py`):
   replaying a failure notice as a model turn teaches the conversation that it
   is broken. When a turn does fail, the reply says so and carries the reason
   underneath it in small print (see the troubleshooting note below) plus a
-  "Try again" button that re-sends the same question.
+  "Try again" button that re-sends the same question. The interface it does
+  all this behind is described under "The companion" below.
 - **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
   panel that turns the selected patient's screening history into prose: how
   the risk picture has moved, which measurements drive it, what to check
@@ -975,6 +976,54 @@ call, because that check is still in flight for the first second or so after
 the widget opens and refusing to send during it answered the opening question
 with "your assistant isn't available" on a perfectly healthy deployment. The
 banner at the top of the chat still uses the status check.
+
+#### The companion: character, unprompted nudges and cards
+
+The chat is not a text box with a send button. Four pieces make it a companion:
+
+- **A character** (`src/components/chat/CompanionCharacter.tsx`) — a lotus-bud
+  figure with four moods: `idle` at rest, `thinking` while she types or a reply
+  is being fetched, `reading` in the moment after she sends, and `happy` when an
+  answer lands. It stands on a strip above the composer and *crosses to her
+  side* to read her message before walking back to think, so the state of the
+  conversation is something you watch rather than something a spinner says.
+  Mood is carried by eye and mouth **shape**, not by motion, so the character
+  still reads with `prefers-reduced-motion` on (which switches all of it off).
+  It is deliberately a different family of marks from
+  `src/components/illustrations`, whose faceless pictograms stand for the
+  *patient* — this one is the assistant.
+- **Unprompted messages** (`src/lib/companionCues.ts`) — a pure function of
+  (her context, the clock) that decides what is worth raising now: a health
+  check that landed in the last week, meals ticked off today with no feedback
+  against them, water behind its goal after 3pm, a short night's sleep raised
+  the following morning, a kitchen list left unbought. With the panel closed
+  the top cue arrives as a small popup beside the launcher ("Your health check
+  from yesterday is ready — want me to walk you through it?"); with it open,
+  the greeting carries the cue, and a quiet panel gets one raised on its own
+  after a jittered pause. Raised cues are remembered in
+  `localStorage` (`prakriva_chatbot_seen_cues_v1`), so nothing repeats — ids
+  are date-stamped, so tomorrow's version of the same nudge is a new one.
+- **Cards** (`src/components/chat/CueCard.tsx`) — the two-to-four-option
+  questions inside the transcript. They are shaped like a quiz and deliberately
+  aren't one: there is no right answer to how a meal felt, so a choice is
+  *acknowledged* rather than marked, and Continue sends that option's question
+  to the assistant for the real reply. The options are four different questions
+  ("Walk me through it" / "What should I eat now?" / "Anything to worry about?"
+  / "Am I improving?"), not four answers.
+- **Follow-ups instead of fixed chips** — the suggestion chips under the newest
+  message are drawn from what she just asked (`buildFollowUps`), so an answer
+  about sleep is followed by sleep questions; the opening chips
+  (`buildLeadUps`) come from her own plan, pantry and last check.
+
+The panel itself is the familiar chat-app shape: a centred reading column, the
+assistant's replies as prose with the character's mark beside them, her own as
+bubbles, an auto-growing composer, "new chat", and an expand button that turns
+the docked panel into a full-height reading pane for long answers. Replies are
+rendered through `src/lib/chatMarkdown.ts` + `src/components/chat/RichText.tsx`,
+a deliberately tiny Markdown subset (headings, lists, bold/italic/code) — the
+model writes Markdown whether or not it is asked to, and the previous plain-text
+rendering showed literal `**asterisks**` to the patient. Nothing there produces
+HTML, so markup in a reply is inert.
 
 #### When the chatbot answers "I couldn't reach your assistant"
 

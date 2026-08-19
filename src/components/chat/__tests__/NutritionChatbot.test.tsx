@@ -34,6 +34,8 @@ vi.mock("@/services/chatAssistantService", async () => {
   };
 });
 
+const todayIso = new Date().toISOString().slice(0, 10);
+
 const emptyContext = {
   profile: {},
   activePlan: null,
@@ -132,5 +134,77 @@ describe("NutritionChatbot", () => {
       expect(screen.getByText(/RESOURCE_EXHAUSTED/)).toBeInTheDocument()
     );
     expect(screen.getByText(/isn't available right now/i)).toBeInTheDocument();
+  });
+  it("opens with the most useful thing it has to raise, as a card", async () => {
+    // The companion doesn't wait to be asked: a health check that landed today
+    // is offered the moment the panel opens, with four ways into it.
+    vi.mocked(fetchPatientChatContext).mockResolvedValue({
+      ...emptyContext,
+      screenings: [{ date: todayIso, overallRisk: "Moderate", conditions: [] }],
+    });
+
+    const user = userEvent.setup();
+    await openChat(user);
+
+    await waitFor(() =>
+      expect(screen.getByText(/where should we start\?/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /walk me through it/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /am i improving\?/i })).toBeInTheDocument();
+  });
+
+  it("asks the assistant the question behind the option she picked", async () => {
+    vi.mocked(fetchPatientChatContext).mockResolvedValue({
+      ...emptyContext,
+      screenings: [{ date: todayIso, overallRisk: "Low", conditions: [] }],
+    });
+    vi.mocked(askChat).mockResolvedValue("Here's what it says.");
+
+    const user = userEvent.setup();
+    await openChat(user);
+
+    await waitFor(() => screen.getByRole("button", { name: /walk me through it/i }));
+    await user.click(screen.getByRole("button", { name: /walk me through it/i }));
+
+    // A choice is acknowledged, never marked right or wrong — this is a
+    // wellness chat, not a quiz.
+    expect(screen.getByText(/one finding at a time/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() =>
+      expect(vi.mocked(askChat).mock.calls[0][0]).toBe(
+        "Walk me through my latest health check in plain language.",
+      ),
+    );
+  });
+
+  it("follows an answer with chips about what was just asked", async () => {
+    vi.mocked(askChat).mockResolvedValue("Try a warm khichdi.");
+
+    const user = userEvent.setup();
+    await openChat(user);
+    await send(user, "what should I cook for dinner?");
+    await waitFor(() => expect(screen.getByText("Try a warm khichdi.")).toBeInTheDocument());
+
+    const chip = await screen.findByRole("button", { name: /something lighter/i });
+    vi.mocked(askChat).mockResolvedValue("Then try a light soup.");
+    await user.click(chip);
+
+    await waitFor(() =>
+      expect(vi.mocked(askChat).mock.calls[1][0]).toBe("Could you suggest a lighter version of that?"),
+    );
+  });
+
+  it("renders the Markdown the model writes instead of showing its asterisks", async () => {
+    vi.mocked(askChat).mockResolvedValue("Favour **warm** food.\n\n- Ginger tea\n- Warm water");
+
+    const user = userEvent.setup();
+    await openChat(user);
+    await send(user, "hi");
+
+    await waitFor(() => expect(screen.getByText("warm")).toBeInTheDocument());
+    expect(screen.getByText("warm").tagName).toBe("STRONG");
+    expect(screen.queryByText(/\*\*warm\*\*/)).not.toBeInTheDocument();
+    expect(screen.getByText("Ginger tea")).toBeInTheDocument();
   });
 });
