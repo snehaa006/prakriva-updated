@@ -268,6 +268,13 @@ Coverage is focused on authentication, since that is the gate on both roles:
   the curated dictionary winning over machine translation, the phrase-by-phrase
   retry when a batch comes back misaligned, the backend fallback, the backoff
   after a failure, and text staying English when every provider fails.
+- `src/components/__tests__/ProfilePhoto.test.tsx` — the photo control: the
+  picker opening from a plain click (the bug that made "upload a photo" do
+  nothing), saving, the device-only message, a rejected file, replacing,
+  removing, and re-picking the same file after a failure.
+- `src/lib/__tests__/theme.test.ts` — that the app stays light on a machine set
+  to dark mode until someone chooses otherwise, and that a stored choice is
+  applied before the first render.
 - `src/i18n/__tests__/pageTranslator.test.ts` — the DOM translator: text nodes
   and attributes, opted-out content left alone, content rendered *after* it
   started, re-translating what a re-render puts back in English, preserved
@@ -384,9 +391,16 @@ under "More" (which opens the same sidebar).
 ## Profile photo
 
 `/patient/profile` and `/doctor/profile` carry an editable profile picture
-(`src/components/ProfilePhoto.tsx`). The camera badge opens a menu to upload,
-replace or remove it; the picture then appears next to the name in the sidebar
-immediately, because it is stored on `user.avatar` in `AppContext`.
+(`src/components/ProfilePhoto.tsx`). Clicking the picture — or the camera badge
+on it — opens the file picker straight away; a small bin badge removes the
+photo once there is one. The picture then appears next to the name in the
+sidebar immediately, because it is stored on `user.avatar` in `AppContext`.
+
+Both badges sit above the image (`z-20` against `AvatarImage`'s `z-10`), and
+the picker is opened from a plain `onClick` rather than from a dropdown item:
+this project's `DropdownMenuItem` is a bare `div` that only wires `onClick`, so
+an `onSelect` handler on it never runs — and opening a file dialog from a menu
+that is closing in the same tick is unreliable even where it does.
 
 Storage degrades rather than failing (`src/services/avatarService.ts`):
 
@@ -469,7 +483,7 @@ doctor route used to say "Coming Soon". Sections:
 |---|---|
 | Preferred language | The picker described above, plus the timezone. |
 | Notifications | Per-role reminder switches. |
-| Appearance | Light / dark / system theme, applied immediately and re-applied before the first render on the next load (`src/lib/theme.ts`). |
+| Appearance | Light / dark / system theme, applied immediately and re-applied before the first render on the next load (`src/lib/theme.ts`). **The default is light** — Prakriva is a light app, and following the operating system would turn it dark for anyone whose device is in dark mode without them asking. "System" is a choice, not the starting point. |
 | Privacy | Data sharing, analytics, online status (doctors: directory listing). |
 | Account | Export my data, **Log out**, delete account. |
 

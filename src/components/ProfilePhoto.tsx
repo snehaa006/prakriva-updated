@@ -4,20 +4,18 @@
 // `user.avatar` in AppContext, so a new photo appears across the app the
 // moment it is chosen rather than after a reload.
 //
-// The camera badge is the whole control: it opens a menu with "Upload" and,
-// once there is a photo, "Remove". `showControls` adds the same two actions as
-// labelled buttons for places with room to explain them.
+// The camera badge opens the file picker **directly**. It used to open a menu
+// whose items called the picker, which never worked: this project's
+// `DropdownMenuItem` is a plain div that only handles `onClick`, so the
+// `onSelect` handler was silently dropped and the button did nothing. Even
+// with that fixed, opening a file dialog from inside a menu that is closing
+// and restoring focus in the same tick is fragile in several browsers — so
+// there is no menu here at all. One button, one picker.
 
 import { useRef, useState } from "react";
 import { Camera, Loader2, Trash2, Upload } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { ACCEPTED_TYPES, initialsOf, removeAvatar, saveAvatar } from "@/services/avatarService";
@@ -47,7 +45,15 @@ export function ProfilePhoto({
   const dimension = size === "lg" ? "h-20 w-20 sm:h-24 sm:w-24" : "h-16 w-16";
 
   const handleFile = async (file: File | undefined) => {
-    if (!file || !user) return;
+    if (!file) return;
+    if (!user) {
+      toast({
+        title: "Sign in first",
+        description: "We couldn't tell which account to save this photo to.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setBusy("saving");
     try {
@@ -67,7 +73,9 @@ export function ProfilePhoto({
       });
     } finally {
       setBusy(null);
-      // Let the same file be picked again after a failure.
+      // Let the same file be picked again — after a failure, and after a
+      // remove, since the input keeps its value otherwise and picking the
+      // identical file fires no change event.
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -79,6 +87,7 @@ export function ProfilePhoto({
     try {
       await removeAvatar(user.id);
       setUser({ ...user, avatar: undefined });
+      if (inputRef.current) inputRef.current.value = "";
       toast({ title: "Profile photo removed" });
     } finally {
       setBusy(null);
@@ -90,40 +99,57 @@ export function ProfilePhoto({
   return (
     <div className={cn("flex items-center gap-4", className)}>
       <div className="relative shrink-0">
-        <Avatar className={cn(dimension, "shadow-sm ring-2 ring-border")}>
-          {user?.avatar && <AvatarImage src={user.avatar} alt={displayName ?? "Profile photo"} />}
-          <AvatarFallback className="bg-accent-soft text-title3 font-semibold text-primary">
-            {initialsOf(displayName) || <Camera className="h-6 w-6" />}
-          </AvatarFallback>
-        </Avatar>
+        {/* The circle itself is what people reach for, so it opens the picker
+            too — the badge is the discoverable version of the same action. */}
+        <button
+          type="button"
+          onClick={pick}
+          disabled={busy !== null}
+          title={user?.avatar ? "Change profile photo" : "Add a profile photo"}
+          aria-label={user?.avatar ? "Change profile photo" : "Add a profile photo"}
+          className="block rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Avatar className={cn(dimension, "shadow-sm ring-2 ring-border")}>
+            {user?.avatar && <AvatarImage src={user.avatar} alt={displayName ?? "Profile photo"} />}
+            <AvatarFallback className="bg-accent-soft text-title3 font-semibold text-primary">
+              {initialsOf(displayName) || <Camera className="h-6 w-6" />}
+            </AvatarFallback>
+          </Avatar>
+        </button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              disabled={busy !== null}
-              aria-label={user?.avatar ? "Change profile photo" : "Add a profile photo"}
-              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-150 ease-ios hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={pick}>
-              <Upload className="mr-2 h-4 w-4" />
-              {user?.avatar ? "Upload a new photo" : "Upload a photo"}
-            </DropdownMenuItem>
-            {user?.avatar && (
-              <DropdownMenuItem
-                onSelect={() => void handleRemove()}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Remove photo
-              </DropdownMenuItem>
+        {/* Both badges sit at z-20: AvatarImage is z-10, so without it the
+            photo covers them and swallows the clicks meant for them. */}
+        <button
+          type="button"
+          onClick={pick}
+          disabled={busy !== null}
+          aria-hidden="true"
+          tabIndex={-1}
+          className="absolute -bottom-1 -right-1 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-150 ease-ios hover:scale-105 active:scale-95"
+        >
+          {busy === "saving" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Camera className="h-4 w-4" />
+          )}
+        </button>
+
+        {user?.avatar && !showControls && (
+          <button
+            type="button"
+            onClick={() => void handleRemove()}
+            disabled={busy !== null}
+            title="Remove profile photo"
+            aria-label="Remove profile photo"
+            className="absolute -bottom-1 -left-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-transform duration-150 ease-ios hover:scale-105 active:scale-95"
+          >
+            {busy === "removing" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </button>
+        )}
       </div>
 
       {showControls && (

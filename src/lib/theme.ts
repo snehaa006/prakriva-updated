@@ -4,6 +4,12 @@
 // class on `<html>`. The Settings page has always had a theme dropdown; this
 // is what makes choosing "Dark" actually darken the app, and what re-applies
 // the choice on the next page load before anything renders.
+//
+// **The default is light, not "system".** Prakriva is a light app — that is
+// what it is designed and reviewed in — and defaulting to the operating
+// system's preference silently turned it dark for everyone whose laptop is in
+// dark mode, without them ever asking for it. Following the OS is still on
+// offer, but it is a choice now rather than the starting point.
 
 import { readCache, writeCache } from "@/lib/localCache";
 
@@ -14,10 +20,13 @@ const CACHE_KEY = "theme";
 export const isThemeChoice = (value: unknown): value is ThemeChoice =>
   value === "light" || value === "dark" || value === "system";
 
-/** The stored choice, defaulting to following the operating system. */
+/** The theme used until someone picks one. */
+export const DEFAULT_THEME: ThemeChoice = "light";
+
+/** The stored choice, or the light default. */
 export const readTheme = (): ThemeChoice => {
   const cached = readCache<ThemeChoice>(CACHE_KEY);
-  return isThemeChoice(cached) ? cached : "system";
+  return isThemeChoice(cached) ? cached : DEFAULT_THEME;
 };
 
 const prefersDark = (): boolean =>
