@@ -34,7 +34,14 @@ const prefersDark = (): boolean =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-/** Put `theme` on the document. Does not persist — see `setTheme`. */
+/**
+ * Put `theme` on the document. Does not persist — see `setTheme`.
+ *
+ * `colorScheme` is set alongside the class so native controls (scrollbars,
+ * date pickers, selects) match, and — on light — so a browser that auto-darkens
+ * silent pages leaves this one alone. index.html carries the same declaration
+ * as a meta tag, which covers the moment before this code runs.
+ */
 export const applyTheme = (theme: ThemeChoice): void => {
   if (typeof document === "undefined") return;
   const dark = theme === "dark" || (theme === "system" && prefersDark());

@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Prakriva is a light-themed app: the `.dark` palette in src/index.css is
+         dormant and nothing in the UI ever switches to it. Declaring the scheme
+         explicitly stops a browser on a dark-mode device from auto-darkening the
+         page for us (Chrome's auto-dark on Android does exactly that to sites
+         that stay silent), and keeps native controls — scrollbars, date pickers,
+         selects — painted light to match. -->
+    <meta name="color-scheme" content="light" />
     <title>Prakriva — Ayurvedic Diet Management Platform</title>
     <meta name="description" content="AI-powered Ayurvedic nutrition platform connecting doctors and patients for personalized wellness solutions" />
     <meta name="author" content="Ayurvedic Wellness Team" />
