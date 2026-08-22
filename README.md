@@ -165,7 +165,8 @@ listed under "Language and translation" below.
   stage-aware recommendations, and the outbound-link host allow-list. See
   "Shop (price comparison and referral)" below.
 - `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
-  also used as the browser-tab favicon and the social preview image) and the
+  also used as the browser-tab favicon and the social preview image),
+  `shop/` (one WebP photograph per shop product, ~450 KB for all 32), and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
   viruddha ahara / incompatible-combination checker). It is served directly at
   `/mealCompatibility.html`, and the patient **Food Compatibility** page
@@ -1410,17 +1411,42 @@ constraint shapes the whole feature, and the UI states it on both pages.
   patient gets a pillow, a cream and compression socks rather than four
   pillows. Every suggestion carries a `reason` phrased as context ("Often
   wanted in the second trimester"), never as a directive.
-- `src/lib/shop/retailers.ts` — the security boundary. A direct product URL is
-  only used if it is https **and** on that retailer's own host, matched on a
-  dot boundary so `amazon.in.evil.example` fails; anything else degrades to a
-  retailer search rather than a wrong destination. Outbound links carry
+- `src/lib/shop/retailers.ts` — the storefront registry and the security
+  boundary. Seven sellers: **Amazon**, **Flipkart**, **Blinkit**, **Swiggy
+  Instamart**, **FirstCry**, **Nykaa**, and a brand's own site. A direct
+  product URL is only used if it is https **and** on that retailer's own host,
+  matched on a dot boundary so `amazon.in.evil.example` fails; anything else
+  degrades to a retailer search rather than a wrong destination. Instamart is
+  a surface inside Swiggy, so its allow-list is `swiggy.com` and its search
+  URL keeps the patient inside `/instamart`. Outbound links carry
   `noopener noreferrer nofollow sponsored` and open in a new tab.
 - `src/hooks/usePatientStage.ts` — the small slice of the patient record
   (life stage, trimester, tracks) that pages other than the dashboard need in
   order to tailor themselves. Shares react-query's cache with the dashboard.
+- `src/components/shop/ProductImage.tsx` — the shelf photograph, with the
+  category glyph as its fallback when a file is missing or an `<img>` fails
+  after render. Grid images are lazy; the product page's hero is eager.
+- `src/components/shop/RetailerChip.tsx` — the two-letter seller monogram and
+  the "In minutes" badge. Shaded by *kind* of storefront rather than by brand
+  colour, since the app holds a single hue (see
+  `src/lib/__tests__/brandPalette.test.ts`) and what actually matters to a
+  patient is whether the thing arrives tonight or on Thursday.
 - **On the dashboard** — `ShopSuggestions` renders a short "Things you might
   need" list in the sidebar, below the nutrition tips. Deliberately compact:
   the dashboard is for her plan, and shopping is a side door off it.
+
+**Comparing on speed as well as price.** Blinkit and Swiggy Instamart are
+quick-commerce, not marketplaces: usually dearer than Amazon and usually right
+anyway, because the thing arrives in minutes rather than days. So the
+comparison has two answers, not one — every row states its own delivery, the
+cheapest in-stock listing is badged **Lowest price**, the cheapest in-stock
+ten-minute listing is badged **Fastest**, and a summary strip above the table
+gives both. A **Delivers in minutes** filter narrows the grid to what an app
+can bring tonight; it is its own switch rather than picking Blinkit or
+Instamart from the seller list, because that is the actual question. The
+catalogue lists the ten-minute apps only on everyday consumables — a test
+fails the build if a birthing ball or a breast pump claims ten-minute
+delivery.
 
 **Editorial rules**, enforced by `src/data/__tests__/shopCatalogue.test.ts` so
 a later edit can't quietly break them:
@@ -1435,9 +1461,15 @@ a later edit can't quietly break them:
   heartbeat found by an untrained user delays presentation when something is
   wrong. Selling reassurance is the one thing this catalogue must not do.
 
-There is no product photography: Prakriva doesn't own these images, so tiles
-are typographic and led by the category glyph. It also keeps the grid honest —
-the comparison here is about price and seller.
+**Photography.** Every product carries an `image` pointing at a WebP file in
+`public/shop/`, and tiles, the product page hero and the dashboard suggestion
+rows are all led by it. The photos are stock shots of the *kind* of thing, not
+a retailer's own product shot: theirs is theirs, and a hot-linked one would
+break the day they re-key their CDN, leaving a grid of empty frames in front of
+a patient. They are served from our own origin, so the shop renders with no
+network. Alt text describes the photo rather than repeating the title, and the
+catalogue test fails if a product has no image or names a file that isn't
+actually in `public/`.
 
 ## Patient selection (doctors)
 

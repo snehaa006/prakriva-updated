@@ -4,7 +4,7 @@
 // every route out of here ends at a retailer's own product page.
 
 import { useMemo, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X, Zap } from "lucide-react";
 
 import { Plate } from "@/components/illustrations/LineArt";
 import { CATEGORY_ICONS } from "@/components/shop/categoryIcons";
@@ -57,12 +57,17 @@ const Shop = () => {
   const [retailer, setRetailer] = useState<RetailerId | "all">("all");
   const [maxPrice, setMaxPrice] = useState(PRICE_CEILING);
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [quickDeliveryOnly, setQuickDeliveryOnly] = useState(false);
   const [sort, setSort] = useState<ShopSort>("relevance");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const isSearching = query.trim().length > 0;
   const hasFilters =
-    category !== "all" || retailer !== "all" || inStockOnly || maxPrice < PRICE_CEILING;
+    category !== "all" ||
+    retailer !== "all" ||
+    inStockOnly ||
+    quickDeliveryOnly ||
+    maxPrice < PRICE_CEILING;
 
   // The shelves that matter at her stage, used only to break relevance ties —
   // so an un-searched shop opens on sleep and comfort during pregnancy rather
@@ -82,10 +87,20 @@ const Shop = () => {
           category,
           retailer,
           inStockOnly,
+          quickDeliveryOnly,
           maxPrice: maxPrice < PRICE_CEILING ? maxPrice : undefined,
         },
       }),
-    [query, sort, categoryPriority, category, retailer, inStockOnly, maxPrice],
+    [
+      query,
+      sort,
+      categoryPriority,
+      category,
+      retailer,
+      inStockOnly,
+      quickDeliveryOnly,
+      maxPrice,
+    ],
   );
 
   // Shown above the grid on the landing state only — once she has typed a
@@ -110,6 +125,7 @@ const Shop = () => {
     setRetailer("all");
     setMaxPrice(PRICE_CEILING);
     setInStockOnly(false);
+    setQuickDeliveryOnly(false);
   };
 
   return (
@@ -118,9 +134,10 @@ const Shop = () => {
       <Reveal className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <h1 className="text-title2 text-foreground">Shop</h1>
         <p className="mt-1 max-w-2xl text-footnote text-foreground-secondary">
-          Compare what different sellers charge for the things you need, then buy wherever
-          suits you. Prakriva doesn't sell any of it — prices are indicative and were last
-          checked on {formattedCheckDate}.
+          Compare what Amazon, Flipkart, Blinkit, Swiggy Instamart and the rest charge for
+          the things you need, then buy wherever suits you — the ten-minute apps are often
+          dearer and still the right answer when you need something tonight. Prakriva doesn't
+          sell any of it: prices are indicative and were last checked on {formattedCheckDate}.
         </p>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -232,15 +249,35 @@ const Shop = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="in-stock"
-              checked={inStockOnly}
-              onCheckedChange={(v) => setInStockOnly(v === true)}
-            />
-            <Label htmlFor="in-stock" className="text-footnote font-normal text-foreground">
-              In stock only
-            </Label>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="in-stock"
+                checked={inStockOnly}
+                onCheckedChange={(v) => setInStockOnly(v === true)}
+              />
+              <Label htmlFor="in-stock" className="text-footnote font-normal text-foreground">
+                In stock only
+              </Label>
+            </div>
+
+            {/* Its own switch rather than picking Blinkit or Instamart from
+                the seller list: when something has run out tonight the
+                question is who can get it here, not which of the two apps. */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="quick-delivery"
+                checked={quickDeliveryOnly}
+                onCheckedChange={(v) => setQuickDeliveryOnly(v === true)}
+              />
+              <Label
+                htmlFor="quick-delivery"
+                className="flex items-center gap-1.5 text-footnote font-normal text-foreground"
+              >
+                <Zap className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Delivers in minutes
+              </Label>
+            </div>
           </div>
         </aside>
 

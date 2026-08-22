@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { isAllowedOfferUrl } from "@/lib/shop/retailers";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+import { RETAILERS, isAllowedOfferUrl } from "@/lib/shop/retailers";
 import { LIFE_STAGES } from "@/lib/lifeStage";
 import { HEALTH_TRACKS } from "@/lib/healthTrack";
 
@@ -131,6 +134,78 @@ describe("offers", () => {
     for (const p of SHOP_CATALOGUE) {
       for (const o of p.offers) {
         if (o.retailer === "brand") expect(o.url).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("photography", () => {
+  it("gives every product an image whose file is actually in public/", () => {
+    // A shelf of empty frames is worse than a shelf of glyphs, and a typo in a
+    // path fails silently in the browser — the tile just falls back and nobody
+    // notices for a release.
+    for (const p of SHOP_CATALOGUE) {
+      expect(p.image, `${p.id} has no image`).toBeDefined();
+      const src = p.image!.src;
+      expect(src.startsWith("/shop/"), `${p.id}: ${src} is not under /shop/`).toBe(true);
+      expect(
+        existsSync(join(process.cwd(), "public", src.replace(/^\//, ""))),
+        `${p.id}: ${src} is missing from public/`,
+      ).toBe(true);
+    }
+  });
+
+  it("serves every image from our own origin, never a retailer's CDN", () => {
+    // Hot-linking a retailer's product shot borrows an asset we have no right
+    // to and breaks the day they re-key their CDN.
+    for (const p of SHOP_CATALOGUE) {
+      expect(p.image?.src).not.toMatch(/^https?:/);
+    }
+  });
+
+  it("describes the photo rather than repeating the title", () => {
+    for (const p of SHOP_CATALOGUE) {
+      const alt = p.image!.alt;
+      expect(alt.length, `${p.id} alt is too short to be useful`).toBeGreaterThan(15);
+      expect(alt.toLowerCase()).not.toBe(p.title.toLowerCase());
+    }
+  });
+
+  it("keeps every image path unique, so no two shelves share a photo", () => {
+    const paths = SHOP_CATALOGUE.map((p) => p.image!.src);
+    expect(new Set(paths).size).toBe(paths.length);
+  });
+});
+
+describe("quick commerce", () => {
+  const QUICK = SHOP_CATALOGUE.filter((p) =>
+    p.offers.some((o) => RETAILERS[o.retailer].kind === "quick-commerce"),
+  );
+
+  it("lists the ten-minute apps on something, or the filter is dead", () => {
+    expect(QUICK.length).toBeGreaterThan(0);
+  });
+
+  it("keeps them to everyday consumables, not equipment", () => {
+    // Blinkit does not deliver a breast pump or a birthing ball in ten
+    // minutes, and a "delivers in minutes" filter that says otherwise costs a
+    // patient an evening.
+    const CONSUMABLE = ["supplements", "skin-body", "intimate-care", "baby-essentials", "nursing-feeding"];
+    for (const p of QUICK) {
+      expect(CONSUMABLE, `${p.id} is not a quick-commerce category`).toContain(p.category);
+    }
+  });
+
+  it("never makes a ten-minute app the cheapest by a wide margin", () => {
+    // Quick commerce charges for the speed. A catalogue where it is also
+    // dramatically cheapest is a data-entry error, not a bargain.
+    for (const p of QUICK) {
+      const quick = p.offers.filter((o) => RETAILERS[o.retailer].kind === "quick-commerce");
+      const slow = p.offers.filter((o) => RETAILERS[o.retailer].kind !== "quick-commerce");
+      if (slow.length === 0) continue;
+      const cheapestSlow = Math.min(...slow.map((o) => o.price));
+      for (const o of quick) {
+        expect(o.price, `${p.id}/${o.retailer}`).toBeGreaterThanOrEqual(cheapestSlow * 0.9);
       }
     }
   });

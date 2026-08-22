@@ -4,9 +4,9 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft, Info, Star } from "lucide-react";
 
-import { CATEGORY_ICONS } from "@/components/shop/categoryIcons";
 import { PriceComparison } from "@/components/shop/PriceComparison";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { ProductImage } from "@/components/shop/ProductImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
@@ -24,7 +24,6 @@ const ShopProduct = () => {
   // An unknown id is a stale link, not an error worth a page of its own.
   if (!product) return <Navigate to="/patient/shop" replace />;
 
-  const Icon = CATEGORY_ICONS[product.category];
   const low = lowestPrice(product);
   const high = highestPrice(product);
   const spread = low !== undefined && high !== undefined ? high - low : 0;
@@ -55,9 +54,14 @@ const ShopProduct = () => {
       {/* ── Product header ── */}
       <Reveal index={1} className="rounded-xl border border-border bg-card p-6 shadow-xs">
         <div className="flex flex-col gap-6 sm:flex-row">
-          <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-primary">
-            <Icon className="h-9 w-9" />
-          </span>
+          {/* The one image on the page that is worth loading eagerly: it is
+              above the fold and it is what she came to look at. */}
+          <ProductImage
+            product={product}
+            className="rounded-xl sm:w-64 sm:shrink-0"
+            sizes="(min-width: 640px) 16rem, 100vw"
+            eager
+          />
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">

@@ -8,6 +8,8 @@ import {
   RETAILER_IDS,
   formatPrice,
   isAllowedOfferUrl,
+  isQuickCommerce,
+  offerDelivery,
   offerUrl,
 } from "../retailers";
 
@@ -109,10 +111,71 @@ describe("offerUrl", () => {
   });
 });
 
+describe("the quick-commerce storefronts", () => {
+  it("accepts Blinkit's own host and rejects a look-alike", () => {
+    expect(isAllowedOfferUrl("blinkit", "https://blinkit.com/prn/x/prid/1")).toBe(true);
+    expect(isAllowedOfferUrl("blinkit", "https://www.blinkit.com/prn/x")).toBe(true);
+    expect(isAllowedOfferUrl("blinkit", "https://blinkit.com.evil.example/prn/x")).toBe(false);
+  });
+
+  it("checks Instamart against Swiggy's host, since that is where it lives", () => {
+    expect(isAllowedOfferUrl("instamart", "https://www.swiggy.com/instamart/item/ABC")).toBe(true);
+    expect(isAllowedOfferUrl("instamart", "https://swiggy.com/instamart/item/ABC")).toBe(true);
+    expect(isAllowedOfferUrl("instamart", "https://swiggy.com.attacker.test/instamart")).toBe(false);
+    expect(isAllowedOfferUrl("instamart", "https://blinkit.com/s/?q=x")).toBe(false);
+  });
+
+  it("searches inside Instamart rather than dropping her into food delivery", () => {
+    const url = new URL(RETAILERS.instamart.search("Sirona maternity pads"));
+    expect(url.pathname).toBe("/instamart/search");
+    expect(url.searchParams.get("query")).toBe("Sirona maternity pads");
+  });
+
+  it("carries the query through to Blinkit's search", () => {
+    const url = new URL(RETAILERS.blinkit.search("Mother Sparsh baby wipes"));
+    expect(url.searchParams.get("q")).toBe("Mother Sparsh baby wipes");
+  });
+
+  it("knows which storefronts deliver in minutes", () => {
+    const at = (retailer: Parameters<typeof isQuickCommerce>[0]["retailer"]) =>
+      isQuickCommerce({ retailer, price: 1, inStock: true });
+    expect(at("blinkit")).toBe(true);
+    expect(at("instamart")).toBe(true);
+    expect(at("amazon")).toBe(false);
+    expect(at("brand")).toBe(false);
+  });
+});
+
+describe("offerDelivery", () => {
+  it("falls back to what the storefront normally promises", () => {
+    expect(offerDelivery({ retailer: "amazon", price: 1, inStock: true })).toBe(
+      RETAILERS.amazon.delivery,
+    );
+  });
+
+  it("prefers the offer's own note when it has one", () => {
+    expect(
+      offerDelivery({ retailer: "blinkit", price: 1, inStock: true, delivery: "In 10–15 min" }),
+    ).toBe("In 10–15 min");
+  });
+});
+
 describe("the retailer registry", () => {
   it.each(RETAILER_IDS)("%s builds an https search URL", (id) => {
     const url = RETAILERS[id].search("pregnancy pillow");
     expect(new URL(url).protocol).toBe("https:");
+  });
+
+  it.each(RETAILER_IDS)("%s says how long it takes and carries a monogram", (id) => {
+    // The comparison table shows both on every row, so neither can be blank.
+    expect(RETAILERS[id].delivery.trim().length).toBeGreaterThan(0);
+    expect(RETAILERS[id].monogram).toMatch(/^[a-z]{2}$/);
+  });
+
+  it("gives every storefront a distinct monogram", () => {
+    // Two identical chips would defeat the point of having them.
+    const marks = RETAILER_IDS.map((id) => RETAILERS[id].monogram);
+    expect(new Set(marks).size).toBe(marks.length);
   });
 
   it("declares outbound links as sponsored and window.opener-safe", () => {
