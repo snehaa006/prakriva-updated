@@ -457,13 +457,21 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
 
 
-def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
+def _post_gemini(
+    payload: Dict[str, Any],
+    *,
+    timeout: int,
+    deadline: Optional[float] = None,
+) -> Dict[str, Any]:
     """POST `payload` to Gemini, moving to the next model if one is retired.
 
     Key rotation happens a level down, in `_post_to_model`. This level only
     handles "that model ID no longer exists", which is a property of the
     request rather than of any key: retrying the same dead model on the other
     keys would just 404 three more times.
+
+    ``deadline`` (monotonic timestamp) caps total wall-clock time across the
+    entire model cascade so retries can't stack to minutes.
     """
     if not is_configured():
         raise GeminiUnavailable("No GEMINI_API_KEY is set")
@@ -473,29 +481,35 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
     tried: List[str] = []
 
     while len(tried) < _MAX_MODEL_ATTEMPTS:
+        if deadline is not None and time.monotonic() >= deadline:
+            raise GeminiUnavailable(
+                f"Gemini wall-clock deadline exceeded after trying {len(tried)} model(s)"
+            )
+
         # First pick honours the resolved model; later ones must step past
         # everything already tried on this request.
         model = active_model() if not tried else _next_model(tried)
         if model is None or model in tried:
             break
         tried.append(model)
+
+        effective_timeout = timeout
+        if deadline is not None:
+            remaining = max(5, int(deadline - time.monotonic()))
+            effective_timeout = min(timeout, remaining)
+
         try:
-            return _post_to_model(model, payload, timeout=timeout)
+            return _post_to_model(model, payload, timeout=effective_timeout)
         except _ModelGone as exc:
             last_error = str(exc)
             logger.warning(f"Gemini {last_error}; retiring it and trying the next model")
             _retire_model(model)
         except _ModelOverloaded as exc:
-            # Not retired — capacity comes back. Another model is a separate
-            # serving pool, so it is the one retry with a real chance of
-            # working while this one is saturated.
             last_error = str(exc)
             overloaded = True
             logger.warning(f"Gemini {last_error}; trying the next model")
 
     if overloaded:
-        # Said plainly, because this one is worth waiting out rather than
-        # debugging: every model tried was busy, not misconfigured.
         raise GeminiUnavailable(
             "Gemini is busy right now — every model tried was at capacity "
             f"({last_error}). Please try again in a moment."
@@ -881,17 +895,27 @@ def generate_json(
         "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
         "responseMimeType": "application/json",
     }
-    if disable_thinking:
-        gen_config["thinkingConfig"] = {"thinkingBudget": 0}
 
-    text = _text_from(
-        {
-            "systemInstruction": {"parts": [{"text": system_rules}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": gen_config,
-        },
-        timeout=timeout or settings.GEMINI_TIMEOUT_SECONDS,
-    )
+    payload: Dict[str, Any] = {
+        "systemInstruction": {"parts": [{"text": system_rules}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": gen_config,
+    }
+    if disable_thinking:
+        payload["thinkingConfig"] = {"thinkingBudget": 0}
+
+    effective_timeout = timeout or settings.GEMINI_TIMEOUT_SECONDS
+
+    if disable_thinking:
+        # Skip _text_from's budget-retry loop — with thinking off the budget
+        # won't be eaten by reasoning tokens, and the retry doubles wall time.
+        # A wall-clock deadline prevents the model cascade from stacking up.
+        deadline = time.monotonic() + effective_timeout
+        text = _first_text(
+            _post_gemini(payload, timeout=effective_timeout, deadline=deadline)
+        )
+    else:
+        text = _text_from(payload, timeout=effective_timeout)
 
     try:
         return json.loads(text)
