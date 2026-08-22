@@ -39,7 +39,7 @@ const Landing = () => {
           className="absolute inset-0 -z-10"
           style={{
             background:
-              "linear-gradient(to bottom, hsl(58 23% 13% / 0.42) 0%, hsl(58 23% 13% / 0.28) 42%, hsl(58 23% 13% / 0.55) 78%, hsl(29 36% 92%) 100%)",
+              "linear-gradient(to bottom, hsl(58 23% 13% / 0.42) 0%, hsl(58 23% 13% / 0.28) 42%, hsl(58 23% 13% / 0.58) 86%, hsl(29 36% 92%) 100%)",
           }}
         />
 
@@ -69,7 +69,11 @@ const Landing = () => {
         </header>
 
         {/* ── Brand lockup ── */}
-        <div className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pb-24 pt-10 text-center md:pb-32">
+        {/* Bottom padding stays close to the top's: under `justify-center` it
+            does not add room beneath the content, it shrinks the box being
+            centred and lifts the whole block upward — which is what left a
+            gap between the last line and the section below. */}
+        <div className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pb-12 pt-10 text-center md:pb-16">
           <Reveal>
             {/* Decorative: the wordmark directly below already carries the
                 name, so this is `alt=""` rather than a second "Prakriva". */}
