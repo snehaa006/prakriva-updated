@@ -3,49 +3,30 @@ import { Reveal } from "@/components/ui/reveal";
 import { Bloom } from "@/components/illustrations/LineArt";
 import { Logo } from "@/components/ui/logo";
 import { LanguageSwitcher } from "@/components/LanguageSelect";
-import { Stethoscope, User, Brain, Heart, Users, Leaf, ArrowRight } from "lucide-react";
+import { ArrowRight, Leaf } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const roles = [
-  {
-    icon: Stethoscope,
-    title: "For practitioners",
-    description:
-      "Build and adjust Ayurvedic diet charts, review screening results, and follow a full patient list from one place.",
-    action: "Continue as a doctor",
-    href: "/auth/doctor",
-  },
-  {
-    icon: User,
-    title: "For patients",
-    description:
-      "Follow a plan built around your dosha and your stage of life, and log meals, cycles and symptoms as you go.",
-    action: "Continue as a patient",
-    href: "/auth/patient",
-  },
-];
 
 const features = [
   {
-    icon: Brain,
+    num: "01",
     title: "Plans built per patient",
     description:
       "Diet charts generated from a patient's dosha, life stage, conditions and allergies — then edited by her practitioner, not shipped raw.",
   },
   {
-    icon: Heart,
+    num: "02",
     title: "Tracking that earns its place",
     description:
       "Cycles, weight, skin and lifestyle logs, surfaced only for the care pathways a patient is actually on.",
   },
   {
-    icon: Users,
+    num: "03",
     title: "One shared record",
     description:
       "What a patient logs is what her doctor reviews. No re-typing, no screenshots passed back and forth.",
   },
   {
-    icon: Leaf,
+    num: "04",
     title: "Ayurveda, kept legible",
     description:
       "Vata, pitta and kapha stay first-class throughout, always paired with the plain-language reason behind a recommendation.",
@@ -57,160 +38,235 @@ const Landing = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background">
-      {/* Same blush wash the sign-in screen uses, so the first two screens of
-          the app feel like one surface. */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[640px]"
-        style={{
-          background:
-            "radial-gradient(900px 480px at 50% -10%, hsl(var(--primary) / 0.08) 0%, transparent 65%)",
-        }}
-      />
-
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+      {/* ── Navigation ── */}
+      <header className="relative z-20 mx-auto flex max-w-[1200px] items-center justify-between px-6 py-7 md:py-9">
         <Logo size="sm" />
-        <div className="flex items-center gap-1">
-          {/* Language first, before sign-in: someone who cannot read the page
-              cannot read the sign-in button either. */}
+        <nav className="hidden items-center gap-x-7 text-[13px] font-medium text-foreground-secondary sm:flex">
+          <a href="#features" className="transition-colors hover:text-foreground">Features</a>
+          <a href="#roles" className="transition-colors hover:text-foreground">Get started</a>
+        </nav>
+        <div className="flex items-center gap-2">
           <LanguageSwitcher />
-          <Button variant="ghost" size="sm" onClick={() => navigate("/auth/patient")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full px-5 text-[13px]"
+            onClick={() => navigate("/auth/patient")}
+          >
             Sign in
           </Button>
         </div>
       </header>
 
       {/* ── Hero ──
-          The mark is drawn rather than dropped in: the bloom animates its own
-          strokes on load, which does the job the raster logo tile was doing
-          badly — the PNG is a cream square, and floating it on a blush page
-          read as a placeholder someone forgot to replace. */}
-      <section className="mx-auto max-w-6xl px-6 pb-20 pt-8 sm:pt-14">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
-          <div>
-            {/* Below `lg` the two-column hero collapses and the illustration
-                column is dropped, so the mark comes inline above the heading
-                instead — a phone shouldn't be the one place it never appears. */}
-            <Reveal className="mb-7 lg:hidden">
-              <Bloom delay={150} className="h-14 w-14 text-primary" />
-            </Reveal>
+          Sythra-style massive typography with a warm cream background. The mark
+          draws itself on load (Bloom). Generous whitespace. */}
+      <section className="relative mx-auto max-w-[1200px] px-6 pb-28 pt-10 md:pb-36 md:pt-20">
+        {/* Warm radial wash behind the hero */}
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(700px 500px at 20% 30%, hsl(158, 38%, 28% / 0.06) 0%, transparent 60%), radial-gradient(500px 400px at 85% 15%, hsl(20, 90%, 52% / 0.04) 0%, transparent 55%)",
+          }}
+        />
 
+        <div className="grid items-end gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:gap-20">
+          <div>
             <Reveal>
-              <p className="text-footnote font-medium uppercase tracking-[0.12em] text-foreground-tertiary">
-                Ayurvedic care, kept in one record
-              </p>
+              <span className="section-label">Ayurvedic wellness platform</span>
             </Reveal>
 
             <Reveal index={1}>
-              <h1 className="mt-4 max-w-xl text-title1 text-foreground sm:text-large-title">
-                Nutrition that follows a woman through every stage.
+              <h1 className="mt-5 font-display text-display-lg tracking-tight text-foreground">
+                Nutrition that{" "}
+                <span className="italic text-primary">follows</span>{" "}
+                every stage of life.
               </h1>
             </Reveal>
 
             <Reveal index={2}>
-              <p className="mt-5 max-w-lg text-body text-foreground-secondary">
-                Prakriva pairs Ayurvedic profiling with the tracking a pregnancy or a
-                PCOS diagnosis actually needs, and puts a practitioner on the other
-                side of it.
+              <p className="mt-7 max-w-lg text-body leading-relaxed text-foreground-secondary">
+                Prakriva pairs Ayurvedic profiling with the tracking a pregnancy
+                or a PCOS diagnosis actually needs — and puts a practitioner on
+                the other side of it.
               </p>
             </Reveal>
 
             <Reveal index={3}>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <Button size="lg" onClick={() => navigate("/auth/patient")}>
+              <div className="mt-10 flex flex-wrap items-center gap-4">
+                <Button
+                  size="lg"
+                  className="rounded-full bg-accent px-7 text-[13px] font-bold uppercase tracking-wide text-accent-foreground shadow-glow-gold hover:brightness-110"
+                  onClick={() => navigate("/auth/patient")}
+                >
                   Get started
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={() => navigate("/auth/doctor")}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full px-7 text-[13px] font-bold uppercase tracking-wide"
+                  onClick={() => navigate("/auth/doctor")}
+                >
                   I'm a practitioner
                 </Button>
               </div>
             </Reveal>
           </div>
 
-          <Reveal index={2} className="hidden justify-center lg:flex">
-            <div className="relative flex h-72 w-72 items-center justify-center">
-              <span className="absolute inset-0 rounded-full bg-accent-soft/70" />
-              <span className="absolute inset-7 rounded-full border border-border" />
-              <Bloom delay={250} className="relative h-40 w-40 text-primary" />
+          {/* Hero mark — Sythra puts one bold visual element here */}
+          <Reveal index={2} className="hidden lg:flex lg:justify-center">
+            <div className="relative flex h-72 w-72 items-center justify-center xl:h-80 xl:w-80">
+              {/* Soft glow */}
+              <span className="absolute inset-0 animate-pulse-soft rounded-full bg-primary/[0.06]" />
+              <span className="absolute inset-8 rounded-full border border-foreground/[0.06]" />
+              <Bloom delay={250} className="relative h-36 w-36 text-primary xl:h-40 xl:w-40" />
+              {/* Floating dots (sythra's decorative language) */}
+              <span className="absolute right-4 top-10 h-2.5 w-2.5 animate-float rounded-full bg-accent/50" />
+              <span className="absolute bottom-14 left-4 h-2 w-2 animate-float rounded-full bg-primary/30" style={{ animationDelay: "1.5s" }} />
             </div>
           </Reveal>
         </div>
       </section>
 
-      {/* ── Roles ── */}
-      <section className="border-y border-border bg-accent-soft/40 py-20">
-        <div className="mx-auto max-w-4xl px-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {roles.map((role, i) => (
-              <Reveal key={role.title} index={i} as="article" className="h-full">
-                <button
-                  onClick={() => navigate(role.href)}
-                  className="group flex h-full w-full flex-col items-start gap-4 rounded-xl border border-border bg-card p-7 text-left transition-all duration-200 ease-ios hover:border-border-strong hover:shadow-md active:scale-[0.99]"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent-soft text-primary">
-                    <role.icon className="h-5 w-5" />
+      {/* ── Features (numbered, sythra grid) ── */}
+      <section id="features" className="border-t border-foreground/[0.06] py-20 md:py-28">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <Reveal>
+            <span className="section-label">How it works</span>
+          </Reveal>
+          <Reveal index={1}>
+            <h2 className="mt-4 max-w-xl font-display text-display-md tracking-tight text-foreground">
+              Built around how this care{" "}
+              <span className="italic text-primary">actually</span> runs
+            </h2>
+          </Reveal>
+
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:mt-20">
+            {features.map((feature, i) => (
+              <Reveal key={feature.num} index={i} delay={120}>
+                <div className="card-hover group rounded-[22px] border border-foreground/[0.06] bg-card p-7 md:p-8">
+                  <span className="text-display-sm font-display text-foreground/[0.12]">
+                    {feature.num}
                   </span>
-                  <span className="flex-1">
-                    <span className="block text-headline text-foreground">{role.title}</span>
-                    <span className="mt-2 block text-footnote leading-relaxed text-foreground-secondary">
-                      {role.description}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-1.5 text-footnote font-medium text-primary">
-                    {role.action}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-ios group-hover:translate-x-0.5" />
-                  </span>
-                </button>
+                  <h3 className="mt-4 text-headline text-foreground">{feature.title}</h3>
+                  <p className="mt-2.5 text-footnote leading-relaxed text-foreground-secondary">
+                    {feature.description}
+                  </p>
+                </div>
               </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Features ──
-          A plain two-column list rather than four more bordered cards. The
-          page was six near-identical card grids stacked; varying the density
-          is most of what separates a designed page from a generated one. */}
-      <section className="py-20">
-        <div className="mx-auto max-w-4xl px-6">
+      {/* ── Roles (dark section — sythra-style contrast) ── */}
+      <section id="roles" className="section-dark py-20 md:py-28">
+        <div className="mx-auto max-w-[1200px] px-6">
           <Reveal>
-            <h2 className="max-w-lg text-title2 text-foreground">
-              Built around how this care actually runs
+            <span className="section-label !text-white/40">Choose your path</span>
+          </Reveal>
+          <Reveal index={1}>
+            <h2 className="mt-4 max-w-lg font-display text-display-md tracking-tight text-white">
+              Two sides, one record.
             </h2>
           </Reveal>
 
-          <dl className="mt-12 grid gap-x-12 gap-y-10 sm:grid-cols-2">
-            {features.map((feature, i) => (
-              <Reveal key={feature.title} index={i}>
-                <dt className="flex items-center gap-3">
-                  <feature.icon className="h-4 w-4 shrink-0 text-primary" />
-                  <span className="text-headline text-foreground">{feature.title}</span>
-                </dt>
-                <dd className="mt-2 pl-7 text-footnote leading-relaxed text-foreground-secondary">
-                  {feature.description}
-                </dd>
-              </Reveal>
-            ))}
-          </dl>
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:mt-20">
+            {/* Practitioner card */}
+            <Reveal index={0} delay={120}>
+              <button
+                onClick={() => navigate("/auth/doctor")}
+                className="card-hover group flex w-full flex-col items-start rounded-[22px] border border-white/[0.08] bg-white/[0.04] p-8 text-left md:p-10"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.08]">
+                  <Leaf className="h-5 w-5 text-white/80" />
+                </div>
+                <h3 className="mt-6 font-display text-title2 text-white">For practitioners</h3>
+                <p className="mt-3 text-footnote leading-relaxed text-white/55">
+                  Build and adjust Ayurvedic diet charts, review screening results,
+                  and follow a full patient list from one place.
+                </p>
+                <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-accent">
+                  Continue as a doctor
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                </span>
+              </button>
+            </Reveal>
+
+            {/* Patient card */}
+            <Reveal index={1} delay={120}>
+              <button
+                onClick={() => navigate("/auth/patient")}
+                className="card-hover group flex w-full flex-col items-start rounded-[22px] border border-white/[0.08] bg-white/[0.04] p-8 text-left md:p-10"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/[0.12]">
+                  <Bloom animate={false} className="h-5 w-5 text-accent" />
+                </div>
+                <h3 className="mt-6 font-display text-title2 text-white">For patients</h3>
+                <p className="mt-3 text-footnote leading-relaxed text-white/55">
+                  Follow a plan built around your dosha and your stage of life, and
+                  log meals, cycles and symptoms as you go.
+                </p>
+                <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-accent">
+                  Continue as a patient
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                </span>
+              </button>
+            </Reveal>
+          </div>
         </div>
       </section>
 
       {/* ── CTA ── */}
-      <section className="border-t border-border py-20">
-        <div className="mx-auto flex max-w-4xl flex-col items-start gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-title3 text-foreground">Ready to start?</h2>
-            <p className="mt-1.5 text-footnote text-foreground-secondary">
-              Set up a patient account, or bring your practice onto Prakriva.
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-3">
-            <Button onClick={() => navigate("/auth/patient")}>Get started</Button>
-            <Button variant="outline" onClick={() => navigate("/auth/doctor")}>
-              For practitioners
-            </Button>
+      <section className="py-20 md:py-28">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
+            <div>
+              <Reveal>
+                <h2 className="font-display text-display-sm tracking-tight text-foreground">
+                  Ready to start?
+                </h2>
+              </Reveal>
+              <Reveal index={1}>
+                <p className="mt-2 text-body text-foreground-secondary">
+                  Set up a patient account, or bring your practice onto Prakriva.
+                </p>
+              </Reveal>
+            </div>
+            <Reveal index={2}>
+              <div className="flex shrink-0 gap-3">
+                <Button
+                  size="lg"
+                  className="rounded-full bg-accent px-7 text-[13px] font-bold uppercase tracking-wide text-accent-foreground shadow-glow-gold hover:brightness-110"
+                  onClick={() => navigate("/auth/patient")}
+                >
+                  Get started
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full px-7 text-[13px] font-bold uppercase tracking-wide"
+                  onClick={() => navigate("/auth/doctor")}
+                >
+                  For practitioners
+                </Button>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-foreground/[0.06] py-10">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6">
+          <Logo size="sm" className="opacity-60" />
+          <p className="text-caption1 text-foreground-tertiary">
+            Prakriva · Ayurvedic wellness
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

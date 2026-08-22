@@ -65,7 +65,7 @@ export function PatientBottomNav({
           <button
             onClick={onAIClick}
             aria-label="Talk to your wellness companion"
-            className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-rose-500 text-primary-foreground shadow-[0_6px_18px_-4px_hsl(var(--primary)/0.35)] ring-4 ring-background-elevated/70 transition-all duration-200 ease-ios-spring hover:scale-105 active:scale-95"
+            className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-glow-gold ring-4 ring-background/80 transition-all duration-200 ease-ios-spring hover:scale-105 hover:brightness-110 active:scale-95"
           >
             <Sparkles className="h-6 w-6" />
           </button>

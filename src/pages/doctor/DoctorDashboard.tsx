@@ -464,11 +464,11 @@ const DoctorDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-plum-500 to-plum-600 rounded-full flex items-center justify-center">
-            <span className="text-white font-semibold text-lg">{doctorData.initials}</span>
+          <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/70 rounded-2xl flex items-center justify-center shadow-glow">
+            <span className="text-primary-foreground font-semibold text-lg">{doctorData.initials}</span>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-2xl font-bold font-display text-foreground">
               Welcome back, {doctorData.name}
             </h1>
             <p className="text-muted-foreground text-sm">
@@ -499,7 +499,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-plum-50"><Users className="w-5 h-5 text-plum-600" /></div>
+              <div className="p-2 rounded-xl bg-primary/10"><Users className="w-5 h-5 text-primary" /></div>
               <div>
                 <p className="text-2xl font-bold">{patientCount}</p>
                 <p className="text-xs text-muted-foreground">Total Patients</p>
@@ -510,7 +510,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-rose-50"><Calendar className="w-5 h-5 text-rose-600" /></div>
+              <div className="p-2 rounded-xl bg-gold-soft"><Calendar className="w-5 h-5 text-gold" /></div>
               <div>
                 <p className="text-2xl font-bold">{todayAppts.length}</p>
                 <p className="text-xs text-muted-foreground">Today's Appointments</p>
@@ -521,7 +521,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-coral-50"><AlertCircle className="w-5 h-5 text-coral-600" /></div>
+              <div className="p-2 rounded-xl bg-coral-50"><AlertCircle className="w-5 h-5 text-coral-500" /></div>
               <div>
                 <p className="text-2xl font-bold">{pendingRequests.length}</p>
                 <p className="text-xs text-muted-foreground">Pending Requests</p>
@@ -532,7 +532,7 @@ const DoctorDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-plum-50"><TrendingUp className="w-5 h-5 text-plum-600" /></div>
+              <div className="p-2 rounded-xl bg-primary/10"><TrendingUp className="w-5 h-5 text-primary" /></div>
               <div>
                 <p className="text-2xl font-bold">{avgPatientCompletion}%</p>
                 <p className="text-xs text-muted-foreground">Avg Patient Adherence</p>
@@ -588,14 +588,14 @@ const DoctorDashboard = () => {
                 <div className="space-y-3">
                   {filteredAppointments.map(appt => (
                     <div key={appt.id} className={`flex items-center justify-between p-3 rounded-xl border ${
-                      appt.status === "completed" ? "bg-rose-50/50 border-rose-200" :
+                      appt.status === "completed" ? "bg-accent-soft/50 border-primary/20" :
                       appt.status === "cancelled" ? "bg-destructive/5 border-destructive/20 opacity-60" :
                       "bg-muted/30"
                     }`}>
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-xl bg-card border border-border">
-                          {appt.mode === "video-call" ? <Video className="w-4 h-4 text-plum-500" /> :
-                           appt.mode === "phone" ? <Phone className="w-4 h-4 text-rose-500" /> :
+                          {appt.mode === "video-call" ? <Video className="w-4 h-4 text-primary" /> :
+                           appt.mode === "phone" ? <Phone className="w-4 h-4 text-gold" /> :
                            <MapPin className="w-4 h-4 text-coral-500" />}
                         </div>
                         <div>
@@ -608,8 +608,8 @@ const DoctorDashboard = () => {
                         </div>
                       </div>
                       <Badge className={`text-xs ${
-                        appt.status === "scheduled" ? "bg-plum-100 text-plum-700" :
-                        appt.status === "completed" ? "bg-rose-100 text-rose-700" :
+                        appt.status === "scheduled" ? "bg-primary/10 text-primary" :
+                        appt.status === "completed" ? "bg-accent-soft text-accent-soft-foreground" :
                         appt.status === "cancelled" ? "bg-destructive/10 text-destructive" :
                         "bg-gray-100 text-gray-700"
                       }`}>
@@ -645,7 +645,7 @@ const DoctorDashboard = () => {
                 <div className="space-y-3">
                   {patientProgress.slice(0, 8).map(p => (
                     <div key={p.patientId} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-plum-100 to-plum-100 flex items-center justify-center text-xs font-medium text-plum-700">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/15 to-primary/10 flex items-center justify-center text-xs font-medium text-primary">
                         {p.patientName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -676,12 +676,12 @@ const DoctorDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="text-center p-3 bg-plum-50 rounded-xl">
-                  <div className="text-xl font-bold text-plum-600">{appointments.filter(a => a.status === "scheduled").length}</div>
+                <div className="text-center p-3 bg-primary/8 rounded-xl">
+                  <div className="text-xl font-bold text-primary">{appointments.filter(a => a.status === "scheduled").length}</div>
                   <p className="text-xs text-muted-foreground">Scheduled</p>
                 </div>
-                <div className="text-center p-3 bg-rose-50 rounded-xl">
-                  <div className="text-xl font-bold text-rose-600">{completedAppts}</div>
+                <div className="text-center p-3 bg-accent-soft rounded-xl">
+                  <div className="text-xl font-bold text-accent-soft-foreground">{completedAppts}</div>
                   <p className="text-xs text-muted-foreground">Completed</p>
                 </div>
                 <div className="text-center p-3 bg-destructive/5 rounded-xl">
@@ -722,8 +722,8 @@ const DoctorDashboard = () => {
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {requests.slice(0, 10).map(req => (
                     <div key={req.id} className={`p-3 rounded-xl border text-sm ${
-                      req.status === "pending" ? "bg-coral-50/50 border-coral-200" :
-                      req.status === "accepted" ? "bg-rose-50/50 border-rose-200" :
+                      req.status === "pending" ? "bg-gold-soft/50 border-gold/20" :
+                      req.status === "accepted" ? "bg-accent-soft/50 border-primary/20" :
                       "bg-muted/30 border-muted"
                     }`}>
                       <div className="flex items-center justify-between mb-1">
@@ -742,7 +742,7 @@ const DoctorDashboard = () => {
 
                       {req.status === "pending" && (
                         <div className="flex gap-2 mt-2">
-                          <Button size="sm" className="h-7 text-xs bg-rose-600 hover:bg-rose-700 flex-1" onClick={() => updateRequestStatus(req.id, "accepted")}>
+                          <Button size="sm" className="h-7 text-xs flex-1" onClick={() => updateRequestStatus(req.id, "accepted")}>
                             <Check className="w-3 h-3 mr-1" /> Accept
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => updateRequestStatus(req.id, "rejected")}>
@@ -751,7 +751,7 @@ const DoctorDashboard = () => {
                         </div>
                       )}
                       {req.status !== "pending" && (
-                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-rose-100 text-rose-700" : "bg-destructive/10 text-destructive"}`}>
+                        <Badge className={`mt-2 text-[10px] ${req.status === "accepted" ? "bg-accent-soft text-accent-soft-foreground" : "bg-destructive/10 text-destructive"}`}>
                           {req.status}
                         </Badge>
                       )}
@@ -767,7 +767,7 @@ const DoctorDashboard = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-coral-500" />
+                  <Bell className="w-5 h-5 text-gold" />
                   <CardTitle>Notifications</CardTitle>
                   {unreadCount > 0 && (
                     <Badge variant="destructive" className="text-xs">{unreadCount}</Badge>
@@ -798,27 +798,27 @@ const DoctorDashboard = () => {
                       key={notif.id}
                       className={`p-3 rounded-xl border cursor-pointer transition-all text-sm ${
                         notif.read ? "bg-muted/20 border-muted" :
-                        notif.type === "consultation_request" ? "bg-plum-50 border-plum-200" :
-                        notif.type === "meal_tracking" ? "bg-rose-50 border-rose-200" :
-                        notif.type === "appointment" ? "bg-plum-50 border-plum-200" :
+                        notif.type === "consultation_request" ? "bg-primary/5 border-primary/20" :
+                        notif.type === "meal_tracking" ? "bg-accent-soft border-primary/15" :
+                        notif.type === "appointment" ? "bg-gold-soft border-gold/20" :
                         notif.type === "alert" ? "bg-destructive/5 border-destructive/20" :
-                        "bg-coral-50 border-coral-200"
+                        "bg-gold-soft/50 border-gold/15"
                       }`}
                       onClick={() => !notif.read && markNotifRead(notif.id)}
                     >
                       <div className="flex items-start gap-2">
-                        {notif.type === "consultation_request" && <MessageCircle className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
-                        {notif.type === "meal_tracking" && <Utensils className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />}
-                        {notif.type === "appointment" && <Calendar className="w-4 h-4 text-plum-500 mt-0.5 shrink-0" />}
+                        {notif.type === "consultation_request" && <MessageCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />}
+                        {notif.type === "meal_tracking" && <Utensils className="w-4 h-4 text-primary mt-0.5 shrink-0" />}
+                        {notif.type === "appointment" && <Calendar className="w-4 h-4 text-gold mt-0.5 shrink-0" />}
                         {notif.type === "alert" && <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />}
-                        {notif.type === "info" && <Bell className="w-4 h-4 text-coral-500 mt-0.5 shrink-0" />}
+                        {notif.type === "info" && <Bell className="w-4 h-4 text-gold mt-0.5 shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs ${notif.read ? "text-muted-foreground" : "font-medium"}`}>
                             {notif.message}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(notif.createdAt)}</p>
                         </div>
-                        {!notif.read && <div className="w-2 h-2 bg-plum-500 rounded-full mt-1.5 shrink-0" />}
+                        {!notif.read && <div className="w-2 h-2 bg-primary rounded-full mt-1.5 shrink-0" />}
                       </div>
                     </div>
                   ))}

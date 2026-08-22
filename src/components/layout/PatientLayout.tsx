@@ -28,7 +28,7 @@ const PatientLayout = () => {
         className="pointer-events-none fixed inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(1100px 620px at 12% -8%, hsl(var(--primary) / 0.07) 0%, transparent 60%), radial-gradient(900px 520px at 100% 2%, hsl(var(--vata) / 0.05) 0%, transparent 55%)",
+            "radial-gradient(1000px 600px at 10% -6%, hsl(158, 38%, 28% / 0.05) 0%, transparent 50%), radial-gradient(800px 500px at 95% 5%, hsl(20, 90%, 52% / 0.03) 0%, transparent 45%)",
         }}
       />
       <PatientSidebar collapsed={collapsed} mobileOpen={mobileOpen} onMobileOpenChange={setMobileOpen} />

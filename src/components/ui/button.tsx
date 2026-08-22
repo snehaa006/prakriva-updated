@@ -3,11 +3,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-/**
- * Minimal dependency-free stand-in for the Radix Slot primitive.
- * When asChild is true, clones the single child element, merging className
- * and forwarding ref + remaining props onto it instead of rendering a <button>.
- */
 const Slot = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }>(
   ({ children, className, ...props }, ref) => {
     if (!React.isValidElement(children)) {
@@ -33,21 +28,22 @@ const Slot = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & {
 Slot.displayName = "Slot";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-all duration-150 ease-ios focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-all duration-200 ease-ios focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:-translate-y-0.5 active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground shadow-sm hover:shadow-md",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
+        outline: "border border-foreground/[0.12] bg-transparent text-foreground hover:bg-foreground/[0.04] hover:border-foreground/[0.2]",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        ghost: "hover:bg-foreground/[0.04]",
+        link: "text-primary underline-offset-4 hover:underline hover:translate-y-0",
+        gold: "bg-accent text-accent-foreground shadow-glow-gold hover:brightness-110",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-xl px-3",
-        lg: "h-11 rounded-xl px-8",
+        default: "h-10 px-5 py-2",
+        sm: "h-9 rounded-xl px-3.5",
+        lg: "h-12 rounded-xl px-8 text-[15px]",
         icon: "h-10 w-10",
       },
     },

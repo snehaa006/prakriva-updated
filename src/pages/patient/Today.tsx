@@ -210,7 +210,7 @@ const Today = () => {
             <StageArt delay={200} className="h-9 w-9" />
           </span>
           <div>
-            <h1 className="text-title2 text-foreground">
+            <h1 className="font-display text-title2 text-foreground">
               {getGreeting()}, {(profile?.name || "there").split(" ")[0]}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">

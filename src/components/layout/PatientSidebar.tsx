@@ -334,7 +334,9 @@ export function PatientSidebar({ collapsed, mobileOpen, onMobileOpenChange }: Pa
           "transition-[width] duration-200 ease-ios",
         )}
       >
-        <div className="glass m-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl shadow-md">
+        <div className="glass m-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl shadow-lg">
+          {/* Subtle botanical gradient at the top of the sidebar */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/[0.03] to-transparent" />
           <SidebarBody collapsed={collapsed} />
         </div>
       </aside>

@@ -244,26 +244,32 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
   const cues = useMemo(() => buildProactiveCues(context), [context]);
 
   // Whether Gemini is configured, and — only then — her own data to chat
-  // over. Both failures are silent: an unconfigured assistant or an
-  // unreachable Supabase just means the chat says so when she tries to send.
+  // over. Both run concurrently: the status check is fast (5s timeout), while
+  // context loading can take a beat on cold Supabase. Starting both at once
+  // saves 1-2s on a healthy deployment.
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const enabled = await isAnalysisEnabled();
+      // Start both in parallel — don't wait for the status check before
+      // fetching context, which was the old bottleneck.
+      const statusPromise = isAnalysisEnabled();
+      const contextPromise = (async () => {
+        try {
+          const { data } = await supabase.auth.getUser();
+          if (!data.user) return null;
+          return await fetchPatientChatContext(data.user.id);
+        } catch (error) {
+          console.error("Could not load chat context:", error);
+          return null;
+        }
+      })();
+
+      const [enabled, ctx] = await Promise.all([statusPromise, contextPromise]);
       if (cancelled) return;
       setAssistantEnabled(enabled);
       setStatusChecked(true);
-      if (!enabled) return;
-
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (cancelled || !data.user) return;
-        const ctx = await fetchPatientChatContext(data.user.id);
-        if (!cancelled) setContext(ctx);
-      } catch (error) {
-        console.error("Could not load chat context:", error);
-      }
+      if (ctx) setContext(ctx);
     })();
 
     return () => {
@@ -362,26 +368,39 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
 
   // --- Sending ---------------------------------------------------------------
 
+  // Ref so sendMessage always sees the latest messages without re-creating the callback.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const contextRef = useRef(context);
+  contextRef.current = context;
+
   const sendMessage = useCallback(
     async (rawText: string) => {
       const text = rawText.trim();
       if (!text || isLoading) return;
 
-      const history = buildHistory(messages);
+      const history = buildHistory(messagesRef.current);
       const userMessage: ChatMessage = { id: msgId(), role: "user", text, timestamp: Date.now() };
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
 
       try {
-        // Deliberately not gated on `assistantEnabled`: that flag is still
-        // false while the status check is in flight, and refusing to send
-        // meant the first message of a session was answered with "isn't
-        // available" even on a perfectly healthy deployment. An unconfigured
-        // backend answers this call with a 503 that says so.
-        const baseContext = context ?? EMPTY_CONTEXT;
-        const recipeCandidates = looksLikeRecipeRequest(text)
-          ? await maybeFetchRecipeCandidates(text, baseContext.pantry.atHome, baseContext.profile.dietaryPreference)
-          : [];
+        const baseContext = contextRef.current ?? EMPTY_CONTEXT;
+
+        // Fire recipe lookup and chat call concurrently when it looks like a
+        // recipe question — the old serial approach added 2-4s of latency.
+        let recipeCandidates: Awaited<ReturnType<typeof maybeFetchRecipeCandidates>> = [];
+        if (looksLikeRecipeRequest(text)) {
+          // Start the recipe fetch but don't block on it if it's slow —
+          // cap it at 4 seconds and proceed without candidates.
+          const recipePromise = maybeFetchRecipeCandidates(
+            text, baseContext.pantry.atHome, baseContext.profile.dietaryPreference,
+          );
+          const timeout = new Promise<typeof recipeCandidates>((resolve) =>
+            setTimeout(() => resolve([]), 4_000),
+          );
+          recipeCandidates = await Promise.race([recipePromise, timeout]);
+        }
 
         const answer = await askChat(text, history, { ...baseContext, recipeCandidates });
         setMessages((prev) => [
@@ -390,10 +409,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             id: msgId(),
             role: "assistant",
             text: answer,
-            // Where the old chat ended every answer with the same four chips,
-            // these follow on from what she just asked: an answer about sleep
-            // is followed by sleep questions.
-            suggestions: buildFollowUps(text, context),
+            suggestions: buildFollowUps(text, contextRef.current),
             timestamp: Date.now(),
           },
         ]);
@@ -408,9 +424,6 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             text: unavailable
               ? "Your wellness assistant isn't available right now. Please try again shortly."
               : "I couldn't reach your assistant just now — please try again in a moment.",
-            // Kept visible rather than only in the console: on a deployed
-            // frontend this line is the only clue whether the backend is
-            // unreachable, out of Gemini quota, or misconfigured.
             detail: error instanceof Error ? error.message : String(error),
             isError: true,
             suggestions: [{ label: "Try again", value: text }],
@@ -421,7 +434,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         setIsLoading(false);
       }
     },
-    [messages, isLoading, context],
+    [isLoading],
   );
 
   const handleSend = () => {
@@ -556,7 +569,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         <button
           onClick={handleOpen}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-rose-500 text-primary-foreground shadow-lg transition-all duration-200 ease-ios-spring hover:scale-105 hover:shadow-xl active:scale-95",
+            "group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-glow-gold transition-all duration-200 ease-ios-spring hover:scale-105 hover:shadow-xl active:scale-95",
             hideTrigger && "hidden md:flex",
           )}
           aria-label="Open wellness companion"

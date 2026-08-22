@@ -1,163 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Prakriva Design System — iOS/visionOS-style minimalism.
-Near-achromatic neutrals warmed toward the brand's blush hue (340) with a
-single burgundy accent (kept for brand continuity with public/logo.png), plus
-three domain-critical Ayurvedic dosha colors (vata/pitta/kapha) that carry real
-clinical meaning and must stay visually distinct. All colors MUST be HSL.
-
-The neutrals carry only 6-30% saturation — enough that surfaces read soft and
-warm rather than clinical gray, not enough to become "a pink app". The palette
-stays minimal: one accent, quiet neutrals, color reserved for meaning.
+/* Prakriva Design System — Warm Cream + Sage Green + Amber.
+Inspired by sythra.ai's warm editorial aesthetic and harmanmanik.in's generous
+whitespace. The background is a true warm cream (#f3eee8 style), the primary
+is deep sage green for brand identity, and the CTA accent is a warm
+amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
 */
 
 @layer base {
   :root {
-    /* Base neutrals — near-white, iOS systemGroupedBackground style, tinted a
-       few percent toward the blush accent so the app feels like the same
-       surface as the sign-in screen rather than a cool settings pane. */
-    --background: 340 30% 98%;
-    --background-elevated: 0 0% 100%;
-    --foreground: 340 10% 12%;
-    --foreground-secondary: 340 6% 45%;
-    --foreground-tertiary: 340 6% 64%;
+    /* Base — warm cream, sythra-style */
+    --background: 33 28% 94%;
+    --background-elevated: 33 22% 97%;
+    --foreground: 24 14% 11%;
+    --foreground-secondary: 24 8% 36%;
+    --foreground-tertiary: 24 6% 52%;
 
-    /* Card colors - elevated surface over the grouped background */
-    --card: 0 0% 100%;
-    --card-foreground: 340 10% 12%;
+    /* Card — slightly lighter cream */
+    --card: 33 20% 96%;
+    --card-foreground: 24 14% 11%;
 
-    /* Popover colors */
-    --popover: 0 0% 100%;
-    --popover-foreground: 340 10% 12%;
+    /* Popover */
+    --popover: 33 20% 96%;
+    --popover-foreground: 24 14% 11%;
 
-    /* Primary - the single accent. Kept close to the old Prakriva burgundy
-       for brand continuity, but tuned as a UI accent (buttons, links, active
-       states) rather than a palette-filling brand color. */
-    --primary: 340 45% 42%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary — deep sage green */
+    --primary: 158 38% 28%;
+    --primary-foreground: 33 22% 97%;
 
-    /* Secondary - soft accent tint, used for selected/soft-badge backgrounds */
-    --secondary: 340 45% 96%;
-    --secondary-foreground: 340 45% 32%;
+    /* Secondary — warm tint */
+    --secondary: 33 25% 92%;
+    --secondary-foreground: 24 14% 18%;
 
-    /* Muted - quiet neutral, warmed to match the base */
-    --muted: 340 20% 96%;
-    --muted-foreground: 340 6% 45%;
+    /* Muted */
+    --muted: 33 18% 92%;
+    --muted-foreground: 24 8% 42%;
 
-    /* Accent - alias of primary for shadcn-shaped components still expecting it */
-    --accent: 340 45% 96%;
-    --accent-foreground: 340 45% 32%;
-
-    /* Accent-soft — the tinted chip/pill/icon-well surface. Its own token (not
-       an alias of --secondary) so it can be read from inline styles and
-       gradients, not just Tailwind classes. */
-    --accent-soft: 340 45% 96%;
-    --accent-soft-foreground: 340 45% 32%;
+    /* Accent — amber-orange, warm CTA color (sythra-inspired) */
+    --accent: 20 90% 52%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 158 26% 92%;
+    --accent-soft-foreground: 158 38% 24%;
 
     /* Destructive */
     --destructive: 4 78% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders and inputs */
-    --border: 340 16% 91%;
-    --border-strong: 340 14% 84%;
-    --input: 340 16% 91%;
-    --ring: 340 45% 42%;
+    /* Borders — warm, subtle */
+    --border: 24 12% 86%;
+    --border-strong: 24 10% 74%;
+    --input: 24 12% 86%;
+    --ring: 158 38% 28%;
 
     --radius: 0.75rem;
 
-    /* Dosha and status colors.
-       Dosha colors are domain-critical (Ayurvedic vata/pitta/kapha), not
-       decorative, and are the one place saturated color lives outside the
-       accent. Remapped off the old all-pink family to three well-separated
-       hues (violet/orange/green) so they read as distinct against a neutral
-       backdrop and stay closer to their traditional air/fire/earth
-       associations. Every place they signal something also carries a text
-       label or icon, so meaning never rests on hue alone. */
-    --vata: 256 45% 58%;        /* Violet — air/space */
-    --pitta: 18 75% 55%;        /* Orange-red — fire */
-    --kapha: 152 40% 42%;       /* Green — earth/water */
-    --success: 145 62% 38%;
+    /* Gold / amber CTA */
+    --gold: 20 90% 52%;
+    --gold-soft: 20 40% 94%;
+    --gold-foreground: 0 0% 100%;
+
+    /* Dosha — domain-critical, unchanged */
+    --vata: 256 45% 58%;
+    --pitta: 18 75% 55%;
+    --kapha: 152 40% 42%;
+    --success: 152 50% 36%;
     --warning: 38 92% 50%;
-    --info: 256 45% 58%;
+    --info: 210 60% 52%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 38%), hsl(340, 45%, 48%));
-    --gradient-secondary: linear-gradient(135deg, hsl(340, 20%, 96%), hsl(0, 0%, 100%));
-    --gradient-hero: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 46%), hsl(340, 20%, 96%));
+    --gradient-primary: linear-gradient(135deg, hsl(158, 38%, 24%), hsl(158, 35%, 36%));
+    --gradient-gold: linear-gradient(135deg, hsl(20, 90%, 50%), hsl(28, 80%, 56%));
+    --gradient-hero: linear-gradient(135deg, hsl(24, 14%, 11%), hsl(24, 10%, 16%), hsl(24, 8%, 22%));
+    --gradient-secondary: linear-gradient(135deg, hsl(33, 18%, 92%), hsl(33, 20%, 96%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
-    /* Sidebar colors */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 340 10% 12%;
-    --sidebar-primary: 340 45% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 340 45% 96%;
-    --sidebar-accent-foreground: 340 45% 32%;
-    --sidebar-border: 340 16% 91%;
-    --sidebar-ring: 340 45% 42%;
+    /* Sidebar */
+    --sidebar-background: 33 20% 96%;
+    --sidebar-foreground: 24 14% 11%;
+    --sidebar-primary: 158 38% 28%;
+    --sidebar-primary-foreground: 33 22% 97%;
+    --sidebar-accent: 158 26% 92%;
+    --sidebar-accent-foreground: 158 38% 24%;
+    --sidebar-border: 24 12% 86%;
+    --sidebar-ring: 158 38% 28%;
   }
 
-  /* Dark mode is not reachable from the UI today (there is no theme toggle),
-     but kept in sync with the light palette so a class toggle would drop the
-     app into a dark iOS-style surface rather than a stale pink theme. */
   .dark {
-    --background: 340 8% 9%;
-    --background-elevated: 340 8% 13%;
-    --foreground: 0 0% 96%;
-    --foreground-secondary: 340 5% 66%;
-    --foreground-tertiary: 340 5% 46%;
+    --background: 24 8% 7%;
+    --background-elevated: 24 8% 11%;
+    --foreground: 33 15% 92%;
+    --foreground-secondary: 24 6% 58%;
+    --foreground-tertiary: 24 5% 42%;
 
-    --card: 340 8% 13%;
-    --card-foreground: 0 0% 96%;
+    --card: 24 8% 11%;
+    --card-foreground: 33 15% 92%;
 
-    --popover: 340 8% 13%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 24 8% 11%;
+    --popover-foreground: 33 15% 92%;
 
-    --primary: 340 55% 62%;
-    --primary-foreground: 340 8% 9%;
+    --primary: 158 42% 46%;
+    --primary-foreground: 24 8% 7%;
 
-    --secondary: 340 25% 18%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary: 24 10% 15%;
+    --secondary-foreground: 33 15% 88%;
 
-    --muted: 340 6% 18%;
-    --muted-foreground: 340 5% 66%;
+    --muted: 24 6% 15%;
+    --muted-foreground: 24 6% 58%;
 
-    --accent: 340 25% 18%;
-    --accent-foreground: 0 0% 96%;
-
-    --accent-soft: 340 25% 18%;
-    --accent-soft-foreground: 340 45% 86%;
+    --accent: 20 85% 58%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 158 22% 14%;
+    --accent-soft-foreground: 158 38% 68%;
 
     --destructive: 4 70% 58%;
     --destructive-foreground: 0 0% 96%;
 
-    --border: 340 6% 20%;
-    --border-strong: 340 6% 28%;
-    --input: 340 6% 20%;
-    --ring: 340 55% 62%;
+    --border: 24 6% 17%;
+    --border-strong: 24 6% 24%;
+    --input: 24 6% 17%;
+    --ring: 158 42% 46%;
+
+    --gold: 20 85% 58%;
+    --gold-soft: 20 30% 14%;
+    --gold-foreground: 0 0% 100%;
 
     --vata: 256 50% 70%;
     --pitta: 18 70% 62%;
     --kapha: 152 40% 52%;
-    --success: 145 50% 50%;
+    --success: 152 45% 48%;
     --warning: 38 85% 58%;
-    --info: 256 50% 70%;
+    --info: 210 55% 62%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(340, 45%, 30%), hsl(340, 45%, 42%));
-    --gradient-secondary: linear-gradient(135deg, hsl(340, 6%, 18%), hsl(340, 8%, 13%));
-    --gradient-hero: linear-gradient(135deg, hsl(340, 40%, 20%), hsl(340, 42%, 30%), hsl(340, 8%, 13%));
+    --gradient-primary: linear-gradient(135deg, hsl(158, 38%, 20%), hsl(158, 35%, 32%));
+    --gradient-gold: linear-gradient(135deg, hsl(20, 85%, 46%), hsl(28, 75%, 52%));
+    --gradient-hero: linear-gradient(135deg, hsl(24, 10%, 5%), hsl(24, 8%, 9%), hsl(24, 6%, 14%));
+    --gradient-secondary: linear-gradient(135deg, hsl(24, 6%, 15%), hsl(24, 8%, 11%));
 
-    --sidebar-background: 340 8% 11%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 340 55% 62%;
-    --sidebar-primary-foreground: 340 8% 9%;
-    --sidebar-accent: 340 25% 18%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 340 6% 20%;
-    --sidebar-ring: 340 55% 62%;
+    --sidebar-background: 24 8% 9%;
+    --sidebar-foreground: 33 15% 92%;
+    --sidebar-primary: 158 42% 46%;
+    --sidebar-primary-foreground: 24 8% 7%;
+    --sidebar-accent: 158 22% 14%;
+    --sidebar-accent-foreground: 158 38% 68%;
+    --sidebar-border: 24 6% 17%;
+    --sidebar-ring: 158 42% 46%;
   }
 }
 
@@ -167,14 +157,9 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 
-  /* Native form controls paint their own accent — a browser-default blue that
-     no Tailwind class on the element can reach. Without this the sleep slider
-     and the questionnaire's radios/checkboxes render blue on an otherwise pink
-     page. Shadcn's own Checkbox/Radio primitives are styled components and are
-     unaffected; these are the hand-rolled `<input>`s. */
   input[type="range"],
   input[type="checkbox"],
   input[type="radio"],
@@ -182,22 +167,11 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
     accent-color: hsl(var(--primary));
   }
 
-  /* Focus rings and text selection are also brand surfaces. */
   ::selection {
-    background-color: hsl(var(--secondary));
-    color: hsl(var(--secondary-foreground));
+    background-color: hsl(var(--accent) / 0.15);
+    color: hsl(var(--foreground));
   }
 
-  /* Every animation in this app is decoration — an illustration drawing
-     itself, a figure counting up, a card rising in. None of it carries
-     information that isn't also in the text, so all of it can be switched
-     off wholesale. Vestibular disorders are common enough in this app's
-     audience (migraine and pregnancy both raise motion sensitivity) that
-     honouring the OS setting is a requirement, not a nicety.
-
-     `0.01ms` rather than `none`: animations still fire and complete, so
-     anything relying on `animationend` or on a `both` fill mode holding its
-     final state keeps working — it just arrives instantly. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -211,24 +185,24 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
 }
 
 @layer components {
-  /* Gradient utilities */
+  /* --- Gradients --- */
   .bg-gradient-primary {
     background: var(--gradient-primary);
   }
-
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
+  }
   .bg-gradient-secondary {
     background: var(--gradient-secondary);
   }
-
   .bg-gradient-hero {
     background: var(--gradient-hero);
   }
-
   .bg-gradient-dosha {
     background: var(--gradient-dosha);
   }
 
-  /* Dosha-specific utilities */
+  /* --- Dosha utilities --- */
   .text-vata { color: hsl(var(--vata)); }
   .text-pitta { color: hsl(var(--pitta)); }
   .text-kapha { color: hsl(var(--kapha)); }
@@ -236,7 +210,7 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
   .bg-pitta { background-color: hsl(var(--pitta)); }
   .bg-kapha { background-color: hsl(var(--kapha)); }
 
-  /* Status colors */
+  /* --- Status --- */
   .text-success { color: hsl(var(--success)); }
   .text-warning { color: hsl(var(--warning)); }
   .text-info { color: hsl(var(--info)); }
@@ -244,49 +218,96 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
   .bg-warning { background-color: hsl(var(--warning)); }
   .bg-info { background-color: hsl(var(--info)); }
 
-  /* iOS-style press feedback: scale down, no vertical lift. Replaces the old
-     shadow+translate hover lift, which reads more "web card" than "iOS card". */
+  /* --- Gold / accent --- */
+  .text-gold { color: hsl(var(--gold)); }
+  .bg-gold { background-color: hsl(var(--gold)); }
+  .bg-gold-soft { background-color: hsl(var(--gold-soft)); }
+
+  /* --- Hover lift (sythra-style) --- */
   .card-hover {
-    @apply transition-all duration-200 ease-ios hover:shadow-md active:scale-[0.98];
+    @apply transition-all duration-300 ease-ios;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 28px 80px -20px hsl(24 14% 11% / 0.12),
+                0 8px 24px -8px hsl(24 14% 11% / 0.08);
+  }
+  .card-hover:active {
+    transform: translateY(-1px);
   }
 
-  /* Smooth transitions */
+  /* --- Smooth transitions --- */
   .transition-smooth {
     @apply transition-all duration-300 ease-in-out;
   }
 
-  /* Frosted glass surface — reserved for chrome/overlay surfaces (sidebar,
-     sticky headers, dialogs/sheets, menus, toasts, chatbot panel). Not used
-     on dense content (tables, forms, list rows): blur under text-heavy
-     surfaces hurts legibility, and iOS itself avoids it there too. */
+  /* --- Frosted glass (warm cream edition) --- */
   .glass {
-    background-color: hsl(var(--background-elevated) / 0.72);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid hsl(0 0% 100% / 0.5);
+    background-color: hsl(var(--background-elevated) / 0.82);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid hsl(24 12% 80% / 0.35);
   }
-
   .dark .glass {
-    background-color: hsl(340 8% 13% / 0.55);
-    border-color: hsl(0 0% 100% / 0.12);
+    background-color: hsl(24 8% 11% / 0.65);
+    border-color: hsl(0 0% 100% / 0.08);
   }
 
-  /* Slim, iOS-like scrollbar for ScrollArea and any other scrollable surface
-     that opts in. Native overflow scrolling, just restyled. */
+  /* --- Gradient text (green to gold) --- */
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(158, 38%, 28%), hsl(158, 42%, 40%), hsl(20, 90%, 52%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(20, 90%, 48%), hsl(28, 80%, 56%), hsl(38, 70%, 50%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* --- Glow effects --- */
+  .glow-green {
+    box-shadow: 0 0 24px -4px hsl(158, 38%, 28% / 0.25),
+                0 0 64px -8px hsl(158, 38%, 28% / 0.12);
+  }
+  .glow-gold {
+    box-shadow: 0 14px 32px hsl(20, 90%, 52% / 0.28),
+                0 0 0 1px hsl(20, 90%, 52% / 0.06);
+  }
+
+  /* --- Section label (numbered, uppercase, sythra-style) --- */
+  .section-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.16em];
+    color: hsl(var(--foreground-tertiary));
+  }
+
+  /* --- Dark section (sythra-style contrast block) --- */
+  .section-dark {
+    background: hsl(24, 14%, 11%);
+    color: hsl(33, 20%, 96%);
+  }
+  .section-dark .text-foreground-secondary {
+    color: hsl(33, 10%, 62%);
+  }
+  .section-dark .text-foreground-tertiary {
+    color: hsl(33, 8%, 48%);
+  }
+
+  /* --- Slim scrollbar --- */
   .scroll-area {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border-strong)) transparent;
   }
-
   .scroll-area::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
   .scroll-area::-webkit-scrollbar-track {
     background: transparent;
   }
-
   .scroll-area::-webkit-scrollbar-thumb {
     background: hsl(var(--border-strong));
     border-radius: 9999px;

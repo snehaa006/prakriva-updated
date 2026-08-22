@@ -19,14 +19,18 @@ interface Envelope<T> {
   error?: string;
 }
 
-const post = async <T>(path: string, body: unknown): Promise<T> => {
+const post = async <T>(path: string, body: unknown, timeoutMs = 50_000): Promise<T> => {
   let response: Response;
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
   } catch (error) {
     // `fetch` rejects the same way for a backend that is down, a wrong
     // VITE_API_URL and a CORS rejection, so name the URL that failed — the
@@ -59,7 +63,12 @@ const post = async <T>(path: string, body: unknown): Promise<T> => {
  */
 export const isAnalysisEnabled = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_BASE}/analysis/status`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    const response = await fetch(`${API_BASE}/analysis/status`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
     if (!response.ok) return false;
     const payload = (await response.json()) as Envelope<{ enabled: boolean }>;
     return payload.data?.enabled === true;

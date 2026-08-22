@@ -348,8 +348,15 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-accent flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(700px 500px at 25% 30%, hsl(158, 38%, 28% / 0.06) 0%, transparent 55%), radial-gradient(500px 400px at 80% 65%, hsl(20, 90%, 52% / 0.04) 0%, transparent 50%)",
+        }}
+      />
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center mb-2">
             <Logo size="xl" />
