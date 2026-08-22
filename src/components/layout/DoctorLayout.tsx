@@ -5,6 +5,7 @@ import { DoctorSidebar } from "./DoctorSidebar";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/LanguageSelect";
+import NutritionChatbot from "@/components/chat/NutritionChatbot";
 
 const DoctorLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -46,6 +47,9 @@ const DoctorLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Doctor's clinical assistant — same chatbot component, doctor mode */}
+      <NutritionChatbot mode="doctor" />
     </div>
   );
 };

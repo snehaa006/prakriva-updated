@@ -320,6 +320,109 @@ export const fetchPatientChatContext = async (patientId: string): Promise<Patien
   };
 };
 
+// --- Doctor chat context -------------------------------------------------------
+
+export interface DoctorChatContext {
+  doctor: {
+    specialization?: string;
+    patientCount: number;
+  };
+  patients: {
+    name: string;
+    lifeStage?: string;
+    trimester?: string;
+    primaryDosha?: string;
+    dietaryPreference?: string;
+    allergies?: string[];
+    adherence?: number;
+    screenings?: {
+      date: string;
+      overallRisk: string;
+      conditions: { label: string; riskLevel: string }[];
+    }[];
+  }[];
+}
+
+/**
+ * Gather the doctor's patient roster and summaries for the chatbot context.
+ */
+export const fetchDoctorChatContext = async (doctorId: string): Promise<DoctorChatContext> => {
+  const [doctorRes, patientsRes] = await Promise.allSettled([
+    supabase
+      .from("doctors")
+      .select("ayurvedic_specialization")
+      .eq("id", doctorId)
+      .maybeSingle(),
+    supabase
+      .from("consultation_requests")
+      .select("patient_id, patient_name")
+      .eq("doctor_id", doctorId),
+  ]);
+
+  const doctorRow =
+    doctorRes.status === "fulfilled" ? doctorRes.value.data : null;
+  const requestRows =
+    patientsRes.status === "fulfilled" ? (patientsRes.value.data ?? []) : [];
+
+  // Deduplicate patients
+  const uniquePatients = new Map<string, string>();
+  for (const r of requestRows as { patient_id: string; patient_name: string }[]) {
+    if (r.patient_id && !uniquePatients.has(r.patient_id)) {
+      uniquePatients.set(r.patient_id, r.patient_name || "Unknown");
+    }
+  }
+
+  // Fetch assessment data for each patient (max 10)
+  const patientIds = Array.from(uniquePatients.keys()).slice(0, 10);
+  const patientSummaries: DoctorChatContext["patients"] = [];
+
+  if (patientIds.length > 0) {
+    const { data: patientRows } = await supabase
+      .from("patients")
+      .select("id, name, assessment_data, allergies")
+      .in("id", patientIds);
+
+    // Also fetch latest screenings
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: trackRows } = await supabase
+      .from("meal_tracking")
+      .select("patient_id, eaten_count, total_meals")
+      .eq("date", today)
+      .in("patient_id", patientIds);
+
+    const trackByPatient = new Map(
+      (trackRows ?? []).map((t: any) => [t.patient_id, t])
+    );
+
+    for (const row of (patientRows ?? []) as any[]) {
+      const a = (row.assessment_data as Record<string, any>) || {};
+      const track = trackByPatient.get(row.id);
+      const adherence =
+        track && track.total_meals > 0
+          ? Math.round((track.eaten_count / track.total_meals) * 100)
+          : undefined;
+
+      patientSummaries.push({
+        name: row.name || uniquePatients.get(row.id) || "Unknown",
+        lifeStage: a.lifeStage,
+        trimester: a.pregnancyTrimester,
+        primaryDosha: a.primaryDosha,
+        dietaryPreference: a.dietaryPreferences,
+        allergies: Array.isArray(a.allergies) ? a.allergies : row.allergies,
+        adherence,
+      });
+    }
+  }
+
+  return {
+    doctor: {
+      specialization: doctorRow?.ayurvedic_specialization?.[0],
+      patientCount: uniquePatients.size,
+    },
+    patients: patientSummaries,
+  };
+};
+
 // --- Recipe grounding: only when the message actually sounds food-related ---
 
 const RECIPE_INTENT_RE =

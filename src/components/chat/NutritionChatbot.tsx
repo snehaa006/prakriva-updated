@@ -5,13 +5,16 @@ import { supabase } from "@/lib/supabase";
 import {
   AnalysisUnavailableError,
   askChat,
+  askDoctorChat,
   isAnalysisEnabled,
   type ChatTurn,
 } from "@/services/analysisService";
 import {
+  fetchDoctorChatContext,
   fetchPatientChatContext,
   looksLikeRecipeRequest,
   maybeFetchRecipeCandidates,
+  type DoctorChatContext,
   type PatientChatContext,
 } from "@/services/chatAssistantService";
 import {
@@ -87,8 +90,16 @@ const jitter = (base: number): number => base + Math.random() * JITTER_MS;
 
 const msgId = (): string => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-const welcomeText = (ctx: PatientChatContext | null, now: Date): string => {
-  const name = ctx?.profile.primaryDosha;
+const welcomeText = (ctx: PatientChatContext | DoctorChatContext | null, now: Date, mode: "patient" | "doctor"): string => {
+  if (mode === "doctor") {
+    const count = (ctx as DoctorChatContext | null)?.doctor?.patientCount;
+    return (
+      `${greeting(now)} — I'm your Prakriva clinical assistant. I can see your patient roster` +
+      `${count ? ` (${count} patient${count !== 1 ? "s" : ""})` : ""}, their profiles, screening results and adherence data. ` +
+      `Ask me to analyse a patient, suggest a diet modification, draft a screening summary, or anything else.`
+    );
+  }
+  const name = (ctx as PatientChatContext | null)?.profile?.primaryDosha;
   return (
     `${greeting(now)} — I'm your Prakriva companion. I can see your diet plan, your pantry and everything ` +
     `you've been tracking${name ? `, and I know you lean ${name}` : ""}, so nothing you ask me starts from scratch.`
@@ -213,9 +224,11 @@ interface NutritionChatbotProps {
   /** Hide this component's own floating launcher button — used on phone,
    *  where the bottom nav's center button is the entry point instead. */
   hideTrigger?: boolean;
+  /** "patient" (default) for the wellness companion, "doctor" for the clinical assistant. */
+  mode?: "patient" | "doctor";
 }
 
-const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange, hideTrigger }) => {
+const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange, hideTrigger, mode = "patient" }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
@@ -240,25 +253,23 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
   const seenCuesRef = useRef(seenCues);
   seenCuesRef.current = seenCues;
 
-  /** Everything the companion could raise right now, most useful first. */
-  const cues = useMemo(() => buildProactiveCues(context), [context]);
+  /** Everything the companion could raise right now, most useful first.
+   *  Proactive cues are patient-only — doctors don't need unsolicited nudges. */
+  const cues = useMemo(() => (mode === "patient" ? buildProactiveCues(context) : []), [context, mode]);
 
-  // Whether Gemini is configured, and — only then — her own data to chat
-  // over. Both run concurrently: the status check is fast (5s timeout), while
-  // context loading can take a beat on cold Supabase. Starting both at once
-  // saves 1-2s on a healthy deployment.
+  // Whether Gemini is configured, and — only then — data to chat over.
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      // Start both in parallel — don't wait for the status check before
-      // fetching context, which was the old bottleneck.
       const statusPromise = isAnalysisEnabled();
       const contextPromise = (async () => {
         try {
           const { data } = await supabase.auth.getUser();
           if (!data.user) return null;
-          return await fetchPatientChatContext(data.user.id);
+          return mode === "doctor"
+            ? await fetchDoctorChatContext(data.user.id)
+            : await fetchPatientChatContext(data.user.id);
         } catch (error) {
           console.error("Could not load chat context:", error);
           return null;
@@ -322,14 +333,21 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
   // the chips come from her own plan and pantry, and the top proactive cue —
   // a new health check, meals logged without feedback — arrives as a card
   // attached to it rather than as a second message she has to wait for.
+  const doctorSuggestions: CueSuggestion[] = [
+    { label: "Summarise my patients", value: "Give me a summary of all my patients, their conditions and adherence" },
+    { label: "Diet for pregnant patient", value: "Suggest an Ayurvedic diet plan for a pregnant patient in her second trimester" },
+    { label: "Screening analysis tips", value: "What should I look for when reviewing maternal health screenings?" },
+    { label: "PCOS nutrition guide", value: "What are the key Ayurvedic nutrition principles for managing PCOS?" },
+  ];
+
   const makeOpener = useCallback((): ChatMessage => {
     const now = new Date();
-    const cue = nextUnseenCue(cues, seenCuesRef.current);
+    const cue = mode === "patient" ? nextUnseenCue(cues, seenCuesRef.current) : null;
     return {
       id: `welcome_${now.getTime()}`,
       role: "assistant",
-      text: cue ? `${welcomeText(context, now)}\n\n${cue.message}` : welcomeText(context, now),
-      suggestions: cue?.suggestions ?? buildLeadUps(context),
+      text: cue ? `${welcomeText(context, now, mode)}\n\n${cue.message}` : welcomeText(context, now, mode),
+      suggestions: cue?.suggestions ?? (mode === "doctor" ? doctorSuggestions : buildLeadUps(context)),
       card: cue?.card,
       cueId: cue?.id,
       timestamp: now.getTime(),
@@ -386,30 +404,34 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
 
       try {
         const baseContext = contextRef.current ?? EMPTY_CONTEXT;
+        let answer: string;
 
-        // Fire recipe lookup and chat call concurrently when it looks like a
-        // recipe question — the old serial approach added 2-4s of latency.
-        let recipeCandidates: Awaited<ReturnType<typeof maybeFetchRecipeCandidates>> = [];
-        if (looksLikeRecipeRequest(text)) {
-          // Start the recipe fetch but don't block on it if it's slow —
-          // cap it at 4 seconds and proceed without candidates.
-          const recipePromise = maybeFetchRecipeCandidates(
-            text, baseContext.pantry.atHome, baseContext.profile.dietaryPreference,
-          );
-          const timeout = new Promise<typeof recipeCandidates>((resolve) =>
-            setTimeout(() => resolve([]), 4_000),
-          );
-          recipeCandidates = await Promise.race([recipePromise, timeout]);
+        if (mode === "doctor") {
+          // Doctor mode: send to doctor-specific endpoint, no recipe grounding
+          answer = await askDoctorChat(text, history, baseContext as Record<string, unknown>);
+        } else {
+          // Patient mode: recipe grounding + patient chat endpoint
+          let recipeCandidates: Awaited<ReturnType<typeof maybeFetchRecipeCandidates>> = [];
+          if (looksLikeRecipeRequest(text)) {
+            const patientCtx = baseContext as PatientChatContext;
+            const recipePromise = maybeFetchRecipeCandidates(
+              text, patientCtx.pantry?.atHome ?? [], patientCtx.profile?.dietaryPreference,
+            );
+            const timeout = new Promise<typeof recipeCandidates>((resolve) =>
+              setTimeout(() => resolve([]), 4_000),
+            );
+            recipeCandidates = await Promise.race([recipePromise, timeout]);
+          }
+          answer = await askChat(text, history, { ...baseContext, recipeCandidates });
         }
 
-        const answer = await askChat(text, history, { ...baseContext, recipeCandidates });
         setMessages((prev) => [
           ...prev,
           {
             id: msgId(),
             role: "assistant",
             text: answer,
-            suggestions: buildFollowUps(text, contextRef.current),
+            suggestions: mode === "doctor" ? undefined : buildFollowUps(text, contextRef.current),
             timestamp: Date.now(),
           },
         ]);
@@ -635,11 +657,11 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               </div>
               <div className="min-w-0">
                 <h3 className="truncate text-subhead font-semibold leading-tight text-foreground">
-                  Your wellness companion
+                  {mode === "doctor" ? "Clinical assistant" : "Your wellness companion"}
                 </h3>
                 <p className="flex items-center gap-1.5 text-caption2 text-foreground-secondary">
                   <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  {isLoading ? "Thinking…" : "Here for you, anytime"}
+                  {isLoading ? "Thinking…" : mode === "doctor" ? "Patient analysis & guidance" : "Here for you, anytime"}
                 </p>
               </div>
             </div>

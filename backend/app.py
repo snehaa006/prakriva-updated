@@ -969,6 +969,63 @@ def assistant_chat():
         raise ModelError(f"Assistant chat failed: {e}")
 
 
+@app.route("/assistant/doctor-chat", methods=["POST"])
+@app.limiter.limit("60 per hour")
+def assistant_doctor_chat():
+    """Open-ended chat for doctors — clinical assistant with patient context.
+
+    Body: `{"message": "...", "history": [...], "context": {...}}`.
+    Same structure as `/assistant/chat` but uses doctor-specific system rules
+    and context formatting.
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        message = str(payload.get("message") or "").strip()
+        if not message:
+            raise ValidationError("A message is required")
+        if len(message) > _MAX_CHAT_MESSAGE_CHARS:
+            raise ValidationError("Message is too long")
+
+        history = []
+        raw_history = payload.get("history")
+        if isinstance(raw_history, list):
+            for turn in raw_history[-_MAX_CHAT_HISTORY_TURNS:]:
+                if not isinstance(turn, dict):
+                    continue
+                role = turn.get("role")
+                text = str(turn.get("text") or "").strip()
+                if role in ("user", "model") and text:
+                    history.append({"role": role, "text": text[:_MAX_CHAT_MESSAGE_CHARS]})
+
+        context = payload.get("context")
+        if not isinstance(context, dict):
+            context = {}
+
+        prompt = gemini_service.build_doctor_chat_prompt(message, context)
+        answer = gemini_service.generate(
+            prompt, gemini_service.DOCTOR_CHAT_RULES, max_tokens=2000, history=history
+        )
+
+        return jsonify(APIResponse(
+            success=True,
+            data={"answer": answer},
+            message="Answer generated successfully",
+        ).dict())
+    except ValidationError:
+        raise
+    except gemini_service.GeminiUnavailable as e:
+        logger.warning(f"Gemini doctor chat unavailable: {e}")
+        return jsonify(APIResponse(
+            success=False, error=str(e), message="Assistant unavailable"
+        ).dict()), 503
+    except Exception as e:
+        logger.error(f"Doctor assistant chat failed: {e}")
+        raise ModelError(f"Doctor assistant chat failed: {e}")
+
+
 #: Report uploads are photos or scans; anything else is a mistake or an attack.
 _ALLOWED_REPORT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
                          "image/heif", "application/pdf"}

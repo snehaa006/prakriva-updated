@@ -320,3 +320,17 @@ export const askChat = async (
   });
   return answer;
 };
+
+/** Doctor-side chat — clinical assistant with patient roster context. */
+export const askDoctorChat = async (
+  message: string,
+  history: ChatTurn[],
+  context: Record<string, unknown>
+): Promise<string> => {
+  const { answer } = await post<{ answer: string }>("/assistant/doctor-chat", {
+    message,
+    history,
+    context,
+  });
+  return answer;
+};
