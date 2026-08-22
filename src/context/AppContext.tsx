@@ -381,10 +381,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       const newUid = session?.user?.id ?? null;
 
-      // Supabase fires TOKEN_REFRESHED every time the tab regains focus.
-      // The session is the same user — skip the full reload that sets
-      // isLoading=true, re-fetches every table and flashes the spinner.
-      if (event === "TOKEN_REFRESHED" && newUid === currentUid) return;
+      // Supabase fires TOKEN_REFRESHED *and* SIGNED_IN on every tab refocus
+      // (the token is refreshed, then the refreshed session re-emits SIGNED_IN).
+      // Both carry the same user — skip the full reload for any event where
+      // the user hasn't actually changed. Only SIGNED_OUT and a genuine
+      // user switch (different uid) should trigger loadSession.
+      if (newUid && newUid === currentUid) return;
 
       currentUid = newUid;
       void loadSession(session?.user ?? null);
