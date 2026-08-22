@@ -991,7 +991,16 @@ Four things are deliberate here:
 
 All Gemini features hide themselves when no key is set (the frontend asks
 `/analysis/status` first), and a Gemini outage degrades to the existing
-behaviour rather than an error state. The chatbot is the exception to the
+behaviour rather than an error state. A busy model is handled apart from a
+broken one: Gemini answers a capacity spike with `503 UNAVAILABLE — This model
+is currently experiencing high demand`, which is a property of the *model*, not
+of any key. That used to fall into the generic 5xx branch, which blames the
+key — so all three keys were spent against the same busy model with no pause
+between them and left cooling down afterwards, turning a few seconds of load
+shedding into minutes of failures. It now retries briefly, then moves to the
+next model in the chain (a separate serving pool), leaves the keys alone, and
+if every model is saturated says *"Gemini is busy right now"* rather than
+reporting itself as unavailable. The chatbot is the exception to the
 "ask `/analysis/status` first" rule for *sending*: it always attempts the
 call, because that check is still in flight for the first second or so after
 the widget opens and refusing to send during it answered the opening question
@@ -1852,6 +1861,43 @@ writable. Expect `Running 'python run.py'` to be followed by the startup lines
 Render prints `No open ports detected, continuing to scan...` while the service
 loads its datasets and models; that is normal on the free plan and resolves once
 Waitress binds — the deploy has only failed if the scan never succeeds.
+
+Every log line carries a request ID. When a caller sends `X-Request-ID` that
+value is used; otherwise one is generated per request. It used to fall back to
+the literal string `unknown`, which made a healthy deployment read as
+`Request unknown: GET /health` over and over — alarming to look at, and useless
+for telling concurrent requests apart.
+
+#### Free-plan cold starts
+
+Render's free plan stops the instance after about fifteen minutes of inactivity
+and boots it again on the next request, which it warns "can delay requests by 50
+seconds or more". This backend is at the slow end of that range: it loads the
+dosha pickle and the XGBoost screening models at import. The first request after
+an idle period is therefore *slow*, not broken — the log shows
+`Received signal 15, initiating graceful shutdown` when the instance is put to
+sleep, and a fresh startup sequence when it wakes.
+
+The frontend handles this rather than guessing (`src/services/analysisService.ts`):
+
+- Each call still has its own timeout. When one fails, `wakeBackend()` polls
+  `/health` (cheap, and exempt from the rate limiter) for up to 90 seconds, and
+  the original request is retried once as soon as the instance answers.
+- A backend that is genuinely down never answers the poll, so it is still
+  reported as unreachable — the wake is what tells the two apart.
+- Concurrent callers share one wake, so a page that fires three analysis calls
+  at once wakes the instance once rather than three times.
+- `isAnalysisEnabled()` waits through a cold start too. It used to read a
+  five-second timeout as "not enabled" and hide the AI panels for the rest of
+  the session, so a waking backend looked like a missing feature.
+
+Before this, a cold start surfaced as
+*"Could not reach the backend … (signal is aborted without reason)"* — the
+`AbortError` message, which names neither the cause nor anything a user could
+do about it. Covered by `src/services/__tests__/analysisService.test.ts`.
+
+To avoid cold starts entirely, either upgrade off the free plan or keep the
+instance warm with an external uptime pinger against `/health`.
 
 #### Rate limiting behind Render's proxy
 

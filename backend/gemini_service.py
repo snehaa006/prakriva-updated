@@ -203,6 +203,39 @@ class _ModelGone(RuntimeError):
     """Internal: this model ID no longer exists, try another."""
 
 
+class _ModelOverloaded(RuntimeError):
+    """Internal: this model is temporarily out of capacity, try another.
+
+    Distinct from `_ModelGone` because it must *not* retire the model — the
+    capacity comes back, usually within seconds.
+    """
+
+
+#: How many times one model is asked before the request moves to another.
+#: Two, not more: a model answering "high demand" rarely changes its mind
+#: inside a single request, and every extra attempt is latency the patient
+#: waits through. The real lever is the *next model*, not the next attempt.
+_OVERLOAD_ATTEMPTS = 2
+
+#: Seconds before the retry above. Doubles per attempt.
+_OVERLOAD_BACKOFF = 0.8
+
+
+def _is_overloaded(http_status: int, gemini_status: Optional[str]) -> bool:
+    """Whether a failure means "this model is busy" rather than "you are wrong".
+
+    Gemini answers a capacity spike with `503 UNAVAILABLE — This model is
+    currently experiencing high demand`. That is a property of the *model*,
+    shared by every key pointed at it, so the old handling — fall through to
+    the generic 5xx branch, blame the key, park it for 30 seconds and try the
+    next one — was wrong three times over: it burned the whole key pool
+    against the same busy model with no delay between calls, left all three
+    keys cooling down afterwards, and surfaced the raw
+    "Gemini is unavailable (last error: HTTP 503 ...)" to the patient.
+    """
+    return http_status == 503 or gemini_status == "UNAVAILABLE"
+
+
 def _model_rank(name: str) -> tuple:
     """Sort key for picking a model out of the live list, best last.
 
@@ -324,6 +357,22 @@ def active_model() -> Optional[str]:
     return None
 
 
+def _next_model(exclude: List[str]) -> Optional[str]:
+    """The best candidate that is neither retired nor already tried here.
+
+    `active_model()` cannot serve this: it deliberately sticks to the resolved
+    model, which is right for the first pick and wrong for the second — a
+    model that just answered "busy" is not retired, so asking again would
+    return it and the request would give up after one model.
+    """
+    if not is_configured():
+        return None
+    for name in _model_candidates():
+        if name not in _retired_models and name not in exclude:
+            return name
+    return None
+
+
 def _retire_model(name: str) -> None:
     global _resolved_model
     _retired_models.add(name)
@@ -346,41 +395,64 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
     last_error = "no keys configured"
 
     for key in _key_candidates():
-        try:
-            response = requests.post(url, json=payload, params={"key": key}, timeout=timeout)
-        except requests.RequestException as exc:
-            _report_key_result(key, status=None, ok=False)
-            last_error = f"network error ({exc.__class__.__name__})"
-            continue
+        # Inner loop: overload retries against this same key. Every other
+        # outcome breaks out of it to move on to the next key.
+        attempt = 0
+        while True:
+            try:
+                response = requests.post(
+                    url, json=payload, params={"key": key}, timeout=timeout
+                )
+            except requests.RequestException as exc:
+                _report_key_result(key, status=None, ok=False)
+                last_error = f"network error ({exc.__class__.__name__})"
+                break
 
-        if response.status_code == 200:
-            _report_key_result(key, status=200, ok=True)
-            return response.json()
+            if response.status_code == 200:
+                _report_key_result(key, status=200, ok=True)
+                return response.json()
 
-        # The key itself is redacted out of anything logged or raised below;
-        # the reason is kept, because "HTTP 400" alone is undebuggable from a
-        # deployed frontend.
-        gemini_status, message = _error_reason(response)
-        detail = " — ".join(part for part in (gemini_status, message) if part)
-        last_error = f"HTTP {response.status_code}" + (f" ({detail})" if detail else "")
+            # The key itself is redacted out of anything logged or raised
+            # below; the reason is kept, because "HTTP 400" alone is
+            # undebuggable from a deployed frontend.
+            gemini_status, message = _error_reason(response)
+            detail = " — ".join(part for part in (gemini_status, message) if part)
+            last_error = f"HTTP {response.status_code}" + (f" ({detail})" if detail else "")
 
-        if response.status_code == 404 or gemini_status == "NOT_FOUND":
-            raise _ModelGone(f"model '{model}' is gone ({last_error})")
+            if response.status_code == 404 or gemini_status == "NOT_FOUND":
+                raise _ModelGone(f"model '{model}' is gone ({last_error})")
 
-        if _is_key_at_fault(response.status_code, gemini_status, message):
-            logger.warning(
-                f"Gemini rejected one key ({last_error}); trying the next"
-            )
-            _report_key_result(key, status=response.status_code, ok=False)
-            continue
+            # Checked before the generic 5xx branch below, which a 503 would
+            # otherwise fall into and be misread as a bad key.
+            if _is_overloaded(response.status_code, gemini_status):
+                attempt += 1
+                if attempt < _OVERLOAD_ATTEMPTS:
+                    delay = _OVERLOAD_BACKOFF * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"Gemini model '{model}' is busy ({last_error}); "
+                        f"retrying in {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+                    continue
+                # The key is deliberately not penalised: it did nothing wrong,
+                # and cooling it down would take capacity away from the next
+                # request for a fault that was never the key's.
+                raise _ModelOverloaded(f"model '{model}' is busy ({last_error})")
 
-        if response.status_code >= 500:
-            logger.warning(f"Gemini returned {last_error} for one key; trying the next")
-            _report_key_result(key, status=response.status_code, ok=False)
-            continue
+            if _is_key_at_fault(response.status_code, gemini_status, message):
+                logger.warning(
+                    f"Gemini rejected one key ({last_error}); trying the next"
+                )
+                _report_key_result(key, status=response.status_code, ok=False)
+                break
 
-        logger.error(f"Gemini returned {last_error}")
-        raise GeminiUnavailable(f"Gemini returned {last_error}")
+            if response.status_code >= 500:
+                logger.warning(f"Gemini returned {last_error} for one key; trying the next")
+                _report_key_result(key, status=response.status_code, ok=False)
+                break
+
+            logger.error(f"Gemini returned {last_error}")
+            raise GeminiUnavailable(f"Gemini returned {last_error}")
 
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
 
@@ -397,10 +469,13 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
         raise GeminiUnavailable("No GEMINI_API_KEY is set")
 
     last_error = "no Gemini model is available"
+    overloaded = False
     tried: List[str] = []
 
     while len(tried) < _MAX_MODEL_ATTEMPTS:
-        model = active_model()
+        # First pick honours the resolved model; later ones must step past
+        # everything already tried on this request.
+        model = active_model() if not tried else _next_model(tried)
         if model is None or model in tried:
             break
         tried.append(model)
@@ -410,7 +485,21 @@ def _post_gemini(payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
             last_error = str(exc)
             logger.warning(f"Gemini {last_error}; retiring it and trying the next model")
             _retire_model(model)
+        except _ModelOverloaded as exc:
+            # Not retired — capacity comes back. Another model is a separate
+            # serving pool, so it is the one retry with a real chance of
+            # working while this one is saturated.
+            last_error = str(exc)
+            overloaded = True
+            logger.warning(f"Gemini {last_error}; trying the next model")
 
+    if overloaded:
+        # Said plainly, because this one is worth waiting out rather than
+        # debugging: every model tried was busy, not misconfigured.
+        raise GeminiUnavailable(
+            "Gemini is busy right now — every model tried was at capacity "
+            f"({last_error}). Please try again in a moment."
+        )
     raise GeminiUnavailable(f"Gemini returned no usable model ({last_error})")
 
 
