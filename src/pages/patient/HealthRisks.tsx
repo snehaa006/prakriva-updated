@@ -42,6 +42,7 @@ import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
 import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
 import { AppleHealthPanel } from "@/components/health/AppleHealthPanel";
 import { WatchSignalsCard } from "@/components/health/WatchSignalsCard";
+import { WatchRiskCard } from "@/components/health/WatchRiskCard";
 import { fetchScreeningSignals } from "@/services/healthSampleService";
 import { EMPTY_SIGNALS, type ScreeningSignals } from "@/lib/healthSamples";
 import { ReportUploadCard } from "@/components/health/ReportUploadCard";
@@ -462,7 +463,10 @@ const HealthRisks: React.FC = () => {
         {/* Passive device data, alongside — not instead of — the symptom entry
             on the other tabs. The two answer different questions: what she is
             feeling, and what her body has been doing. */}
-        <TabsContent value="watch">
+        <TabsContent value="watch" className="space-y-5">
+          {/* Risk first, charts underneath: the screening is the answer she
+              came for, and the readings behind it are the supporting detail. */}
+          <WatchRiskCard signals={signals} assessment={assessmentData} />
           <AppleHealthPanel patientId={patientId} />
         </TabsContent>
 
