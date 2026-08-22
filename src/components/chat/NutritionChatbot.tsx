@@ -655,8 +655,8 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <CompanionCharacter
-                  mood={isLoading ? "thinking" : "idle"}
-                  still={!isLoading}
+                  mood="idle"
+                  still
                   className="h-12 w-12 shrink-0"
                 />
                 <div className="min-w-0">
@@ -797,9 +797,8 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               })}
 
               {isLoading && (
-                <div className="flex gap-3 animate-message-in">
-                  <CompanionCharacter mood="thinking" className="h-11 w-11 shrink-0" />
-                  <div className="flex items-center gap-2 rounded-2xl rounded-tl-md bg-pink-50/60 border border-pink-100/40 px-4 py-3">
+                <div className="flex items-center gap-2 animate-message-in ml-[52px]">
+                  <div className="flex items-center gap-2 rounded-2xl bg-pink-50/60 border border-pink-100/40 px-4 py-3">
                     <span className="text-caption1 text-foreground-secondary mr-1">Thinking</span>
                     {[0, 1, 2].map((i) => (
                       <span
