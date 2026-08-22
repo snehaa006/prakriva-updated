@@ -169,3 +169,56 @@ describe("suggestions follow the patient", () => {
     expect(productLinks().length).toBeGreaterThan(0);
   });
 });
+
+describe("the shelf photography", () => {
+  it("shows a photo on every tile, described for a screen reader", () => {
+    renderPage(<Shop />);
+    const photos = screen.getAllByRole("img");
+    expect(photos.length).toBeGreaterThan(0);
+    for (const img of photos) {
+      // Served from our own origin — never hot-linked off a retailer's CDN.
+      expect(img.getAttribute("src")).toMatch(/^\/shop\/[a-z0-9-]+\.webp$/);
+      expect(img.getAttribute("alt")?.length ?? 0).toBeGreaterThan(15);
+    }
+  });
+
+  it("leaves the grid's images lazy so a long shelf doesn't fetch all of them", () => {
+    renderPage(<Shop />);
+    for (const img of screen.getAllByRole("img")) {
+      expect(img.getAttribute("loading")).toBe("lazy");
+    }
+  });
+});
+
+describe("comparing across the ten-minute apps", () => {
+  it("offers Blinkit and Instamart as sellers to filter by", async () => {
+    const user = userEvent.setup();
+    renderPage(<Shop />);
+    await user.click(screen.getByLabelText("Filter by seller"));
+    expect(screen.getByRole("option", { name: "Blinkit" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Swiggy Instamart" })).toBeInTheDocument();
+  });
+
+  it("narrows the grid to what an app can bring tonight", async () => {
+    const user = userEvent.setup();
+    renderPage(<Shop />);
+    const before = productLinks().length;
+
+    await user.click(screen.getByLabelText("Delivers in minutes"));
+
+    const after = productLinks().length;
+    expect(after).toBeGreaterThan(0);
+    expect(after).toBeLessThan(before);
+  });
+
+  it("puts the quick-delivery switch back with the rest on reset", async () => {
+    const user = userEvent.setup();
+    renderPage(<Shop />);
+    const before = productLinks().length;
+
+    await user.click(screen.getByLabelText("Delivers in minutes"));
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(productLinks().length).toBe(before);
+  });
+});
