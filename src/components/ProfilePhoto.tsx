@@ -125,7 +125,7 @@ export function ProfilePhoto({
           disabled={busy !== null}
           aria-hidden="true"
           tabIndex={-1}
-          className="absolute -bottom-1 -right-1 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-150 ease-ios hover:scale-105 active:scale-95"
+          className="absolute -bottom-1 -right-1 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-quick ease-ios hover:scale-105 active:scale-90 active:duration-press"
         >
           {busy === "saving" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -141,7 +141,7 @@ export function ProfilePhoto({
             disabled={busy !== null}
             title="Remove profile photo"
             aria-label="Remove profile photo"
-            className="absolute -bottom-1 -left-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-transform duration-150 ease-ios hover:scale-105 active:scale-95"
+            className="absolute -bottom-1 -left-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-destructive shadow-sm transition-transform duration-quick ease-ios hover:scale-105 active:scale-90 active:duration-press"
           >
             {busy === "removing" ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

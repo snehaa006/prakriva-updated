@@ -20,7 +20,14 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
       {...props}
     >
       <div
-        className={cn("h-full flex-1 rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-300 ease-ios", indicatorClassName)}
+        // Only `width`: `transition-all` here also animated the gradient on
+        // every re-render that changed the indicator's colour class. Slower
+        // than the rest of the app on purpose — a bar sweeping to its value is
+        // the animation, not a side effect of one.
+        className={cn(
+          "h-full flex-1 rounded-full bg-gradient-to-r from-primary to-primary/70 transition-[width] duration-sweep ease-ios-smooth",
+          indicatorClassName,
+        )}
         style={{ width: `${value || 0}%` }}
       />
     </div>

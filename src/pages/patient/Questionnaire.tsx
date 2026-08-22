@@ -298,7 +298,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
             className="sr-only"
           />
           <div
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-[background-color,border-color] duration-quick ease-ios ${
               formData[name] === option.value
                 ? "border-primary bg-primary"
                 : "border-border-strong"
@@ -357,7 +357,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
               className="sr-only"
             />
             <div
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-[background-color,border-color] duration-quick ease-ios ${
                 isChecked ? "border-primary bg-primary" : "border-border-strong"
               }`}
             >
@@ -395,7 +395,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
           <div className="mx-auto mt-8 max-w-xs">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
               <div
-                className="h-full rounded-full bg-primary transition-all duration-500 ease-ios"
+                className="h-full rounded-full bg-primary transition-[width] duration-sweep ease-ios-smooth"
                 style={{ width: `${Math.max(progressPercent, 6)}%` }}
               />
             </div>
@@ -814,7 +814,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-subhead font-semibold text-primary-foreground shadow-sm transition-all duration-200 ease-ios hover:bg-primary/90 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-subhead font-semibold text-primary-foreground shadow-sm transition-[background-color,box-shadow,transform,opacity] duration-quick ease-ios hover:bg-primary/90 hover:shadow-md active:scale-[0.98] active:duration-press disabled:active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 sm:w-auto"
             >
               <Sparkles className="h-4 w-4" />
               <span>{isSubmitting ? "Saving your profile…" : "Complete my profile"}</span>
@@ -827,8 +827,8 @@ const AyurvedicHealthAssessment: React.FC = () => {
 
         {/* Success Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-300 ease-ios-spring">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-base ease-ios">
+            <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-settle ease-ios-smooth">
               <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-primary">
                 <Check className="h-7 w-7" />
               </span>
@@ -841,7 +841,7 @@ const AyurvedicHealthAssessment: React.FC = () => {
               </p>
               <button
                 onClick={closeModal}
-                className="mt-6 w-full rounded-xl bg-primary px-4 py-2.5 text-subhead font-medium text-primary-foreground transition-colors duration-200 hover:bg-primary/90"
+                className="mt-6 w-full rounded-xl bg-primary px-4 py-2.5 text-subhead font-medium text-primary-foreground transition-[background-color,transform] duration-quick ease-ios hover:bg-primary/90 active:scale-[0.98] active:duration-press"
               >
                 Go to my dashboard
               </button>

@@ -328,7 +328,7 @@ const Today = () => {
                          is longer than the animation is worth. */
                       index={Math.min(mealIndex, 5)}
                       delay={120}
-                      className={`transition-colors duration-200 ease-ios ${
+                      className={`transition-colors duration-quick ease-ios ${
                         isEaten ? "bg-accent-soft/40" : isSkipped ? "bg-muted/40" : ""
                       }`}
                     >

@@ -550,7 +550,7 @@ const PlanHub = () => {
                         setSelectedMealId(null);
                         toast.success("You're following this plan now.");
                       }}
-                      className={`w-full rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 ease-ios ${
+                      className={`w-full rounded-2xl border px-3.5 py-3 text-left transition-[background-color,border-color,color,box-shadow,transform] duration-quick ease-ios active:scale-[0.99] active:duration-press ${
                         isActive
                           ? "border-primary/40 bg-accent-soft/50 ring-1 ring-primary/25"
                           : "border-border bg-card hover:border-primary/25 hover:bg-accent-soft/25"
@@ -672,7 +672,7 @@ const PlanHub = () => {
                           return (
                             <div
                               key={meal.id}
-                              className={`cursor-pointer rounded-xl border p-4 transition-colors duration-200 ease-ios ${statusTone(
+                              className={`cursor-pointer rounded-xl border p-4 transition-[background-color,border-color,color,transform] duration-quick ease-ios active:scale-[0.99] active:duration-press ${statusTone(
                                 meal.status
                               )} ${isSelected ? "ring-2 ring-primary" : ""}`}
                               onClick={() => selectMeal(meal.id)}

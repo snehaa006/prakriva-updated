@@ -742,7 +742,7 @@ export default function Profile() {
                 <button
                   key={star}
                   onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
-                  className="flex h-11 w-11 items-center justify-center transition-transform hover:scale-110"
+                  className="flex h-11 w-11 items-center justify-center transition-transform duration-quick ease-ios hover:scale-110 active:scale-95 active:duration-press"
                   aria-label={`Rate ${star} out of 5`}
                 >
                   <Star

@@ -159,7 +159,7 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ease-ios",
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-[background-color,color,transform] duration-quick ease-ios active:scale-[0.98] active:duration-press",
           collapsed && "justify-center px-0",
           isActive
             ? "bg-accent-soft text-accent-soft-foreground"
@@ -233,7 +233,7 @@ function SidebarBody({
             to="/patient/profile"
             onClick={onNavigate}
             className={cn(
-              "flex items-center rounded-xl transition-colors hover:bg-accent-soft/60",
+              "flex items-center rounded-xl transition-[background-color,transform] duration-quick ease-ios active:scale-[0.99] active:duration-press hover:bg-accent-soft/60",
               collapsed ? "justify-center" : "space-x-3 p-1",
             )}
           >
@@ -337,7 +337,11 @@ export function PatientSidebar({ collapsed, mobileOpen, onMobileOpenChange }: Pa
         className={cn(
           "sticky top-0 hidden h-screen shrink-0 md:block",
           collapsed ? "w-16" : "w-64",
-          "transition-[width] duration-200 ease-ios",
+          // Width is a layout property and there is no transform that stands
+          // in for it here — the main column has to give up the space. It gets
+          // the longer curve instead, so the reflow reads as the panel
+          // folding away rather than as a jump.
+          "transition-[width] duration-fold ease-ios-smooth",
         )}
       >
         <div className="glass m-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl shadow-lg">

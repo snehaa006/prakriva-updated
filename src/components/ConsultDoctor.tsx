@@ -651,7 +651,7 @@ const ConsultDoctor: React.FC = () => {
       ) : (
         <div className="grid gap-4 sm:gap-6">
           {filteredDoctors.map((doctor) => (
-            <Card key={doctor.id} className="hover:shadow-md transition-shadow duration-200">
+            <Card key={doctor.id} className="hover:shadow-md transition-shadow duration-base ease-ios">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex gap-4 sm:gap-6">
                   {/* Doctor Avatar */}

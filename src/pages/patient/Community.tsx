@@ -441,7 +441,7 @@ const Community = () => {
                         key={group.id}
                         type="button"
                         onClick={() => setActiveGroupId(group.id)}
-                        className={`w-full rounded-2xl border p-3.5 text-left transition-colors duration-150 ease-ios ${
+                        className={`w-full rounded-2xl border p-3.5 text-left transition-[background-color,border-color,color,transform] duration-quick ease-ios active:scale-[0.99] active:duration-press ${
                           group.id === activeGroupId
                             ? "border-primary/30 bg-accent-soft"
                             : "border-border hover:bg-muted/50"

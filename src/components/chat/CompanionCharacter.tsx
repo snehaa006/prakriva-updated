@@ -23,7 +23,7 @@ export const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
 }) => (
   <img
     src={MOOD_IMAGE[mood]}
-    alt={`Companion ${mood}`}
+    alt={`Kuchu Puchu ${mood}`}
     draggable={false}
     className={cn(
       "h-16 w-16 select-none object-contain drop-shadow-md",

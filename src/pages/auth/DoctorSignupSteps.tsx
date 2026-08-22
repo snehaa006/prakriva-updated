@@ -460,7 +460,7 @@ const DoctorSignupSteps = ({
                 <div className="flex items-center gap-2">
                   <div className="w-24 bg-muted rounded-full h-2">
                     <div
-                      className="bg-plum-600 h-2 rounded-full transition-all duration-300"
+                      className="bg-plum-600 h-2 rounded-full transition-[width] duration-sweep ease-ios-smooth"
                       style={{ width: `${score}%` }}
                     />
                   </div>

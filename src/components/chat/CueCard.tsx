@@ -109,11 +109,11 @@ export const CueCard: React.FC<CueCardProps> = ({
                 disabled={disabled || Boolean(chosen)}
                 aria-pressed={isChosen}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-footnote font-medium transition-all duration-200 ease-ios",
+                  "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-footnote font-medium transition-[background-color,border-color,color,opacity,transform] duration-base ease-ios",
                   isChosen
                     ? TONE_SELECTED[option.tone]
                     : "border-border bg-background-elevated hover:border-border-strong hover:bg-muted",
-                  !chosen && !disabled && "active:scale-[0.98]",
+                  !chosen && !disabled && "active:scale-[0.98] active:duration-press",
                   chosen && !isChosen && "opacity-45",
                 )}
               >
@@ -136,7 +136,7 @@ export const CueCard: React.FC<CueCardProps> = ({
               // Accent, not the near-black of the reference design: this app is
               // light all the way through, and a black pill in a blush panel
               // reads as a piece of some other product.
-              className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-caption1 font-semibold text-primary-foreground transition-all duration-200 ease-ios-spring hover:opacity-90 active:scale-95 disabled:opacity-50"
+              className="press mt-2.5 inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-caption1 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               Continue
               <ChevronRight className="h-3.5 w-3.5" />

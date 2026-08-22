@@ -99,7 +99,7 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ease-ios",
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-[background-color,color,transform] duration-quick ease-ios active:scale-[0.98] active:duration-press",
           collapsed && "justify-center px-0",
           isActive
             ? "bg-accent-soft text-accent-soft-foreground"
@@ -155,7 +155,7 @@ function SidebarBody({
             to="/doctor/profile"
             onClick={onNavigate}
             className={cn(
-              "flex items-center rounded-xl transition-colors hover:bg-accent-soft/60",
+              "flex items-center rounded-xl transition-[background-color,transform] duration-quick ease-ios active:scale-[0.99] active:duration-press hover:bg-accent-soft/60",
               collapsed ? "justify-center" : "space-x-3 p-1",
             )}
           >
@@ -230,7 +230,9 @@ export function DoctorSidebar({ collapsed, mobileOpen, onMobileOpenChange }: Doc
         className={cn(
           "sticky top-0 hidden h-screen shrink-0 md:block",
           collapsed ? "w-16" : "w-64",
-          "transition-[width] duration-200 ease-ios",
+          // See PatientSidebar: width has no transform equivalent here, so it
+          // gets the longer curve to keep the reflow from reading as a jump.
+          "transition-[width] duration-fold ease-ios-smooth",
         )}
       >
         <div className="glass m-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl shadow-lg">

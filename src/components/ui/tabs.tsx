@@ -119,7 +119,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 ease-ios ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-quick ease-ios ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] active:duration-press disabled:active:scale-100",
           isActive ? "bg-background-elevated shadow-sm text-foreground" : "text-foreground-secondary",
           className,
         )}

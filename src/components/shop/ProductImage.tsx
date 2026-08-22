@@ -64,7 +64,7 @@ export function ProductImage({
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
           className={cn(
-            "h-full w-full object-cover transition-opacity duration-300 ease-ios",
+            "h-full w-full object-cover transition-opacity duration-base ease-ios",
             loaded ? "opacity-100" : "opacity-0",
             imgClassName,
           )}

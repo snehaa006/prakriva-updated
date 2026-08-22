@@ -10,8 +10,8 @@ import { buttonVariants } from "@/components/ui/button";
 // per redesign spec rather than cross-importing.
 // -----------------------------------------------------------------------
 
-/** Matches the `duration-300` exit transition on the overlay below. */
-const EXIT_DURATION_MS = 300;
+/** Matches the exit transition on the panel below. See `dialog.tsx`. */
+const EXIT_DURATION_MS = 220;
 
 interface AlertDialogContextValue {
   open: boolean;
@@ -164,10 +164,13 @@ const AlertDialogContent = React.forwardRef<HTMLDivElement, AlertDialogContentPr
     return createPortal(
       <dialog
         ref={dialogRef}
+        data-visible={visible}
         className={cn(
           "m-auto max-w-lg w-full rounded-2xl border border-border bg-card p-6 shadow-xl backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",
-          "transition-all duration-300 ease-ios-spring",
-          visible ? "opacity-100 scale-100" : "opacity-0 scale-95",
+          "transition-[opacity,transform] will-change-[opacity,transform]",
+          visible
+            ? "opacity-100 scale-100 translate-y-0 duration-settle ease-ios-spring"
+            : "opacity-0 scale-[0.97] translate-y-1 duration-exit ease-ios-in",
           className,
         )}
         {...props}

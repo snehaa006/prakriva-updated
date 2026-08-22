@@ -120,7 +120,7 @@ const PatientSignupSteps = ({
                   disabled={isLoading}
                 />
                 <span
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-[background-color,border-color,color] duration-quick ease-ios ${
                     checked ? "border-primary bg-primary" : "border-border"
                   }`}
                   aria-hidden
@@ -165,7 +165,7 @@ const PatientSignupSteps = ({
               disabled={isLoading}
             />
             <span
-              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-[background-color,border-color,color] duration-quick ease-ios ${
                 isGeneral ? "border-primary bg-primary" : "border-border"
               }`}
               aria-hidden
@@ -332,7 +332,7 @@ const PatientSignupSteps = ({
                       disabled={isLoading}
                     />
                     <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-[background-color,border-color,color] duration-quick ease-ios ${
                         checked ? "border-primary bg-primary" : "border-border"
                       }`}
                       aria-hidden

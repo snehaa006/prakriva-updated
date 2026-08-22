@@ -64,7 +64,11 @@ const queryClient = new QueryClient({
 // --- Loading Component ---
 const LoadingScreen = ({ message = "Loading..." }: { message?: string }) => (
   <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="text-center">
+    {/* Delayed by 150ms and then faded in: an auth check that resolves from
+        cache finishes well inside that, so the common case shows no spinner at
+        all rather than a flash of one. The delay is on the entrance, not on a
+        timer — nothing to clean up if the screen unmounts first. */}
+    <div className="text-center animate-fade-in [animation-delay:150ms]">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
       <p className="mt-4 text-foreground-secondary text-body">{message}</p>
     </div>

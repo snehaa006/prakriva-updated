@@ -48,7 +48,7 @@ const emptyContext = {
 
 const openChat = async (user: ReturnType<typeof userEvent.setup>) => {
   render(<NutritionChatbot />);
-  await user.click(screen.getByRole("button", { name: /open wellness companion/i }));
+  await user.click(screen.getByRole("button", { name: /open kuchu puchu/i }));
 };
 
 const send = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
@@ -112,7 +112,7 @@ describe("NutritionChatbot", () => {
     const user = userEvent.setup();
     await openChat(user);
     await send(user, "hi");
-    await waitFor(() => expect(screen.getByText(/couldn't reach your assistant/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/couldn't reach kuchu puchu/i)).toBeInTheDocument());
 
     vi.mocked(askChat).mockResolvedValue("Recovered.");
     await send(user, "try again");

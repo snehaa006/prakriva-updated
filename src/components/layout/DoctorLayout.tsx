@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Menu, PanelLeft } from "lucide-react";
 import { DoctorSidebar } from "./DoctorSidebar";
 import { Logo } from "@/components/ui/logo";
@@ -8,6 +8,8 @@ import { LanguageSwitcher } from "@/components/LanguageSelect";
 import NutritionChatbot from "@/components/chat/NutritionChatbot";
 
 const DoctorLayout = () => {
+  // See PatientLayout: keyed on the path so each route replays the entrance.
+  const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -43,12 +45,12 @@ const DoctorLayout = () => {
 
           <LanguageSwitcher />
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <main key={pathname} className="flex-1 animate-page-in overflow-auto p-4 md:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
 
-      {/* Doctor's clinical assistant — same chatbot component, doctor mode */}
+      {/* Kuchu Puchu in clinical mode — same chatbot component, doctor mode */}
       <NutritionChatbot mode="doctor" />
     </div>
   );

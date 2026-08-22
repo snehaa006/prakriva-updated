@@ -156,7 +156,7 @@ const DynamicDoctorDashboard = () => {
                   <Button
                     key={index}
                     variant={action.color === 'primary' ? 'default' : 'outline'}
-                    className={`h-16 flex flex-col items-center justify-center space-y-1 transition-all duration-200 ${
+                    className={`h-16 flex flex-col items-center justify-center space-y-1 transition-[background-color,border-color,color,box-shadow,transform] duration-quick ease-ios active:scale-[0.98] active:duration-press ${
                       quickActionsHovered === index ? 'scale-105' : ''
                     } ${
                       action.color === 'success' ? 'hover:bg-success/10 hover:border-success' :
@@ -177,7 +177,7 @@ const DynamicDoctorDashboard = () => {
 
           {/* Quick Navigation Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handlePatients}>
+            <Card className="hover:shadow-md transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handlePatients}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Users className="w-5 h-5 text-primary" />
@@ -189,7 +189,7 @@ const DynamicDoctorDashboard = () => {
               </CardHeader>
             </Card>
 
-            <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handleDietCharts}>
+            <Card className="hover:shadow-md transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleDietCharts}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Calendar className="w-5 h-5 text-success" />
@@ -201,7 +201,7 @@ const DynamicDoctorDashboard = () => {
               </CardHeader>
             </Card>
 
-            <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handleFoodExplorer}>
+            <Card className="hover:shadow-md transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleFoodExplorer}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Search className="w-5 h-5 text-plum-600" />
@@ -213,7 +213,7 @@ const DynamicDoctorDashboard = () => {
               </CardHeader>
             </Card>
 
-            <Card className="hover:shadow-md transition-all cursor-pointer hover:scale-102" onClick={handleCommunication}>
+            <Card className="hover:shadow-md transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleCommunication}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <MessageCircle className="w-5 h-5 text-plum-600" />
@@ -403,7 +403,7 @@ const DynamicDoctorDashboard = () => {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`p-3 rounded-xl border cursor-pointer transition-[background-color,border-color,color,box-shadow,transform] duration-quick ease-ios active:scale-[0.98] active:duration-press ${
                     notification.read 
                       ? 'bg-muted/30 border-muted' 
                       : notification.type === 'warning' 
@@ -434,7 +434,7 @@ const DynamicDoctorDashboard = () => {
 
           {/* Additional Quick Actions */}
           <div className="grid grid-cols-1 gap-3">
-            <Card className="hover:shadow-sm transition-all cursor-pointer hover:scale-102" onClick={handleRecipeBuilder}>
+            <Card className="hover:shadow-sm transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleRecipeBuilder}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -446,7 +446,7 @@ const DynamicDoctorDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-sm transition-all cursor-pointer hover:scale-102" onClick={handleTeamManagement}>
+            <Card className="hover:shadow-sm transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleTeamManagement}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -458,7 +458,7 @@ const DynamicDoctorDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-sm transition-all cursor-pointer hover:scale-102" onClick={handleFeedback}>
+            <Card className="hover:shadow-sm transition-[box-shadow,transform] duration-base ease-ios active:scale-[0.99] active:duration-press cursor-pointer hover:scale-102" onClick={handleFeedback}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">

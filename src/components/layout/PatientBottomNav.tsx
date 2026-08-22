@@ -22,7 +22,7 @@ function TabLink({ tab }: { tab: (typeof tabs)[number] }) {
       to={tab.url}
       className={({ isActive }) =>
         cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-caption2 font-medium transition-all duration-150 ease-ios active:scale-90",
+          "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-caption2 font-medium transition-[color,transform] duration-quick ease-ios active:scale-[0.94] active:duration-press",
           isActive ? "text-primary" : "text-foreground-tertiary",
         )
       }
@@ -39,7 +39,7 @@ function TabLink({ tab }: { tab: (typeof tabs)[number] }) {
 
 /**
  * App-style phone navigation: a floating pill bar with a raised AI button dead
- * center — tap it to talk to the wellness companion instead of navigating
+ * center — tap it to talk to Kuchu Puchu instead of navigating
  * anywhere. "Community" and everything else lives under "More".
  */
 export function PatientBottomNav({
@@ -59,13 +59,15 @@ export function PatientBottomNav({
         <div className="flex flex-1 items-center justify-center">
           <button
             onClick={onAIClick}
-            aria-label="Talk to your wellness companion"
-            className="relative -mt-9 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-200 ease-ios-spring hover:scale-110 active:scale-95"
+            aria-label="Talk to Kuchu Puchu"
+            // 1.04, not 1.10: at 72px a ten-percent hover grows the mascot by
+            // seven pixels, which is a pop rather than a response.
+            className="relative -mt-9 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-transform duration-quick ease-ios hover:scale-[1.04] active:scale-[0.94] active:duration-press"
             style={{ filter: "drop-shadow(0 3px 10px rgba(236,107,139,0.35))" }}
           >
             <img
               src="/chatbot/idle.png"
-              alt="AI Companion"
+              alt="Kuchu Puchu"
               className="h-[72px] w-[72px] object-contain animate-companion-bob"
               draggable={false}
             />
@@ -78,7 +80,7 @@ export function PatientBottomNav({
 
         <button
           onClick={onMoreClick}
-          className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-caption2 font-medium text-foreground-tertiary transition-all duration-150 ease-ios active:scale-90"
+          className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-caption2 font-medium text-foreground-tertiary transition-[color,transform] duration-quick ease-ios active:scale-[0.94] active:duration-press"
         >
           <MoreHorizontal className="h-5 w-5" />
           More
