@@ -68,6 +68,12 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
 
     --radius: 0.75rem;
 
+    /* Say out loud that this is a light UI. Without it, a browser on a
+       dark-mode device is free to auto-darken the page and paints native
+       controls (scrollbars, date pickers, dropdowns) in its dark scheme over
+       our light surfaces. See also the matching meta tag in index.html. */
+    color-scheme: light;
+
     /* Dosha and status colors.
        Dosha colors are domain-critical (Ayurvedic vata/pitta/kapha), not
        decorative, and are the one place saturated color lives outside the
@@ -104,6 +110,8 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
      but kept in sync with the light palette so a class toggle would drop the
      app into a dark iOS-style surface rather than a stale pink theme. */
   .dark {
+    color-scheme: dark;
+
     --background: 340 8% 9%;
     --background-elevated: 340 8% 13%;
     --foreground: 0 0% 96%;
