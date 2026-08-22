@@ -106,9 +106,10 @@ listed under "Language and translation" below.
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
   hydration log, `patient_pantry_items.sql` for the patient kitchen list and
   `community.sql` for the community circles, their memberships and their chat,
-  and `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
+  `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
   (`menstrual_cycle_logs`, `missed_cycle_months`, `weight_logs`, `acne_logs`)
-  and the private `acne-photos` storage bucket.
+  and the private `acne-photos` storage bucket, and `profile_avatars.sql` for
+  the public `avatars` bucket profile photos live in.
 - `src/components/wellness/ExercisePlan.tsx` — the one rendering of an exercise
   suggestion, shared by the Lifestyle Tracker (where minutes are logged against
   each exercise), the patient's health-check results and the doctor's Patient
@@ -414,9 +415,15 @@ Storage degrades rather than failing (`src/services/avatarService.ts`):
    refuses, the photo is kept as a data URL on the device instead and the app
    says so in the toast rather than reporting a failure.
 
-To enable the synced path, create a public bucket named `avatars` in the
-Supabase dashboard and allow authenticated users to write to their own
-`{user_id}/…` prefix.
+To enable the synced path, apply **`supabase/profile_avatars.sql`** once
+(Dashboard → SQL Editor). It creates the public `avatars` bucket and its
+policies: read is public — these faces are shown to people who are not the
+owner, on the patient list and the Consult cards — while writing is restricted
+to the account's own `{user_id}/…` prefix. It includes an UPDATE policy as well
+as INSERT, because replacing a photo is an upsert over the same path and
+without one the *second* upload fails where the first worked. Until it is
+applied, step 3 above is what every user gets: a photo that works on one device
+and never reaches the account.
 
 ## Language and translation
 
@@ -1535,6 +1542,23 @@ one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
 
 ## Color
+
+**The app is light unless you ask for dark.** There is a real theme control now
+(`src/lib/theme.ts`, wired into Settings), and it defaults to **light** rather
+than to "system". Following the OS is the usual default and was the wrong one
+here: every screen in this app was designed and reviewed against the blush
+palette, the dark palette has never had the same eyes on it, and defaulting to
+"system" meant a patient on a dark-mode phone opened the app one morning to a
+different-looking product she never chose. Dark is available — it is just a
+choice, made on the Settings page.
+
+Alongside the class, `applyTheme` sets `document.documentElement.style.colorScheme`,
+and `index.html` carries `<meta name="color-scheme" content="light">` for the
+moment before any JavaScript runs. Both matter: a page that stays silent about
+its colour scheme can be auto-darkened *for* it (Chrome on Android does this),
+and native controls — scrollbars, date pickers, dropdowns — otherwise paint
+themselves dark over light surfaces. If the app ever looks dark unexpectedly,
+check the stored choice first (`localStorage` key `prakriva:theme`).
 
 The app is pink end to end. It used to mix in the stock Tailwind ramps —
 green "success" badges, blue chart lines, amber warnings — which read as three

@@ -141,6 +141,15 @@ policies are the access control:
   segment (`<patient-id>/…`), so a patient can only reach her own folder and a
   wrong prefix is a server-side rejection rather than a trusted claim. The
   frontend renders them through short-lived signed URLs.
+- The `avatars` storage bucket (`profile_avatars.sql`) is the one **public**
+  bucket in this project, and deliberately so: avatars are shown to people who
+  are not the owner (a doctor's patient list, the Consult cards, community
+  posts), and `avatarService` renders them with `getPublicUrl` rather than
+  minting a signed URL per viewer per face. Read is public; writing is still
+  keyed off the first path segment (`<user-id>/avatar.jpg`), so an account can
+  only ever write its own. It carries an UPDATE policy where `acne-photos` does
+  not, because replacing a photo is an upsert over the existing object. Nothing
+  clinical belongs in here — skin photos stay in the private bucket.
 - `patients.health_tracks` is deliberately *not* protected like the doctor
   verification columns. It decides which of her own trackers a patient sees,
   not what she may reach, so it is safe both for the client to state at signup
