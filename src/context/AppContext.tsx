@@ -368,13 +368,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setIsLoading(false);
     };
 
+    // Track the current user id so we can skip redundant reloads.
+    let currentUid: string | null = null;
+
     supabase.auth.getSession().then(({ data }) => {
+      currentUid = data.session?.user?.id ?? null;
       void loadSession(data.session?.user ?? null);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const newUid = session?.user?.id ?? null;
+
+      // Supabase fires TOKEN_REFRESHED every time the tab regains focus.
+      // The session is the same user — skip the full reload that sets
+      // isLoading=true, re-fetches every table and flashes the spinner.
+      if (event === "TOKEN_REFRESHED" && newUid === currentUid) return;
+
+      currentUid = newUid;
       void loadSession(session?.user ?? null);
     });
 
