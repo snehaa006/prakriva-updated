@@ -61,6 +61,19 @@ const Accordion = React.forwardRef<HTMLDivElement, AccordionProps>((props, ref) 
   const onValueChange = (rest as { onValueChange?: (value: string | string[]) => void }).onValueChange;
   const collapsible = isSingle ? Boolean((rest as { collapsible?: boolean }).collapsible) : true;
 
+  // The control props are read off `rest` above but were still in it, so they
+  // rode the spread below onto the `<div>` — React then warns
+  // ("Received `true` for a non-boolean attribute `collapsible`") and emits
+  // invalid `collapsible`/`value`/`onvaluechange` attributes into the DOM.
+  // Strip them here, once, rather than at every call site.
+  const {
+    value: _value,
+    defaultValue: _defaultValue,
+    onValueChange: _onValueChange,
+    collapsible: _collapsible,
+    ...domProps
+  } = rest as Record<string, unknown>;
+
   const [uncontrolledValue, setUncontrolledValue] = React.useState<string | string[]>(
     defaultValue ?? defaultUncontrolled,
   );
@@ -111,7 +124,7 @@ const Accordion = React.forwardRef<HTMLDivElement, AccordionProps>((props, ref) 
 
   return (
     <AccordionContext.Provider value={{ type, value: activeValue, toggle, isOpen }}>
-      <div ref={ref} className={className} {...(rest as React.HTMLAttributes<HTMLDivElement>)}>
+      <div ref={ref} className={className} {...(domProps as React.HTMLAttributes<HTMLDivElement>)}>
         {children}
       </div>
     </AccordionContext.Provider>

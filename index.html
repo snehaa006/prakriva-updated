@@ -17,6 +17,19 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
 
+    <!-- The landing page's display serif, matching the Prakriva wordmark. The
+         app itself stays on the system sans stack, so this is the only web
+         font the project loads and only the marketing page uses it
+         (`font-display` in tailwind.config.ts). `display=swap` means a slow
+         or blocked font request shows the Georgia fallback immediately rather
+         than holding the headline blank. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+
     <meta property="og:title" content="Prakriva — Ayurvedic Diet Management Platform" />
     <meta property="og:description" content="Transform your health with personalized Ayurvedic nutrition plans powered by AI" />
     <meta property="og:type" content="website" />

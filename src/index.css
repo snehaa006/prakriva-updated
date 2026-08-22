@@ -104,6 +104,29 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
     --sidebar-accent-foreground: 340 45% 32%;
     --sidebar-border: 340 16% 91%;
     --sidebar-ring: 340 45% 42%;
+
+    /* --- Landing surface (`--lp-*`) ---------------------------------------
+       The marketing page is the one screen that is *not* the product, and it
+       is the only place the brand gets to be atmospheric: pink muhly grass,
+       dusty mauve bokeh, and the cream of the embossed logo. Those colours
+       would be wrong inside the app — a diet chart does not need a plum
+       gradient behind it — so they live in their own `--lp-` namespace and
+       are used by `src/components/landing/**` and nothing else.
+
+       They are still the app's hue family (318-345), just allowed a wider
+       lightness and saturation range than the UI palette permits. HSL triples
+       with no `hsl()` wrapper, like every other token here, so they compose
+       with Tailwind's `/opacity` syntax. */
+    --lp-cream: 34 42% 92%;          /* the logo's embossed cream */
+    --lp-cream-hi: 38 56% 97%;       /* its lit edge */
+    --lp-cream-lo: 28 26% 78%;       /* its shadowed edge */
+    --lp-blush: 344 60% 94%;         /* palest wash, hero background */
+    --lp-petal: 340 62% 84%;         /* muhly grass, lit */
+    --lp-rose: 338 52% 68%;          /* muhly grass, mid */
+    --lp-mauve: 322 32% 52%;         /* the bokeh photographs */
+    --lp-plum: 328 40% 30%;          /* deep sections */
+    --lp-plum-deep: 330 44% 15%;     /* deepest, behind the demo */
+    --lp-ink: 335 28% 10%;           /* text on cream */
   }
 
   /* Dark mode is not reachable from the UI today (there is no theme toggle),
@@ -298,5 +321,153 @@ stays minimal: one accent, quiet neutrals, color reserved for meaning.
   .scroll-area::-webkit-scrollbar-thumb {
     background: hsl(var(--border-strong));
     border-radius: 9999px;
+  }
+}
+
+/* --- Landing page ---------------------------------------------------------
+   Utilities for `src/components/landing/**`. Everything here is scoped by
+   name (`lp-`) rather than by cascade, so nothing in the product picks it up
+   by accident. All of it is motion or paint — the blanket
+   `prefers-reduced-motion` guard above already switches the movement off. */
+@layer components {
+  /* The page's own ground: a warm cream that the blush washes sit on. Set on
+     the landing root so the section-to-section gradients have something
+     consistent to fade into. */
+  .lp-surface {
+    background-color: hsl(var(--lp-cream-hi));
+    color: hsl(var(--lp-ink));
+  }
+
+  /* The deep sections (demo, final CTA). A plum field with a soft mauve
+     bloom off-centre, so it reads as the bokeh photographs rather than as a
+     flat dark band. */
+  .lp-deep {
+    background-color: hsl(var(--lp-plum-deep));
+    background-image:
+      radial-gradient(60% 60% at 18% 10%, hsl(var(--lp-mauve) / 0.42) 0%, transparent 60%),
+      radial-gradient(50% 55% at 88% 85%, hsl(var(--lp-rose) / 0.28) 0%, transparent 62%),
+      radial-gradient(90% 70% at 50% 50%, hsl(var(--lp-plum) / 0.55) 0%, transparent 70%);
+  }
+
+  /* Film grain. The reference photographs are grainy 35mm; without this the
+     large gradient fields band visibly on wide screens. An SVG feTurbulence
+     as a data URI — no network request, no raster asset to ship. */
+  .lp-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.22;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  /* Frosted card on the light surface. Distinct from the app's `.glass`,
+     which is tuned for chrome over dense content; this one is a content
+     surface and carries a warm inner highlight along its top edge, which is
+     what makes a card read as lit rather than as a grey rectangle. */
+  .lp-card {
+    background-color: hsl(var(--lp-cream-hi) / 0.72);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid hsl(var(--lp-cream-lo) / 0.55);
+    box-shadow:
+      0 1px 0 0 hsl(0 0% 100% / 0.75) inset,
+      0 18px 40px -24px hsl(var(--lp-plum) / 0.45);
+  }
+
+  /* Same idea inverted, for cards sitting on `.lp-deep`. */
+  .lp-card-dark {
+    background-color: hsl(var(--lp-cream-hi) / 0.07);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--lp-cream-hi) / 0.14);
+    box-shadow:
+      0 1px 0 0 hsl(var(--lp-cream-hi) / 0.12) inset,
+      0 24px 60px -30px hsl(0 0% 0% / 0.6);
+  }
+
+  /* The embossed cream of the logo, as a text treatment for the wordmark and
+     display headings on deep sections. Two shadows — one light above, one
+     dark below — is the whole trick; `background-clip` carries the bevel. */
+  .lp-emboss {
+    background-image: linear-gradient(
+      170deg,
+      hsl(var(--lp-cream-hi)) 0%,
+      hsl(var(--lp-cream)) 45%,
+      hsl(var(--lp-cream-lo)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter:
+      drop-shadow(0 1px 0 hsl(0 0% 100% / 0.5))
+      drop-shadow(0 2px 3px hsl(var(--lp-plum) / 0.35));
+  }
+
+  /* Headline treatment on the light surface: ink fading into the brand plum,
+     which keeps a long headline from reading as a flat block of text. */
+  .lp-ink-gradient {
+    background-image: linear-gradient(
+      120deg,
+      hsl(var(--lp-ink)) 0%,
+      hsl(var(--lp-plum)) 55%,
+      hsl(var(--lp-mauve)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* A hairline that fades out at both ends — used as a section divider so the
+     page never gets a hard rule across a soft gradient. */
+  .lp-rule {
+    height: 1px;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--lp-cream-lo) / 0.9) 22%,
+      hsl(var(--lp-cream-lo) / 0.9) 78%,
+      transparent
+    );
+  }
+
+  /* Marquee track. Two identical copies of the content sit side by side and
+     the track translates exactly -50%, so the loop is seamless. Pausing on
+     hover is a requirement, not a nicety: a moving strip you cannot stop to
+     read is an accessibility failure (WCAG 2.2.2). */
+  .lp-marquee {
+    display: flex;
+    width: max-content;
+    animation: lp-marquee var(--lp-marquee-duration, 38s) linear infinite;
+  }
+
+  .lp-marquee:hover,
+  .lp-marquee:focus-within {
+    animation-play-state: paused;
+  }
+
+  /* Scroll-driven reveal. The `is-visible` class is added by `useInView`;
+     without JS (or with it failing) the content is simply visible, never
+     stuck at opacity 0. */
+  .lp-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--lp-reveal-delay, 0ms);
+  }
+
+  .lp-reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lp-reveal {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

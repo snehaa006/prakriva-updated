@@ -31,6 +31,7 @@ Project: `pghvmhakfwtxkwvlxokc` — https://pghvmhakfwtxkwvlxokc.supabase.co
 | `missed_cycle_months`   | — (new; months explicitly reported as having no period) |
 | `weight_logs`           | — (new; one weight reading per patient per day)   |
 | `acne_logs`             | — (new; dated skin check-ins, photos in the `acne-photos` bucket) |
+| `contact_messages`      | — (new; the public landing page's contact form, see `contact_messages.sql`) |
 
 Notes on the shape:
 
@@ -44,6 +45,12 @@ Notes on the shape:
   is queried by `doctor_id` directly.
 - `meal_tracking` has a unique index on `(patient_id, date)`, which is what the
   Firestore document id of `{date}` gave us.
+- `contact_messages` is the one **insert-only** table: anon and authenticated
+  may `INSERT` and have no `SELECT`, `UPDATE` or `DELETE` policy at all, so the
+  browser's key cannot read a single row back. Triage happens with the
+  service-role key. It is also optional — the frontend
+  (`src/services/contactService.ts`) falls back to a prefilled `mailto:` when
+  the table is missing, so the landing page works before this is applied.
 
 ## Auth
 
@@ -120,6 +127,12 @@ policies are the access control:
   policies at all**, so the publishable key can never reach them. The Python
   backend uses the service-role key, which bypasses RLS by design. The
   "RLS Enabled No Policy" advisor notice on those three tables is expected.
+- `contact_messages` is the mirror image of that: one `INSERT` policy for anon
+  and authenticated (`with check (true)` — the column constraints are what stop
+  a junk row), and nothing else. No public `SELECT` is deliberate rather than an
+  oversight; a contact table readable with the browser's own key is a mailing
+  list anyone can download, carrying whatever a patient wrote about her health
+  before she had an account. Reading and triaging use the service-role key.
 - `disease_screenings` is written from both sides: a patient inserts only her
   own health check (`submitted_by = 'patient'`, `doctor_id is null`), a doctor
   only for patients they treat (`public.doctor_treats`) and only tagged as their

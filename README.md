@@ -31,6 +31,10 @@ listed under "Language and translation" below.
   translator that machine-translates everything else, in the browser. No key
   and no service to run; the Flask backend exposes `/translate` only as a
   fallback for networks that block the public endpoint.
+- **Fonts**: the app runs on the system sans stack and loads no web font. The
+  public landing page is the single exception — it pulls **Cormorant Garamond**
+  from Google Fonts for its display serif (`font-display`), with real serif
+  fallbacks so a blocked request degrades to Georgia.
 - **Tests**: Vitest + React Testing Library (frontend, jsdom), pytest
   (backend).
 - **Deployment**: the frontend deploys to **Vercel** (Root Directory = repo
@@ -49,8 +53,15 @@ listed under "Language and translation" below.
   at four sizes (`sm`/`md`/`lg`/`xl`). Use it instead of hand-rolled brand
   markup; the artwork already contains the "Prakriva" wordmark, so don't pair it
   with the name in text (pass `alt=""` where nearby copy names the brand). It
-  appears on the landing hero, the auth card, both sidebars, and the mobile
-  header of both layouts.
+  appears on the auth card, both sidebars, and the mobile header of both
+  layouts. **The public landing page uses the vector mark instead**
+  (`src/components/landing/BrandMark.tsx`) — see "Landing page" below for why.
+- `src/components/landing/` — the public marketing page at `/`, one file per
+  section plus `landingContent.ts` (all of its copy), `BrandMark.tsx` (the
+  butterfly as SVG), `Atmosphere.tsx` (the grass and bokeh) and three motion
+  primitives: `ScrollReveal`, `CardStack` and `SpotlightCard`. `src/pages/
+  Landing.tsx` is only the running order. Its palette lives in the `--lp-*`
+  namespace and is used nowhere else.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -108,7 +119,9 @@ listed under "Language and translation" below.
   `community.sql` for the community circles, their memberships and their chat,
   `pcos_tracking.sql` for the care-tracks column, the PCOD/PCOS trackers
   (`menstrual_cycle_logs`, `missed_cycle_months`, `weight_logs`, `acne_logs`)
-  and the private `acne-photos` storage bucket, and `profile_avatars.sql` for
+  and the private `acne-photos` storage bucket, `contact_messages.sql` for the
+  landing page's contact inbox (optional — the form falls back to a prefilled
+  `mailto:` without it), and `profile_avatars.sql` for
   the public `avatars` bucket profile photos live in.
 - `src/components/wellness/ExercisePlan.tsx` — the one rendering of an exercise
   suggestion, shared by the Lifestyle Tracker (where minutes are logged against
@@ -294,6 +307,145 @@ validation.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
+
+`src/pages/__tests__/Landing.test.tsx` covers the public page: that every
+section a nav or footer link promises actually exists, that both sign-up doors
+route to the right place, the demo tab strip, the mobile menu, the contact
+form's inline errors, and that the "sample data, not a live account" caption
+and the practitioner disclaimer are both present. It deliberately does **not**
+assert on the reveals, the card stacking or the spotlight — all three are
+driven by APIs jsdom does not implement, and all three are decoration the page
+reads correctly without.
+
+## Landing page
+
+`/` is the app's only public surface — the one screen someone sees before they
+decide whether to trust this with a cycle history. It lives in
+`src/pages/Landing.tsx`, which is nothing but a running order; every section
+owns its own copy, layout and behaviour under `src/components/landing/`.
+
+**Sections, in order.** Sticky nav → hero → product demo → how it works →
+feature bento → the three doshas → patient/practitioner split → care pathways →
+about → FAQ → contact → closing CTA → footer. The order follows the questions a
+visitor asks in sequence rather than a template.
+
+| File | What it is |
+|---|---|
+| `landingContent.ts` | **Every word and figure on the page.** Copy is edited far more often than layout, and keeping it here means one rule is checkable at a glance: nothing may claim something the product does not do. |
+| `BrandMark.tsx` | The butterfly mark as inline SVG, plus the `Prakriva` wordmark as live text. `BrandButterfly` and `BrandLockup`. |
+| `Atmosphere.tsx` | `MuhlyField` (the pink muhly grass) and `Bokeh` (the drifting orbs). Both drawn, not photographed. |
+| `ScrollReveal.tsx` | Fades content up the first time it scrolls into view. |
+| `CardStack.tsx` | The scroll-driven stack the "how it works" steps sit in. |
+| `SpotlightCard.tsx` | Cursor-tracking tilt and highlight, used by every card block. |
+| `LandingNav` … `LandingFooter` | One file per section. |
+
+**The brand mark is vector, not `public/logo.png`.** The page needs the mark at
+four sizes on two grounds — cream on plum in the footer, plum on cream in the
+nav — and a flat raster tile can do neither. `BrandButterfly` draws each wing
+once and mirrors it by transform, so the halves cannot drift apart, and every
+stroke carries `pathLength={1}` so the draw-on animation is one keyframe (the
+same rule `LineArt.tsx` follows). The wordmark is **live text**, so it stays
+selectable, translatable and readable to a screen reader — which is why the
+butterfly beside it is `aria-hidden`, leaving exactly one accessible name for
+the brand rather than two. The `Logo` component and `public/logo.png` are
+unchanged and still used everywhere inside the app.
+
+**The grass and the bokeh are drawn.** A hero photograph was the obvious route
+and the wrong one: the reference images are 2–4MB of grain apiece, they cannot
+follow the palette if it moves, and text over a photograph needs a scrim that
+muddies exactly the softness the theme is after. `MuhlyField` builds three
+bands of blades from a **seeded** PRNG (`mulberry32`) — irregular, but not
+random per render, which would make the field twitch on every re-render. Two
+gradients do the work that makes it read as a field rather than as a fringe:
+a `ground` fade at the base, so the blades bed into the surface instead of
+ending on a razor line of stroke ends, and a mask at the top so the tips fade
+out instead of stopping on the container's edge. `ground` is a prop because the
+field appears on cream in the hero and on plum in the closing CTA.
+
+**The demo is representative, and says so.** `ProductDemo` rebuilds four real
+screens — Today, Plan, Trackers, and the doctor's list — from the product's own
+tokens and shapes. It is not a screenshot and not the live app: mounting the
+real `Today` page would drag the Supabase client, react-query and the whole
+patient layout into the marketing bundle for a visitor who is not signed in,
+and would render empty because there is no patient. The caption under the frame
+says "sample data, not a live account" rather than implying otherwise, and a
+test asserts that line is present. The tab strip auto-advances and stops
+permanently the moment anyone clicks a tab.
+
+**There are no testimonials, on purpose.** The section that would hold them
+(`Scenarios`) describes the three care pathways instead. Prakriva has no users
+to quote yet, and a row of invented names on a page asking a woman to trust it
+with her health record would be the first dishonest thing on it.
+
+### Contact form
+
+The form is real, and degrades honestly. `src/services/contactService.ts`
+inserts into `contact_messages`; if that table is not provisioned — or the
+write fails for any other reason — the caller gets `status: "unavailable"` and
+a **prefilled `mailto:`**, surfaced as a toast action. A form that reports
+success into a void is worse than no form at all.
+
+Apply `supabase/contact_messages.sql` to enable the database path. The security
+shape there is deliberately lopsided: anonymous visitors may `INSERT` and
+nothing else. There is **no public `SELECT` policy**, so the browser's anon key
+cannot read a single row back — a contact table readable with the anon key is a
+mailing list anyone can download, carrying every enquiry a patient ever wrote
+about her own health. Triage happens with the service-role key.
+
+Validation lives in the service next to the write, not in the component, so the
+same rules apply to any future caller;
+`src/services/__tests__/contactService.test.ts` covers it along with both
+fallback paths.
+
+### Landing-only tokens and motion
+
+The page is the one surface allowed to be atmospheric, and none of that belongs
+in the product — a diet chart does not need a plum gradient behind it. So the
+marketing palette lives in its own `--lp-*` namespace in `src/index.css`
+(`bg-lp-plum`, `text-lp-cream-hi`, …), still inside the app's hue family
+(318–345°) but with a wider lightness and saturation range than the UI palette
+permits. `src/lib/__tests__/brandPalette.test.ts` still applies: no off-brand
+utilities, no six-digit hex literals.
+
+Utility classes are prefixed `lp-` for the same reason: `.lp-surface`,
+`.lp-deep`, `.lp-card`, `.lp-card-dark`, `.lp-emboss`, `.lp-ink-gradient`,
+`.lp-grain` (film grain as an inline `feTurbulence` data URI — no raster asset,
+and the large gradient fields band visibly on wide screens without it),
+`.lp-marquee` and `.lp-reveal`. Keyframes are `lp-drift`, `lp-sway`,
+`lp-marquee`, `lp-shimmer`, `lp-halo` and `lp-rise` in `tailwind.config.ts`.
+
+Three behaviours are worth knowing about:
+
+- **`useInView` fails open.** With no `IntersectionObserver`, or under
+  `prefers-reduced-motion`, it reports `true` immediately, so content is
+  visible rather than stuck at `opacity: 0`. A reveal animation is never
+  allowed to be the reason something cannot be read. It also latches — once
+  seen, always seen — because re-animating a section on every crossing is what
+  makes a scroll-driven page feel restless.
+- **`CardStack` degrades to plain sticky.** The stacking itself is
+  `position: sticky` and needs no JavaScript; the scroll listener only adds the
+  scale-down and the plum veil over the card being covered. Progress is
+  measured once for the section inside a `requestAnimationFrame`, not once per
+  card per scroll event.
+- **`SpotlightCard` writes CSS custom properties, not state.** A `setState` per
+  `mousemove` re-renders the subtree sixty times a second for a purely visual
+  change. The tilt is capped at 6° — the 20° version reads as a gimmick and
+  makes body text inside the card harder to read.
+
+The marquee pauses on hover and on focus-within (WCAG 2.2.2 — a moving strip
+you cannot stop to read is an accessibility failure), and all of the above is
+switched off wholesale by the `prefers-reduced-motion` guard in
+`src/index.css`.
+
+### Fonts
+
+The landing page is the only thing in the project that loads a web font:
+**Cormorant Garamond**, linked from Google Fonts in `index.html` and exposed as
+`font-display` in `tailwind.config.ts`. It matches the Prakriva wordmark, which
+the system sans stack cannot stand in for. The app itself is untouched and
+stays on the system stack, `display=swap` is set, and the fallbacks are real
+serifs — so a blocked or slow font request shows Georgia immediately rather
+than holding the headline blank.
 
 ## Patient profile
 
@@ -1613,6 +1765,14 @@ globally to fix that.
 utility or a hardcoded chart hex reappears — the drift happened once already,
 one reasonable-looking green badge at a time.
 
+**The landing page has its own palette**, namespaced `--lp-*` (`bg-lp-plum`,
+`text-lp-cream-hi`, …) and used only by `src/components/landing/**`. It is the
+same hue family, given a wider lightness and saturation range than the UI
+palette allows, because the marketing page is the one screen that is not the
+product. Everything above still applies to it: no off-brand utilities, no
+hardcoded hexes, and `brandPalette.test.ts` fails the build either way. See
+"Landing page".
+
 **Corners.** The radius scale is 6/8/10/12/16/20px (`sm` → `2xl`). It used to
 be 12/20/28/36, soft enough that a chip, a card and a dialog all read as the
 same lozenge, and large enough that on a small card the radius competed with
@@ -1627,6 +1787,12 @@ hand-rolled per component:
 - `<Reveal index={n}>` (`src/components/ui/reveal.tsx`) fades content up on
   mount, 70ms apart. Long lists should cap `index` — a 40-row table where row
   39 waits three seconds is worse than no animation.
+- `<ScrollReveal index={n}>` (`src/components/landing/ScrollReveal.tsx`) is the
+  same idea driven by `useInView` (`src/hooks/useInView.ts`) rather than by
+  mount — the landing page is long enough that mount-time animation would be
+  spent entirely off-screen. It **fails open**: with no `IntersectionObserver`,
+  or under reduced motion, content is visible immediately rather than stuck at
+  `opacity: 0`.
 - `useCountUp(value)` (`src/hooks/useCountUp.ts`) counts a figure up when it
   changes. It **always lands on the exact value**, only animates *upward*, and
   never renders `NaN`/`Infinity` — these are calories and adherence scores, and

@@ -14,6 +14,21 @@ export default {
     },
     extend: {
       fontFamily: {
+        // The marketing page only. The uploaded wordmark is a high-contrast
+        // old-style serif, and the system sans stack cannot stand in for it —
+        // so `font-display` loads Cormorant Garamond (see index.html) and is
+        // used on the landing headlines and the wordmark, nowhere in the app.
+        // The fallbacks are real serifs, so a blocked font request degrades to
+        // Georgia rather than to the body sans.
+        display: [
+          '"Cormorant Garamond"',
+          '"Iowan Old Style"',
+          '"Palatino Linotype"',
+          "Palatino",
+          "Georgia",
+          '"Times New Roman"',
+          "serif",
+        ],
         sans: [
           "-apple-system",
           "BlinkMacSystemFont",
@@ -100,6 +115,22 @@ export default {
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         info: "hsl(var(--info))",
+
+        // Landing-page palette (see the `--lp-*` block in src/index.css).
+        // Namespaced so `bg-lp-plum` can only ever appear on the marketing
+        // page — the product keeps to the tokens above.
+        lp: {
+          cream: "hsl(var(--lp-cream))",
+          "cream-hi": "hsl(var(--lp-cream-hi))",
+          "cream-lo": "hsl(var(--lp-cream-lo))",
+          blush: "hsl(var(--lp-blush))",
+          petal: "hsl(var(--lp-petal))",
+          rose: "hsl(var(--lp-rose))",
+          mauve: "hsl(var(--lp-mauve))",
+          plum: "hsl(var(--lp-plum))",
+          "plum-deep": "hsl(var(--lp-plum-deep))",
+          ink: "hsl(var(--lp-ink))",
+        },
 
         // --- Muted ramps (re-tuned, not removed) --------------------------
         // ~30 files use these ramps hundreds of times (bg-rose-50, text-gray-600,
@@ -298,6 +329,46 @@ export default {
           "0%, 60%, 100%": { transform: "translateY(0)", opacity: "0.4" },
           "30%": { transform: "translateY(-3px)", opacity: "1" },
         },
+        // --- Landing page ---------------------------------------------------
+        // The marketing page is the one surface allowed ambient, looping
+        // motion; inside the app a permanent animation is a distraction on a
+        // screen someone is trying to read. Everything here is slow (8s+) and
+        // shallow, and all of it stops under `prefers-reduced-motion`.
+        //
+        // A bokeh orb drifting behind the hero.
+        "lp-drift": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0) scale(1)" },
+          "33%": { transform: "translate3d(3%, -4%, 0) scale(1.06)" },
+          "66%": { transform: "translate3d(-3%, 3%, 0) scale(0.96)" },
+        },
+        // The muhly grass field, bending in a breeze. Skew rather than
+        // rotate, so the blades stay rooted where they are drawn.
+        "lp-sway": {
+          "0%, 100%": { transform: "skewX(0deg)" },
+          "50%": { transform: "skewX(1.6deg)" },
+        },
+        // The seamless logo/credential strip. Paired with `.lp-marquee`,
+        // which renders the content twice, so -50% lands on a copy.
+        "lp-marquee": {
+          from: { transform: "translate3d(0, 0, 0)" },
+          to: { transform: "translate3d(-50%, 0, 0)" },
+        },
+        // A highlight sweeping across a border or a pill.
+        "lp-shimmer": {
+          from: { backgroundPosition: "200% 0" },
+          to: { backgroundPosition: "-200% 0" },
+        },
+        // The soft halo behind the brand mark.
+        "lp-halo": {
+          "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
+          "50%": { opacity: "0.85", transform: "scale(1.05)" },
+        },
+        // A card lifting into place — used by the stacked-card section for
+        // the card that has just become the top of the stack.
+        "lp-rise": {
+          from: { opacity: "0", transform: "translateY(28px) scale(0.98)" },
+          to: { opacity: "1", transform: "none" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -314,6 +385,12 @@ export default {
         "message-in": "message-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both",
         "nudge-in": "nudge-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both",
         "typing-dot": "typing-dot 1.2s ease-in-out infinite",
+        "lp-drift": "lp-drift 22s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "lp-sway": "lp-sway 11s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "lp-marquee": "lp-marquee 38s linear infinite",
+        "lp-shimmer": "lp-shimmer 6s linear infinite",
+        "lp-halo": "lp-halo 8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "lp-rise": "lp-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },
