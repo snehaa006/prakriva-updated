@@ -29,6 +29,7 @@ from dosha_estimator import dosha_predictor
 from calorie_calculator import estimate_calories, get_calorie_breakdown
 from planner import meal_planner
 from db import db_manager
+from auth import require_admin, require_self
 from disease_detection import (
     SYMPTOMS,
     ScreeningInput,
@@ -513,13 +514,16 @@ def get_meal_plan(plan_id: str):
 
 @app.route("/user/<user_id>/plans", methods=["GET"])
 @app.limiter.limit("30 per minute")
+@require_self("user_id")
 def get_user_meal_plans(user_id: str):
     """Get all meal plans for a specific user"""
     try:
         limit = min(int(request.args.get('limit', 10)), 50)  # Max 50
         status = request.args.get('status', 'active')
         
-        plans = db_manager.get_user_plans(user_id, limit, status)
+        # g.user_id is the verified identity; the path value only got this far
+        # because require_self confirmed the two match.
+        plans = db_manager.get_user_plans(g.user_id, limit, status)
         
         return jsonify(APIResponse(
             success=True,
@@ -1196,10 +1200,10 @@ def translate_texts():
 
 @app.route("/analytics", methods=["GET"])
 @app.limiter.limit("10 per minute")
+@require_admin
 def get_analytics():
     """Get analytics data (admin endpoint)"""
     try:
-        # In production, add authentication check here
         
         limit = min(int(request.args.get('limit', 1000)), 5000)
         start_date = request.args.get('start_date')
