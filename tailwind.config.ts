@@ -254,6 +254,18 @@ export default {
           "0%, 100%": { transform: "scale(1)", opacity: "0.65" },
           "50%": { transform: "scale(1.15)", opacity: "1" },
         },
+        "companion-think-bounce": {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "25%": { transform: "translateY(-4px) rotate(-5deg)" },
+          "75%": { transform: "translateY(-2px) rotate(5deg)" },
+        },
+        "companion-celebrate": {
+          "0%, 100%": { transform: "scale(1) rotate(0deg)" },
+          "20%": { transform: "scale(1.1) rotate(-8deg)" },
+          "40%": { transform: "scale(1.05) rotate(8deg)" },
+          "60%": { transform: "scale(1.1) rotate(-4deg)" },
+          "80%": { transform: "scale(1.05) rotate(4deg)" },
+        },
         "message-in": {
           from: { opacity: "0", transform: "translateY(8px) scale(0.99)" },
           to: { opacity: "1", transform: "none" },
@@ -291,6 +303,8 @@ export default {
         "companion-scan": "companion-scan 1.6s ease-in-out infinite",
         "companion-think": "companion-think 1.1s ease-in-out infinite",
         "companion-sparkle": "companion-sparkle 1.8s ease-in-out infinite",
+        "companion-think-bounce": "companion-think-bounce 1s ease-in-out infinite",
+        "companion-celebrate": "companion-celebrate 0.8s ease-in-out",
         "message-in": "message-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both",
         "nudge-in": "nudge-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both",
         "typing-dot": "typing-dot 1.2s ease-in-out infinite",

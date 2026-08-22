@@ -45,6 +45,9 @@ listed under "Language and translation" below.
   `DoctorLayout`. App-wide state lives in `src/context` (`AppContext`,
   `FoodContext`). Data access to Supabase and other APIs lives in
   `src/services` and `src/lib`. Shared TypeScript types live in `src/types/`.
+- `public/chatbot/` — the three mascot PNG images (`idle.png`, `thinking.png`,
+  `responding.png`) used by `CompanionCharacter.tsx` for the chatbot's animated
+  character across both patient and doctor interfaces.
 - `src/components/ui/logo.tsx` — the `Logo` component wrapping `public/logo.png`
   at four sizes (`sm`/`md`/`lg`/`xl`). Use it instead of hand-rolled brand
   markup; the artwork already contains the "Prakriva" wordmark, so don't pair it
@@ -1034,17 +1037,18 @@ banner at the top of the chat still uses the status check.
 
 The chat is not a text box with a send button. Four pieces make it a companion:
 
-- **A character** (`src/components/chat/CompanionCharacter.tsx`) — a lotus-bud
-  figure with four moods: `idle` at rest, `thinking` while she types or a reply
-  is being fetched, `reading` in the moment after she sends, and `happy` when an
-  answer lands. It stands on a strip above the composer and *crosses to her
-  side* to read her message before walking back to think, so the state of the
-  conversation is something you watch rather than something a spinner says.
-  Mood is carried by eye and mouth **shape**, not by motion, so the character
-  still reads with `prefers-reduced-motion` on (which switches all of it off).
-  It is deliberately a different family of marks from
-  `src/components/illustrations`, whose faceless pictograms stand for the
-  *patient* — this one is the assistant.
+- **A mascot character** (`src/components/chat/CompanionCharacter.tsx`) — a cute
+  pink companion with three visual states served as PNG images from
+  `public/chatbot/`: `idle.png` (standing calm), `thinking.png` (waving/dancing
+  while processing), and `responding.png` (holding a megaphone, delivering the
+  answer). The component maps four mood values to these images: `idle` and
+  `reading` use the idle pose, `thinking` uses the thinking pose, and `happy`
+  uses the responding pose. Each mood has its own CSS animation (bob, bounce,
+  celebrate). The mascot appears at four scales: as the floating launcher button
+  (64px, no background — the character IS the button), in the chat header (44px,
+  animated while thinking), as message avatars (36px, still), and as a welcome
+  hero (112px, centered above the greeting when the conversation is fresh). The
+  bottom nav's center AI button also uses the mascot image instead of an icon.
 - **Unprompted messages** (`src/lib/companionCues.ts`) — a pure function of
   (her context, the clock) that decides what is worth raising now: a health
   check that landed in the last week, meals ticked off today with no feedback

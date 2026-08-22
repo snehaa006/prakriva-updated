@@ -187,7 +187,7 @@ const CompanionStage: React.FC<{ stage: Stage }> = ({ stage }) => {
   const label = STAGE_LABEL[stage];
 
   return (
-    <div className="relative h-11 shrink-0 px-4" aria-hidden>
+    <div className="relative h-14 shrink-0 px-4" aria-hidden>
       <div
         className="absolute top-0 transition-[left,transform] duration-700 ease-ios-spring"
         style={{
@@ -195,14 +195,14 @@ const CompanionStage: React.FC<{ stage: Stage }> = ({ stage }) => {
           transform: side === "right" ? "translateX(-100%)" : "none",
         }}
       >
-        <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-10 w-10" />
+        <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-12 w-12" />
       </div>
 
       <span
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-caption1 text-foreground-tertiary transition-opacity duration-300",
+          "absolute top-1/2 -translate-y-1/2 text-caption1 font-medium text-foreground-tertiary transition-opacity duration-300",
           label ? "opacity-100" : "opacity-0",
-          side === "right" ? "right-14" : "left-14",
+          side === "right" ? "right-16" : "left-16",
         )}
       >
         {label}
@@ -591,16 +591,17 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         <button
           onClick={handleOpen}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-glow-gold transition-all duration-200 ease-ios-spring hover:scale-105 hover:shadow-xl active:scale-95",
+            "group fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-full transition-all duration-300 ease-ios-spring hover:scale-110 active:scale-95",
             hideTrigger && "hidden md:flex",
           )}
           aria-label="Open wellness companion"
+          style={{ filter: "drop-shadow(0 4px 12px rgba(236,107,139,0.4))" }}
         >
-          <CompanionCharacter mood={teaser ? "happy" : "idle"} className="h-10 w-10" />
+          <CompanionCharacter mood={teaser ? "happy" : "idle"} className="h-16 w-16" />
           <span
             className={cn(
-              "absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full ring-2 ring-background transition-colors",
-              teaser ? "bg-primary" : "bg-success",
+              "absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full ring-2 ring-background transition-colors",
+              teaser ? "bg-primary animate-pulse-soft" : "bg-success",
             )}
           />
         </button>
@@ -610,26 +611,26 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
       {!isOpen && teaser && (
         <div
           className={cn(
-            "fixed z-50 w-[min(20rem,calc(100vw-2rem))] animate-nudge-in rounded-2xl border border-border bg-background-elevated p-3.5 shadow-lg",
-            "bottom-24 right-4 md:right-6",
+            "fixed z-50 w-[min(22rem,calc(100vw-2rem))] animate-nudge-in rounded-2xl border border-pink-200/60 bg-background-elevated p-4 shadow-xl",
+            "bottom-[5.5rem] right-4 md:right-6",
           )}
           role="status"
         >
           <button
             onClick={dismissTeaser}
-            className="absolute right-2 top-2 rounded-full p-1 text-foreground-tertiary transition-colors hover:bg-muted hover:text-foreground"
+            className="absolute right-2.5 top-2.5 rounded-full p-1 text-foreground-tertiary transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Dismiss"
           >
             <X className="h-3.5 w-3.5" />
           </button>
 
-          <div className="flex gap-2.5">
-            <CompanionMark mood="happy" className="h-9 w-9 shrink-0" />
-            <div className="min-w-0">
-              <p className="pr-4 text-footnote leading-snug text-foreground">{teaser.teaser}</p>
+          <div className="flex items-start gap-3">
+            <CompanionCharacter mood="happy" still className="h-12 w-12 shrink-0" />
+            <div className="min-w-0 pt-0.5">
+              <p className="pr-5 text-footnote leading-snug text-foreground">{teaser.teaser}</p>
               <button
                 onClick={openTeaser}
-                className="mt-2 rounded-full bg-primary px-3.5 py-1.5 text-caption1 font-semibold text-primary-foreground transition-all duration-200 ease-ios-spring hover:opacity-90 active:scale-95"
+                className="mt-2.5 rounded-full bg-gradient-to-r from-pink-400 to-pink-500 px-4 py-1.5 text-caption1 font-semibold text-white shadow-sm transition-all duration-200 ease-ios-spring hover:shadow-md hover:brightness-105 active:scale-95"
               >
                 Show me
               </button>
@@ -641,85 +642,95 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
       {isOpen && (
         <div
           className={cn(
-            "fixed z-50 flex flex-col overflow-hidden border border-border glass shadow-glass animate-in slide-in-from-bottom-4 duration-300 ease-ios-spring",
-            // Phone: a sheet above the tab bar. Desktop: docked bottom-right,
-            // or — expanded — a full-height reading pane, which is where a
-            // long answer about a health report actually wants to be read.
+            "fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-pink-200/40 bg-background shadow-xl animate-in slide-in-from-bottom-4 duration-300 ease-ios-spring",
             expanded
-              ? "inset-x-3 bottom-20 top-6 rounded-2xl md:inset-6 md:bottom-6 md:top-6"
-              : "inset-x-3 bottom-20 h-[calc(100vh-9rem)] rounded-2xl md:inset-x-auto md:bottom-6 md:right-6 md:h-[640px] md:max-h-[calc(100vh-4rem)] md:w-[420px]",
+              ? "inset-x-3 bottom-20 top-6 md:inset-6 md:bottom-6 md:top-6"
+              : "inset-x-3 bottom-20 h-[calc(100vh-9rem)] md:inset-x-auto md:bottom-6 md:right-6 md:h-[640px] md:max-h-[calc(100vh-4rem)] md:w-[420px]",
           )}
         >
-          <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft">
-                <CompanionMark className="h-7 w-7" />
+          <header className="relative shrink-0 overflow-hidden bg-gradient-to-r from-pink-100 via-pink-50 to-fuchsia-50 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <CompanionCharacter
+                  mood={isLoading ? "thinking" : "idle"}
+                  still={!isLoading}
+                  className="h-11 w-11 shrink-0"
+                />
+                <div className="min-w-0">
+                  <h3 className="truncate font-display text-base font-semibold leading-tight text-foreground">
+                    {mode === "doctor" ? "Clinical Assistant" : "Prakriva Companion"}
+                  </h3>
+                  <p className="flex items-center gap-1.5 text-caption2 text-foreground-secondary">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-amber-400 animate-pulse-soft" : "bg-emerald-400")} />
+                    {isLoading ? "Thinking..." : mode === "doctor" ? "Patient analysis & guidance" : "Here for you, anytime"}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3 className="truncate text-subhead font-semibold leading-tight text-foreground">
-                  {mode === "doctor" ? "Clinical assistant" : "Your wellness companion"}
-                </h3>
-                <p className="flex items-center gap-1.5 text-caption2 text-foreground-secondary">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  {isLoading ? "Thinking…" : mode === "doctor" ? "Patient analysis & guidance" : "Here for you, anytime"}
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={handleReset}
-                className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Start a new chat"
-                title="New chat"
-              >
-                <SquarePen className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setExpanded((e) => !e)}
-                className="hidden rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground md:inline-flex"
-                aria-label={expanded ? "Shrink chat" : "Expand chat"}
-                title={expanded ? "Shrink" : "Expand"}
-              >
-                {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground md:hidden"
-                aria-label="Minimize chat"
-                title="Minimize"
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Close chat"
-                title="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={handleReset}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground"
+                  aria-label="Start a new chat"
+                  title="New chat"
+                >
+                  <SquarePen className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setExpanded((e) => !e)}
+                  className="hidden rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground md:inline-flex"
+                  aria-label={expanded ? "Shrink chat" : "Expand chat"}
+                  title={expanded ? "Shrink" : "Expand"}
+                >
+                  {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground md:hidden"
+                  aria-label="Minimize chat"
+                  title="Minimize"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground"
+                  aria-label="Close chat"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </header>
 
-          {/* One centred reading column, the width of a comfortable line of
-              text — the same reason every chat app you've used does it. */}
           <div className="scroll-area flex-1 overflow-y-auto">
-            <div className={cn("mx-auto space-y-5 px-4 py-4", expanded ? "max-w-2xl" : "max-w-none")}>
+            <div className={cn("mx-auto space-y-4 px-4 py-4", expanded ? "max-w-2xl" : "max-w-none")}>
               {statusChecked && !assistantEnabled && (
                 <div className="rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-footnote text-foreground">
                   Your companion isn't configured on this deployment yet, so it can't answer right now.
                 </div>
               )}
 
+              {/* Welcome hero — shown only when the conversation is fresh (just the opener). */}
+              {messages.length <= 1 && !isLoading && (
+                <div className="flex flex-col items-center py-4 animate-message-in">
+                  <CompanionCharacter mood="idle" className="h-28 w-28 mb-3" />
+                  <p className="text-center text-caption1 font-medium text-foreground-secondary">
+                    {mode === "doctor" ? "Your clinical AI assistant" : "Your wellness companion"}
+                  </p>
+                </div>
+              )}
+
               {messages.map((msg, index) => {
                 const startsGroup = index === 0 || messages[index - 1].role !== msg.role;
                 const isLast = msg.id === lastMessageId;
+                const isWelcome = index === 0 && messages.length <= 1;
 
                 if (msg.role === "user") {
                   return (
                     <div key={msg.id} className="flex justify-end animate-message-in">
-                      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-footnote leading-relaxed text-primary-foreground">
+                      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-primary to-primary/85 px-4 py-2.5 text-footnote leading-relaxed text-primary-foreground shadow-sm">
                         {msg.text}
                       </div>
                     </div>
@@ -732,12 +743,19 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                       {startsGroup ? (
                         <CompanionMark
                           mood={msg.isError ? "thinking" : "idle"}
-                          className="mt-0.5 h-8 w-8 shrink-0"
+                          className="mt-0.5 h-9 w-9 shrink-0"
                         />
                       ) : (
-                        <div className="h-8 w-8 shrink-0" aria-hidden />
+                        <div className="h-9 w-9 shrink-0" aria-hidden />
                       )}
-                      <div className="min-w-0 flex-1 text-footnote leading-relaxed text-foreground">
+                      <div className={cn(
+                        "min-w-0 flex-1 rounded-2xl rounded-tl-md px-4 py-2.5 text-footnote leading-relaxed",
+                        msg.isError
+                          ? "bg-red-50 text-red-800 border border-red-100"
+                          : isWelcome
+                            ? "bg-transparent text-foreground"
+                            : "bg-pink-50/60 text-foreground border border-pink-100/40",
+                      )}>
                         <RichText text={msg.text} />
                         {msg.detail && (
                           <p className="mt-1 break-words text-caption2 text-foreground-tertiary">{msg.detail}</p>
@@ -756,17 +774,14 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                       />
                     )}
 
-                    {/* Chips belong to the newest message only: older ones are
-                        answered questions, and a transcript full of live
-                        buttons invites tapping the wrong one. */}
                     {msg.suggestions && isLast && !isLoading && (
-                      <div className="ml-11 mt-2.5 flex flex-wrap gap-1.5">
+                      <div className="ml-12 mt-2.5 flex flex-wrap gap-1.5">
                         {msg.suggestions.map((suggestion, i) => (
                           <button
                             key={suggestion.value}
                             onClick={() => handleSuggestion(suggestion.value)}
                             disabled={isLoading}
-                            className="animate-message-in rounded-full border border-border bg-background-elevated px-3.5 py-1.5 text-caption1 font-medium text-foreground transition-all duration-200 ease-ios hover:border-primary/40 hover:bg-accent-soft hover:text-accent-soft-foreground active:scale-95 disabled:opacity-50"
+                            className="animate-message-in rounded-full border border-pink-200/60 bg-white/80 px-3.5 py-1.5 text-caption1 font-medium text-foreground shadow-sm transition-all duration-200 ease-ios hover:border-pink-300 hover:bg-pink-50 hover:shadow active:scale-95 disabled:opacity-50"
                             style={{ animationDelay: `${i * 60}ms` }}
                           >
                             {suggestion.label}
@@ -780,12 +795,13 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
 
               {isLoading && (
                 <div className="flex gap-3 animate-message-in">
-                  <CompanionMark mood="thinking" className="mt-0.5 h-8 w-8 shrink-0" />
-                  <div className="flex items-center gap-1.5 pt-2.5">
+                  <CompanionCharacter mood="thinking" className="h-10 w-10 shrink-0" />
+                  <div className="flex items-center gap-2 rounded-2xl rounded-tl-md bg-pink-50/60 border border-pink-100/40 px-4 py-3">
+                    <span className="text-caption1 text-foreground-secondary mr-1">Thinking</span>
                     {[0, 1, 2].map((i) => (
                       <span
                         key={i}
-                        className="h-1.5 w-1.5 animate-typing-dot rounded-full bg-foreground-tertiary"
+                        className="h-1.5 w-1.5 animate-typing-dot rounded-full bg-pink-400"
                         style={{ animationDelay: `${i * 150}ms` }}
                       />
                     ))}
@@ -797,17 +813,16 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             </div>
           </div>
 
-          <div className={cn("mx-auto w-full shrink-0 px-3.5 pb-3", expanded ? "max-w-2xl" : "max-w-none")}>
+          <div className={cn("mx-auto w-full shrink-0 border-t border-pink-100/40 bg-gradient-to-t from-pink-50/30 px-3.5 pb-3 pt-2", expanded ? "max-w-2xl" : "max-w-none")}>
             <CompanionStage stage={visibleStage} />
 
-            <div className="flex items-end gap-2 rounded-[22px] border border-input bg-background-elevated p-1.5 pl-4 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+            <div className="flex items-end gap-2 rounded-[22px] border border-pink-200/50 bg-white/80 p-1.5 pl-4 shadow-sm transition-colors focus-within:border-pink-300 focus-within:ring-2 focus-within:ring-pink-200/30">
               <textarea
                 ref={inputRef}
                 rows={1}
                 value={inputText}
                 onChange={(e) => {
                   setInputText(e.target.value);
-                  // Grow with the message, up to about five lines, then scroll.
                   const el = e.target;
                   el.style.height = "auto";
                   el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
@@ -818,7 +833,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                     handleSend();
                   }
                 }}
-                placeholder={isLoading ? "Thinking…" : "Ask me anything…"}
+                placeholder={isLoading ? "Thinking..." : "Ask me anything..."}
                 disabled={isLoading}
                 className="max-h-[120px] flex-1 resize-none bg-transparent py-2 text-footnote leading-relaxed text-foreground outline-none placeholder:text-foreground-tertiary disabled:opacity-50"
               />
@@ -826,7 +841,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 onClick={handleSend}
                 disabled={!inputText.trim() || isLoading}
                 aria-label="Send message"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all duration-200 ease-ios-spring hover:opacity-90 active:scale-90 disabled:bg-muted disabled:text-foreground-tertiary"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-sm transition-all duration-200 ease-ios-spring hover:shadow-md hover:brightness-105 active:scale-90 disabled:from-gray-200 disabled:to-gray-300 disabled:text-gray-400 disabled:shadow-none"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>

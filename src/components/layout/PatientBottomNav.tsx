@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, ChefHat, Activity, MoreHorizontal, Sparkles } from "lucide-react";
+import { Home, ChefHat, Activity, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -56,18 +56,19 @@ export function PatientBottomNav({
           <TabLink key={tab.title} tab={tab} />
         ))}
 
-        {/* Center AI button — raised above the bar. Stays inside the accent
-            family (a burgundy-to-blush fade) rather than fading out to the
-            pitta orange, which read as an alert badge against the rest of the
-            palette; and it sits still, since a pulsing glow above the thumb is
-            hard to ignore on a screen meant to feel calm. */}
         <div className="flex flex-1 items-center justify-center">
           <button
             onClick={onAIClick}
             aria-label="Talk to your wellness companion"
-            className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-glow-gold ring-4 ring-background/80 transition-all duration-200 ease-ios-spring hover:scale-105 hover:brightness-110 active:scale-95"
+            className="relative -mt-8 flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 ease-ios-spring hover:scale-110 active:scale-95"
+            style={{ filter: "drop-shadow(0 3px 10px rgba(236,107,139,0.35))" }}
           >
-            <Sparkles className="h-6 w-6" />
+            <img
+              src="/chatbot/idle.png"
+              alt="AI Companion"
+              className="h-16 w-16 object-contain animate-companion-bob"
+              draggable={false}
+            />
           </button>
         </div>
 
