@@ -32,7 +32,6 @@ import {
   CircleDot,
   ShieldCheck,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -443,7 +442,6 @@ const RecipeBuilder = () => {
 
   const [numDays, setNumDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generateMode, setGenerateMode] = useState<"fast" | "thorough">("fast");
 
   // Draft/generation provenance. `editingDraftId` is set only when re-opening
   // an already-saved plan (e.g. from the Diet Chart viewer's Edit button);
@@ -563,16 +561,15 @@ const RecipeBuilder = () => {
   }, [searchParams]);
 
   // --- Generate: fills the same board a manual drag would ---
-  const handleGenerate = useCallback(async (mode: "fast" | "thorough" = generateMode) => {
+  const handleGenerate = useCallback(async () => {
     if (!patientProfile) { toast.error("Select a patient first"); return; }
     if (!patientProfile.bodyFrame || !patientProfile.skinType) {
       toast.error("Patient assessment incomplete. Body frame and skin type are required.");
       return;
     }
     setIsGenerating(true);
-    setGenerateMode(mode);
     try {
-      const chart = await generateDietChart(patientProfile, numDays, generationContext, mode);
+      const chart = await generateDietChart(patientProfile, numDays, generationContext);
       const { Daily, Weekly } = chartToMealPlans(chart);
       setMealPlans({ Daily, Weekly });
       setActiveFilter("Weekly");
@@ -595,9 +592,9 @@ const RecipeBuilder = () => {
       setPlanDuration(`${numDays} days`);
 
       toast.success(
-        chart.source === "foodoscope"
-          ? `${chart.days.length}-day plan generated from the recipe database (${chart.primaryDosha.toUpperCase()} dosha) — the AI planner was unavailable. Drag & drop to adjust, then save.`
-          : `${chart.days.length}-day plan generated${mode === "fast" ? " (quick)" : ""} (${chart.primaryDosha.toUpperCase()} dosha, personalised to her kitchen). Drag & drop to adjust, then save.`
+        chart.source === "gemini"
+          ? `${chart.days.length}-day plan generated (${chart.primaryDosha.toUpperCase()} dosha, personalised to her kitchen). Drag & drop to adjust, then save.`
+          : `${chart.days.length}-day plan generated from the recipe database (${chart.primaryDosha.toUpperCase()} dosha) — the AI planner was unavailable. Drag & drop to adjust, then save.`
       );
 
       if (chart.rejectedMeals?.length) {
@@ -611,7 +608,7 @@ const RecipeBuilder = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [patientProfile, numDays, generationContext, generateMode, setMealPlans, setActiveFilter, setPlanDuration]);
+  }, [patientProfile, numDays, generationContext, setMealPlans, setActiveFilter, setPlanDuration]);
 
   const handleClearBoard = useCallback(() => {
     const wasEditingSavedDraft = !!editingDraftId;
@@ -1184,37 +1181,21 @@ const RecipeBuilder = () => {
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => handleGenerate("fast")}
-                    disabled={isGenerating}
-                    className="bg-foreground text-background hover:bg-foreground/90 h-10 px-5"
-                  >
-                    {isGenerating && generateMode === "fast" ? (
-                      <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</>
-                    ) : (
-                      <><Zap className="w-4 h-4 mr-2" />Quick Generate</>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleGenerate("thorough")}
-                    disabled={isGenerating}
-                    variant="outline"
-                    className="h-10 px-5"
-                  >
-                    {isGenerating && generateMode === "thorough" ? (
-                      <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</>
-                    ) : (
-                      <><Sparkles className="w-4 h-4 mr-2" />Detailed Generate</>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="bg-foreground text-background hover:bg-foreground/90 h-10 px-6"
+                >
+                  {isGenerating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" />Generate Diet Chart</>
+                  )}
+                </Button>
 
                 {isGenerating && (
-                  <span className="text-xs text-muted-foreground">
-                    {generateMode === "fast"
-                      ? "Quick generation — personalised plan in a few seconds."
-                      : "Detailed generation — deeper analysis, may take 15-30 seconds."}
+                  <span className="text-xs text-gray-400">
+                    Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below.
                   </span>
                 )}
               </div>

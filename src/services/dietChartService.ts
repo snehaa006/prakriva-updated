@@ -1192,8 +1192,7 @@ function ageFromDob(dob: string): number | null {
 export async function generateDietChartWithAI(
   profile: PatientProfile,
   numDays: number,
-  context: DietChartContext = {},
-  mode: "fast" | "thorough" = "fast"
+  context: DietChartContext = {}
 ): Promise<GeneratedDietChart> {
   const dosha = determinePrimaryDosha(profile);
   const baseTargets = getNutritionalTargets(
@@ -1226,7 +1225,6 @@ export async function generateDietChartWithAI(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      mode,
       days: numDays,
       profile: {
         ageYears: ageFromDob(profile.dob),
@@ -1283,7 +1281,7 @@ export async function generateDietChartWithAI(
     medicalNotes: targets.notes,
     excludedIngredients: excludeIngredients,
     generatedAt: new Date().toISOString(),
-    source: payload.data.source || "gemini",
+    source: "gemini",
     clinicalFocus: payload.data.clinicalFocus ?? [],
     pantryGaps: payload.data.pantryGaps ?? [],
     rejectedMeals: payload.data.rejectedMeals ?? [],
@@ -1302,13 +1300,12 @@ export async function generateDietChartWithAI(
 export async function generateDietChart(
   profile: PatientProfile,
   numDays: number = 7,
-  context: DietChartContext = {},
-  mode: "fast" | "thorough" = "fast"
+  context: DietChartContext = {}
 ): Promise<GeneratedDietChart> {
   try {
-    return await generateDietChartWithAI(profile, numDays, context, mode);
+    return await generateDietChartWithAI(profile, numDays, context);
   } catch (err) {
-    console.warn("AI diet chart unavailable, falling back to FoodOScope:", err);
+    console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
     return generateDietChartFromRecipes(profile, numDays, context.adjustment);
   }
 }

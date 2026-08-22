@@ -460,20 +460,11 @@ def normalise_plan(
 def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
     """A full diet chart from the profile, pantry and screening context supplied.
 
-    ``mode`` (from the payload) controls the speed/quality trade-off:
-    - ``"fast"``     — Groq first (3-8 s), Gemini fallback.
-    - ``"thorough"`` — Gemini only (15-30 s), higher quality.
-    - (default)      — same as ``"fast"``.
-
     Raises `GeminiUnavailable` when no key is configured or every key failed;
     the caller answers 503 and the frontend falls back to the FoodOScope path.
     """
-    mode = str(payload.get("mode") or "fast").strip().lower()
-
-    if mode == "thorough" and not gemini_service.is_configured():
+    if not gemini_service.is_configured():
         raise GeminiUnavailable("GEMINI_API_KEY is not set")
-    if mode != "thorough" and not gemini_service.is_configured() and not gemini_service._groq_configured():
-        raise GeminiUnavailable("No LLM provider is configured")
 
     days = max(1, min(int(_number(payload.get("days"), 7)) or 7, MAX_DAYS))
     targets = payload.get("targets") or {}
@@ -496,24 +487,20 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     max_tokens = min(16384, 2000 + days * len(meal_structure) * 240)
 
-    if mode == "thorough":
-        raw = gemini_service.generate_json(
-            prompt,
-            DIET_RULES,
-            max_tokens=max_tokens,
-            temperature=0.6,
-            timeout=120,
-        )
-        source = "gemini"
-    else:
-        raw = gemini_service.generate_json_fast(
-            prompt,
-            DIET_RULES,
-            max_tokens=max_tokens,
-            temperature=0.6,
-            timeout=120,
-        )
-        source = "groq"
+    import time as _time
+    t0 = _time.monotonic()
+
+    raw = gemini_service.generate_json(
+        prompt,
+        DIET_RULES,
+        max_tokens=max_tokens,
+        temperature=0.6,
+        timeout=60,
+        disable_thinking=True,
+    )
+
+    elapsed = _time.monotonic() - t0
+    logger.info(f"Gemini diet chart API call took {elapsed:.1f}s")
 
     plan = normalise_plan(
         raw,
@@ -523,9 +510,8 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
         excluded=excluded,
     )
     plan["dailyCalorieTarget"] = daily_calories
-    plan["source"] = source
     logger.info(
-        f"Generated a {len(plan['days'])}-day diet chart in {mode} mode "
+        f"Generated a {len(plan['days'])}-day diet chart with Gemini "
         f"({len(plan['rejectedMeals'])} meals rejected)"
     )
     return plan
