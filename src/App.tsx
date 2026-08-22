@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,16 +14,14 @@ import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 import Today from "./pages/patient/Today";
 import PlanHub from "./pages/patient/PlanHub";
 import FoodCompatibility from "./pages/patient/FoodCompatibility";
-import SymptomTracking from "./pages/patient/SymptomTracking";
+
 import LifestyleTracker from "./pages/patient/LifestyleTracker";
 import Community from "./pages/patient/Community";
 import AddPatient from "./pages/doctor/AddPatient";
 import Patients from "./pages/doctor/Patients";
 import AppointmentScheduler from "./pages/doctor/AppointmentScheduler";
-import PatientAlerts from "./pages/doctor/PatientAlerts";
-import CommunicationPortal from "./pages/doctor/CommunicationPortal";
-import PatientFeedback from "./pages/doctor/PatientFeedback";
-import TeamManagement from "./pages/doctor/TeamManagement";
+// PatientAlerts, CommunicationPortal, PatientFeedback, TeamManagement removed —
+// these had routes but no sidebar entries, so they were unreachable in normal use.
 import FoodExplorer from "./pages/doctor/FoodExplorer";
 import RecipeBuilder from "./pages/doctor/RecipeBuilder";
 import DietChart from "./pages/doctor/DietChart";
@@ -66,10 +63,10 @@ const queryClient = new QueryClient({
 
 // --- Loading Component ---
 const LoadingScreen = ({ message = "Loading..." }: { message?: string }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+  <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto"></div>
-      <p className="mt-4 text-gray-600 text-lg">{message}</p>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+      <p className="mt-4 text-foreground-secondary text-body">{message}</p>
     </div>
   </div>
 );
@@ -169,19 +166,13 @@ const AppRoutes = () => (
       <Route path="patients" element={<Patients />} />
       <Route path="add-patient" element={<AddPatient />} />
       <Route path="appointments" element={<AppointmentScheduler />} />
-      <Route path="alerts" element={<PatientAlerts />} />
       <Route path="patient-analysis" element={<DiseaseDetection />} />
-      {/* Legacy path kept so existing links/bookmarks still resolve. */}
-      <Route path="disease-detection" element={<DiseaseDetection />} />
-      <Route path="communication" element={<CommunicationPortal />} />
-      <Route path="feedback" element={<PatientFeedback />} />
-      <Route path="team" element={<TeamManagement />} />
+      <Route path="disease-detection" element={<Navigate to="/doctor/patient-analysis" replace />} />
       <Route path="food-explorer" element={<FoodExplorer />} />
       <Route path="recipes" element={<RecipeBuilder />} />
       <Route path="diet-charts" element={<DietChart />} />
       <Route path="personalized-diet" element={<Navigate to="/doctor/recipes" replace />} />
       <Route path="profile" element={<DoctorProfile />} />
-      <Route path="consult-doctor" element={<ConsultDoctor />} />
       <Route path="settings" element={<DoctorSettings />} />
       <Route index element={<Navigate to="/doctor/dashboard" replace />} />
     </Route>
@@ -217,7 +208,6 @@ const AppRoutes = () => (
         <Route path="dashboard" element={<Navigate to="/patient/today" replace />} />
         <Route path="meal-logging" element={<Navigate to="/patient/today" replace />} />
         <Route path="food-compatibility" element={<FoodCompatibility />} />
-        {/* <Route path="symptom-tracking" element={<SymptomTracking />} /> */}
         <Route
           path="health-check"
           element={
@@ -249,19 +239,12 @@ const AppRoutes = () => (
         {/* Social Support was replaced by Community; keep old links working. */}
         <Route path="social-support" element={<Navigate to="/patient/community" replace />} />
         <Route path="consult-doctor" element={<ConsultDoctor />} />
-        <Route path="doctor-profile/:doctorId" element={<div className="p-6">Doctor Profile - Coming Soon</div>} />
-        {/* These three were "Coming Soon" placeholders; the hub is where they
-            actually live now. */}
         <Route path="meal-plan" element={<Navigate to="/patient/plans" replace />} />
         <Route path="progress" element={<Navigate to="/patient/plans?tab=progress" replace />} />
-        <Route path="wellness" element={<div className="p-6">Wellness Tips - Coming Soon</div>} />
         <Route path="pantry" element={<Navigate to="/patient/plans?tab=kitchen" replace />} />
-        {/* The shop: a comparison and referral surface, open to every patient
-            regardless of care track — everyone needs something. */}
         <Route path="shop" element={<Shop />} />
         <Route path="shop/:productId" element={<ShopProduct />} />
         <Route path="shopping" element={<Navigate to="/patient/plans?tab=kitchen" replace />} />
-        <Route path="appointments" element={<AppointmentScheduler/>} />
         <Route path="reminders" element={<Reminders />} />
         <Route path="profile" element={<PatientProfile />} />
         <Route path="settings" element={<Settings />} />
@@ -281,7 +264,6 @@ const App = () => (
         <TooltipProvider>
           <AppProvider>
             <FoodProvider>
-              <Toaster />
               <Sonner />
               <BrowserRouter>
                 <AppRoutes />
