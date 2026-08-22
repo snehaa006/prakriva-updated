@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FemNourish - Food Compatibility Intelligence Engine</title>
+    <title>Prakriva - Food Compatibility Intelligence Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,9 +13,9 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 50%, #16001e 100%);
-            color: #fff;
+            font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f3eee8;
+            color: #1c1917;
             overflow-x: hidden;
         }
 
@@ -24,23 +25,21 @@
             left: 0;
             right: 0;
             z-index: 1000;
-            background: rgba(10, 14, 39, 0.95);
+            background: rgba(243, 238, 232, 0.95);
             backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+            border-bottom: 1px solid rgba(61, 122, 95, 0.2);
             padding: 1rem 2rem;
         }
 
         .header h1 {
+            font-family: 'Playfair Display', Georgia, serif;
             font-size: 2rem;
-            background: linear-gradient(to right, #22d3ee, #a78bfa, #22d3ee);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #2d6a56;
         }
 
         .header p {
             font-size: 0.875rem;
-            color: #22d3ee;
+            color: #3d7a5f;
             margin-top: 0.25rem;
         }
 
@@ -55,9 +54,9 @@
         }
 
         .food-panel {
-            background: rgba(10, 20, 40, 0.7);
+            background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(34, 211, 238, 0.3);
+            border: 1px solid rgba(61, 122, 95, 0.2);
             border-radius: 1rem;
             padding: 1.5rem;
             height: fit-content;
@@ -71,7 +70,7 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            color: #22d3ee;
+            color: #2d6a56;
         }
 
         .search-box {
@@ -82,21 +81,21 @@
         .search-box input {
             width: 100%;
             padding: 0.75rem;
-            background: rgba(34, 211, 238, 0.1);
-            border: 1px solid rgba(34, 211, 238, 0.3);
+            background: #faf8f5;
+            border: 1px solid rgba(61, 122, 95, 0.3);
             border-radius: 0.5rem;
-            color: #fff;
+            color: #1c1917;
             font-size: 0.875rem;
         }
 
         .search-box input::placeholder {
-            color: rgba(34, 211, 238, 0.5);
+            color: rgba(61, 122, 95, 0.5);
         }
 
         .search-box input:focus {
             outline: none;
-            border-color: #22d3ee;
-            box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+            border-color: #3d7a5f;
+            box-shadow: 0 0 10px rgba(61, 122, 95, 0.2);
         }
 
         .loading-spinner {
@@ -106,8 +105,8 @@
             transform: translateY(-50%);
             width: 20px;
             height: 20px;
-            border: 2px solid rgba(34, 211, 238, 0.3);
-            border-top-color: #22d3ee;
+            border: 2px solid rgba(61, 122, 95, 0.3);
+            border-top-color: #3d7a5f;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -123,8 +122,8 @@
         }
 
         .result-item {
-            background: rgba(34, 211, 238, 0.05);
-            border: 1px solid rgba(34, 211, 238, 0.2);
+            background: #faf8f5;
+            border: 1px solid rgba(61, 122, 95, 0.15);
             border-radius: 0.5rem;
             padding: 0.75rem;
             margin-bottom: 0.5rem;
@@ -133,8 +132,8 @@
         }
 
         .result-item:hover {
-            background: rgba(34, 211, 238, 0.15);
-            border-color: #22d3ee;
+            background: rgba(61, 122, 95, 0.08);
+            border-color: #3d7a5f;
             transform: translateX(5px);
         }
 
@@ -146,7 +145,7 @@
 
         .result-meta {
             font-size: 0.75rem;
-            color: #22d3ee;
+            color: #3d7a5f;
         }
 
         .selected-foods {
@@ -155,13 +154,13 @@
 
         .selected-foods h3 {
             font-size: 0.875rem;
-            color: #22d3ee;
+            color: #2d6a56;
             margin-bottom: 0.75rem;
         }
 
         .food-card {
-            background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(167, 139, 250, 0.15));
-            border: 1px solid rgba(34, 211, 238, 0.3);
+            background: linear-gradient(135deg, rgba(61, 122, 95, 0.08), rgba(232, 93, 38, 0.06));
+            border: 1px solid rgba(61, 122, 95, 0.2);
             border-radius: 0.75rem;
             padding: 1rem;
             margin-bottom: 0.75rem;
@@ -176,7 +175,7 @@
 
         .food-card-meta {
             font-size: 0.75rem;
-            color: #22d3ee;
+            color: #3d7a5f;
             display: flex;
             gap: 1rem;
         }
@@ -184,14 +183,15 @@
         .food-card-ingredients {
             margin-top: 0.5rem;
             padding-top: 0.5rem;
-            border-top: 1px solid rgba(34, 211, 238, 0.2);
+            border-top: 1px solid rgba(61, 122, 95, 0.15);
             display: flex;
             flex-wrap: wrap;
             gap: 0.25rem;
         }
 
         .ingredient-tag {
-            background: rgba(34, 211, 238, 0.2);
+            background: rgba(61, 122, 95, 0.1);
+            color: #2d6a56;
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
             font-size: 0.625rem;
@@ -224,12 +224,12 @@
 
         .viz-panel {
             position: relative;
-            background: radial-gradient(circle at center, #0a1628 0%, #000000 100%);
-            border: 2px solid rgba(34, 211, 238, 0.4);
+            background: radial-gradient(circle at center, #0f2a1f 0%, #0a1a14 100%);
+            border: 2px solid rgba(61, 122, 95, 0.35);
             border-radius: 1rem;
             overflow: hidden;
             min-height: 850px;
-            box-shadow: 0 0 60px rgba(34, 211, 238, 0.2), inset 0 0 60px rgba(34, 211, 238, 0.05);
+            box-shadow: 0 0 40px rgba(61, 122, 95, 0.12), inset 0 0 40px rgba(61, 122, 95, 0.03);
         }
 
         #canvas-container {
@@ -243,20 +243,20 @@
             bottom: 1rem;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid rgba(34, 211, 238, 0.5);
+            background: rgba(10, 26, 20, 0.85);
+            border: 1px solid rgba(61, 122, 95, 0.4);
             border-radius: 0.5rem;
             padding: 0.75rem 1.5rem;
             font-size: 0.75rem;
-            color: #22d3ee;
+            color: #7aaa90;
             pointer-events: none;
             z-index: 10;
         }
 
         .organ-label {
             position: fixed;
-            background: rgba(0, 0, 0, 0.98);
-            border: 2px solid #22d3ee;
+            background: rgba(10, 26, 20, 0.98);
+            border: 2px solid #3d7a5f;
             border-radius: 0.75rem;
             padding: 1rem;
             max-width: 320px;
@@ -265,7 +265,8 @@
             pointer-events: none;
             z-index: 10000;
             display: none;
-            box-shadow: 0 0 30px rgba(34, 211, 238, 0.5);
+            color: #e5e7eb;
+            box-shadow: 0 0 20px rgba(61, 122, 95, 0.3);
         }
 
         .organ-label.visible {
@@ -277,14 +278,14 @@
             font-weight: 700;
             margin-bottom: 1rem;
             text-transform: uppercase;
-            color: #22d3ee;
+            color: #7aaa90;
             letter-spacing: 1px;
         }
 
         .label-effect {
             margin-bottom: 1rem;
             padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+            border-bottom: 1px solid rgba(61, 122, 95, 0.25);
         }
 
         .label-effect:last-child {
@@ -325,10 +326,10 @@
 
         .effect-mechanism {
             font-size: 0.8rem;
-            color: #22d3ee;
+            color: #7aaa90;
             font-style: italic;
             padding-left: 1rem;
-            border-left: 2px solid #22d3ee;
+            border-left: 2px solid #3d7a5f;
         }
 
         .empty-state {
@@ -337,7 +338,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            color: rgba(34, 211, 238, 0.6);
+            color: rgba(122, 170, 144, 0.7);
         }
 
         .empty-state-icon {
@@ -346,9 +347,9 @@
         }
 
         .analysis-panel {
-            background: rgba(10, 20, 40, 0.7);
+            background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(34, 211, 238, 0.3);
+            border: 1px solid rgba(61, 122, 95, 0.2);
             border-radius: 1rem;
             padding: 1.5rem;
             height: fit-content;
@@ -362,23 +363,24 @@
         }
 
         .score-value {
+            font-family: 'Playfair Display', Georgia, serif;
             font-size: 4rem;
             font-weight: 700;
             line-height: 1;
             margin-bottom: 0.5rem;
-            color: #22d3ee;
+            color: #2d6a56;
         }
 
         .score-status {
             font-size: 0.875rem;
             margin-bottom: 1rem;
-            color: #22d3ee;
+            color: #3d7a5f;
         }
 
         .score-bar {
             width: 100%;
             height: 8px;
-            background: rgba(34, 211, 238, 0.2);
+            background: rgba(61, 122, 95, 0.15);
             border-radius: 1rem;
             overflow: hidden;
             margin-bottom: 1rem;
@@ -388,12 +390,12 @@
             height: 100%;
             border-radius: 1rem;
             transition: width 0.5s ease;
-            background: #22d3ee;
+            background: linear-gradient(to right, #3d7a5f, #e85d26);
         }
 
         .score-message {
             font-size: 0.75rem;
-            color: #22d3ee;
+            color: #3d7a5f;
         }
 
         .analysis-section {
@@ -403,7 +405,7 @@
         .section-title {
             font-size: 1rem;
             margin-bottom: 1rem;
-            color: #22d3ee;
+            color: #2d6a56;
         }
 
         .rule-card {
@@ -448,13 +450,13 @@
         }
 
         .rule-type.ayurvedic {
-            background: rgba(167, 139, 250, 0.3);
-            color: #d8b4fe;
+            background: rgba(232, 93, 38, 0.15);
+            color: #c04e1a;
         }
 
         .rule-type.scientific {
-            background: rgba(34, 211, 238, 0.3);
-            color: #22d3ee;
+            background: rgba(61, 122, 95, 0.15);
+            color: #2d6a56;
         }
 
         .rule-description {
@@ -464,21 +466,21 @@
 
         .rule-mechanism {
             font-size: 0.75rem;
-            color: #22d3ee;
+            color: #3d7a5f;
         }
 
         .data-breakdown {
             margin-top: 0.75rem;
             padding: 0.75rem;
-            background: rgba(34, 211, 238, 0.05);
+            background: rgba(61, 122, 95, 0.04);
             border-radius: 0.5rem;
-            border: 1px solid rgba(34, 211, 238, 0.2);
+            border: 1px solid rgba(61, 122, 95, 0.15);
         }
 
         .data-breakdown-title {
             font-size: 0.7rem;
             font-weight: 700;
-            color: #22d3ee;
+            color: #2d6a56;
             margin-bottom: 0.5rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -490,7 +492,7 @@
             align-items: center;
             font-size: 0.75rem;
             padding: 0.25rem 0;
-            border-bottom: 1px solid rgba(34, 211, 238, 0.1);
+            border-bottom: 1px solid rgba(61, 122, 95, 0.1);
         }
 
         .data-item:last-child {
@@ -498,11 +500,11 @@
         }
 
         .data-label {
-            color: #d8b4fe;
+            color: #78716c;
         }
 
         .data-value {
-            color: #22d3ee;
+            color: #2d6a56;
             font-weight: 600;
             font-family: 'Courier New', monospace;
         }
@@ -519,7 +521,7 @@
 
         .data-source {
             font-size: 0.65rem;
-            color: rgba(34, 211, 238, 0.6);
+            color: rgba(61, 122, 95, 0.6);
             margin-top: 0.5rem;
             font-style: italic;
         }
@@ -527,27 +529,28 @@
         .ingredient-list {
             margin-top: 0.5rem;
             padding-top: 0.5rem;
-            border-top: 1px solid rgba(34, 211, 238, 0.2);
+            border-top: 1px solid rgba(61, 122, 95, 0.15);
         }
 
         .ingredient-chip {
             display: inline-block;
-            background: rgba(167, 139, 250, 0.2);
+            background: rgba(232, 93, 38, 0.08);
             padding: 0.2rem 0.5rem;
             border-radius: 0.25rem;
             font-size: 0.65rem;
             margin: 0.2rem;
-            border: 1px solid rgba(167, 139, 250, 0.3);
+            border: 1px solid rgba(232, 93, 38, 0.2);
+            color: #9a4520;
         }
 
         .disclaimer {
-            background: rgba(251, 191, 36, 0.1);
-            border: 1px solid rgba(251, 191, 36, 0.3);
+            background: rgba(232, 93, 38, 0.06);
+            border: 1px solid rgba(232, 93, 38, 0.2);
             border-radius: 0.5rem;
             padding: 1rem;
             margin-top: 1.5rem;
             font-size: 0.75rem;
-            color: #fef3c7;
+            color: #78716c;
         }
 
         ::-webkit-scrollbar {
@@ -555,16 +558,16 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(34, 211, 238, 0.1);
+            background: rgba(61, 122, 95, 0.08);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(34, 211, 238, 0.5);
+            background: rgba(61, 122, 95, 0.3);
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(34, 211, 238, 0.7);
+            background: rgba(61, 122, 95, 0.5);
         }
 
         @media (max-width: 1200px) {
@@ -581,7 +584,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>FemNourish</h1>
+        <h1>Prakriva</h1>
         <p>Food Compatibility Intelligence Engine</p>
     </div>
 
@@ -606,10 +609,10 @@
 
             <div class="selected-foods">
                 <h3>Selected Foods (<span id="foodCount">0</span>/5)</h3>
-                <button id="demoButton" style="width: 100%; padding: 0.75rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, #22d3ee, #a78bfa); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
+                <button id="demoButton" style="width: 100%; padding: 0.75rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, #3d7a5f, #2d6a56); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
                     🎬 Load Demo Foods
                 </button>
-                <button id="calculateButton" style="width: 100%; padding: 0.75rem; margin-bottom: 1rem; background: linear-gradient(135deg, #10b981, #22d3ee); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem; display: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                <button id="calculateButton" style="width: 100%; padding: 0.75rem; margin-bottom: 1rem; background: linear-gradient(135deg, #e85d26, #c04e1a); border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem; display: none; box-shadow: 0 4px 15px rgba(232, 93, 38, 0.25);">
                     🧬 Calculate Compatibility
                 </button>
                 <div id="selectedFoods"></div>
@@ -1466,8 +1469,8 @@
             const container = document.getElementById('canvas-container');
             
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
-            scene.fog = new THREE.Fog(0x000000, 8, 15);
+            scene.background = new THREE.Color(0x0a1a14);
+            scene.fog = new THREE.Fog(0x0a1a14, 8, 15);
 
             camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera.position.set(0, 1.2, 5);
@@ -1477,37 +1480,39 @@
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
             container.appendChild(renderer.domElement);
 
             // OrbitControls for manual rotation
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
+            controls.dampingFactor = 0.08;
             controls.minDistance = 2;
             controls.maxDistance = 8;
             controls.maxPolarAngle = Math.PI / 1.5;
             controls.target.set(0, 1, 0);
 
             // Lighting setup for medical visualization
-            const ambientLight = new THREE.AmbientLight(0x4a90e2, 0.3);
+            const ambientLight = new THREE.AmbientLight(0x4a7a62, 0.4);
             scene.add(ambientLight);
 
-            const keyLight = new THREE.DirectionalLight(0x22d3ee, 1.2);
+            const keyLight = new THREE.DirectionalLight(0xf5e6d0, 1.0);
             keyLight.position.set(5, 8, 5);
             keyLight.castShadow = true;
             keyLight.shadow.mapSize.width = 2048;
             keyLight.shadow.mapSize.height = 2048;
             scene.add(keyLight);
 
-            const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.6);
+            const fillLight = new THREE.DirectionalLight(0x7aaa90, 0.5);
             fillLight.position.set(-5, 3, -3);
             scene.add(fillLight);
 
-            const rimLight = new THREE.DirectionalLight(0xa78bfa, 0.8);
+            const rimLight = new THREE.DirectionalLight(0xe8a060, 0.6);
             rimLight.position.set(0, 2, -5);
             scene.add(rimLight);
 
-            const bottomLight = new THREE.PointLight(0x22d3ee, 0.5, 20);
+            const bottomLight = new THREE.PointLight(0x3d7a5f, 0.5, 20);
             bottomLight.position.set(0, -2, 0);
             scene.add(bottomLight);
 
@@ -1525,200 +1530,169 @@
         function createDetailedFemaleBody() {
             bodyGroup = new THREE.Group();
 
-            // Semi-transparent body mesh material (like x-ray effect). Kept
-            // faint so the skeleton and organs read through it, as in a real
-            // x-ray plate.
-            const bodyMat = new THREE.MeshPhongMaterial({
-                color: 0x22d3ee,
+            // --- Materials ------------------------------------------------
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x3d7a5f,
                 transparent: true,
-                opacity: 0.07,
+                opacity: 0.08,
                 side: THREE.DoubleSide,
-                shininess: 30,
+                metalness: 0.1,
+                roughness: 0.3,
                 depthWrite: false
             });
 
-            // Wireframe overlay for structure
             const wireMat = new THREE.MeshBasicMaterial({
-                color: 0x22d3ee,
+                color: 0x3d7a5f,
                 wireframe: true,
                 transparent: true,
-                opacity: 0.3
+                opacity: 0.12
             });
 
-            // HEAD
-            const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
-            const head = new THREE.Mesh(headGeo, bodyMat.clone());
-            head.scale.set(0.9, 1.1, 0.95);
-            head.position.y = 1.82;
-            bodyGroup.add(head);
+            const glowMat = new THREE.MeshStandardMaterial({
+                color: 0x3d7a5f,
+                transparent: true,
+                opacity: 0.04,
+                side: THREE.BackSide,
+                metalness: 0,
+                roughness: 1,
+                depthWrite: false
+            });
 
-            const headWire = new THREE.Mesh(headGeo, wireMat.clone());
-            headWire.scale.copy(head.scale);
-            headWire.position.copy(head.position);
-            bodyGroup.add(headWire);
+            // --- Continuous body silhouette (LatheGeometry) ----------------
+            // Profile curve: radius vs height, from crotch (bottom) to head
+            // top. LatheGeometry expects the points ordered bottom-to-top with
+            // radius on x and height on y.
+            const profile = [
+                // Crotch / inner thigh
+                [0.001, 0.00],
+                [0.04,  0.03],
+                [0.09,  0.08],
+                // Hips — widest
+                [0.22,  0.18],
+                [0.24,  0.28],
+                [0.235, 0.38],
+                // Waist — narrowest
+                [0.15,  0.52],
+                [0.14,  0.58],
+                [0.145, 0.62],
+                // Ribcage
+                [0.17,  0.70],
+                [0.20,  0.78],
+                // Bust
+                [0.23,  0.86],
+                [0.225, 0.92],
+                // Upper chest / shoulders
+                [0.21,  0.96],
+                [0.22,  1.00],
+                // Shoulder peak
+                [0.22,  1.05],
+                [0.18,  1.10],
+                // Neck base
+                [0.09,  1.15],
+                [0.07,  1.20],
+                [0.07,  1.28],
+                // Chin / jaw
+                [0.09,  1.32],
+                [0.14,  1.36],
+                [0.17,  1.40],
+                // Temples / forehead
+                [0.19,  1.46],
+                [0.20,  1.52],
+                // Crown
+                [0.195, 1.58],
+                [0.17,  1.62],
+                [0.12,  1.65],
+                [0.05,  1.67],
+                [0.001, 1.68],
+            ].map(function (p) { return new THREE.Vector2(p[0], p[1]); });
 
-            // NECK
-            const neckGeo = new THREE.CylinderGeometry(0.08, 0.09, 0.2, 16);
-            const neck = new THREE.Mesh(neckGeo, bodyMat.clone());
-            neck.position.y = 1.62;
-            bodyGroup.add(neck);
+            var torsoGeo = new THREE.LatheGeometry(profile, 64);
 
-            // SHOULDERS - wider for female anatomy
-            const shoulderGeo = new THREE.SphereGeometry(0.12, 16, 16);
-            const leftShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
-            leftShoulder.position.set(-0.24, 1.5, 0);
-            leftShoulder.scale.set(1.2, 0.8, 0.8);
-            bodyGroup.add(leftShoulder);
+            var torsoMesh = new THREE.Mesh(torsoGeo, bodyMat.clone());
+            torsoMesh.position.y = 0.36;
+            bodyGroup.add(torsoMesh);
 
-            const rightShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
-            rightShoulder.position.set(0.24, 1.5, 0);
-            rightShoulder.scale.set(1.2, 0.8, 0.8);
-            bodyGroup.add(rightShoulder);
-
-            // CHEST & TORSO - anatomically accurate female shape
-            const torsoPoints = [];
-            for (let i = 0; i <= 32; i++) {
-                const t = i / 32;
-                const y = t * 0.95;
-                
-                // Create natural hourglass shape
-                let radius;
-                if (t < 0.25) { // Upper chest
-                    radius = 0.18 + t * 0.1;
-                } else if (t < 0.45) { // Bust
-                    radius = 0.23 - (t - 0.25) * 0.4;
-                } else if (t < 0.7) { // Waist
-                    radius = 0.15 + Math.sin((t - 0.45) * Math.PI * 2) * 0.01;
-                } else { // Hips
-                    radius = 0.15 + (t - 0.7) * 0.4;
-                }
-                
-                torsoPoints.push(new THREE.Vector2(radius, y));
-            }
-            
-            const torsoGeo = new THREE.LatheGeometry(torsoPoints, 32);
-            const torso = new THREE.Mesh(torsoGeo, bodyMat.clone());
-            torso.position.y = 0.57;
-            bodyGroup.add(torso);
-
-            const torsoWire = new THREE.Mesh(torsoGeo, wireMat.clone());
-            torsoWire.position.copy(torso.position);
+            var torsoWire = new THREE.Mesh(torsoGeo, wireMat.clone());
+            torsoWire.position.y = 0.36;
             bodyGroup.add(torsoWire);
 
-            // PELVIS/HIPS - wider for female anatomy
-            const pelvisPoints = [];
-            for (let i = 0; i <= 16; i++) {
-                const t = i / 16;
-                const y = t * 0.35;
-                const radius = 0.27 - t * 0.08;
-                pelvisPoints.push(new THREE.Vector2(radius, y));
-            }
-            const pelvisGeo = new THREE.LatheGeometry(pelvisPoints, 32);
-            const pelvis = new THREE.Mesh(pelvisGeo, bodyMat.clone());
-            pelvis.position.y = 0.22;
-            bodyGroup.add(pelvis);
+            var torsoGlow = new THREE.Mesh(torsoGeo, glowMat.clone());
+            torsoGlow.position.y = 0.36;
+            torsoGlow.scale.set(1.03, 1.03, 1.03);
+            bodyGroup.add(torsoGlow);
 
-            // ARMS - slender and anatomically correct
+            // --- Smooth tube arms -----------------------------------------
             function createArm(side) {
-                const armGroup = new THREE.Group();
-                
-                // Upper arm
-                const upperArmGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.38, 12);
-                const upperArm = new THREE.Mesh(upperArmGeo, bodyMat.clone());
-                upperArm.position.y = -0.21;
-                upperArm.rotation.z = side * 0.2;
-                armGroup.add(upperArm);
+                var armCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(side * 0.22, 1.41, 0),
+                    new THREE.Vector3(side * 0.30, 1.30, 0.01),
+                    new THREE.Vector3(side * 0.34, 1.15, 0.02),
+                    new THREE.Vector3(side * 0.36, 1.00, 0.03),
+                    new THREE.Vector3(side * 0.35, 0.85, 0.04),
+                    new THREE.Vector3(side * 0.34, 0.70, 0.04),
+                ]);
+                var armGeo = new THREE.TubeGeometry(armCurve, 32, 0.04, 12, false);
 
-                // Elbow joint
-                const elbowGeo = new THREE.SphereGeometry(0.042, 12, 12);
-                const elbow = new THREE.Mesh(elbowGeo, bodyMat.clone());
-                elbow.position.y = -0.42;
-                elbow.position.x = side * 0.038;
-                armGroup.add(elbow);
+                var arm = new THREE.Mesh(armGeo, bodyMat.clone());
+                bodyGroup.add(arm);
 
-                // Forearm
-                const forearmGeo = new THREE.CylinderGeometry(0.038, 0.032, 0.35, 12);
-                const forearm = new THREE.Mesh(forearmGeo, bodyMat.clone());
-                forearm.position.y = -0.62;
-                forearm.position.x = side * 0.076;
-                forearm.rotation.z = side * 0.15;
-                armGroup.add(forearm);
+                var armWire = new THREE.Mesh(armGeo, wireMat.clone());
+                bodyGroup.add(armWire);
 
-                // Hand
-                const handGeo = new THREE.BoxGeometry(0.08, 0.12, 0.04);
-                const hand = new THREE.Mesh(handGeo, bodyMat.clone());
-                hand.position.y = -0.84;
-                hand.position.x = side * 0.12;
-                armGroup.add(hand);
+                var armGlw = new THREE.Mesh(armGeo, glowMat.clone());
+                armGlw.scale.set(1.04, 1.04, 1.04);
+                bodyGroup.add(armGlw);
 
-                armGroup.position.set(side * 0.24, 1.5, 0);
-                return armGroup;
+                // Hand — small sphere at the wrist
+                var handGeo = new THREE.SphereGeometry(0.045, 16, 16);
+                var hand = new THREE.Mesh(handGeo, bodyMat.clone());
+                hand.scale.set(1.1, 1.4, 0.7);
+                hand.position.set(side * 0.34, 0.65, 0.04);
+                bodyGroup.add(hand);
             }
+            createArm(-1);
+            createArm(1);
 
-            bodyGroup.add(createArm(-1));
-            bodyGroup.add(createArm(1));
-
-            // LEGS - longer and anatomically correct
+            // --- Smooth tube legs -----------------------------------------
             function createLeg(side) {
-                const legGroup = new THREE.Group();
+                var legCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(side * 0.11, 0.54, 0),
+                    new THREE.Vector3(side * 0.12, 0.40, 0),
+                    new THREE.Vector3(side * 0.12, 0.22, 0.01),
+                    new THREE.Vector3(side * 0.12, 0.05, 0),
+                    new THREE.Vector3(side * 0.12, -0.12, -0.01),
+                    new THREE.Vector3(side * 0.12, -0.30, -0.01),
+                    new THREE.Vector3(side * 0.12, -0.48, -0.02),
+                ]);
+                var legGeo = new THREE.TubeGeometry(legCurve, 40, 0.055, 14, false);
 
-                // Thigh
-                const thighPoints = [];
-                for (let i = 0; i <= 20; i++) {
-                    const t = i / 20;
-                    const y = -t * 0.52;
-                    const radius = 0.08 - t * 0.02;
-                    thighPoints.push(new THREE.Vector2(radius, y));
-                }
-                const thighGeo = new THREE.LatheGeometry(thighPoints, 16);
-                const thigh = new THREE.Mesh(thighGeo, bodyMat.clone());
-                legGroup.add(thigh);
+                var leg = new THREE.Mesh(legGeo, bodyMat.clone());
+                bodyGroup.add(leg);
 
-                // Knee
-                const kneeGeo = new THREE.SphereGeometry(0.055, 12, 12);
-                const knee = new THREE.Mesh(kneeGeo, bodyMat.clone());
-                knee.position.y = -0.53;
-                legGroup.add(knee);
+                var legWire = new THREE.Mesh(legGeo, wireMat.clone());
+                bodyGroup.add(legWire);
 
-                // Calf
-                const calfPoints = [];
-                for (let i = 0; i <= 20; i++) {
-                    const t = i / 20;
-                    const y = -t * 0.5;
-                    const radius = 0.055 - t * 0.018 + (t > 0.2 && t < 0.5 ? 0.008 : 0);
-                    calfPoints.push(new THREE.Vector2(radius, y));
-                }
-                const calfGeo = new THREE.LatheGeometry(calfPoints, 16);
-                const calf = new THREE.Mesh(calfGeo, bodyMat.clone());
-                calf.position.y = -0.53;
-                legGroup.add(calf);
+                var legGlw = new THREE.Mesh(legGeo, glowMat.clone());
+                legGlw.scale.set(1.04, 1.04, 1.04);
+                bodyGroup.add(legGlw);
 
-                // Ankle
-                const ankleGeo = new THREE.CylinderGeometry(0.035, 0.038, 0.1, 12);
-                const ankle = new THREE.Mesh(ankleGeo, bodyMat.clone());
-                ankle.position.y = -1.08;
-                legGroup.add(ankle);
-
-                // Foot
-                const footGeo = new THREE.BoxGeometry(0.09, 0.06, 0.2);
-                const foot = new THREE.Mesh(footGeo, bodyMat.clone());
-                foot.position.set(0, -1.16, 0.06);
-                legGroup.add(foot);
-
-                legGroup.position.set(side * 0.11, 0.57, 0);
-                return legGroup;
+                // Foot — rounded box
+                var footGeo = new THREE.SphereGeometry(0.06, 16, 12);
+                var foot = new THREE.Mesh(footGeo, bodyMat.clone());
+                foot.scale.set(0.9, 0.5, 1.6);
+                foot.position.set(side * 0.12, -0.52, 0.04);
+                bodyGroup.add(foot);
             }
-
-            bodyGroup.add(createLeg(-1));
-            bodyGroup.add(createLeg(1));
+            createLeg(-1);
+            createLeg(1);
 
             // ===== SKELETON — the element that makes it read as an x-ray =====
             const boneMat = new THREE.MeshPhongMaterial({
-                color: 0xbdf0ff,
+                color: 0xc8e6d8,
                 transparent: true,
                 opacity: 0.9,
-                emissive: 0x2bd4ee,
-                emissiveIntensity: 0.55,
+                emissive: 0x3d7a5f,
+                emissiveIntensity: 0.45,
                 shininess: 80
             });
             const skeleton = new THREE.Group();
@@ -1726,7 +1700,7 @@
             // Skull outline
             const skull = new THREE.Mesh(
                 new THREE.SphereGeometry(0.2, 20, 16),
-                new THREE.MeshBasicMaterial({ color: 0x9fe8ff, wireframe: true, transparent: true, opacity: 0.5 })
+                new THREE.MeshBasicMaterial({ color: 0xa8d4bc, wireframe: true, transparent: true, opacity: 0.5 })
             );
             skull.scale.set(0.88, 1.08, 0.92);
             skull.position.y = 1.82;
@@ -1815,26 +1789,30 @@
 
             bodyGroup.add(skeleton);
 
-            // INTERNAL ORGANS - glowing and interactive
-            
+            // INTERNAL ORGANS — glowing and interactive
+            // All organs use MeshStandardMaterial for PBR rendering.
+
+            function organMat(color, emissive, emissiveIntensity, opacity) {
+                return new THREE.MeshStandardMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: opacity !== undefined ? opacity : 0.85,
+                    emissive: emissive,
+                    emissiveIntensity: emissiveIntensity !== undefined ? emissiveIntensity : 0.4,
+                    metalness: 0.0,
+                    roughness: 0.4
+                });
+            }
+
             // BRAIN
-            const brainGeo = new THREE.SphereGeometry(0.15, 32, 32);
+            const brainGeo = new THREE.SphereGeometry(0.15, 48, 48);
             brainGeo.scale(0.9, 1, 0.95);
-            const brainMat = new THREE.MeshPhongMaterial({
-                color: 0xff1493,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xff1493,
-                emissiveIntensity: 0.4,
-                shininess: 100
-            });
-            const brain = new THREE.Mesh(brainGeo, brainMat);
+            const brain = new THREE.Mesh(brainGeo, organMat(0xff1493, 0xff1493, 0.4));
             brain.position.y = 1.82;
             brain.userData = { organ: 'brain' };
             bodyGroup.add(brain);
             organs.brain = brain;
 
-            // Add glow sphere for brain
             const brainGlowGeo = new THREE.SphereGeometry(0.18, 16, 16);
             const brainGlow = new THREE.Mesh(brainGlowGeo, new THREE.MeshBasicMaterial({
                 color: 0xff1493,
@@ -1845,107 +1823,100 @@
             brainGlow.position.copy(brain.position);
             bodyGroup.add(brainGlow);
 
-            // LUNGS (two separate organs)
-            const lungGeo = new THREE.SphereGeometry(0.12, 24, 24);
+            // LUNGS — elongated ellipsoids
+            const lungGeo = new THREE.SphereGeometry(0.12, 36, 36);
             lungGeo.scale(0.7, 1.3, 0.6);
-            
-            const lungMat = new THREE.MeshPhongMaterial({
-                color: 0x60a5fa,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0x3b82f6,
-                emissiveIntensity: 0.35
-            });
-            
-            const leftLung = new THREE.Mesh(lungGeo, lungMat.clone());
+
+            const leftLung = new THREE.Mesh(lungGeo, organMat(0x60a5fa, 0x3b82f6, 0.35, 0.8));
             leftLung.position.set(-0.13, 1.32, -0.01);
             leftLung.userData = { organ: 'lungs' };
             bodyGroup.add(leftLung);
 
-            const rightLung = new THREE.Mesh(lungGeo, lungMat.clone());
+            const rightLung = new THREE.Mesh(lungGeo, organMat(0x60a5fa, 0x3b82f6, 0.35, 0.8));
             rightLung.position.set(0.13, 1.32, -0.01);
             rightLung.userData = { organ: 'lungs' };
             bodyGroup.add(rightLung);
-            
-            organs.lungs = leftLung; // Use one for hit detection
 
-            // HEART
-            const heartGeo = new THREE.SphereGeometry(0.1, 24, 24);
-            heartGeo.scale(0.9, 1.2, 0.8);
-            const heartMat = new THREE.MeshPhongMaterial({
-                color: 0xef4444,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xdc2626,
-                emissiveIntensity: 0.5
+            organs.lungs = leftLung;
+
+            // HEART — proper heart shape via THREE.Shape + ExtrudeGeometry
+            var heartShape = new THREE.Shape();
+            heartShape.moveTo(0, 0);
+            heartShape.bezierCurveTo(0, -0.06, -0.1, -0.12, -0.1, -0.06);
+            heartShape.bezierCurveTo(-0.1, 0.02, 0, 0.06, 0, 0.12);
+            heartShape.bezierCurveTo(0, 0.06, 0.1, 0.02, 0.1, -0.06);
+            heartShape.bezierCurveTo(0.1, -0.12, 0, -0.06, 0, 0);
+            var heartGeo = new THREE.ExtrudeGeometry(heartShape, {
+                depth: 0.08,
+                bevelEnabled: true,
+                bevelSegments: 6,
+                bevelSize: 0.012,
+                bevelThickness: 0.01,
+                curveSegments: 24
             });
-            const heart = new THREE.Mesh(heartGeo, heartMat);
-            // Slightly to the patient's left and forward, between the lungs.
+            heartGeo.center();
+            var heart = new THREE.Mesh(heartGeo, organMat(0xef4444, 0xdc2626, 0.5));
+            heart.scale.set(0.7, 0.7, 0.7);
+            heart.rotation.set(Math.PI, 0, Math.PI);
             heart.position.set(0.05, 1.24, 0.05);
             heart.userData = { organ: 'heart' };
             bodyGroup.add(heart);
             organs.heart = heart;
 
-            // LIVER — patient's right upper abdomen, just under the ribs
-            // (viewer's left in this front-facing view). Larger, wedge-like.
-            const liverGeo = new THREE.BoxGeometry(0.22, 0.15, 0.13);
-            const liverMat = new THREE.MeshPhongMaterial({
-                color: 0x92400e,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0x78350f,
-                emissiveIntensity: 0.3
-            });
-            const liver = new THREE.Mesh(liverGeo, liverMat);
+            // LIVER — smooth wedge (flattened sphere)
+            var liverGeo = new THREE.SphereGeometry(0.14, 32, 32);
+            liverGeo.scale(1.5, 0.8, 0.9);
+            var liver = new THREE.Mesh(liverGeo, organMat(0x92400e, 0x78350f, 0.3, 0.8));
             liver.position.set(-0.10, 1.08, 0.04);
             liver.rotation.set(0, -0.3, 0.12);
             liver.userData = { organ: 'liver' };
             bodyGroup.add(liver);
             organs.liver = liver;
 
-            // STOMACH
-            const stomachGeo = new THREE.SphereGeometry(0.12, 24, 24);
-            stomachGeo.scale(1.1, 0.95, 0.85);
-            const stomachMat = new THREE.MeshPhongMaterial({
-                color: 0xfbbf24,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xf59e0b,
-                emissiveIntensity: 0.4
-            });
-            const stomach = new THREE.Mesh(stomachGeo, stomachMat);
-            // Patient's left upper abdomen, opposite the liver.
+            // STOMACH — J/bean shape via LatheGeometry
+            var stomachProfile = [
+                [0.001, 0.00],
+                [0.06,  0.02],
+                [0.10,  0.06],
+                [0.11,  0.10],
+                [0.10,  0.14],
+                [0.08,  0.18],
+                [0.05,  0.20],
+                [0.001, 0.21],
+            ].map(function (p) { return new THREE.Vector2(p[0], p[1]); });
+            var stomachGeo = new THREE.LatheGeometry(stomachProfile, 32);
+            stomachGeo.center();
+            var stomach = new THREE.Mesh(stomachGeo, organMat(0xfbbf24, 0xf59e0b, 0.4));
+            stomach.scale.set(1.0, 1.1, 0.85);
+            stomach.rotation.set(0.2, 0.3, -0.15);
             stomach.position.set(0.09, 1.06, 0.05);
             stomach.userData = { organ: 'stomach' };
             bodyGroup.add(stomach);
             organs.stomach = stomach;
 
-            // INTESTINES - realistic curved tube
-            // Coiled through the lower abdomen, below the stomach/liver and
-            // above the pelvis.
-            const intestineCurve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(-0.09, 0.98, 0.05),
-                new THREE.Vector3(0.10, 0.90, 0.07),
-                new THREE.Vector3(-0.10, 0.82, 0.06),
-                new THREE.Vector3(0.10, 0.74, 0.07),
-                new THREE.Vector3(-0.08, 0.66, 0.05),
-                new THREE.Vector3(0.08, 0.60, 0.06)
+            // INTESTINES — densely coiled tube
+            var intestineCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-0.10, 0.98, 0.05),
+                new THREE.Vector3( 0.10, 0.94, 0.07),
+                new THREE.Vector3(-0.09, 0.90, 0.06),
+                new THREE.Vector3( 0.09, 0.86, 0.07),
+                new THREE.Vector3(-0.08, 0.82, 0.06),
+                new THREE.Vector3( 0.10, 0.78, 0.07),
+                new THREE.Vector3(-0.10, 0.74, 0.05),
+                new THREE.Vector3( 0.08, 0.70, 0.07),
+                new THREE.Vector3(-0.07, 0.66, 0.06),
+                new THREE.Vector3( 0.09, 0.62, 0.06),
+                new THREE.Vector3(-0.06, 0.58, 0.05),
+                new THREE.Vector3( 0.06, 0.55, 0.06),
             ]);
-            const intestineGeo = new THREE.TubeGeometry(intestineCurve, 80, 0.035, 12, false);
-            const intestineMat = new THREE.MeshPhongMaterial({
-                color: 0xfb923c,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0xf97316,
-                emissiveIntensity: 0.3
-            });
-            const intestines = new THREE.Mesh(intestineGeo, intestineMat);
+            var intestineGeo = new THREE.TubeGeometry(intestineCurve, 120, 0.028, 12, false);
+            var intestines = new THREE.Mesh(intestineGeo, organMat(0xfb923c, 0xf97316, 0.3, 0.8));
             intestines.userData = { organ: 'intestines' };
             bodyGroup.add(intestines);
             organs.intestines = intestines;
 
             // Add subtle anatomical grid lines
-            const gridHelper = new THREE.GridHelper(4, 20, 0x22d3ee, 0x22d3ee);
+            const gridHelper = new THREE.GridHelper(4, 20, 0x3d7a5f, 0x3d7a5f);
             gridHelper.material.transparent = true;
             gridHelper.material.opacity = 0.05;
             gridHelper.position.y = 0;
@@ -1963,7 +1934,7 @@
             const group = new THREE.Group();
 
             // Main sphere
-            const mainGeo = new THREE.SphereGeometry(0.15, 24, 24);
+            const mainGeo = new THREE.SphereGeometry(0.15, 32, 32);
             const mainMat = new THREE.MeshPhongMaterial({
                 color: color,
                 emissive: color,
@@ -2058,16 +2029,14 @@
 
             controls.update();
 
-            // Gentle pulsing animation for organs
             const time = Date.now() * 0.001;
             Object.values(organs).forEach((organ, i) => {
-                const pulse = Math.sin(time * 2 + i) * 0.03;
+                const pulse = Math.sin(time * 2 + i) * 0.015;
                 organ.scale.setScalar(1 + pulse);
             });
 
-            // Orbit animation for food items
             foodMeshes.forEach((food, i) => {
-                food.rotation.y += 0.02;
+                food.rotation.y += 0.01;
                 const angle = (i / 5) * Math.PI * 2 + time * 0.15;
                 const radius = 2.2;
                 food.position.x = Math.cos(angle) * radius;
@@ -2399,17 +2368,17 @@
                             
                             // Show per-food breakdown
                             if (rule.detailedData.foods && rule.detailedData.foods.length > 0) {
-                                dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #a78bfa; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
+                                dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #e85d26; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
                                 rule.detailedData.foods.forEach(food => {
                                     dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
-                                    dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #22d3ee; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                    dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #3d7a5f; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
                                     
                                     // Display relevant nutrient data
                                     Object.entries(food).forEach(([key, value]) => {
                                         if (key !== 'name' && value !== undefined && value !== null && value !== '0.00') {
                                             if (Array.isArray(value) && value.length > 0) {
                                                 dataBreakdownHTML += `<div class="ingredient-list">`;
-                                                dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #d8b4fe;">${formatKey(key)}:</span> `;
+                                                dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #c4956a;">${formatKey(key)}:</span> `;
                                                 value.forEach(ing => {
                                                     dataBreakdownHTML += `<span class="ingredient-chip">${ing}</span>`;
                                                 });
@@ -2438,7 +2407,7 @@
                                     <div class="rule-organ">${rule.effect.organ}</div>
                                     <div class="rule-type ${rule.type}">${rule.type}</div>
                                 </div>
-                                <div style="font-size: 0.7rem; color: #22d3ee; margin-bottom: 0.5rem; font-weight: 600;">
+                                <div style="font-size: 0.7rem; color: #3d7a5f; margin-bottom: 0.5rem; font-weight: 600;">
                                     ${rule.category || 'Food Interaction'}
                                 </div>
                                 <div class="rule-description">${rule.effect.description}</div>
@@ -2513,17 +2482,17 @@
                         
                         // Show per-food breakdown
                         if (rule.detailedData.foods && rule.detailedData.foods.length > 0) {
-                            dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #a78bfa; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
+                            dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #e85d26; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
                             rule.detailedData.foods.forEach(food => {
                                 dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
-                                dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #22d3ee; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #3d7a5f; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
                                 
                                 // Display relevant nutrient data
                                 Object.entries(food).forEach(([key, value]) => {
                                     if (key !== 'name' && value !== undefined && value !== null && value !== '0.00') {
                                         if (Array.isArray(value) && value.length > 0) {
                                             dataBreakdownHTML += `<div class="ingredient-list">`;
-                                            dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #d8b4fe;">${formatKey(key)}:</span> `;
+                                            dataBreakdownHTML += `<span style="font-size: 0.65rem; color: #c4956a;">${formatKey(key)}:</span> `;
                                             value.forEach(ing => {
                                                 dataBreakdownHTML += `<span class="ingredient-chip">${ing}</span>`;
                                             });
@@ -2552,7 +2521,7 @@
                                 <div class="rule-organ">${rule.effect.organ}</div>
                                 <div class="rule-type ${rule.type}">${rule.type}</div>
                             </div>
-                            <div style="font-size: 0.7rem; color: #22d3ee; margin-bottom: 0.5rem; font-weight: 600;">
+                            <div style="font-size: 0.7rem; color: #3d7a5f; margin-bottom: 0.5rem; font-weight: 600;">
                                 ${rule.category || 'Food Interaction'}
                             </div>
                             <div class="rule-description">${rule.effect.description}</div>

@@ -411,16 +411,16 @@ class TestKeyCollection:
     def test_numbered_spares_are_collected_in_order(self):
         env = {"GEMINI_API_KEY": "first", "GEMINI_API_KEY2": "second", "GEMINI_API_KEY3": "third"}
         with patch.dict("os.environ", env, clear=False):
-            assert settings._collect_gemini_keys() == ["first", "second", "third"]
+            assert settings._collect_keys("GEMINI_API_KEY") == ["first", "second", "third"]
 
     def test_duplicates_and_blanks_are_dropped(self):
         env = {"GEMINI_API_KEY": "first", "GEMINI_API_KEY2": "  ", "GEMINI_API_KEY3": "first"}
         with patch.dict("os.environ", env, clear=False):
-            assert settings._collect_gemini_keys() == ["first"]
+            assert settings._collect_keys("GEMINI_API_KEY") == ["first"]
 
     def test_a_comma_separated_key_is_split(self):
         with patch.dict("os.environ", {"GEMINI_API_KEY": "a, b ,c"}, clear=False):
-            assert settings._collect_gemini_keys() == ["a", "b", "c"]
+            assert settings._collect_keys("GEMINI_API_KEY") == ["a", "b", "c"]
 
 
 # ---------------------------------------------------------------------------

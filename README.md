@@ -48,12 +48,7 @@ listed under "Language and translation" below.
 - `public/chatbot/` — the three mascot PNG images (`idle.png`, `thinking.png`,
   `responding.png`) used by `CompanionCharacter.tsx` for the chatbot's animated
   character across both patient and doctor interfaces.
-- `src/components/ui/logo.tsx` — the `Logo` component wrapping `public/logo.png`
-  at four sizes (`sm`/`md`/`lg`/`xl`). Use it instead of hand-rolled brand
-  markup; the artwork already contains the "Prakriva" wordmark, so don't pair it
-  with the name in text (pass `alt=""` where nearby copy names the brand). It
-  appears on the landing hero, the auth card, both sidebars, and the mobile
-  header of both layouts.
+- `src/components/ui/logo.tsx` — the `Logo` component. See "Brand marks".
 - `src/components/landing/` — the marketing landing page's feature section
   (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`) and the
   panels floating on each scene (`FeaturePreviews.tsx`). See "Landing page".
@@ -149,16 +144,18 @@ listed under "Language and translation" below.
   See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--accent-soft`, `--gold`,
-  `--sidebar-*`, gradients) in a warm cream + sage green + amber palette
-  inspired by sythra.ai's editorial aesthetic. Primary is deep sage green
-  (hsl 158); CTA accent is warm amber-orange (hsl 20); backgrounds are warm
-  ivory. Typography pairs Playfair Display (serif, display headings) with
-  Instrument Sans (body). Cards are `rounded-[22px]` with hover-lift
-  animations. Dosha colors (`--vata`/`--pitta`/`--kapha`) and status colors
-  (`--success`/`--warning`/`--info`) remain domain-critical and visually
-  distinct.
+  `--sidebar-*`, gradients) built from the five brand colours — berry
+  `#A6465F`, brick `#9B5152`, dusty rose `#B17A77`, sand `#E3D3C4` and olive
+  `#414029`. Primary is the berry (hsl 344); accent is the brick (hsl 359);
+  every surface is sand and every piece of text is olive. Typography is
+  IM Fell DW Pica (display headings), Inter (body) and IBM Plex Mono
+  (eyebrows, captions, pull quotes). Cards are `rounded-[22px]` with
+  hover-lift animations. Dosha colors (`--vata`/`--pitta`/`--kapha`) and
+  status colors (`--success`/`--warning`/`--info`) remain domain-critical and
+  visually distinct. See "Color" below.
 - `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
-  strings and so can't use Tailwind classes. Tuned to sage/amber/terracotta.
+  strings and so can't use Tailwind classes. Tuned to the berry family, with
+  adjacent series separated by lightness as well as hue.
 - `src/components/illustrations/LineArt.tsx` — the app's line-art marks
   (`Bloom`, `Expecting`, `Cradle`, `Cycle`, `Plate`), which draw their own
   strokes on mount. `lifeStageArt.tsx` maps a life stage to one of them. See
@@ -173,8 +170,11 @@ listed under "Language and translation" below.
 - `src/lib/shop/` + `src/data/shopCatalogue.ts` — the patient shop: search,
   stage-aware recommendations, and the outbound-link host allow-list. See
   "Shop (price comparison and referral)" below.
-- `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
+- `public/` — static assets served as-is: `logo.png` (the badge brand mark,
   also used as the browser-tab favicon and the social preview image),
+  `logo-wordmark.png` and `logo-butterfly.png` (the cream-on-transparent
+  wordmark and butterfly that make up the landing hero lockup), `hero-bg.jpg`
+  (the blurred floral photograph behind that hero),
   `shop/` (one WebP photograph per shop product, ~450 KB for all 32), and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
   viruddha ahara / incompatible-combination checker). It is served directly at
@@ -311,63 +311,6 @@ validation.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
-
-## Landing page
-
-`src/pages/Landing.tsx` is the signed-out marketing page at `/`: hero, feature
-section, a dark "two sides, one record" block and the CTA.
-
-**The feature section is a scroll-driven reel**
-(`src/components/landing/FeatureCardStack.tsx`). The section is six viewport
-steps tall and pins a one-viewport stage inside it. As the page scrolls past,
-a column of visual cards slides upward through a clipped window one card at a
-time, and the label for the card on screen cross-fades in the gutter beside it —
-alternating left, right, left, so a reader's eye has somewhere new to go on
-every step. The rail underneath doubles as a control: clicking a dot scrolls to
-that card.
-
-Five things about how it is built are worth knowing before changing it:
-
-- **One number drives everything.** A scroll listener recomputes `position` —
-  the fractional index of the front card — from the track's
-  `getBoundingClientRect`, coalesced to one measurement per animation frame.
-  Cards are never mounted or unmounted as they change; only `transform` and
-  `opacity` move, so nothing re-lays-out mid-animation.
-- **The reel holds, then moves.** `stepped()` converts the linear scroll into
-  the reel's own position: it advances across the first 62% of each step and
-  holds on the whole number for the rest, so a card sits still long enough to
-  read. Easing the section end to end instead would make the reel race at the
-  top, crawl at the bottom and never settle anywhere. The rail's figure counts
-  off that same stepped value, so it can't disagree with the label on screen.
-- **The window is a plain rectangle, slightly taller than one card.** Round it
-  and the cards' corners get shaved off as they slide through; make it much
-  taller and the neighbour waiting its turn shows at rest — `REEL_GAP` has to
-  clear the cards' drop shadow as well as the cards, or the shadow alone reads
-  as a phantom edge.
-- **Each card's copy exists once in the DOM.** On a phone the label stacks
-  under the reel; from `md` up the label layer is taken out of the flow and
-  hung in the gutters. The reel is a mock, so it is `aria-hidden` and the
-  labels carry the whole reading order.
-- **`prefers-reduced-motion` gets a different tree, not a faster one.** The
-  blanket CSS guard in `index.css` cannot help here — scroll-linked movement is
-  a new style every frame, not a transition with a duration — so the component
-  renders a plain alternating list with no pinning at all. See "Motion and
-  illustration".
-
-One knock-on constraint: the page root uses `overflow-x-clip`, not
-`overflow-x-hidden`. `hidden` would make the root a scroll container, and the
-sticky stage would then pin to *it* — a container that never scrolls — instead
-of to the viewport, which silently breaks the whole section.
-
-**The card copy lives in `src/components/landing/featureCards.tsx`** and the
-panel floating on each scene in `FeaturePreviews.tsx`. The scenes are three
-layered gradients mixed from the five brand colours plus one of the app's own
-line-art marks — there is no artwork to load, and the whole section recolours
-with the palette. The panels are stills of real surfaces (the questionnaire's
-dosha split, a day of a generated chart, a Health Check result) and carry no
-live data on purpose, so none of them can put a number in front of a visitor
-that the app would then have to stand behind. This is the first and often the
-only description of Prakriva anyone reads — keep it to features that exist.
 
 ## Patient profile
 
@@ -1151,10 +1094,11 @@ beneath them, so the cause is visible without opening devtools:
 | --- | --- |
 | `Could not reach the backend at <url>` | Flask is down, `VITE_API_URL` points somewhere wrong, or the origin is not in the backend's `ALLOWED_ORIGINS`. |
 | `Gemini returned HTTP 400 (INVALID_ARGUMENT — …)` | The request itself was rejected — a malformed conversation, not a key problem. |
-| `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured key is out of quota. Add a spare (`GEMINI_API_KEY2`) or wait. |
+| `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured Gemini key is out of quota. If `GROQ_API_KEY` is set, the chatbot falls back to Groq automatically. Otherwise add a spare (`GEMINI_API_KEY2`) or wait. |
+| `All LLM providers unavailable (Gemini: …; Groq: …)` | Both Gemini and Groq are exhausted or misconfigured. Wait for rate limits to reset or add more keys. |
 | `Gemini returned no usable model (…)` | Every model in the chain answered 404 *and* the live model list could not be fetched — see "Gemini model retirement" below. |
 | `Gemini used its whole output budget …` | The model spent `maxOutputTokens` reasoning without writing an answer, twice. Raise `GEMINI_MAX_TOKENS`. |
-| `No GEMINI_API_KEY is set` | The backend has no key; set it in the Render dashboard. |
+| `No GEMINI_API_KEY is set` | The backend has no Gemini key. Set it in the Render dashboard, or set `GROQ_API_KEY` as a standalone alternative. |
 
 Keys are redacted out of anything shown or logged.
 
@@ -1193,9 +1137,9 @@ way to tell "the key is broken" apart from "the model name is gone".
 
 #### Gemini key rotation
 
-Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY2` … `GEMINI_API_KEY10`,
+Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY1` … `GEMINI_API_KEY10`,
 or one comma-separated `GEMINI_API_KEY` — can be set (blanks and duplicates are
-dropped). Only the first is required; the extras exist so the chatbot (used far
+dropped). The extras exist so the chatbot (used far
 more than the occasional screening write-up) and diet chart generation (one
 large request per plan) can roll over to the next key instead of hard-failing
 when one hits its rate limit or quota. The pool lives in
@@ -1220,9 +1164,28 @@ keys.
 Error messages are reported with any configured key string replaced by `***`,
 so the reason for a failure can be logged and shown in the UI without the
 risk that made this "status codes only" before — Google's messages can echo
-the request, and the key travels in the query string. When every key fails the endpoint answers 503 and each
-caller degrades on its own terms: diet chart generation falls back to the
-FoodOScope recipe path, and the analysis panels hide themselves.
+the request, and the key travels in the query string. When every Gemini key
+fails, the chatbot and text generation endpoints fall back to **Groq** (see
+below) before giving up. If Groq is also unavailable, the endpoint answers
+503 and each caller degrades on its own terms: diet chart generation falls
+back to the FoodOScope recipe path, and the analysis panels hide themselves.
+
+#### Groq fallback
+
+When every Gemini key is exhausted or unavailable, text-generation calls
+(both chatbots, the screening analysis, and the patient Q&A) automatically
+try **Groq** (Llama 3.3 70B via the OpenAI-compatible API at
+`api.groq.com`). Groq's free tier allows 30 req/min and 14.4K req/day,
+which keeps the chatbot alive while Gemini keys cool down.
+
+Set `GROQ_API_KEY` in Render (or `backend/.env` locally). Multiple keys
+follow the same pattern as Gemini: `GROQ_API_KEY2` … `GROQ_API_KEY10`, or a
+comma-separated list. Vision tasks (report extraction, acne photo assessment)
+stay Gemini-only — Groq is a text fallback.
+
+The model defaults to `llama-3.3-70b-versatile` and can be overridden with
+`GROQ_MODEL`. `/analysis/status` reports `groq_available: true` when at
+least one key is set.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
@@ -1668,12 +1631,158 @@ which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
 
+## Brand marks
+
+**The butterfly is the logo** — wings drawn as loops around an expecting
+figure. It is what `<Logo />` draws by default, and what a browser tab, a home
+screen and a shared link show. The wordmark is the name set in the brand serif;
+reach for it where the name itself has to be read, not as a substitute for the
+mark. Where both appear together the butterfly goes above the name.
+
+| File | What it is |
+|---|---|
+| `public/logo-butterfly.png` | the mark, cream on transparent |
+| `public/logo-wordmark.png` | "Prakriva" in the brand serif, cream on transparent |
+| `public/logo.png` | the older circular badge — its cream tile with the wordmark baked in |
+| `public/favicon.png`, `public/apple-touch-icon.png`, `public/social-card.png` | the butterfly in rose on the sand tile |
+
+Both supplied artworks are **a pale cream mark on a fully transparent ground**.
+That is right on the hero photograph and the olive sections and useless on
+cream, which is most of the app — so `Logo` takes a `tone`:
+
+| `tone` | What it does | Where |
+|---|---|---|
+| `ink` (default) | draws the mark in `currentColor` | app chrome, on sand: sidebars, mobile headers, the auth card, the landing footer |
+| `artwork` | the PNG exactly as supplied | the hero lockup, over the photograph |
+
+`ink` works by using the PNG as a CSS **mask** rather than an `<img>`: the file
+is one opaque shape on a transparent ground, so its alpha channel *is* the
+silhouette, and masking recolours it exactly at any size with no second copy of
+the artwork to keep in sync. Set the colour with an ordinary text class on the
+element — `text-primary` in the sidebars and auth card, the tertiary foreground
+in the footer. Two consequences worth knowing:
+
+- **A masked element has no intrinsic size.** Unlike an `<img>`, nothing tells
+  the box how wide to be, so each variant's aspect ratio is declared in
+  `logo.tsx`. If an artwork is ever redrawn at different proportions, that
+  table has to move with it.
+- **It is not an image element**, so the role and label are stated explicitly.
+  `alt=""` means decorative and drops it from the accessibility tree rather
+  than announcing an unlabelled image.
+
+If either file is ever redrawn with **more than one colour in it**, `ink` stops
+being a valid treatment and those call sites need `artwork` plus artwork that
+suits a light surface.
+
+The favicon, touch icon and social card are the butterfly painted in the brand
+rose on the sand tile — the supplied cream-on-transparent mark would disappear
+against a light tab strip. They are generated from `logo-butterfly.png` rather
+than drawn separately, so they stay in step with it.
+
+Use `Logo` instead of hand-rolled brand markup, and don't pair the wordmark
+with "Prakriva" in text — pass `alt=""` where nearby copy already names the
+brand.
+
+## Landing page
+
+`src/pages/Landing.tsx` is the only public page besides the auth screen, and it
+is the one place the brand is shown rather than applied.
+
+**The hero is a full-bleed photograph with the brand lockup centred on it** —
+the butterfly mark above the wordmark, a one-line description, the button pair,
+and a mono pull quote. Everything below it (features, the olive roles block,
+the closing CTA, footer) sits on the sand background in the ordinary design
+system.
+
+It needs three files in `public/`, none of which are generated:
+
+| File | What it is |
+|---|---|
+| `hero-bg.jpg` | the blurred floral photograph behind the hero |
+| `logo-wordmark.png` | "Prakriva" in the brand serif, cream on transparent |
+| `logo-butterfly.png` | the butterfly mark, cream on transparent |
+
+They are referenced by absolute public path (`/hero-bg.jpg`), not imported, so
+a missing file degrades to the olive wash underneath instead of failing the
+build — which also means a typo'd filename is silent. If the hero renders as a
+flat dark block, check those three names first.
+
+Two things about the hero are load-bearing and easy to undo by accident:
+
+- **The section carries `isolate`.** The photograph and its scrim sit at
+  `-z-20` and `-z-10`. Without a stacking context on the section, negative-`z`
+  children paint *behind* the page's own `bg-background` and the photograph
+  disappears completely — the page still renders, just with no image. This
+  happened once during the rebuild.
+- **Two scrims, not one.** A flat wash so cream type clears the pale blossoms,
+  and a bottom-weighted gradient that lands exactly on the sand background
+  (`hsl(29 36% 92%)`) so the hero hands off to the next section without a seam.
+  Change the page background and this gradient's last stop has to move with it.
+
+The chrome over the photograph is deliberately not the default: the header and
+lockup pass `tone="artwork"` so the marks are drawn as supplied rather than
+painted in the header's own translucent white, and `LanguageSwitcher` is passed
+a light `className` because it otherwise inherits the olive foreground and
+vanishes. See "Brand marks".
+
+**The feature section below the hero is a scroll-driven reel**
+(`src/components/landing/FeatureCardStack.tsx`). The section is six viewport
+steps tall and pins a one-viewport stage inside it. As the page scrolls past, a
+column of visual cards slides upward through a clipped window one card at a
+time, and the label for the card on screen cross-fades in the gutter beside it —
+alternating left, right, left, so a reader's eye has somewhere new to go on
+every step. The rail underneath doubles as a control: clicking a dot scrolls to
+that card.
+
+Five things about how it is built are worth knowing before changing it:
+
+- **One number drives everything.** A scroll listener recomputes `position` —
+  the fractional index of the front card — from the track's
+  `getBoundingClientRect`, coalesced to one measurement per animation frame.
+  Cards are never mounted or unmounted as they change; only `transform` and
+  `opacity` move, so nothing re-lays-out mid-animation.
+- **The reel holds, then moves.** `stepped()` converts the linear scroll into
+  the reel's own position: it advances across the first 62% of each step and
+  holds on the whole number for the rest, so a card sits still long enough to
+  read. Easing the section end to end instead would make the reel race at the
+  top, crawl at the bottom and never settle anywhere. The rail's figure counts
+  off that same stepped value, so it can't disagree with the label on screen.
+- **The window is a plain rectangle, slightly taller than one card.** Round it
+  and the cards' corners get shaved off as they slide through; make it much
+  taller and the neighbour waiting its turn shows at rest — `REEL_GAP` has to
+  clear the cards' drop shadow as well as the cards, or the shadow alone reads
+  as a phantom edge.
+- **Each card's copy exists once in the DOM.** On a phone the label stacks
+  under the reel; from `md` up the label layer is taken out of the flow and
+  hung in the gutters. The reel is a mock, so it is `aria-hidden` and the
+  labels carry the whole reading order.
+- **`prefers-reduced-motion` gets a different tree, not a faster one.** The
+  blanket CSS guard in `index.css` cannot help here — scroll-linked movement is
+  a new style every frame, not a transition with a duration — so the component
+  renders a plain alternating list with no pinning at all. See "Motion and
+  illustration".
+
+That reel is also why the page root uses `overflow-x-clip` rather than
+`overflow-x-hidden`. `hidden` would make the root a scroll container, and the
+sticky stage would then pin to *it* — a container that never scrolls — instead
+of to the viewport, which silently flattens the whole section into dead scroll.
+
+**The card copy lives in `src/components/landing/featureCards.tsx`** and the
+panel floating on each scene in `FeaturePreviews.tsx`. The scenes are three
+layered gradients mixed from the five brand colours plus one of the app's own
+line-art marks — there is no artwork to load, and the section recolours with
+the palette. The panels are stills of real surfaces (the questionnaire's dosha
+split, a day of a generated chart, a Health Check result) and carry no live
+data on purpose, so none of them can put a number in front of a visitor that
+the app would then have to stand behind. This is the first and often the only
+description of Prakriva anyone reads — keep it to features that exist.
+
 ## Color
 
 **The app is light unless you ask for dark.** There is a real theme control now
 (`src/lib/theme.ts`, wired into Settings), and it defaults to **light** rather
 than to "system". Following the OS is the usual default and was the wrong one
-here: every screen in this app was designed and reviewed against the blush
+here: every screen in this app was designed and reviewed against the light
 palette, the dark palette has never had the same eyes on it, and defaulting to
 "system" meant a patient on a dark-mode phone opened the app one morning to a
 different-looking product she never chose. Dark is available — it is just a
@@ -1687,65 +1796,72 @@ and native controls — scrollbars, date pickers, dropdowns — otherwise paint
 themselves dark over light surfaces. If the app ever looks dark unexpectedly,
 check the stored choice first (`localStorage` key `prakriva:theme`).
 
-**The palette is five colours and nothing else** — cream, three roses and an
-olive. Every token in `src/index.css` is one of them or a tint of one of their
-hues, so a sixth colour cannot arrive one reasonable-looking badge at a time:
+The palette is **five colours and nothing outside them**:
 
-| Swatch | Hex | HSL | Role |
+| | Hex | HSL | Role |
 |---|---|---|---|
-| Rose | `#A6465F` | `344 41% 46%` | brand: marks, active states, fills, `--primary` |
-| Brick | `#9B5152` | `359 31% 46%` | calls to action and second emphasis, `--accent` |
-| Dusty rose | `#B17A77` | `3 27% 58%` | soft accents, chips, the vata dosha |
-| Cream | `#E3D3C4` | `29 36% 83%` | the canvas, surfaces and borders |
-| Olive | `#414029` | `58 23% 21%` | ink, dark sections, "on track" |
+| Berry | `#A6465F` | `344 41% 46%` | `--primary`, CTAs, the brand mark |
+| Brick | `#9B5152` | `359 31% 46%` | `--accent`, secondary emphasis |
+| Dusty rose | `#B17A77` | `3 27% 58%` | soft tints, decorative fills, borders |
+| Sand | `#E3D3C4` | `29 36% 83%` | every surface — page, card, chip |
+| Olive | `#414029` | `58 23% 21%` | every piece of text, and dark sections |
 
-One deliberate deviation: `--background` is `29 36% 86%`, three points lighter
-than the cream swatch. At the raw value, rose on cream measures 3.99:1 — under
-the 4.5:1 floor for body text — and the lift buys the margin back without
-reading as a different colour. Rose still belongs on marks, headings and fills
-rather than paragraphs; the ink is olive.
+Three of the five sit within 20° of each other on the wheel, so **hue alone can
+never carry meaning here**. Separation is done with lightness and fill.
 
-**The brand ramps** (`tailwind.config.ts`) are all remapped, so existing class
-names keep working and paint in the new palette:
+The page background sits a little lighter than the sand swatch (`29 36% 92%`)
+so cards have somewhere to go above it; the swatch itself is the
+chip/secondary tone. Text is the olive, deepened to `58 23% 15%` for contrast.
 
-| Ramp | Hue | Role |
+**Three brand ramps** (`tailwind.config.ts`), one per chromatic swatch:
+
+| Ramp | Swatch | Role |
 |---|---|---|
-| `plum` | 344° (rose) | brand emphasis, CTA glow |
-| `coral` | 359° (brick) | attention, partial, needs a nudge |
-| `rose` | 3° (dusty) | positive, on track, goal met |
-| `pink` | 344° (rose) | the chatbot, which is built almost entirely on `pink-*` |
-| `gray` / `slate` | 29–58° | warm neutrals running from cream to olive |
+| `rose` | berry `#A6465F` | positive, on track, goal met |
+| `plum` | brick `#9B5152` | informational, emphasis, CTA glow |
+| `coral` | dusty rose `#B17A77` | attention, partial, needs a nudge |
 
-`red` keeps its native hue for clinical high-risk signals.
+Because the three hues are close, each ramp is also offset in lightness and
+saturation: `coral` runs consistently lighter than `rose`, `plum` consistently
+darker. `pink` is remapped to the berry ramp as well — the chat surfaces and a
+couple of recipe badges reach for `pink-*` directly, and remapping the ramp
+brings all 26 call sites into the palette at once instead of leaking Tailwind's
+default candy pink. Existing class names (`bg-rose-100`, `text-plum-600`, etc.)
+keep working — they just paint in the brand colours. `red` keeps its native hue
+for clinical high-risk signals, deliberately outside the brand hues so a
+high-risk badge cannot be mistaken for a berry-toned decorative one.
 
-**Typography.** Three faces, each with one job:
+**Typography.** Three faces, each with a job:
 
-| Face | Class | Used for |
+| Family | Tailwind | Used for |
 |---|---|---|
-| IM Fell DW Pica | `font-display` | headings and pull quotes |
-| Inter, or Suisse Intl where licensed | `font-sans` | everything read as prose |
-| IBM Plex Mono (DM Mono as fallback) | `font-mono` | labels, eyebrows, figures, quotations |
+| IM Fell DW Pica | `font-display` | headings, display sizes, italic emphasis |
+| Inter | `font-sans` (default) | body and all UI copy |
+| IBM Plex Mono | `font-mono` | eyebrows, captions, pull quotes, figures |
 
-They load from one `<link>` in `index.html`; there is no CSS `@import`, which
-would only add a second, serialised request behind the stylesheet. Suisse Intl
-is licensed rather than served, so it sits first in the `sans` stack and Inter
-carries anyone who does not have it. IM Fell DW Pica is a 17th-century face —
-textured, small on the body, and unreadable much below 20px — so it belongs on
-display sizes only, never on UI text. Fluid `clamp()` sizing for display
-headings (`display-sm` through `display-lg`); section labels are 11px mono,
-uppercase, with wide tracking.
+Fluid `clamp()` sizing for display headings (`display-sm` through
+`display-lg`). Two helper classes wrap the mono voice: `.section-label` (11px
+uppercase, wide tracking — the numbered eyebrow above a section) and `.quote`.
+
+**IM Fell DW Pica ships one weight.** Asking a browser for 600 or 700 gets a
+synthesised smear of the real face, so `src/index.css` pins `.font-display` to
+`font-weight: 400` with `font-synthesis-weight: none`, and the `display-*`
+sizes declare 400 rather than 700. The face is dark and high-contrast enough
+that it reads as a heading without extra weight. If a heading ever looks
+blurry or over-inked, something has re-applied `font-bold` over it.
 
 **Cards and buttons.** Cards are `rounded-[22px]` with hover-lift animations
 (`translateY(-4px)` + expanding warm shadow). Buttons lift on hover
 (`translateY(-0.5px)`) with spring easing. CTA buttons are pill-shaped
-(`rounded-full`) in brick rose with a glowing box-shadow.
+(`rounded-full`) in the berry with a glowing box-shadow.
 
 **Neutrals.** `--background`, `--muted`, `--border` and the `gray`/`slate`
-ramps run on the cream and olive hues rather than cool gray. Shadows are cast
-in `hsl(58, 20%, 12%)` at low opacity, so elevation reads as depth rather than
-a grey haze. `--accent-soft` / `--accent-soft-foreground` are the tinted
-chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS variables, so
-gradients and inline styles can read them too, not just classes.
+ramps are sand tones (hue ~29°) rather than cool gray, deepening into olive
+(hue ~58°) at the dark end. Shadows are cast in `hsl(58, 23%, 15%)` at low
+opacity, so elevation reads as warm depth rather than a grey haze.
+`--accent-soft` / `--accent-soft-foreground` are the tinted chip/pill/icon-well
+surface (`bg-accent-soft`); they are real CSS variables, so gradients and
+inline styles can read them too, not just classes.
 
 Two rules follow from having one hue family, both learned from looking at the
 rendered pages rather than the code:
@@ -1755,10 +1871,11 @@ rendered pages rather than the code:
   target?" strip. Achieved days are solid (`bg-rose-600 text-white`), missed
   ones are pale and outlined.
 - **Colour never carries meaning alone.** Risk levels escalate in *intensity*
-  as well as hue (olive → dusty rose → saturated red, lightness falling the
-  whole way), so the ordering survives greyscale and colour vision deficiency,
-  and high risk is the only filled badge. Every level also renders its `label`
-  in words.
+  as well as hue (dusty rose → brick → saturated red), so the ordering survives
+  greyscale and colour vision deficiency, and high risk is the only filled
+  badge. Every level also renders its `label` in words. This matters more here
+  than it did under the old scheme: with three brand hues inside 20°, intensity
+  is doing most of the work.
 
 Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
 blue that no class on the element can reach; `src/index.css` sets `accent-color`
@@ -1890,10 +2007,14 @@ committed.
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, both chatbots (patient wellness companion + doctor clinical assistant), lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
-| `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
+| `GEMINI_API_KEY1` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. |
 | `GEMINI_MODEL` | Backend | No | Pins one model ID. Leave unset: the backend then asks the API which models the key can actually call and uses the best flash model available, so a retired model ID cannot take the AI features down — see "Gemini model retirement". |
 | `GEMINI_MAX_TOKENS` | Backend | No | Output budget per call, defaults to `2048`. Current models spend part of it reasoning before they answer, so a small budget can return an empty reply. |
 | `GEMINI_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. Diet chart generation overrides this with its own longer timeout. |
+| `GROQ_API_KEY` | Backend | No | Fallback LLM for chatbots and text generation when Gemini is exhausted. Groq's free tier gives 30 req/min and 14.4K req/day on Llama 3.3 70B. **Backend-only — never give it a `VITE_` prefix.** May hold a comma-separated list. |
+| `GROQ_API_KEY1` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
+| `GROQ_MODEL` | Backend | No | Defaults to `llama-3.3-70b-versatile`. |
+| `GROQ_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 | `RATE_LIMIT_PER_MINUTE` | Backend | No | Per-caller ceiling for the routes that opt into a per-minute limit, defaults to `30`. |

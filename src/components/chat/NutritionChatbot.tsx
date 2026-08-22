@@ -651,7 +651,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               : "inset-x-3 bottom-20 h-[calc(100vh-9rem)] md:inset-x-auto md:bottom-6 md:right-6 md:h-[640px] md:max-h-[calc(100vh-4rem)] md:w-[420px]",
           )}
         >
-          <header className="relative shrink-0 overflow-hidden bg-gradient-to-r from-accent-soft via-secondary to-background-elevated px-4 py-3">
+          <header className="relative shrink-0 overflow-hidden bg-gradient-to-r from-pink-100 via-pink-50 to-coral-50 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <CompanionCharacter
@@ -664,7 +664,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                     {mode === "doctor" ? "Clinical Assistant" : "Prakriva Companion"}
                   </h3>
                   <p className="flex items-center gap-1.5 text-caption2 text-foreground-secondary">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-warning animate-pulse-soft" : "bg-success")} />
+                    <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-gold animate-pulse-soft" : "bg-success")} />
                     {isLoading ? "Thinking..." : mode === "doctor" ? "Patient analysis & guidance" : "Here for you, anytime"}
                   </p>
                 </div>

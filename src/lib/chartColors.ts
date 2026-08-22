@@ -1,16 +1,19 @@
-// Chart colors — Prakriva cream / rose / olive palette.
+// Chart colors — Prakriva sand + berry + olive palette.
 //
-// Recharts uses raw color strings. This is the single source for them, and
-// `src/lib/__tests__/brandPalette.test.ts` fails the build if a chart colour
-// appears anywhere else or wanders off the five brand hues.
+// Recharts uses raw color strings. This is the single source for them.
+//
+// Everything here lives in the berry family (hue ~344°, running through brick
+// and dusty rose to a clinical red at 0°). Because the hues are close,
+// adjacent series are separated by lightness as much as by hue —
+// `src/lib/__tests__/brandPalette.test.ts` enforces both.
 
 export const CHART_SERIES = [
-  "hsl(344 41% 46%)", // rose (brand)
-  "hsl(58 23% 32%)",  // olive
-  "hsl(3 27% 58%)",   // dusty rose
-  "hsl(359 34% 40%)", // brick
-  "hsl(58 20% 52%)",  // light olive
-  "hsl(344 32% 70%)", // pale rose
+  "hsl(344 41% 46%)", // berry #A6465F (primary)
+  "hsl(3 27% 58%)",   // dusty rose #B17A77
+  "hsl(359 31% 36%)", // deep brick
+  "hsl(344 30% 66%)", // light berry
+  "hsl(12 32% 44%)",  // terracotta
+  "hsl(350 22% 74%)", // pale rose
 ] as const;
 
 export const seriesColor = (index: number): string =>
@@ -18,35 +21,33 @@ export const seriesColor = (index: number): string =>
 
 export const CHART_COLORS = {
   primary: "hsl(344 41% 46%)",
-  sleep: "hsl(344 36% 58%)",
-  activity: "hsl(58 23% 32%)",
-  water: "hsl(29 26% 52%)",
-  calories: "hsl(359 31% 46%)",
-  protein: "hsl(344 44% 38%)",
-  carbs: "hsl(29 30% 50%)",
-  fat: "hsl(3 30% 50%)",
+  sleep: "hsl(344 30% 62%)",
+  activity: "hsl(3 30% 52%)",
+  water: "hsl(350 26% 68%)",
+  calories: "hsl(344 41% 46%)",
+  protein: "hsl(359 31% 46%)",
+  carbs: "hsl(12 34% 52%)",
+  fat: "hsl(3 24% 40%)",
 } as const;
 
 export const CHART_RATING_SCALE = [
-  "hsl(58 25% 42%)",  // best — olive
-  "hsl(29 26% 50%)",
-  "hsl(3 30% 54%)",
-  "hsl(359 34% 44%)",
-  "hsl(0 55% 38%)",   // worst — the destructive red
+  "hsl(344 34% 56%)", // best
+  "hsl(350 30% 50%)",
+  "hsl(356 32% 46%)",
+  "hsl(358 46% 44%)",
+  "hsl(0 62% 42%)",   // worst
 ] as const;
 
-// Low reads olive, high reads red, and lightness falls the whole way down, so
-// the trend line and the badge beside it never tell different stories.
 export const CHART_RISK = {
-  low: "hsl(58 25% 46%)",
-  moderate: "hsl(3 34% 42%)",
-  high: "hsl(0 55% 36%)",
+  low: "hsl(3 27% 58%)",
+  moderate: "hsl(357 38% 48%)",
+  high: "hsl(0 62% 42%)",
 } as const;
 
 export const CHART_NEUTRALS = {
-  grid: "hsl(29 26% 82%)",
-  axis: "hsl(29 18% 70%)",
-  tick: "hsl(29 10% 42%)",
-  tooltipBg: "hsl(29 42% 96%)",
-  tooltipBorder: "hsl(29 26% 78%)",
+  grid: "hsl(29 24% 87%)",
+  axis: "hsl(29 18% 76%)",
+  tick: "hsl(48 10% 40%)",
+  tooltipBg: "hsl(29 40% 97%)",
+  tooltipBorder: "hsl(29 22% 82%)",
 } as const;

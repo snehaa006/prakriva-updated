@@ -20,10 +20,11 @@ const TRANSITION = 0.62;
 
 /**
  * Gap between cards in the reel, in px, visible while one hands over to the
- * next. It has to clear the cards' drop shadow as well as the cards, or at rest
- * the neighbour's shadow shows inside the clip as a phantom edge.
+ * next. It keeps the next card's body outside the window at rest; the fade on
+ * `.reel-stage` (index.css) handles the drop shadow that still reaches in,
+ * which is why this can stay tight enough to read as one deck.
  */
-const REEL_GAP = 36;
+const REEL_GAP = 40;
 
 /**
  * How far either side of its own step a label stays legible. Labels cross-fade
@@ -258,7 +259,7 @@ export const FeatureCardStack = () => {
                 waiting its turn stays outside, shadow and all. */}
             <div
               aria-hidden
-              className="relative h-[min(17rem,34svh)] w-full max-w-[34rem] shrink-0 overflow-hidden md:h-full md:max-h-[min(23rem,50svh)]"
+              className="reel-stage relative w-full max-w-[34rem] shrink-0 overflow-hidden"
             >
               {FEATURE_CARDS.map((card, index) => {
                 // Offsets are a percentage of the card's own height plus the
@@ -268,7 +269,7 @@ export const FeatureCardStack = () => {
                 return (
                   <div
                     key={card.num}
-                    className="absolute inset-x-0 top-1/2 h-[min(15rem,30svh)] will-change-transform md:h-[min(22rem,42svh)]"
+                    className="absolute inset-x-0 top-1/2 h-[var(--reel-card)] will-change-transform"
                     style={{
                       transform: `translate3d(0, calc(-50% + ${offset * 100}% + ${offset * REEL_GAP}px), 0)`,
                     }}

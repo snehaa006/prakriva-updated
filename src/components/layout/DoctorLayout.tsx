@@ -27,7 +27,7 @@ const DoctorLayout = () => {
             <span className="sr-only">Toggle Sidebar</span>
           </Button>
           {/* The sidebar is off-canvas on small screens, so keep the brand here. */}
-          <Logo size="sm" className="ml-2 md:hidden" />
+          <Logo size="sm" className="ml-2 text-primary md:hidden" />
 
           <Button
             variant="ghost"

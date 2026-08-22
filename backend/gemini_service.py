@@ -682,6 +682,120 @@ def _text_from(payload: Dict[str, Any], *, timeout: int) -> str:
         )
 
 
+# ---------------------------------------------------------------------------
+# Groq fallback — text-only chat via Groq's OpenAI-compatible API
+#
+# Groq's free tier (30 req/min, 14.4K req/day on Llama 3.3 70B) is tried
+# when every Gemini key is exhausted, so one provider being down does not
+# take the chatbot offline. Vision tasks stay Gemini-only.
+# ---------------------------------------------------------------------------
+
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+_groq_cooldown_until: Dict[str, float] = {}
+_groq_active_key_index = 0
+
+
+def _groq_configured() -> bool:
+    return bool(settings.GROQ_API_KEYS)
+
+
+def _groq_key_candidates() -> List[str]:
+    keys = settings.GROQ_API_KEYS
+    if not keys:
+        return []
+    now = time.monotonic()
+    ordered = [keys[(_groq_active_key_index + i) % len(keys)] for i in range(len(keys))]
+    return sorted(ordered, key=lambda k: _groq_cooldown_until.get(k, 0.0) > now)
+
+
+def _groq_report(key: str, *, status: Optional[int], ok: bool) -> None:
+    global _groq_active_key_index
+    keys = settings.GROQ_API_KEYS
+    if ok:
+        _groq_cooldown_until.pop(key, None)
+        if key in keys:
+            _groq_active_key_index = keys.index(key)
+        return
+    cooldown = 60.0 if status == 429 else 30.0
+    _groq_cooldown_until[key] = time.monotonic() + cooldown
+    if key in keys:
+        _groq_active_key_index = (keys.index(key) + 1) % len(keys)
+
+
+def _call_groq(
+    system_rules: str,
+    prompt: str,
+    *,
+    max_tokens: int,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> str:
+    """Call Groq's chat completions API, rotating keys on failure."""
+    if not _groq_configured():
+        raise GeminiUnavailable("No GROQ_API_KEY is set")
+
+    messages: List[Dict[str, str]] = [{"role": "system", "content": system_rules}]
+    for turn in history or []:
+        role = turn.get("role")
+        text = str(turn.get("text") or "").strip()
+        if not text:
+            continue
+        if role == "model":
+            role = "assistant"
+        elif role != "user":
+            continue
+        if messages and messages[-1]["role"] == role:
+            messages[-1]["content"] += f"\n\n{text}"
+            continue
+        messages.append({"role": role, "content": text})
+    messages.append({"role": "user", "content": prompt})
+
+    last_error = "no Groq keys configured"
+
+    for key in _groq_key_candidates():
+        try:
+            response = requests.post(
+                GROQ_CHAT_URL,
+                json={
+                    "model": settings.GROQ_MODEL,
+                    "messages": messages,
+                    "temperature": settings.GEMINI_TEMPERATURE,
+                    "max_tokens": max_tokens,
+                },
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=settings.GROQ_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as exc:
+            _groq_report(key, status=None, ok=False)
+            last_error = f"Groq network error ({exc.__class__.__name__})"
+            continue
+
+        if response.status_code == 200:
+            _groq_report(key, status=200, ok=True)
+            body = response.json()
+            text = (
+                ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            ).strip()
+            if text:
+                return text
+            last_error = "Groq returned an empty response"
+            continue
+
+        if response.status_code in (401, 403, 429):
+            _groq_report(key, status=response.status_code, ok=False)
+            last_error = f"Groq HTTP {response.status_code}"
+            continue
+
+        last_error = f"Groq HTTP {response.status_code}"
+        _groq_report(key, status=response.status_code, ok=False)
+        continue
+
+    raise GeminiUnavailable(f"Groq fallback failed ({last_error})")
+
+
 def generate(
     prompt: str,
     system_rules: str,
@@ -689,7 +803,8 @@ def generate(
     max_tokens: Optional[int] = None,
     history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """Send one prompt to Gemini and return the text response.
+    """Send one prompt to Gemini and return the text response, falling back to
+    Groq when Gemini is unavailable.
 
     `history` is prior conversation turns, oldest first, as
     `{"role": "user" | "model", "text": ...}`. It is passed in by the caller
@@ -698,24 +813,46 @@ def generate(
     like "yes I have that" is answered as part of the same conversation
     instead of a question with no context behind it.
     """
-    contents = _history_contents(history)
-    if contents and contents[-1]["role"] == "user":
-        # The history ended on an unanswered question (the previous reply
-        # failed). Fold it into this prompt rather than sending two user turns.
-        contents[-1]["parts"][0]["text"] += f"\n\n{prompt}"
+    tokens = max_tokens or settings.GEMINI_MAX_TOKENS
+
+    gemini_error: Optional[GeminiUnavailable] = None
+
+    if is_configured():
+        contents = _history_contents(history)
+        if contents and contents[-1]["role"] == "user":
+            contents[-1]["parts"][0]["text"] += f"\n\n{prompt}"
+        else:
+            contents.append({"role": "user", "parts": [{"text": prompt}]})
+
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_rules}]},
+            "contents": contents,
+            "generationConfig": {
+                "temperature": settings.GEMINI_TEMPERATURE,
+                "maxOutputTokens": tokens,
+            },
+        }
+
+        try:
+            return _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
+        except GeminiUnavailable as exc:
+            gemini_error = exc
+            logger.warning(f"Gemini unavailable ({exc}); trying Groq fallback")
     else:
-        contents.append({"role": "user", "parts": [{"text": prompt}]})
+        gemini_error = GeminiUnavailable("No GEMINI_API_KEY is set")
 
-    payload = {
-        "systemInstruction": {"parts": [{"text": system_rules}]},
-        "contents": contents,
-        "generationConfig": {
-            "temperature": settings.GEMINI_TEMPERATURE,
-            "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
-        },
-    }
+    if _groq_configured():
+        try:
+            return _call_groq(
+                system_rules, prompt, max_tokens=tokens, history=history,
+            )
+        except GeminiUnavailable as exc:
+            logger.warning(f"Groq fallback also failed: {exc}")
+            raise GeminiUnavailable(
+                f"All LLM providers unavailable (Gemini: {gemini_error}; Groq: {exc})"
+            )
 
-    return _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
+    raise gemini_error or GeminiUnavailable("No LLM provider is configured")
 
 
 def generate_json(

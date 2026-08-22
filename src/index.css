@@ -1,173 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+DW+Pica:ital@0;1&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Prakriva Design System — Cream, Rose and Olive.
-A five-colour palette on a warm cream canvas: deep rose carries the brand,
-brick rose the calls to action, dusty rose the soft accents, and a dark olive
-serves as the ink and the contrast blocks. Type is set in IM Fell DW Pica for
-headings, Inter (or Suisse Intl where licensed) for reading, and IBM Plex Mono
-for labels, figures and quotations. The anchors are listed against `:root`
-below; add a tint of one of their hues rather than a sixth colour.
+/* Prakriva Design System — Sand + Berry + Olive.
+
+Five brand colours, and nothing outside them:
+
+  #A6465F  berry     344 41% 46%   primary, CTAs, the brand mark
+  #9B5152  brick     359 31% 46%   accent, secondary emphasis
+  #B17A77  dusty     3 27% 58%     soft tints, decorative fills, borders
+  #E3D3C4  sand      29 36% 83%    every surface — page, card, chip
+  #414029  olive     58 23% 21%    every piece of text, and the dark sections
+
+Three of the five sit within 20° of each other on the wheel, so hue alone can
+never carry meaning here. Separation is done with lightness and fill: a state
+is solid or it is tinted, never one tint against another. That rule is what
+keeps a 5-colour palette legible across a whole product.
 */
 
 @layer base {
-  /* Prakriva Design System — five anchors, no sixth.
-  Every value below is one of the brand's five colours or a tint of one of
-  their hues, so nothing drifts in through a "just this once" utility:
-
-    #A6465F  rose      hsl(344 41% 46%)   brand, marks, fills
-    #9B5152  brick     hsl(359 31% 46%)   the CTA and second emphasis
-    #B17A77  dusty     hsl(3 27% 58%)     soft accents, chips, one dosha
-    #E3D3C4  cream     hsl(29 36% 83%)    surfaces, borders, the canvas
-    #414029  olive     hsl(58 23% 21%)    ink, dark sections, "on track"
-
-  `--background` sits three points lighter than the cream swatch (86% against
-  its 83%). At the raw value, rose on cream falls to 3.99:1 — under the 4.5:1
-  floor for body text — and the lift buys back the margin without reading as a
-  different colour. Rose still belongs on marks, headings and fills rather than
-  paragraphs; the ink is olive. */
   :root {
-    /* Base — the cream canvas */
-    --background: 29 36% 86%;
-    --background-elevated: 29 40% 95%;
-    --foreground: 58 23% 21%;
-    --foreground-secondary: 58 12% 33%;
-    --foreground-tertiary: 29 10% 46%;
+    /* Base — sand. The page sits a little lighter than #E3D3C4 so cards have
+       somewhere to go above it; the swatch itself is the chip/secondary tone. */
+    --background: 29 36% 92%;
+    --background-elevated: 29 40% 97%;
+    --foreground: 58 23% 15%;
+    --foreground-secondary: 55 13% 30%;
+    --foreground-tertiary: 48 10% 45%;
 
-    /* Card — lifted well clear of the canvas, as the reference does */
-    --card: 29 42% 96%;
-    --card-foreground: 58 23% 21%;
+    /* Card — the lightest sand */
+    --card: 29 40% 97%;
+    --card-foreground: 58 23% 15%;
 
     /* Popover */
-    --popover: 29 42% 96%;
-    --popover-foreground: 58 23% 21%;
+    --popover: 29 40% 97%;
+    --popover-foreground: 58 23% 15%;
 
-    /* Primary — deep rose */
+    /* Primary — berry #A6465F */
     --primary: 344 41% 46%;
     --primary-foreground: 29 40% 97%;
 
-    /* Secondary — the cream swatch itself */
-    --secondary: 29 36% 83%;
-    --secondary-foreground: 58 23% 21%;
+    /* Secondary — the sand swatch itself */
+    --secondary: 29 36% 87%;
+    --secondary-foreground: 58 23% 18%;
 
     /* Muted */
     --muted: 29 30% 89%;
-    --muted-foreground: 29 10% 42%;
+    --muted-foreground: 48 10% 40%;
 
-    /* Accent — brick rose, the CTA tone */
+    /* Accent — brick #9B5152 */
     --accent: 359 31% 46%;
-    --accent-foreground: 0 0% 100%;
-    --accent-soft: 3 32% 89%;
-    --accent-soft-foreground: 344 44% 34%;
+    --accent-foreground: 29 40% 97%;
+    --accent-soft: 3 34% 90%;
+    --accent-soft-foreground: 344 41% 32%;
 
-    /* Destructive */
-    --destructive: 0 55% 44%;
+    /* Destructive — clinical red, deliberately outside the brand hues so a
+       high-risk badge cannot be mistaken for a berry-toned decorative one. */
+    --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders — cream, a shade down */
-    --border: 29 26% 78%;
-    --border-strong: 29 18% 66%;
-    --input: 29 26% 78%;
+    /* Borders — sand, one and two steps down */
+    --border: 29 22% 82%;
+    --border-strong: 29 16% 70%;
+    --input: 29 22% 82%;
     --ring: 344 41% 46%;
 
     --radius: 0.75rem;
     color-scheme: light;
 
-    /* Gold slot — kept for the class names that already reference it, now the
-       dusty rose rather than an amber that no longer exists in the palette. */
-    --gold: 3 27% 58%;
-    --gold-soft: 3 32% 91%;
-    --gold-foreground: 0 0% 100%;
+    /* "Gold" — kept as a token name because the app reaches for it in a dozen
+       places; it now paints the dusty rose, deepened enough that `text-gold`
+       icons stay legible on `bg-gold-soft`. */
+    --gold: 3 27% 48%;
+    --gold-soft: 3 34% 90%;
+    --gold-foreground: 29 40% 97%;
 
-    /* Dosha — three of the five anchors, so the domain colours are on-brand
-       and still tell each other apart by hue and lightness both. */
-    --vata: 3 27% 58%;
-    --pitta: 344 41% 46%;
-    --kapha: 58 23% 32%;
-    --success: 58 25% 36%;
-    --warning: 3 40% 50%;
-    --info: 29 22% 44%;
+    /* Dosha — domain-critical. Pulled into the palette but held apart by
+       lightness as well as hue, so the three never blur together. */
+    --vata: 3 30% 58%;
+    --pitta: 344 45% 46%;
+    --kapha: 58 25% 32%;
+    --success: 88 26% 32%;
+    --warning: 38 55% 45%;
+    --info: 3 27% 48%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(344, 44%, 38%), hsl(359, 31%, 46%));
+    --gradient-primary: linear-gradient(135deg, hsl(344, 41%, 38%), hsl(359, 31%, 50%));
     --gradient-gold: linear-gradient(135deg, hsl(359, 31%, 46%), hsl(3, 27%, 58%));
-    --gradient-hero: linear-gradient(135deg, hsl(58, 23%, 13%), hsl(58, 18%, 18%), hsl(29, 14%, 24%));
-    --gradient-secondary: linear-gradient(135deg, hsl(29, 36%, 83%), hsl(29, 42%, 96%));
+    --gradient-hero: linear-gradient(135deg, hsl(58, 23%, 12%), hsl(55, 16%, 17%), hsl(48, 12%, 23%));
+    --gradient-secondary: linear-gradient(135deg, hsl(29, 30%, 89%), hsl(29, 40%, 97%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
     /* Sidebar */
-    --sidebar-background: 29 40% 93%;
-    --sidebar-foreground: 58 23% 21%;
+    --sidebar-background: 29 40% 97%;
+    --sidebar-foreground: 58 23% 15%;
     --sidebar-primary: 344 41% 46%;
     --sidebar-primary-foreground: 29 40% 97%;
-    --sidebar-accent: 3 32% 89%;
-    --sidebar-accent-foreground: 344 44% 34%;
-    --sidebar-border: 29 26% 78%;
+    --sidebar-accent: 3 34% 90%;
+    --sidebar-accent-foreground: 344 41% 32%;
+    --sidebar-border: 29 22% 82%;
     --sidebar-ring: 344 41% 46%;
   }
 
   .dark {
-    /* The same five anchors, inverted: olive becomes the ground and cream the
-       ink. Rose lifts to 62% lightness so it still clears the dark canvas. */
     --background: 58 14% 8%;
-    --background-elevated: 58 12% 12%;
-    --foreground: 29 30% 93%;
-    --foreground-secondary: 29 12% 66%;
-    --foreground-tertiary: 29 8% 48%;
+    --background-elevated: 55 12% 12%;
+    --foreground: 29 30% 90%;
+    --foreground-secondary: 33 10% 62%;
+    --foreground-tertiary: 40 8% 46%;
 
-    --card: 58 12% 12%;
-    --card-foreground: 29 30% 93%;
+    --card: 55 12% 12%;
+    --card-foreground: 29 30% 90%;
 
-    --popover: 58 12% 12%;
-    --popover-foreground: 29 30% 93%;
+    --popover: 55 12% 12%;
+    --popover-foreground: 29 30% 90%;
 
-    --primary: 344 46% 62%;
+    --primary: 344 42% 60%;
     --primary-foreground: 58 14% 8%;
 
-    --secondary: 58 10% 17%;
-    --secondary-foreground: 29 26% 90%;
+    --secondary: 55 10% 17%;
+    --secondary-foreground: 29 26% 88%;
 
-    --muted: 58 8% 16%;
-    --muted-foreground: 29 10% 62%;
+    --muted: 55 8% 16%;
+    --muted-foreground: 33 10% 62%;
 
-    --accent: 3 34% 62%;
+    --accent: 3 32% 60%;
     --accent-foreground: 58 14% 8%;
-    --accent-soft: 344 20% 18%;
-    --accent-soft-foreground: 3 40% 76%;
+    --accent-soft: 359 18% 18%;
+    --accent-soft-foreground: 3 34% 76%;
 
     --destructive: 0 58% 58%;
     --destructive-foreground: 0 0% 96%;
 
-    --border: 58 8% 19%;
-    --border-strong: 58 7% 27%;
-    --input: 58 8% 19%;
-    --ring: 344 46% 62%;
+    --border: 55 8% 18%;
+    --border-strong: 50 7% 26%;
+    --input: 55 8% 18%;
+    --ring: 344 42% 60%;
 
-    --gold: 3 34% 64%;
-    --gold-soft: 3 20% 17%;
+    --gold: 3 32% 62%;
+    --gold-soft: 359 18% 18%;
     --gold-foreground: 58 14% 8%;
 
-    --vata: 3 36% 68%;
-    --pitta: 344 46% 64%;
-    --kapha: 58 24% 52%;
-    --success: 58 26% 52%;
-    --warning: 3 44% 62%;
-    --info: 29 24% 62%;
+    --vata: 3 34% 68%;
+    --pitta: 344 46% 62%;
+    --kapha: 58 22% 52%;
+    --success: 88 24% 48%;
+    --warning: 38 52% 58%;
+    --info: 3 30% 62%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(344, 40%, 34%), hsl(359, 32%, 44%));
-    --gradient-gold: linear-gradient(135deg, hsl(359, 32%, 44%), hsl(3, 30%, 56%));
-    --gradient-hero: linear-gradient(135deg, hsl(58, 16%, 6%), hsl(58, 12%, 10%), hsl(29, 10%, 15%));
-    --gradient-secondary: linear-gradient(135deg, hsl(58, 8%, 16%), hsl(58, 12%, 12%));
+    --gradient-primary: linear-gradient(135deg, hsl(344, 38%, 34%), hsl(359, 30%, 44%));
+    --gradient-gold: linear-gradient(135deg, hsl(359, 30%, 42%), hsl(3, 26%, 52%));
+    --gradient-hero: linear-gradient(135deg, hsl(58, 14%, 6%), hsl(55, 12%, 10%), hsl(48, 10%, 15%));
+    --gradient-secondary: linear-gradient(135deg, hsl(55, 8%, 16%), hsl(55, 12%, 12%));
 
-    --sidebar-background: 58 13% 10%;
-    --sidebar-foreground: 29 30% 93%;
-    --sidebar-primary: 344 46% 62%;
+    --sidebar-background: 58 14% 10%;
+    --sidebar-foreground: 29 30% 90%;
+    --sidebar-primary: 344 42% 60%;
     --sidebar-primary-foreground: 58 14% 8%;
-    --sidebar-accent: 344 20% 18%;
-    --sidebar-accent-foreground: 3 40% 76%;
-    --sidebar-border: 58 8% 19%;
-    --sidebar-ring: 344 46% 62%;
+    --sidebar-accent: 359 18% 18%;
+    --sidebar-accent-foreground: 3 34% 76%;
+    --sidebar-border: 55 8% 18%;
+    --sidebar-ring: 344 42% 60%;
   }
 }
 
@@ -180,6 +175,16 @@ below; add a tint of one of their hues rather than a sixth colour.
     @apply bg-background text-foreground font-sans antialiased;
   }
 
+  /* IM Fell DW Pica ships one weight (400) and its italic. Asking a browser
+     for 600 or 700 gets a synthesised smear of the real face, so every display
+     heading is pinned to 400 here rather than left to whatever `font-bold` a
+     page happens to carry. The face is dark and high-contrast enough that it
+     still reads as a heading without any extra weight. */
+  .font-display {
+    font-weight: 400;
+    font-synthesis-weight: none;
+  }
+
   input[type="range"],
   input[type="checkbox"],
   input[type="radio"],
@@ -188,7 +193,7 @@ below; add a tint of one of their hues rather than a sixth colour.
   }
 
   ::selection {
-    background-color: hsl(var(--accent) / 0.15);
+    background-color: hsl(var(--primary) / 0.16);
     color: hsl(var(--foreground));
   }
 
@@ -243,14 +248,14 @@ below; add a tint of one of their hues rather than a sixth colour.
   .bg-gold { background-color: hsl(var(--gold)); }
   .bg-gold-soft { background-color: hsl(var(--gold-soft)); }
 
-  /* --- Hover lift (sythra-style) --- */
+  /* --- Hover lift --- */
   .card-hover {
     @apply transition-all duration-300 ease-ios;
   }
   .card-hover:hover {
     transform: translateY(-4px);
-    box-shadow: 0 28px 80px -20px hsl(58 20% 12% / 0.14),
-                0 8px 24px -8px hsl(58 20% 12% / 0.09);
+    box-shadow: 0 28px 80px -20px hsl(58 23% 15% / 0.14),
+                0 8px 24px -8px hsl(58 23% 15% / 0.09);
   }
   .card-hover:active {
     transform: translateY(-1px);
@@ -261,28 +266,28 @@ below; add a tint of one of their hues rather than a sixth colour.
     @apply transition-all duration-300 ease-in-out;
   }
 
-  /* --- Frosted glass (warm cream edition) --- */
+  /* --- Frosted glass (sand edition) --- */
   .glass {
     background-color: hsl(var(--background-elevated) / 0.82);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid hsl(29 26% 78% / 0.45);
+    border: 1px solid hsl(29 22% 78% / 0.4);
   }
   .dark .glass {
-    background-color: hsl(58 12% 12% / 0.68);
+    background-color: hsl(55 12% 12% / 0.65);
     border-color: hsl(0 0% 100% / 0.08);
   }
 
-  /* --- Gradient text (green to gold) --- */
+  /* --- Gradient text (berry to dusty rose) --- */
   .text-gradient {
-    background: linear-gradient(135deg, hsl(344, 44%, 38%), hsl(344, 41%, 46%), hsl(3, 27%, 58%));
+    background: linear-gradient(135deg, hsl(344, 41%, 40%), hsl(359, 31%, 46%), hsl(3, 27%, 58%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-gold {
-    background: linear-gradient(135deg, hsl(359, 31%, 42%), hsl(359, 31%, 50%), hsl(3, 27%, 60%));
+    background: linear-gradient(135deg, hsl(359, 31%, 44%), hsl(3, 27%, 54%), hsl(29, 30%, 66%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -294,26 +299,34 @@ below; add a tint of one of their hues rather than a sixth colour.
                 0 0 64px -8px hsl(344, 41%, 46% / 0.12);
   }
   .glow-gold {
-    box-shadow: 0 14px 32px hsl(359, 31%, 46% / 0.28),
-                0 0 0 1px hsl(359, 31%, 46% / 0.08);
+    box-shadow: 0 14px 32px hsl(344, 41%, 46% / 0.3),
+                0 0 0 1px hsl(344, 41%, 46% / 0.08);
   }
 
-  /* --- Section label (numbered, uppercase, sythra-style) --- */
+  /* --- Section label (mono eyebrow) ---
+     IBM Plex Mono, per the type scale: monospace is the app's voice for the
+     small structural text that frames content rather than being content. */
   .section-label {
-    @apply font-mono text-[11px] font-medium uppercase tracking-[0.16em];
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em];
     color: hsl(var(--foreground-tertiary));
   }
 
-  /* --- Dark section (sythra-style contrast block) --- */
+  /* --- Pull quote --- */
+  .quote {
+    @apply font-mono text-[13px] leading-relaxed;
+    color: hsl(var(--foreground-secondary));
+  }
+
+  /* --- Dark section (olive contrast block) --- */
   .section-dark {
-    background: hsl(58, 23%, 14%);
-    color: hsl(29, 34%, 95%);
+    background: hsl(58, 23%, 13%);
+    color: hsl(29, 36%, 92%);
   }
   .section-dark .text-foreground-secondary {
-    color: hsl(29, 14%, 68%);
+    color: hsl(29, 16%, 68%);
   }
   .section-dark .text-foreground-tertiary {
-    color: hsl(29, 10%, 52%);
+    color: hsl(29, 12%, 52%);
   }
 
   /* --- Slim scrollbar --- */
@@ -331,5 +344,48 @@ below; add a tint of one of their hues rather than a sixth colour.
   .scroll-area::-webkit-scrollbar-thumb {
     background: hsl(var(--border-strong));
     border-radius: 9999px;
+  }
+}
+
+@layer components {
+  /* --- Landing feature reel ---
+     The clip is derived from the card (`--reel-card`) rather than declared
+     beside it: written as two independent `min()` expressions the two drifted
+     apart by viewport — 29px of slack at 720px tall but only 8px at 900px,
+     which shaved the corners off a card meant to sit fully inside the window.
+     Both live here because only the card height changes at the breakpoint and
+     an inline style cannot hold a media query.
+
+     `REEL_GAP` in FeatureCardStack.tsx keeps the next card clear of the
+     window; the mask below cleans up whatever shadow still reaches in. */
+  .reel-stage {
+    --reel-card: min(15rem, 30svh);
+    --reel-slack: 28px;
+    height: calc(var(--reel-card) + var(--reel-slack) * 2);
+
+    /* The top and bottom of the window fade rather than cut. A card's drop
+       shadow reaches about 48px past its edge, so the card waiting its turn
+       laid a flat band of shadow inside the clip and the hard edge of that
+       band read as a seam. Sized to the slack, so a card at rest still has
+       every corner at full opacity and only the overspill dissolves. */
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--reel-slack),
+      #000 calc(100% - var(--reel-slack)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--reel-slack),
+      #000 calc(100% - var(--reel-slack)),
+      transparent 100%
+    );
+  }
+  @media (min-width: 768px) {
+    .reel-stage {
+      --reel-card: min(22rem, 42svh);
+    }
   }
 }

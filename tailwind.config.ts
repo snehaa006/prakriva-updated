@@ -14,10 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        // Suisse Intl is licensed, not served — it is listed first so a
-        // machine that has it uses it, and Inter carries everyone else.
+        // Body and UI copy.
         sans: [
-          '"Suisse Intl"',
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
@@ -28,21 +26,21 @@ export default {
           "Arial",
           "sans-serif",
         ],
-        // IM Fell DW Pica is a 17th-century face: textured, small on the body,
-        // and unreadable below about 20px. Headings and pull quotes only.
+        // Headings. IM Fell DW Pica has one weight — src/index.css pins
+        // `.font-display` to 400 so nothing asks the browser to fake a bold.
         display: [
           '"IM Fell DW Pica"',
           "Georgia",
           '"Times New Roman"',
           "serif",
         ],
-        // Labels, figures, eyebrows and quotations.
+        // Eyebrows, captions, pull quotes, figures — the small structural text.
         mono: [
           '"IBM Plex Mono"',
-          '"DM Mono"',
           "ui-monospace",
           "SFMono-Regular",
           "Menlo",
+          "Consolas",
           "monospace",
         ],
       },
@@ -57,10 +55,12 @@ export default {
         title2: ["24px", { lineHeight: "30px", fontWeight: "700" }],
         title1: ["28px", { lineHeight: "34px", fontWeight: "700" }],
         "large-title": ["34px", { lineHeight: "41px", fontWeight: "700" }],
-        // Fluid display sizes (sythra-style)
-        "display-sm": ["clamp(1.75rem,3vw,2.25rem)", { lineHeight: "1.2", fontWeight: "700" }],
-        "display-md": ["clamp(2.2rem,4.5vw,3.2rem)", { lineHeight: "1.15", fontWeight: "700" }],
-        "display-lg": ["clamp(2.55rem,6.2vw,4.6rem)", { lineHeight: "1.08", fontWeight: "700" }],
+        // Fluid display sizes. Weight 400 throughout: these are always set in
+        // IM Fell DW Pica, which only has a regular. They run a touch larger
+        // than the old Playfair scale because the face has a small x-height.
+        "display-sm": ["clamp(1.9rem,3.2vw,2.5rem)", { lineHeight: "1.18", fontWeight: "400" }],
+        "display-md": ["clamp(2.4rem,4.8vw,3.6rem)", { lineHeight: "1.12", fontWeight: "400" }],
+        "display-lg": ["clamp(2.8rem,6.6vw,5.2rem)", { lineHeight: "1.05", fontWeight: "400" }],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -126,85 +126,96 @@ export default {
         warning: "hsl(var(--warning))",
         info: "hsl(var(--info))",
 
-        // Remapped ramps — all existing class names keep working, but every
-        // step is a tint of one of the five anchors. `gray`/`slate` run on the
-        // olive ink, `rose` on the dusty rose, `plum` on the brand rose and
-        // `coral` on the brick, so a stray `bg-slate-100` cannot go off-brand.
+        // Remapped ramps — all existing class names keep working, they just
+        // paint in the brand palette now.
+        //
+        // Three of the five brand colours sit within 20° of each other, so
+        // these ramps are held apart by lightness and saturation as much as by
+        // hue: `coral` runs consistently lighter than `rose`, `plum`
+        // consistently darker. A tint alone is never the whole signal — see
+        // the "binary states are filled vs. tinted" rule in the README.
         gray: {
-          50: "hsl(29 40% 96%)",
-          100: "hsl(29 36% 93%)",
-          200: "hsl(29 28% 86%)",
-          300: "hsl(29 20% 76%)",
-          400: "hsl(29 12% 58%)",
-          500: "hsl(40 10% 45%)",
-          600: "hsl(50 12% 36%)",
-          700: "hsl(55 16% 28%)",
-          800: "hsl(58 20% 19%)",
-          900: "hsl(58 23% 14%)",
-          950: "hsl(58 22% 9%)",
+          50: "hsl(29 40% 97%)",
+          100: "hsl(29 32% 93%)",
+          200: "hsl(29 24% 87%)",
+          300: "hsl(29 18% 78%)",
+          400: "hsl(45 10% 58%)",
+          500: "hsl(48 10% 45%)",
+          600: "hsl(52 12% 35%)",
+          700: "hsl(55 16% 26%)",
+          800: "hsl(58 20% 18%)",
+          900: "hsl(58 23% 13%)",
+          950: "hsl(58 24% 8%)",
         },
         slate: {
-          50: "hsl(29 40% 96%)",
-          100: "hsl(29 36% 93%)",
-          200: "hsl(29 28% 86%)",
-          300: "hsl(29 20% 76%)",
-          400: "hsl(29 12% 58%)",
-          500: "hsl(40 10% 45%)",
-          600: "hsl(50 12% 36%)",
-          700: "hsl(55 16% 28%)",
-          800: "hsl(58 20% 19%)",
-          900: "hsl(58 23% 14%)",
-          950: "hsl(58 22% 9%)",
+          50: "hsl(29 40% 97%)",
+          100: "hsl(29 32% 93%)",
+          200: "hsl(29 24% 87%)",
+          300: "hsl(29 18% 78%)",
+          400: "hsl(45 10% 58%)",
+          500: "hsl(48 10% 45%)",
+          600: "hsl(52 12% 35%)",
+          700: "hsl(55 16% 26%)",
+          800: "hsl(58 20% 18%)",
+          900: "hsl(58 23% 13%)",
+          950: "hsl(58 24% 8%)",
         },
-        // The chatbot is built almost entirely on `pink-*`; remapping the ramp
-        // moves that whole surface onto the brand rose without touching it.
+        // Berry #A6465F again, under Tailwind's own name. The chat surfaces and
+        // a couple of recipe badges reach for `pink-*` directly; remapping the
+        // ramp brings all of them into the palette without touching 26 call
+        // sites, and stops the default candy pink leaking through.
         pink: {
           50: "hsl(344 40% 96%)",
-          100: "hsl(344 36% 92%)",
-          200: "hsl(344 33% 85%)",
-          300: "hsl(344 32% 72%)",
-          400: "hsl(344 38% 55%)",
-          500: "hsl(344 41% 46%)",
-          600: "hsl(344 44% 38%)",
-          700: "hsl(344 42% 31%)",
-          800: "hsl(344 38% 24%)",
-          900: "hsl(344 32% 18%)",
+          100: "hsl(344 38% 92%)",
+          200: "hsl(344 36% 85%)",
+          300: "hsl(344 36% 73%)",
+          400: "hsl(344 39% 60%)",
+          500: "hsl(344 41% 51%)",
+          600: "hsl(344 41% 46%)",
+          700: "hsl(344 42% 37%)",
+          800: "hsl(344 42% 29%)",
+          900: "hsl(344 40% 22%)",
         },
+        // Berry #A6465F — positive, on track, goal met.
         rose: {
-          50: "hsl(3 40% 96%)",
-          100: "hsl(3 36% 92%)",
-          200: "hsl(3 32% 86%)",
-          300: "hsl(3 29% 74%)",
-          400: "hsl(3 27% 58%)",
-          500: "hsl(3 32% 50%)",
-          600: "hsl(3 36% 42%)",
-          700: "hsl(3 34% 34%)",
-          800: "hsl(3 30% 26%)",
-          900: "hsl(3 26% 19%)",
-        },
-        plum: {
           50: "hsl(344 40% 96%)",
-          100: "hsl(344 36% 92%)",
-          200: "hsl(344 33% 85%)",
-          300: "hsl(344 32% 72%)",
-          400: "hsl(344 36% 58%)",
-          500: "hsl(344 41% 46%)",
-          600: "hsl(344 44% 38%)",
-          700: "hsl(344 42% 31%)",
-          800: "hsl(344 38% 24%)",
-          900: "hsl(344 32% 18%)",
+          100: "hsl(344 38% 92%)",
+          200: "hsl(344 36% 85%)",
+          300: "hsl(344 36% 73%)",
+          400: "hsl(344 39% 60%)",
+          500: "hsl(344 41% 51%)",
+          600: "hsl(344 41% 46%)",
+          700: "hsl(344 42% 37%)",
+          800: "hsl(344 42% 29%)",
+          900: "hsl(344 40% 22%)",
         },
-        coral: {
-          50: "hsl(359 38% 96%)",
-          100: "hsl(359 34% 92%)",
-          200: "hsl(359 31% 85%)",
-          300: "hsl(359 30% 72%)",
-          400: "hsl(359 30% 58%)",
+        // Brick #9B5152 — informational, emphasis, CTA glow. Deeper than
+        // `rose` at every step so the two never read as the same tint.
+        plum: {
+          50: "hsl(359 32% 95%)",
+          100: "hsl(359 30% 90%)",
+          200: "hsl(359 30% 82%)",
+          300: "hsl(359 30% 69%)",
+          400: "hsl(359 31% 56%)",
           500: "hsl(359 31% 46%)",
-          600: "hsl(359 34% 38%)",
-          700: "hsl(359 32% 30%)",
-          800: "hsl(359 29% 23%)",
-          900: "hsl(359 26% 17%)",
+          600: "hsl(359 32% 39%)",
+          700: "hsl(359 33% 31%)",
+          800: "hsl(359 33% 24%)",
+          900: "hsl(359 32% 18%)",
+        },
+        // Dusty rose #B17A77 — attention, partial, needs a nudge. Lighter and
+        // less saturated than `rose` at every step.
+        coral: {
+          50: "hsl(6 30% 96%)",
+          100: "hsl(6 28% 92%)",
+          200: "hsl(5 27% 86%)",
+          300: "hsl(4 27% 76%)",
+          400: "hsl(3 27% 64%)",
+          500: "hsl(3 27% 58%)",
+          600: "hsl(3 28% 48%)",
+          700: "hsl(3 29% 39%)",
+          800: "hsl(3 29% 30%)",
+          900: "hsl(3 28% 23%)",
         },
       },
       // Sythra-style large rounded corners
@@ -220,17 +231,19 @@ export default {
         full: "9999px",
       },
       // Shadows — warm-tinted, sythra-inspired depth
+      // Shadows are cast in the olive (hsl 58 23% 15%) rather than in black, so
+      // elevation over sand reads as warm depth instead of a grey haze.
       boxShadow: {
-        xs: "0 1px 2px 0 hsl(58 20% 12% / 0.04)",
-        sm: "0 2px 4px -1px hsl(58 20% 12% / 0.06), 0 1px 2px -1px hsl(58 20% 12% / 0.03)",
-        DEFAULT: "0 2px 8px -2px hsl(58 20% 12% / 0.06), 0 1px 3px -1px hsl(58 20% 12% / 0.03)",
-        md: "0 8px 24px -6px hsl(58 20% 12% / 0.10), 0 2px 6px -2px hsl(58 20% 12% / 0.04)",
-        lg: "0 16px 48px -12px hsl(58 20% 12% / 0.14), 0 4px 12px -4px hsl(58 20% 12% / 0.05)",
-        xl: "0 28px 80px -20px hsl(58 20% 12% / 0.18), 0 8px 24px -8px hsl(58 20% 12% / 0.06)",
-        glass: "0 8px 32px hsl(58 20% 12% / 0.10)",
+        xs: "0 1px 2px 0 hsl(58 23% 15% / 0.05)",
+        sm: "0 2px 4px -1px hsl(58 23% 15% / 0.07), 0 1px 2px -1px hsl(58 23% 15% / 0.04)",
+        DEFAULT: "0 2px 8px -2px hsl(58 23% 15% / 0.07), 0 1px 3px -1px hsl(58 23% 15% / 0.04)",
+        md: "0 8px 24px -6px hsl(58 23% 15% / 0.11), 0 2px 6px -2px hsl(58 23% 15% / 0.05)",
+        lg: "0 16px 48px -12px hsl(58 23% 15% / 0.15), 0 4px 12px -4px hsl(58 23% 15% / 0.06)",
+        xl: "0 28px 80px -20px hsl(58 23% 15% / 0.20), 0 8px 24px -8px hsl(58 23% 15% / 0.07)",
+        glass: "0 8px 32px hsl(58 23% 15% / 0.11)",
         glow: "0 0 24px -4px hsl(344 41% 46% / 0.25), 0 8px 20px -6px hsl(344 41% 46% / 0.12)",
-        "glow-gold": "0 14px 32px hsl(359 31% 46% / 0.28), 0 0 0 1px hsl(359 31% 46% / 0.08)",
-        lift: "0 28px 80px -20px hsl(58 20% 12% / 0.12), 0 8px 24px -8px hsl(58 20% 12% / 0.08)",
+        "glow-gold": "0 14px 32px hsl(344 41% 46% / 0.30), 0 0 0 1px hsl(344 41% 46% / 0.08)",
+        lift: "0 28px 80px -20px hsl(58 23% 15% / 0.14), 0 8px 24px -8px hsl(58 23% 15% / 0.09)",
       },
       transitionTimingFunction: {
         ios: "cubic-bezier(0.25, 0.1, 0.25, 1)",
