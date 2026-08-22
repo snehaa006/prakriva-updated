@@ -32,21 +32,20 @@
         .food-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(61, 122, 95, 0.2);
-            border-radius: 1rem;
-            padding: 1.5rem;
+            border: 1px solid hsl(24, 12%, 86%);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
             height: fit-content;
-            max-height: calc(100vh - 8rem);
+            max-height: calc(100vh - 4rem);
             overflow-y: auto;
         }
 
         .panel-title {
-            font-size: 1.25rem;
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 1.1rem;
+            font-weight: 600;
             margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #2d6a56;
+            color: #1c1917;
         }
 
         .search-box {
@@ -56,22 +55,24 @@
 
         .search-box input {
             width: 100%;
-            padding: 0.75rem;
-            background: #faf8f5;
-            border: 1px solid rgba(61, 122, 95, 0.3);
+            padding: 0.7rem 0.85rem;
+            background: hsl(33, 20%, 96%);
+            border: 1px solid hsl(24, 12%, 86%);
             border-radius: 0.5rem;
             color: #1c1917;
-            font-size: 0.875rem;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         .search-box input::placeholder {
-            color: rgba(61, 122, 95, 0.5);
+            color: #a8a29e;
         }
 
         .search-box input:focus {
             outline: none;
-            border-color: #3d7a5f;
-            box-shadow: 0 0 10px rgba(61, 122, 95, 0.2);
+            border-color: hsl(24, 12%, 74%);
+            box-shadow: 0 0 0 3px hsla(20, 90%, 52%, 0.1);
         }
 
         .loading-spinner {
@@ -79,10 +80,10 @@
             right: 0.75rem;
             top: 50%;
             transform: translateY(-50%);
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(61, 122, 95, 0.3);
-            border-top-color: #3d7a5f;
+            width: 18px;
+            height: 18px;
+            border: 2px solid hsl(24, 12%, 86%);
+            border-top-color: #e85d26;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -99,7 +100,7 @@
 
         .result-item {
             background: #faf8f5;
-            border: 1px solid rgba(61, 122, 95, 0.15);
+            border: 1px solid hsl(24, 12%, 88%);
             border-radius: 0.5rem;
             padding: 0.75rem;
             margin-bottom: 0.5rem;
@@ -108,9 +109,9 @@
         }
 
         .result-item:hover {
-            background: rgba(61, 122, 95, 0.08);
-            border-color: #3d7a5f;
-            transform: translateX(5px);
+            background: hsl(33, 20%, 94%);
+            border-color: hsl(24, 12%, 74%);
+            transform: translateX(3px);
         }
 
         .result-title {
@@ -121,7 +122,7 @@
 
         .result-meta {
             font-size: 0.75rem;
-            color: #3d7a5f;
+            color: #78716c;
         }
 
         .selected-foods {
@@ -129,18 +130,24 @@
         }
 
         .selected-foods h3 {
-            font-size: 0.875rem;
-            color: #2d6a56;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #44403c;
             margin-bottom: 0.75rem;
         }
 
         .food-card {
-            background: linear-gradient(135deg, rgba(61, 122, 95, 0.08), rgba(232, 93, 38, 0.06));
-            border: 1px solid rgba(61, 122, 95, 0.2);
+            background: hsl(33, 20%, 96%);
+            border: 1px solid hsl(24, 12%, 86%);
             border-radius: 0.75rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
+            padding: 0.85rem;
+            margin-bottom: 0.6rem;
             position: relative;
+            transition: border-color 0.2s;
+        }
+
+        .food-card:hover {
+            border-color: hsl(24, 12%, 74%);
         }
 
         .food-card-title {
@@ -150,8 +157,8 @@
         }
 
         .food-card-meta {
-            font-size: 0.75rem;
-            color: #3d7a5f;
+            font-size: 0.72rem;
+            color: #78716c;
             display: flex;
             gap: 1rem;
         }
@@ -159,16 +166,16 @@
         .food-card-ingredients {
             margin-top: 0.5rem;
             padding-top: 0.5rem;
-            border-top: 1px solid rgba(61, 122, 95, 0.15);
+            border-top: 1px solid hsl(24, 12%, 90%);
             display: flex;
             flex-wrap: wrap;
             gap: 0.25rem;
         }
 
         .ingredient-tag {
-            background: rgba(61, 122, 95, 0.1);
-            color: #2d6a56;
-            padding: 0.25rem 0.5rem;
+            background: hsl(33, 20%, 94%);
+            color: #57534e;
+            padding: 0.2rem 0.45rem;
             border-radius: 0.25rem;
             font-size: 0.625rem;
         }
@@ -201,8 +208,8 @@
         .viz-panel {
             position: relative;
             background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(61, 122, 95, 0.15);
-            border-radius: 1rem;
+            border: 1px solid hsl(24, 12%, 86%);
+            border-radius: 0.75rem;
             overflow: hidden;
             min-height: 850px;
             box-shadow: 0 2px 12px rgba(28, 25, 23, 0.06);
@@ -219,20 +226,21 @@
             bottom: 1rem;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(61, 122, 95, 0.08);
-            border: 1px solid rgba(61, 122, 95, 0.15);
+            background: hsla(33, 20%, 96%, 0.85);
+            border: 1px solid hsl(24, 12%, 86%);
             border-radius: 2rem;
-            padding: 0.5rem 1.25rem;
-            font-size: 0.72rem;
+            padding: 0.45rem 1.1rem;
+            font-size: 0.7rem;
             color: #78716c;
             pointer-events: none;
             z-index: 10;
+            backdrop-filter: blur(6px);
         }
 
         .organ-label {
             position: fixed;
             background: rgba(250, 248, 245, 0.98);
-            border: 1px solid rgba(61, 122, 95, 0.25);
+            border: 1px solid hsl(24, 12%, 84%);
             border-radius: 0.75rem;
             padding: 1rem 1.25rem;
             max-width: 340px;
@@ -242,7 +250,7 @@
             z-index: 10000;
             display: none;
             color: #1c1917;
-            box-shadow: 0 12px 40px rgba(28, 25, 23, 0.15), 0 0 0 1px rgba(61, 122, 95, 0.1);
+            box-shadow: 0 12px 40px rgba(28, 25, 23, 0.15);
         }
 
         .organ-label.visible {
@@ -255,14 +263,14 @@
             font-weight: 700;
             margin-bottom: 0.75rem;
             text-transform: capitalize;
-            color: #2d6a56;
+            color: #1c1917;
             letter-spacing: 0.5px;
         }
 
         .label-effect {
             margin-bottom: 1rem;
             padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(61, 122, 95, 0.25);
+            border-bottom: 1px solid hsl(24, 12%, 88%);
         }
 
         .label-effect:last-child {
@@ -287,11 +295,11 @@
         }
 
         .effect-title.positive {
-            color: #4ade80;
+            color: #22863a;
         }
 
         .effect-title.negative {
-            color: #f87171;
+            color: #c04e1a;
         }
 
         .effect-desc {
@@ -306,17 +314,17 @@
             color: #78716c;
             font-style: italic;
             padding-left: 0.75rem;
-            border-left: 2px solid rgba(61, 122, 95, 0.3);
+            border-left: 2px solid hsl(24, 12%, 82%);
         }
 
         .analysis-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(61, 122, 95, 0.2);
-            border-radius: 1rem;
-            padding: 1.5rem;
+            border: 1px solid hsl(24, 12%, 86%);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
             height: fit-content;
-            max-height: calc(100vh - 8rem);
+            max-height: calc(100vh - 4rem);
             overflow-y: auto;
         }
 
@@ -327,23 +335,23 @@
 
         .score-value {
             font-family: 'Playfair Display', Georgia, serif;
-            font-size: 4rem;
+            font-size: 3.5rem;
             font-weight: 700;
             line-height: 1;
             margin-bottom: 0.5rem;
-            color: #2d6a56;
+            color: #1c1917;
         }
 
         .score-status {
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             margin-bottom: 1rem;
-            color: #3d7a5f;
+            color: #57534e;
         }
 
         .score-bar {
             width: 100%;
-            height: 8px;
-            background: rgba(61, 122, 95, 0.15);
+            height: 6px;
+            background: hsl(24, 12%, 90%);
             border-radius: 1rem;
             overflow: hidden;
             margin-bottom: 1rem;
@@ -352,13 +360,13 @@
         .score-fill {
             height: 100%;
             border-radius: 1rem;
-            transition: width 0.5s ease;
-            background: linear-gradient(to right, #3d7a5f, #e85d26);
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(to right, #c04e1a, #e85d26);
         }
 
         .score-message {
             font-size: 0.75rem;
-            color: #3d7a5f;
+            color: #78716c;
         }
 
         .analysis-section {
@@ -366,9 +374,11 @@
         }
 
         .section-title {
-            font-size: 1rem;
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 0.95rem;
+            font-weight: 600;
             margin-bottom: 1rem;
-            color: #2d6a56;
+            color: #1c1917;
         }
 
         .rule-card {
@@ -418,8 +428,8 @@
         }
 
         .rule-type.scientific {
-            background: rgba(61, 122, 95, 0.15);
-            color: #2d6a56;
+            background: hsl(33, 20%, 92%);
+            color: #57534e;
         }
 
         .rule-description {
@@ -429,21 +439,21 @@
 
         .rule-mechanism {
             font-size: 0.75rem;
-            color: #3d7a5f;
+            color: #78716c;
         }
 
         .data-breakdown {
             margin-top: 0.75rem;
             padding: 0.75rem;
-            background: rgba(61, 122, 95, 0.04);
+            background: hsl(33, 20%, 97%);
             border-radius: 0.5rem;
-            border: 1px solid rgba(61, 122, 95, 0.15);
+            border: 1px solid hsl(24, 12%, 88%);
         }
 
         .data-breakdown-title {
             font-size: 0.7rem;
             font-weight: 700;
-            color: #2d6a56;
+            color: #44403c;
             margin-bottom: 0.5rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -455,7 +465,7 @@
             align-items: center;
             font-size: 0.75rem;
             padding: 0.25rem 0;
-            border-bottom: 1px solid rgba(61, 122, 95, 0.1);
+            border-bottom: 1px solid hsl(24, 12%, 90%);
         }
 
         .data-item:last-child {
@@ -467,13 +477,13 @@
         }
 
         .data-value {
-            color: #2d6a56;
+            color: #1c1917;
             font-weight: 600;
             font-family: 'Courier New', monospace;
         }
 
         .data-value.highlight {
-            color: #10b981;
+            color: #22863a;
             font-weight: 700;
         }
 
@@ -484,7 +494,7 @@
 
         .data-source {
             font-size: 0.65rem;
-            color: rgba(61, 122, 95, 0.6);
+            color: #a8a29e;
             margin-top: 0.5rem;
             font-style: italic;
         }
@@ -492,7 +502,7 @@
         .ingredient-list {
             margin-top: 0.5rem;
             padding-top: 0.5rem;
-            border-top: 1px solid rgba(61, 122, 95, 0.15);
+            border-top: 1px solid hsl(24, 12%, 90%);
         }
 
         .ingredient-chip {
@@ -521,16 +531,16 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(61, 122, 95, 0.08);
+            background: hsl(33, 20%, 94%);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(61, 122, 95, 0.3);
+            background: hsl(24, 12%, 78%);
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(61, 122, 95, 0.5);
+            background: hsl(24, 12%, 66%);
         }
 
         .viz-controls {
@@ -544,13 +554,13 @@
         }
 
         .viz-btn {
-            width: 34px;
-            height: 34px;
+            width: 32px;
+            height: 32px;
             border-radius: 0.5rem;
-            border: 1px solid rgba(61, 122, 95, 0.2);
+            border: 1px solid hsl(24, 12%, 86%);
             background: #fff;
-            color: #2d6a56;
-            font-size: 1rem;
+            color: #44403c;
+            font-size: 0.9rem;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -560,8 +570,8 @@
         }
 
         .viz-btn:hover {
-            background: rgba(61, 122, 95, 0.08);
-            border-color: #3d7a5f;
+            background: hsl(33, 20%, 94%);
+            border-color: hsl(24, 12%, 74%);
             transform: scale(1.05);
         }
 
@@ -571,8 +581,8 @@
 
         .organ-label.locked {
             pointer-events: auto;
-            border-color: #3d7a5f;
-            box-shadow: 0 12px 40px rgba(28, 25, 23, 0.2), 0 0 0 2px rgba(61, 122, 95, 0.15);
+            border-color: hsl(24, 12%, 74%);
+            box-shadow: 0 12px 40px rgba(28, 25, 23, 0.2);
         }
 
         .organ-label .close-btn {
@@ -582,8 +592,8 @@
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            border: 1px solid rgba(61, 122, 95, 0.2);
-            background: rgba(61, 122, 95, 0.08);
+            border: 1px solid hsl(24, 12%, 86%);
+            background: hsl(33, 20%, 94%);
             color: #78716c;
             font-size: 0.75rem;
             cursor: pointer;
@@ -661,10 +671,7 @@
 <body>
     <div class="container">
         <div class="food-panel">
-            <div class="panel-title">
-                <span>🍽️</span>
-                <span>Add Foods</span>
-            </div>
+            <div class="panel-title">Add Foods</div>
 
             <div class="search-box">
                 <input 
@@ -680,8 +687,8 @@
 
             <div class="selected-foods">
                 <h3>Selected Foods (<span id="foodCount">0</span>/5)</h3>
-                <button id="demoButton" class="btn-primary">🎬 Load Demo Foods</button>
-                <button id="calculateButton" class="btn-accent">🧬 Calculate Compatibility</button>
+                <button id="demoButton" class="btn-primary">Load Demo Foods</button>
+                <button id="calculateButton" class="btn-accent">Calculate Compatibility</button>
                 <div id="selectedFoods"></div>
             </div>
         </div>
@@ -693,7 +700,7 @@
                 <button class="viz-btn" id="zoomOutBtn" title="Zoom Out">−</button>
                 <button class="viz-btn" id="resetViewBtn" title="Reset View">↺</button>
             </div>
-            <div class="controls-hint">🖱️ Drag to rotate · Scroll to zoom · Click organ for details</div>
+            <div class="controls-hint">Drag to rotate · Scroll to zoom · Click organ for details</div>
             <div id="organLabel" class="organ-label">
                 <button class="close-btn" id="organLabelClose" title="Close">✕</button>
             </div>
@@ -716,7 +723,7 @@
                 </div>
 
                 <div class="disclaimer">
-                    <strong>⚠️ Disclaimer:</strong> This analysis is based on Ayurvedic principles and nutritional interaction patterns. It is not medical advice. Consult a healthcare professional for personalized dietary guidance.
+                    <strong>Disclaimer:</strong> This analysis is based on Ayurvedic principles and nutritional interaction patterns. It is not medical advice. Consult a healthcare professional for personalized dietary guidance.
                 </div>
             </div>
         </div>
@@ -1529,10 +1536,10 @@
             const positiveCount = rules.filter(r => r.effect.type === 'positive').length;
             const negativeCount = rules.filter(r => r.effect.type === 'negative').length;
 
-            if (score >= 80) return { status: 'Highly Compatible', color: '#10b981', message: `${positiveCount} beneficial synergies` };
-            else if (score >= 60) return { status: 'Mostly Compatible', color: '#84cc16', message: `${positiveCount} synergies, ${negativeCount} cautions` };
-            else if (score >= 40) return { status: 'Use with Caution', color: '#f59e0b', message: `${negativeCount} conflicts detected` };
-            else return { status: 'Not Recommended', color: '#ef4444', message: 'Multiple incompatibilities' };
+            if (score >= 80) return { status: 'Highly Compatible', color: '#22863a', message: `${positiveCount} beneficial synergies` };
+            else if (score >= 60) return { status: 'Mostly Compatible', color: '#6d8a3a', message: `${positiveCount} synergies, ${negativeCount} cautions` };
+            else if (score >= 40) return { status: 'Use with Caution', color: '#c04e1a', message: `${negativeCount} conflicts detected` };
+            else return { status: 'Not Recommended', color: '#b91c1c', message: 'Multiple incompatibilities' };
         }
 
         function init3D() {
@@ -2226,14 +2233,11 @@
             
             effects.forEach(effect => {
                 const className = effect.type === 'positive' ? 'positive' : 'negative';
-                const icon = effect.type === 'positive' ? '✅' : '⚠️';
-                
                 html += `
                     <div class="label-effect">
                         <div class="effect-header">
-                            <span class="effect-icon">${icon}</span>
                             <span class="effect-title ${className}">
-                                ${effect.type === 'positive' ? 'BENEFICIAL' : 'CAUTION'}
+                                ${effect.type === 'positive' ? 'Beneficial' : 'Caution'}
                             </span>
                         </div>
                         <div class="effect-desc">${effect.description}</div>
@@ -2310,7 +2314,7 @@
                     );
                     
                     if (response.status === 429) {
-                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">⚠️ Rate limit reached. Please wait a moment...</div>';
+                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">Rate limit reached. Please wait a moment...</div>';
                         loadingSpinner.style.display = 'none';
                         return;
                     }
@@ -2325,7 +2329,7 @@
                 } catch (error) {
                     console.error('Search error:', error);
                     if (error.message.includes('429')) {
-                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">⚠️ Too many requests. Please wait...</div>';
+                        searchResults.innerHTML = '<div style="padding: 1rem; text-align: center; color: #fbbf24;">Too many requests. Please wait...</div>';
                     } else {
                         searchResults.innerHTML = `<div style="padding: 1rem; text-align: center; color: #f87171;">❌ Search failed (${error.message}). Try again.</div>`;
                     }
@@ -2361,7 +2365,7 @@
                 const response = await foodoscopeFetch(`/search-recipe/${recipeId}`);
                 
                 if (response.status === 429) {
-                    alert('⚠️ Rate limit reached. Please wait a moment before adding more foods.');
+                    alert('Rate limit reached. Please wait a moment before adding more foods.');
                     loadingSpinner.style.display = 'none';
                     return;
                 }
@@ -2382,7 +2386,7 @@
             } catch (error) {
                 console.error('Error:', error);
                 if (error.message.includes('429')) {
-                    alert('⚠️ Too many requests. Please wait a moment.');
+                    alert('Too many requests. Please wait a moment.');
                 } else {
                     alert('❌ Failed to add food. Please try again.');
                 }
@@ -2428,7 +2432,7 @@
                     <button class="remove-btn" onclick="removeFood(${index})">×</button>
                     <div class="food-card-title">${food.Recipe_title}</div>
                     <div class="food-card-meta">
-                        <span>🔥 ${food.Calories} cal</span>
+                        <span>${food.Calories} cal</span>
                         <span>⏱️ ${food.total_time} min</span>
                     </div>
                     <div class="food-card-ingredients">
@@ -2483,7 +2487,7 @@
                         let dataBreakdownHTML = '';
                         if (rule.detailedData) {
                             dataBreakdownHTML = '<div class="data-breakdown">';
-                            dataBreakdownHTML += '<div class="data-breakdown-title">📊 Data Analysis</div>';
+                            dataBreakdownHTML += '<div class="data-breakdown-title">Data Analysis</div>';
                             
                             // Show totals if available
                             if (rule.detailedData.totals && Object.keys(rule.detailedData.totals).length > 0) {
@@ -2532,7 +2536,7 @@
                                 });
                             }
                             
-                            dataBreakdownHTML += `<div class="data-source">📡 Source: ${rule.detailedData.apiSource}</div>`;
+                            dataBreakdownHTML += `<div class="data-source">Source: ${rule.detailedData.apiSource}</div>`;
                             dataBreakdownHTML += '</div>';
                         }
                         
@@ -2593,7 +2597,7 @@
                     let dataBreakdownHTML = '';
                     if (rule.detailedData) {
                         dataBreakdownHTML = '<div class="data-breakdown">';
-                        dataBreakdownHTML += '<div class="data-breakdown-title">📊 Data Analysis</div>';
+                        dataBreakdownHTML += '<div class="data-breakdown-title">Data Analysis</div>';
                         
                         // Show totals if available
                         if (rule.detailedData.totals && Object.keys(rule.detailedData.totals).length > 0) {
@@ -2642,7 +2646,7 @@
                             });
                         }
                         
-                        dataBreakdownHTML += `<div class="data-source">📡 Source: ${rule.detailedData.apiSource}</div>`;
+                        dataBreakdownHTML += `<div class="data-source">Source: ${rule.detailedData.apiSource}</div>`;
                         dataBreakdownHTML += '</div>';
                     }
                     
