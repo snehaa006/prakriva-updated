@@ -314,3 +314,16 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
     border-radius: 9999px;
   }
 }
+
+/* --- Landing feature deck ---
+   The hold timer on the front card, drawn as a line under its title in the
+   index. Declared here rather than in tailwind.config.ts because the deck
+   applies it as an inline `animation` with a duration derived in JS. */
+@keyframes deck-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

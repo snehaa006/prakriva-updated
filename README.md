@@ -54,6 +54,12 @@ listed under "Language and translation" below.
   with the name in text (pass `alt=""` where nearby copy names the brand). It
   appears on the landing hero, the auth card, both sidebars, and the mobile
   header of both layouts.
+- `src/components/landing/FeatureDeck.tsx` — the animated feature deck on the
+  landing page (`src/pages/Landing.tsx`, the `#features` section). Seven cards
+  describing real surfaces, stacked, with the front one gliding out as the next
+  rises to take its place. Edit the `CARDS` array to change what is shown; the
+  numbered index, the dots and the screen-reader announcement all read from it,
+  so nothing needs renumbering by hand. See "Motion and illustration".
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -1700,6 +1706,23 @@ hand-rolled per component:
   never renders `NaN`/`Infinity` — these are calories and adherence scores, and
   an animated number is an easy place to show a patient something untrue.
   Pair it with `tabular-nums` or the layout jitters as it settles.
+
+The landing page's **feature deck** (`src/components/landing/FeatureDeck.tsx`)
+is the one place that animates on a timer rather than on mount. A card holds
+the front of the stack for 5.2s, then glides out over 0.7s as the next one
+scales up behind it — transform and opacity only, so it stays on the
+compositor. The timer stops whenever the section scrolls out of view, the tab
+is hidden, or a pointer or keyboard focus is inside the section: an animation
+nobody is watching is just battery, and one that moves while someone is
+reading it is worse. Under `prefers-reduced-motion` the timer never starts at
+all, and every card stays reachable through the numbered index, the dots and
+the arrows — the deck is navigation with a timer on it, not a slideshow that
+hides content when the timer is off. Cards share one grid cell instead of
+being absolutely positioned, so the deck is as tall as its tallest card at
+every width rather than a guessed pixel height. The one keyframe it needs
+(`deck-progress`, the line that fills under the active title) lives in
+`src/index.css` rather than `tailwind.config.ts`, because it is applied inline
+with a duration derived in JS.
 
 **Illustrations** (`src/components/illustrations/LineArt.tsx`) are inline SVG
 line art on a shared 64×64 viewBox, one stroke weight, `currentColor`, no
