@@ -309,20 +309,6 @@
             border-left: 2px solid rgba(61, 122, 95, 0.3);
         }
 
-        .empty-state {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: #a8a29e;
-        }
-
-        .empty-state-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-
         .analysis-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
@@ -710,10 +696,6 @@
             <div class="controls-hint">🖱️ Drag to rotate · Scroll to zoom · Click organ for details</div>
             <div id="organLabel" class="organ-label">
                 <button class="close-btn" id="organLabelClose" title="Close">✕</button>
-            </div>
-            <div id="emptyState" class="empty-state">
-                <div class="empty-state-icon">🧬</div>
-                <div>Add foods to analyze their effects on your body</div>
             </div>
         </div>
 
@@ -1639,9 +1621,9 @@
 
             // --- Materials ------------------------------------------------
             const bodyMat = new THREE.MeshStandardMaterial({
-                color: 0x3d7a5f,
+                color: 0x9a8a78,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.14,
                 side: THREE.DoubleSide,
                 metalness: 0.05,
                 roughness: 0.6,
@@ -1649,16 +1631,16 @@
             });
 
             const wireMat = new THREE.MeshBasicMaterial({
-                color: 0x2d6a56,
+                color: 0x8a7a6a,
                 wireframe: true,
                 transparent: true,
-                opacity: 0.08
+                opacity: 0.06
             });
 
             const glowMat = new THREE.MeshStandardMaterial({
-                color: 0x3d7a5f,
+                color: 0xa09080,
                 transparent: true,
-                opacity: 0.06,
+                opacity: 0.05,
                 side: THREE.BackSide,
                 metalness: 0,
                 roughness: 1,
@@ -1795,19 +1777,19 @@
 
             // ===== SKELETON — the element that makes it read as an x-ray =====
             const boneMat = new THREE.MeshPhongMaterial({
-                color: 0x5a8a72,
+                color: 0xc8b8a0,
                 transparent: true,
-                opacity: 0.7,
-                emissive: 0x2d6a56,
-                emissiveIntensity: 0.2,
-                shininess: 40
+                opacity: 0.65,
+                emissive: 0x8a7a6a,
+                emissiveIntensity: 0.15,
+                shininess: 30
             });
             const skeleton = new THREE.Group();
 
             // Skull outline
             const skull = new THREE.Mesh(
                 new THREE.SphereGeometry(0.2, 20, 16),
-                new THREE.MeshBasicMaterial({ color: 0x5a8a72, wireframe: true, transparent: true, opacity: 0.3 })
+                new THREE.MeshBasicMaterial({ color: 0xb0a090, wireframe: true, transparent: true, opacity: 0.25 })
             );
             skull.scale.set(0.88, 1.08, 0.92);
             skull.position.y = 1.82;
@@ -2419,7 +2401,6 @@
         }
 
         function resetAnalysisDisplay() {
-            document.getElementById('emptyState').style.display = selectedFoods.length === 0 ? 'block' : 'none';
             document.getElementById('scoreValue').textContent = '--';
             document.getElementById('scoreStatus').textContent = selectedFoods.length > 0 ? 'Click Calculate to analyze' : 'Add foods to analyze';
             document.getElementById('scoreFill').style.width = '0%';
@@ -2461,12 +2442,9 @@
         }
 
         function performAnalysis() {
-            const emptyState = document.getElementById('emptyState');
-            
             if (selectedFoods.length === 0) {
                 currentAnalysis = null;
                 updateOrganColors(null);
-                emptyState.style.display = 'block';
                 document.getElementById('scoreValue').textContent = '--';
                 document.getElementById('scoreStatus').textContent = 'Add foods to analyze';
                 document.getElementById('scoreFill').style.width = '0%';
@@ -2481,7 +2459,6 @@
 
             // Simulate brief processing time for effect
             setTimeout(() => {
-                emptyState.style.display = 'none';
                 currentAnalysis = analyzeCompatibility(selectedFoods);
                 
                 document.getElementById('scoreValue').textContent = Math.round(currentAnalysis.score);
@@ -2529,7 +2506,7 @@
                                 dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #e85d26; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
                                 rule.detailedData.foods.forEach(food => {
                                     dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
-                                    dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #3d7a5f; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                    dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #44403c; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
                                     
                                     // Display relevant nutrient data
                                     Object.entries(food).forEach(([key, value]) => {
@@ -2565,7 +2542,7 @@
                                     <div class="rule-organ">${rule.effect.organ}</div>
                                     <div class="rule-type ${rule.type}">${rule.type}</div>
                                 </div>
-                                <div style="font-size: 0.7rem; color: #3d7a5f; margin-bottom: 0.5rem; font-weight: 600;">
+                                <div style="font-size: 0.7rem; color: #44403c; margin-bottom: 0.5rem; font-weight: 600;">
                                     ${rule.category || 'Food Interaction'}
                                 </div>
                                 <div class="rule-description">${rule.effect.description}</div>
@@ -2581,12 +2558,9 @@
         }
 
         function analyzeAndUpdate() {
-            const emptyState = document.getElementById('emptyState');
-            
             if (selectedFoods.length === 0) {
                 currentAnalysis = null;
                 updateOrganColors(null);
-                emptyState.style.display = 'block';
                 document.getElementById('scoreValue').textContent = '--';
                 document.getElementById('scoreStatus').textContent = 'Add foods to analyze';
                 document.getElementById('scoreFill').style.width = '0%';
@@ -2595,7 +2569,6 @@
                 return;
             }
 
-            emptyState.style.display = 'none';
             currentAnalysis = analyzeCompatibility(selectedFoods);
             
             document.getElementById('scoreValue').textContent = Math.round(currentAnalysis.score);
@@ -2643,7 +2616,7 @@
                             dataBreakdownHTML += '<div style="font-size: 0.7rem; color: #e85d26; margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 600;">Per Food:</div>';
                             rule.detailedData.foods.forEach(food => {
                                 dataBreakdownHTML += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.25rem;">`;
-                                dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #3d7a5f; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
+                                dataBreakdownHTML += `<div style="font-size: 0.7rem; color: #44403c; font-weight: 600; margin-bottom: 0.25rem;">${food.name}</div>`;
                                 
                                 // Display relevant nutrient data
                                 Object.entries(food).forEach(([key, value]) => {
@@ -2679,7 +2652,7 @@
                                 <div class="rule-organ">${rule.effect.organ}</div>
                                 <div class="rule-type ${rule.type}">${rule.type}</div>
                             </div>
-                            <div style="font-size: 0.7rem; color: #3d7a5f; margin-bottom: 0.5rem; font-weight: 600;">
+                            <div style="font-size: 0.7rem; color: #44403c; margin-bottom: 0.5rem; font-weight: 600;">
                                 ${rule.category || 'Food Interaction'}
                             </div>
                             <div class="rule-description">${rule.effect.description}</div>
