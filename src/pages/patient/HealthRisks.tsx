@@ -23,6 +23,7 @@ import {
   HeartPulse,
   History,
   Loader2,
+  Watch,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
@@ -39,6 +40,7 @@ import {
 import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
 import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
+import { AppleHealthPanel } from "@/components/health/AppleHealthPanel";
 import { ReportUploadCard } from "@/components/health/ReportUploadCard";
 import { isAnalysisEnabled } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -415,7 +417,18 @@ const HealthRisks: React.FC = () => {
             <History className="h-4 w-4 shrink-0" />
             Past checks
           </TabsTrigger>
+          <TabsTrigger value="watch" className="shrink-0 gap-1.5 whitespace-nowrap">
+            <Watch className="h-4 w-4 shrink-0" />
+            Apple Watch
+          </TabsTrigger>
         </TabsList>
+
+        {/* Passive device data, alongside — not instead of — the symptom entry
+            on the other tabs. The two answer different questions: what she is
+            feeling, and what her body has been doing. */}
+        <TabsContent value="watch">
+          <AppleHealthPanel patientId={patientId} />
+        </TabsContent>
 
         <TabsContent value="check" className="space-y-5">
           {canReadReports && <ReportUploadCard onApply={update} />}
