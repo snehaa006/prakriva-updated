@@ -40,212 +40,33 @@ listed under "Language and translation" below.
 
 ## System workflow
 
-How a request moves through the app, from either interface down to the trained
-models, Gemini, the FoodOScope recipe APIs and Supabase. Two journeys are
-traced through it: the **numbered** steps 1-12 are diet chart generation
-(doctor's Recipe Builder), and the **lettered** steps A-J are a maternal
-disease screening (patient's Health Check) and the doctor's read of it.
+Diet plan generation, end to end. This keeps the shape of the project's
+original architecture sketch and brings the content up to the current stack —
+**Gemini** rather than OpenAI, **Supabase** rather than Firestore, and the
+FoodOScope routes the app actually calls.
 
-Note which calls leave the browser directly and which go through Flask:
-FoodOScope, and the page translator, are called from the browser; Gemini is
-only ever reached by the backend, because its key must never be compiled into
-the bundle.
+![Prakriva system flow](docs/prakriva-system-flow.png)
 
-```mermaid
-%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 40, "rankSpacing": 60, "padding": 10}}}%%
-flowchart LR
+The numbered arrows are the request path:
 
-%% ============================ 1. USER INTERFACE ============================
-subgraph UI["User Interface — React + TypeScript + Vite, deployed on Vercel"]
-  direction TB
-  subgraph PATIENT["Patient area · PatientLayout"]
-    direction LR
-    P_QUEST["Questionnaire<br/>assessment, life stage, care tracks"]
-    P_TODAY["Today / Plan Hub<br/>diet plan, adherence, tips"]
-    P_HEALTH["Health Check + Past Checks"]
-    P_TRACK["Tracker Hub<br/>Lifestyle · Period · Skin"]
-    P_MORE["Kitchen · Shop · Community<br/>Food Compatibility"]
-  end
-  subgraph DOCTOR["Doctor area · DoctorLayout"]
-    direction LR
-    D_RECIPE["Recipe Builder<br/>drag-and-drop meal board"]
-    D_CHART["Diet Chart viewer"]
-    D_ANALYSIS["Patient Analysis<br/>vitals, labs & risk trends"]
-    D_MANAGE["Patients · Food Explorer<br/>Appointments · Team"]
-  end
-  AUTH["Auth · /auth/:role<br/>sign-up wizards, license check"]
-  CHAT["NutritionChatbot<br/>companion / clinical assistant"]
-  LANG["Language picker · I18nContext"]
-end
+1. The web app asks the Flask API for a diet plan.
+2. The dosha predictor scores her constitution from the questionnaire.
+3. The food filter narrows the candidate set.
+4. The ingredient index is looked up on FlavorDB.
+5. Gemini composes the plan.
+6. Recipe detail and cooking steps are fetched for the chosen dishes.
 
-%% ========================= 2. BROWSER LOGIC LAYER =========================
-subgraph CLIENT["Browser logic — src/services · src/lib · src/context"]
-  direction TB
-  SVC_DIET["dietChartService<br/>dosha table, life-stage targets,<br/>allergy exclusions, 5 meal slots"]
-  SVC_SCREEN["diseaseDetectionService<br/>+ screeningValidation bounds"]
-  SVC_CHAT["chatAssistantService<br/>assembles her own data as context"]
-  SVC_DATA["pantry · community · lifestyle · cycle ·<br/>weight · acne · avatar · settings"]
-  SVC_I18N["translationService<br/>batched, cached"]
-  RULES["Pure domain rules<br/>healthTrack · pcosInsights · lifeStage<br/>exerciseRecommendations · shop/*"]
-  ROTATE["FoodOScope key rotation<br/>re-reads keys every 5 min"]
-  CACHE["React Query 5 min / 30 min<br/>+ localCache drafts"]
-end
+The plan then returns to the browser and is saved to Supabase. The two
+constraints worth keeping in view: **the app fixes the dietary constraints and
+Gemini only composes within them**, and a meal naming an excluded ingredient is
+dropped rather than corrected.
 
-%% ============================ 3. FLASK BACKEND ============================
-subgraph BACKEND["Flask backend — backend/app.py, deployed on Render"]
-  direction TB
-  GATE["Flask API entry<br/>CORS · pydantic validation ·<br/>rate limiting · error handling"]
-  MOD_PLAN["Diet Chart Generator<br/>diet_planner.py"]
-  MOD_DOSHA["Dosha Predictor<br/>dosha_estimator.py<br/>dosha_model.pkl"]
-  MOD_CAL["Calorie & Recipe Planner<br/>calorie_calculator · planner<br/>filter_and_score"]
-  MOD_DIS["Screening Pipeline<br/>disease_detection/pipeline.py"]
-  MOD_GEM["Gemini Gateway<br/>gemini_service.py<br/>key + model rotation"]
-  N_ROUTES["ROUTES<br/>/diet-chart/generate · /generate<br/>/dosha/predict · /calories/calculate<br/>/plan/:id · /edit · /feedback<br/>/disease/screen · /disease/conditions<br/>/assistant/chat · /assistant/doctor-chat<br/>/analysis/status · /screening<br/>/analysis/extract-report · /acne-photo<br/>/translate · /health"]
-end
+Source: [`docs/prakriva-system-flow.puml`](docs/prakriva-system-flow.puml).
+PlantUML needs Java and Graphviz. Re-render it after an edit with:
 
-%% =========================== 4. DETECTOR PIPELINE ===========================
-subgraph ML["backend/disease_detection — every detector is ScreeningInput to ConditionRisk"]
-  direction TB
-  ML1["XGBoost<br/>Anaemia · Pregnancy risk"]
-  ML2["Logistic regression<br/>Gestational diabetes<br/>Preeclampsia"]
-  ML3["Neural network in numpy<br/>Thyroid disorder"]
-  ML4["rules.py baseline<br/>UTI · Miscarriage<br/>Perinatal mental health"]
-  ML5["recommendations.py<br/>clinical next steps"]
-  N_RISK["OUTPUT PER CONDITION<br/>0-100 score<br/>low / moderate / high<br/>driving factors + next steps<br/>detector name recorded"]
-end
-
-%% ======================= 5. EXTERNAL AI & RECIPE DATA =======================
-subgraph EXT["External AI services"]
-  direction TB
-  GEMINI["Google Gemini<br/>gemini-3.6-flash → 3.5 → 2.5 → latest<br/>GEMINI_API_KEY 1..n, backend only"]
-  GTRANS["Google translate_a/single<br/>public endpoint, from the browser"]
-end
-
-subgraph FOS["FoodOScope APIs — api.foodoscope.com/recipe2-api, called from the browser"]
-  direction TB
-  subgraph RECIPEDB["RecipeDB"]
-    direction LR
-    F_FILTER["Filtering<br/>/recipe-diet · /recipes-calories<br/>/protein/protein-range<br/>/recipe-carbo · /byenergy"]
-    F_SEARCH["Search<br/>/recipes_cuisine · /region-diet<br/>/recipebyingredient<br/>/category · /recipe-bytitle"]
-    F_DETAIL["Details<br/>/search-recipe/:id<br/>/instructions/:id<br/>/recipe-nutri · /recipe-micronutri"]
-  end
-  F_FLAVOR["FlavorDB<br/>/ingredients/flavor/:category<br/>ingredient index by frequency"]
-end
-
-%% =============================== 6. SUPABASE ===============================
-subgraph SUPA["Supabase — Postgres + Auth + Storage, row-level security"]
-  direction TB
-  DB_CORE[("Core<br/>profiles · patients · doctors<br/>diet_plans · meal_tracking<br/>meal_feedback · consultations")]
-  DB_HEALTH[("Health<br/>disease_screenings · lifestyle_logs<br/>menstrual_cycle_logs · weight_logs<br/>acne_logs · missed_cycle_months")]
-  DB_SOCIAL[("Kitchen & community<br/>patient_pantry_items<br/>community_groups · memberships<br/>community_messages · user_settings")]
-  STORAGE[("Storage<br/>avatars · acne-photos")]
-  DB_KEYS[("foodoscope_api_keys<br/>rotates without a redeploy")]
-end
-
-%% ================= A. DIET CHART GENERATION — the main flow =================
-D_RECIPE <==>|"1 · Generate for this patient<br/>10 · the plan fills the same board"| SVC_DIET
-SVC_DIET ==>|"2 · dosha, calorie band,<br/>micronutrients, exclusions"| RULES
-SVC_DIET ==>|"3 · her kitchen"| DB_SOCIAL
-SVC_DIET ==>|"3 · her flagged screening results"| DB_HEALTH
-SVC_DIET ==>|"4 · POST /diet-chart/generate<br/>de-identified payload"| GATE
-GATE ==> MOD_PLAN
-MOD_PLAN ==>|"5 · constraint prompt"| MOD_GEM
-MOD_GEM ==>|"6 · compose a 7-day plan"| GEMINI
-GEMINI ==>|"7 · draft meals"| MOD_GEM
-MOD_GEM ==>|"8 · validate against the exclusion list,<br/>offending meals are dropped"| MOD_PLAN
-MOD_PLAN ==>|"9 · plan, source gemini"| SVC_DIET
-D_RECIPE ==>|"11 · save chart"| DB_CORE
-P_TODAY <==>|"12 · she opens her saved plan"| SVC_DIET
-MOD_PLAN -.->|"503 · no key, or every key exhausted"| SVC_DIET
-SVC_DIET -.->|"fallback path, source foodoscope:<br/>filter by dosha, life stage, calories"| F_FILTER
-
-%% ===================== B. DISEASE SCREENING — patient =====================
-P_HEALTH <-->|"A · measurements, labs, history<br/>H · results + exercise plan"| SVC_SCREEN
-SVC_SCREEN -->|"B · bounds check mirroring schemas.py"| RULES
-SVC_SCREEN -->|"C · POST /disease/screen"| GATE
-GATE --> MOD_DIS
-MOD_DIS --> ML1
-MOD_DIS --> ML2
-MOD_DIS --> ML3
-MOD_DIS --> ML4
-ML1 --> ML5
-ML2 --> ML5
-ML3 --> ML5
-ML4 --> ML5
-ML5 -->|"D · ConditionRisk per condition"| MOD_DIS
-MOD_DIS -->|"E · eight risk results"| SVC_SCREEN
-SVC_SCREEN <-->|"F · save + read her history"| DB_HEALTH
-SVC_SCREEN -->|"G · exercise plan grouped by condition"| RULES
-D_ANALYSIS <-->|"I · read-only trends<br/>J · Write analysis"| SVC_SCREEN
-SVC_SCREEN -.->|"/analysis/screening<br/>/analysis/extract-report"| GATE
-
-%% ===================== C. ASSISTANT, DATA & CHROME =====================
-CHAT --> SVC_CHAT
-SVC_CHAT -->|"dosha, plan, pantry, adherence,<br/>logs, screening trend"| GATE
-SVC_CHAT -.->|"recipe grounding by flavour word"| F_FLAVOR
-GATE --> MOD_GEM
-
-AUTH -->|"sign in / sign up"| DB_CORE
-P_QUEST -->|"assessment answers"| SVC_DIET
-SVC_DIET -->|"/dosha/predict · /calories/calculate"| GATE
-GATE --> MOD_DOSHA
-GATE --> MOD_CAL
-D_CHART --> SVC_DIET
-SVC_DIET <-->|"saved plans, edits, feedback"| DB_CORE
-D_CHART -.->|"recipe details & instructions"| F_DETAIL
-
-P_TRACK --> SVC_DATA
-P_MORE --> SVC_DATA
-D_MANAGE --> SVC_DATA
-SVC_DATA -->|"logs"| DB_HEALTH
-SVC_DATA -->|"kitchen, circles, settings"| DB_SOCIAL
-SVC_DATA -->|"profile & acne photos"| STORAGE
-SVC_DATA -.->|"/analysis/acne-photo"| GATE
-SVC_DATA -.->|"ingredient catalogue sweep, weekly"| F_FLAVOR
-D_MANAGE -.->|"recipe search & filters"| F_SEARCH
-D_MANAGE -.-> F_FILTER
-
-ROTATE --> DB_KEYS
-ROTATE -.->|"a key is attached to every call"| RECIPEDB
-CACHE -.->|"last answer renders first"| SVC_DIET
-LANG --> SVC_I18N
-SVC_I18N -->|"batched phrases"| GTRANS
-SVC_I18N -.->|"only if the public endpoint is blocked"| GATE
-
-N_ROUTES -.- GATE
-N_RISK -.- ML5
-
-%% =============================== STYLING ===============================
-classDef ui fill:#dbeafe,stroke:#3b82f6,color:#0f172a
-classDef client fill:#e0e7ff,stroke:#6366f1,color:#0f172a
-classDef backend fill:#dcfce7,stroke:#16a34a,color:#0f172a
-classDef mlnode fill:#fef3c7,stroke:#d97706,color:#0f172a
-classDef ai fill:#ede9fe,stroke:#8b5cf6,color:#0f172a
-classDef food fill:#ffedd5,stroke:#ea580c,color:#0f172a
-classDef flavor fill:#fee2e2,stroke:#dc2626,color:#0f172a
-classDef store fill:#e5e7eb,stroke:#6b7280,color:#0f172a
-classDef note fill:#fffbeb,stroke:#a16207,color:#0f172a,stroke-dasharray: 5 4
-
-class AUTH,P_QUEST,P_TODAY,P_HEALTH,P_TRACK,P_MORE,D_RECIPE,D_CHART,D_ANALYSIS,D_MANAGE,CHAT,LANG ui
-class SVC_DIET,SVC_SCREEN,SVC_CHAT,SVC_DATA,SVC_I18N,RULES,ROTATE,CACHE client
-class GATE,MOD_PLAN,MOD_DOSHA,MOD_CAL,MOD_DIS,MOD_GEM backend
-class ML1,ML2,ML3,ML4,ML5 mlnode
-class GEMINI,GTRANS ai
-class F_FILTER,F_SEARCH,F_DETAIL food
-class F_FLAVOR flavor
-class DB_CORE,DB_HEALTH,DB_SOCIAL,STORAGE,DB_KEYS store
-class N_ROUTES,N_RISK note
-
-style UI fill:#eff6ff,stroke:#60a5fa
-style PATIENT fill:#f8fafc,stroke:#94a3b8
-style DOCTOR fill:#f8fafc,stroke:#94a3b8
-style CLIENT fill:#eef2ff,stroke:#818cf8
-style BACKEND fill:#f0fdf4,stroke:#4ade80
-style ML fill:#fffbeb,stroke:#fbbf24
-style EXT fill:#f5f3ff,stroke:#a78bfa
-style FOS fill:#fff7ed,stroke:#fb923c
-style RECIPEDB fill:#fffbeb,stroke:#fdba74
-style SUPA fill:#f9fafb,stroke:#9ca3af
+```sh
+plantuml -tpng docs/prakriva-system-flow.puml
+plantuml -tsvg docs/prakriva-system-flow.puml
 ```
 
 ## Project structure
@@ -313,6 +134,9 @@ style SUPA fill:#f9fafb,stroke:#9ca3af
   `thyroid_model.npz`) and the preeclampsia logistic regression
   (`preeclampsia_featurize.py`, `convert_preeclampsia_model.py`,
   `preeclampsia_model.json`). See "Disease detection" below.
+- `docs/` — the system flow diagram: `prakriva-system-flow.puml` is the
+  PlantUML source, with the rendered `.png` and `.svg` committed beside it so
+  the README shows the diagram without a build step. See "System workflow".
 - `render.yaml` — Render blueprint for deploying the Flask backend.
 - `supabase/` — SQL migrations for the Supabase project, including
   `disease_screenings.sql` for the screening history table,

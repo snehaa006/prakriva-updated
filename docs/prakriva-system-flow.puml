@@ -1,0 +1,171 @@
+@startuml Prakriva System Flow
+
+' ============================================================
+'  Prakriva - Diet Plan Generation Flow
+'  Same workflow shape as the original reference diagram,
+'  with the content updated to the current stack.
+' ============================================================
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam linetype ortho
+skinparam nodesep 90
+skinparam ranksep 55
+
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+  FontColor #000000
+  FontSize 12
+}
+skinparam package {
+  FontStyle bold
+  FontSize 13
+  BorderColor #666666
+  BorderThickness 1
+}
+skinparam database {
+  BackgroundColor #E1D5E7
+  BorderColor #9673A6
+}
+skinparam note {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+  FontSize 11
+}
+skinparam ArrowColor #444444
+skinparam ArrowFontSize 11
+skinparam ArrowFontColor #222222
+
+
+' ============================ USER INTERFACE ============================
+package "User Interface" as UI #DAE8FC {
+  rectangle "Web Application\n(React + Vite on Vercel)" as WebApp #FFFFFF
+}
+
+' ============================ BACKEND SERVICES ============================
+package "Backend Services" as BE #D5E8D4 {
+  rectangle "API Gateway\n(Flask app.py on Render)" as Gateway #FFFFFF
+  rectangle "Food Filter\n(filter_and_score.py)" as Filter #FFFFFF
+  rectangle "Dosha Predictor\n(dosha_estimator.py)" as Dosha #FFFFFF
+  rectangle "Meal Plan Generator\n(diet_planner.py)" as Planner #FFFFFF
+  rectangle "Food Scorer\n(filter_and_score.py)" as Scorer #FFFFFF
+}
+
+' ============================== AI SERVICES ==============================
+package "AI Services" as AI #E1D5E7 {
+  rectangle "Google Gemini\n(Meal Planning)" as Gemini #FFFFFF
+}
+
+' ================================ STORAGE ================================
+database "Supabase Postgres\n(Storage + RLS)" as Store
+
+' ============================= FOODOSCOPE APIS =============================
+package "FoodOScope APIs" as FOS #FFE6CC {
+
+  package "RecipeDB (recipe2-api)" as RecipeDB #FFCC99 {
+
+    package "Core Filtering APIs" as CoreAPI #FFF2CC {
+      rectangle "/recipe-diet\n(vegetarian/vegan)" as ApiDiet #FFFFFF
+      rectangle "/recipes-calories\n(calorie range)" as ApiCal #FFFFFF
+      rectangle "/protein/protein-range\n(protein filter)" as ApiProtein #FFFFFF
+      rectangle "/recipes_cuisine\n(regional)" as ApiCuisine #FFFFFF
+    }
+
+    package "Recipe Details APIs" as DetailAPI #FFF2CC {
+      rectangle "/search-recipe/:id\n(full details)" as ApiSearch #FFFFFF
+      rectangle "/instructions/:id\n(cooking steps)" as ApiInstr #FFFFFF
+      rectangle "/recipe-nutri/nutritioninfo\n(macros)" as ApiNutri #FFFFFF
+    }
+  }
+
+  package "FlavorDB" as FlavorDB #F8CECC {
+    rectangle "/ingredients/flavor/:category\n(ingredient index)" as ApiFlavor #FFFFFF
+  }
+}
+
+
+' =============================== MAIN FLOW ===============================
+' In PlantUML "A --> B" puts A above B, and "A <-- B" keeps A above B with
+' the arrow pointing back up. That is what holds the layers in reading order.
+
+WebApp --> Gateway : "1. Request Diet Plan"
+WebApp <-- Gateway : "Return to User"
+
+Gateway --> Store  : "Save Plan"
+Gateway --> Dosha  : "2. Predict Dosha"
+Gateway --> Filter : "3. Filter Recipes"
+Gateway <-- Planner : "Complete Plan"
+Gateway -right-> Gemini : "5. Generate Meal Plan"
+
+' ---- keep the service row in the reference's left-to-right order ----
+Filter -[hidden]right- Dosha
+Dosha  -[hidden]right- Planner
+Planner -[hidden]right- Scorer
+
+' ---- horizontal hops inside the service row ----
+Filter -right-> Scorer  : "Candidates"
+Scorer -left-> Planner  : "Top 100 Foods"
+Scorer ..> Gemini       : "Analyze"
+
+' ---- Food Filter reaches the core filtering endpoints ----
+Filter --> ApiDiet    : "Filter by diet"
+Filter --> ApiCal     : "Filter by calories"
+Filter --> ApiProtein : "Filter by protein"
+Filter --> ApiCuisine : "Filter by cuisine"
+
+' ---- Meal Plan Generator pulls the recipe detail it needs ----
+Planner --> ApiSearch : "6. Fetch Details"
+Planner --> ApiInstr  : "Get Instructions"
+
+' ---- Food Scorer reads nutrition and the ingredient index ----
+Scorer --> ApiNutri  : "Get Nutrition Data"
+Scorer --> ApiFlavor : "4. Ingredient Lookup"
+
+
+' ================================ NOTES ================================
+note right of Scorer
+  **SCORING**
+  • Dosha balance: +40 / +20 / −20
+  • Multi-dosha weight: ±20
+  • Calories 50–400: +10
+  • Protein > 5 g: +5
+  • Whole foods: +15
+  • Processed: −15
+
+  Result: Top 100
+end note
+
+note right of Filter
+  **FILTERING PROCESS**
+  8,000 Ayurvedic foods
+  ↓ Dosha strictness 0.7
+  ↓ Diet, calorie, allergy filters
+  Candidate set
+end note
+
+note right of Planner
+  **AI GENERATION**
+  Gemini composes a 7-day plan
+  across 5 meal slots
+  (25 / 10 / 30 / 10 / 25 % kcal).
+
+  The app fixes the constraints;
+  Gemini only composes within them.
+  Meals naming an excluded
+  ingredient are dropped.
+end note
+
+note right of ApiFlavor
+  **INGREDIENT INDEX**
+  FlavorDB provides:
+  • Ingredient catalogue
+  • Flavour-word lookup
+  • Frequency ranking
+end note
+
+caption System Flow
+
+@enduml
