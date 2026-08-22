@@ -33,6 +33,7 @@ import {
   getUserRole,
   resolveDashboardPath,
   signInUser,
+  signOutUser,
   signUpUser,
   type AuthRole,
 } from "@/services/authService";
@@ -280,10 +281,7 @@ const Login = () => {
 
   const handleSignin = async () => {
     const userId = await signInUser(formData.email, formData.password);
-    toast.success("Welcome back!");
 
-    // Route by the role on the account, not the role in the URL — the same
-    // credentials land in the same place whichever door they signed in through.
     const {
       role: userRole,
       hasCompletedQuestionnaire,
@@ -291,11 +289,25 @@ const Login = () => {
     } = await getUserRole(userId!);
 
     if (!userRole) {
+      await signOutUser();
       toast.error("Could not determine account type. Please contact support.");
       navigate("/", { replace: true });
       return;
     }
 
+    // Reject a role mismatch: a doctor signing in on the patient page (or
+    // vice versa) should not silently land on the other dashboard.
+    if (role && userRole !== role) {
+      await signOutUser();
+      toast.error(
+        userRole === "doctor"
+          ? "This is a doctor account. Please sign in on the practitioner page."
+          : "This is a patient account. Please sign in on the patient page.",
+      );
+      return;
+    }
+
+    toast.success("Welcome back!");
     navigate(resolveDashboardPath(userRole, hasCompletedQuestionnaire, false, tracks), {
       replace: true,
     });
