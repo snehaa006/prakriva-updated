@@ -1134,9 +1134,9 @@ way to tell "the key is broken" apart from "the model name is gone".
 
 #### Gemini key rotation
 
-Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY2` … `GEMINI_API_KEY10`,
+Several keys — `GEMINI_API_KEY` plus `GEMINI_API_KEY1` … `GEMINI_API_KEY10`,
 or one comma-separated `GEMINI_API_KEY` — can be set (blanks and duplicates are
-dropped). Only the first is required; the extras exist so the chatbot (used far
+dropped). The extras exist so the chatbot (used far
 more than the occasional screening write-up) and diet chart generation (one
 large request per plan) can roll over to the next key instead of hard-failing
 when one hits its rate limit or quota. The pool lives in
@@ -1815,12 +1815,12 @@ committed.
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
 | `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, both chatbots (patient wellness companion + doctor clinical assistant), lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
-| `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
+| `GEMINI_API_KEY1` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. |
 | `GEMINI_MODEL` | Backend | No | Pins one model ID. Leave unset: the backend then asks the API which models the key can actually call and uses the best flash model available, so a retired model ID cannot take the AI features down — see "Gemini model retirement". |
 | `GEMINI_MAX_TOKENS` | Backend | No | Output budget per call, defaults to `2048`. Current models spend part of it reasoning before they answer, so a small budget can return an empty reply. |
 | `GEMINI_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. Diet chart generation overrides this with its own longer timeout. |
 | `GROQ_API_KEY` | Backend | No | Fallback LLM for chatbots and text generation when Gemini is exhausted. Groq's free tier gives 30 req/min and 14.4K req/day on Llama 3.3 70B. **Backend-only — never give it a `VITE_` prefix.** May hold a comma-separated list. |
-| `GROQ_API_KEY2` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
+| `GROQ_API_KEY1` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
 | `GROQ_MODEL` | Backend | No | Defaults to `llama-3.3-70b-versatile`. |
 | `GROQ_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |

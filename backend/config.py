@@ -146,7 +146,7 @@ class Settings:
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FORMAT = os.getenv("LOG_FORMAT", "{time} | {level} | {message}")
     
-    #: How many numbered spares to look for (…_KEY2 … …_KEY10).
+    #: How many numbered spares to look for (…_KEY1 … …_KEY10).
     _KEY_SLOTS = 10
 
     @staticmethod
@@ -154,11 +154,11 @@ class Settings:
         """Every configured key for `base_name`, in order.
 
         Accepts `base_name` (which may itself hold a comma-separated list)
-        followed by `base_name2` … `base_name10`. Blanks and repeats are
+        followed by `base_name1` … `base_name10`. Blanks and repeats are
         dropped so a duplicated key can't burn two attempts of the same quota.
         """
         names = [base_name] + [
-            f"{base_name}{n}" for n in range(2, Settings._KEY_SLOTS + 1)
+            f"{base_name}{n}" for n in range(1, Settings._KEY_SLOTS + 1)
         ]
 
         keys = []
