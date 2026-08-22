@@ -8,8 +8,16 @@ import { cn } from "@/lib/utils";
 // Native <dialog>-based Dialog engine (Radix-free).
 // -----------------------------------------------------------------------
 
-/** Matches the `duration-300` exit transition on the overlay below. */
-const EXIT_DURATION_MS = 300;
+/**
+ * Matches the exit transition on the panel below — and it has to stay matched:
+ * a closed `<dialog>` is `display: none`, so this timeout is the only thing
+ * keeping the element around long enough for the fade to finish.
+ *
+ * Exit is faster than entry on purpose. A panel arriving should decelerate
+ * into place (that reads as it settling); a panel leaving should accelerate
+ * away, because nobody waits for something they have already dismissed.
+ */
+const EXIT_DURATION_MS = 220;
 
 interface DialogContextValue {
   open: boolean;
@@ -209,10 +217,18 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
       <dialog
         ref={dialogRef}
         onClick={handleDialogClick}
+        data-visible={visible}
         className={cn(
           "m-auto max-w-lg w-full rounded-2xl border border-border bg-card p-6 shadow-xl backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",
-          "transition-all duration-300 ease-ios-spring",
-          visible ? "opacity-100 scale-100" : "opacity-0 scale-95",
+          // Only the two composited properties — `transition-all` here also
+          // animated the border and shadow of a panel that is fading anyway.
+          "transition-[opacity,transform] will-change-[opacity,transform]",
+          visible
+            // 0.97 and a 4px rise, not `scale-95`: at 0.95 a full-width panel
+            // travels a visible distance sideways as it grows, which reads as
+            // a zoom rather than as a panel coming forward.
+            ? "opacity-100 scale-100 translate-y-0 duration-settle ease-ios-spring"
+            : "opacity-0 scale-[0.97] translate-y-1 duration-exit ease-ios-in",
           className,
         )}
         {...props}

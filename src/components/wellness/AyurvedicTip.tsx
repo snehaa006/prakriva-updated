@@ -37,7 +37,7 @@ export const AyurvedicTip = ({
   const { icon: Icon, label } = CATEGORY_INFO[category];
 
   return (
-    <Card className="transition-all duration-200 ease-ios hover:shadow-md">
+    <Card className="transition-shadow duration-base ease-ios hover:shadow-md">
       <CardContent className="flex gap-4 p-5">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-primary">
           <Icon className="h-5 w-5" />

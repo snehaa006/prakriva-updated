@@ -4,6 +4,7 @@ import { computePosition, autoUpdate, offset, flip, shift, type Placement } from
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { floatingSurfaceMotion } from "@/lib/motion";
 
 /* -------------------------------------------------------------------------
  * Local floating-ui positioning hook (duplicated per-file by design — see
@@ -398,6 +399,7 @@ const DropdownMenuSubContent = React.forwardRef<HTMLDivElement, React.HTMLAttrib
         onMouseLeave={() => setOpen(false)}
         className={cn(
           "glass z-50 min-w-[8rem] overflow-hidden rounded-2xl p-1 shadow-lg text-popover-foreground",
+          floatingSurfaceMotion("right-start", styles),
           className,
         )}
         {...props}
@@ -460,6 +462,7 @@ const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContent
         style={styles}
         className={cn(
           "glass z-50 min-w-[8rem] overflow-hidden rounded-2xl p-1 shadow-lg text-popover-foreground",
+          floatingSurfaceMotion(placement, styles),
           className,
         )}
         {...props}

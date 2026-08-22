@@ -344,7 +344,7 @@ const SkinTracker = () => {
                     type="button"
                     onClick={() => toggleRegion(region.value)}
                     aria-pressed={selected}
-                    className={`rounded-full border px-3.5 py-1.5 text-footnote font-medium transition-colors duration-200 ease-ios ${
+                    className={`rounded-full border px-3.5 py-1.5 text-footnote font-medium transition-[background-color,border-color,color,transform] duration-quick ease-ios active:scale-[0.96] active:duration-press ${
                       selected
                         ? "border-transparent bg-primary text-primary-foreground"
                         : "border-border text-foreground-secondary hover:bg-muted"
@@ -580,7 +580,7 @@ const SkinTracker = () => {
               {[...entries].reverse().map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-start gap-4 rounded-xl border border-border p-4 transition-colors duration-200 ease-ios hover:bg-muted/40"
+                  className="flex items-start gap-4 rounded-xl border border-border p-4 transition-colors duration-quick ease-ios hover:bg-muted/40"
                 >
                   {photoUrls[entry.id] ? (
                     <img

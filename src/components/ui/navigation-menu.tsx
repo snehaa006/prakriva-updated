@@ -45,7 +45,7 @@ const NavigationMenuTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHT
   ({ className, children, ...props }, ref) => (
     <button ref={ref} type="button" className={cn(navigationMenuTriggerStyle(), "group", className)} {...props}>
       {children}{" "}
-      <ChevronDown className="relative top-[1px] ml-1 h-3 w-3 transition duration-200 group-data-[state=open]:rotate-180" aria-hidden="true" />
+      <ChevronDown className="relative top-[1px] ml-1 h-3 w-3 transition-transform duration-base ease-ios group-data-[state=open]:rotate-180" aria-hidden="true" />
     </button>
   ),
 );

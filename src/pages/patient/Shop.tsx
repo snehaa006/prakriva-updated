@@ -386,7 +386,7 @@ function CategoryChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-caption1 font-medium transition-colors duration-150 ease-ios",
+        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-caption1 font-medium transition-[background-color,border-color,color,transform] duration-quick ease-ios active:scale-[0.96] active:duration-press",
         active
           ? "border-transparent bg-primary text-primary-foreground"
           : "border-border text-foreground-secondary hover:border-border-strong hover:bg-accent-soft",

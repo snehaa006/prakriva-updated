@@ -54,11 +54,12 @@ export function useRecipeViewer() {
     <>
       {viewing && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-base ease-ios"
           onClick={() => setViewing(null)}
         >
           <Card
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto shadow-xl"
+            // The scrim was fading while the card it dims appeared instantly.
+            className="max-h-[80vh] w-full max-w-lg animate-in fade-in zoom-in-95 overflow-y-auto shadow-xl duration-settle ease-ios-smooth"
             onClick={(e) => e.stopPropagation()}
           >
             <CardHeader>
@@ -114,7 +115,7 @@ export function useRecipeViewer() {
       )}
 
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 animate-in fade-in duration-quick ease-ios">
           <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-5 shadow-lg">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
             <span className="text-footnote text-foreground">Loading recipe details…</span>

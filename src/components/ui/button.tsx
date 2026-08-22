@@ -27,8 +27,23 @@ const Slot = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & {
 );
 Slot.displayName = "Slot";
 
+// Motion notes, since every button in the app inherits this line:
+//
+//   * the transition names its properties rather than using `transition-all`,
+//     which on a button also animates width, padding and font colour changes
+//     that should be instant;
+//   * the hover lift is behind `@media (hover: hover)` — on a touch screen
+//     `:hover` sticks after a tap, so the button stayed raised until the next
+//     tap somewhere else;
+//   * the press is a scale rather than a second translate. Tailwind composes
+//     every transform utility from the same set of CSS variables, so a scale
+//     and a translate stack cleanly whatever order they land in — two
+//     competing `translate-y` rules would have depended on that order;
+//   * it runs at 110ms against the 180ms release. Going down faster than it
+//     comes back up is the whole trick: it is what makes the button feel like
+//     it has weight rather than like it is playing an animation.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-all duration-200 ease-ios focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:-translate-y-0.5 active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-[transform,box-shadow,background-color,border-color,color,opacity,filter] duration-quick ease-ios focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)]:hover:-translate-y-0.5 active:scale-[0.97] active:duration-press disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -37,7 +52,12 @@ const buttonVariants = cva(
         outline: "border border-foreground/[0.12] bg-transparent text-foreground hover:bg-foreground/[0.04] hover:border-foreground/[0.2]",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-foreground/[0.04]",
-        link: "text-primary underline-offset-4 hover:underline hover:translate-y-0",
+        // A link has no surface to push, so it neither lifts nor presses —
+        // only the underline changes. The press cancel is `!scale-100` rather
+        // than plain `scale-100` because it and the base's `scale-[0.97]` have
+        // identical specificity, and Tailwind emits the arbitrary value last:
+        // without the `!` the override would silently lose.
+        link: "text-primary underline-offset-4 hover:underline [@media(hover:hover)]:hover:translate-y-0 active:!scale-100",
         gold: "bg-accent text-accent-foreground shadow-glow-gold hover:brightness-110",
       },
       size: {

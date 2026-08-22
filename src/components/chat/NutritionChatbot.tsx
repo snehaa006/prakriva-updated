@@ -94,14 +94,14 @@ const welcomeText = (ctx: PatientChatContext | DoctorChatContext | null, now: Da
   if (mode === "doctor") {
     const count = (ctx as DoctorChatContext | null)?.doctor?.patientCount;
     return (
-      `${greeting(now)} — I'm your Prakriva clinical assistant. I can see your patient roster` +
+      `${greeting(now)} — I'm Kuchu Puchu, your Prakriva clinical assistant. I can see your patient roster` +
       `${count ? ` (${count} patient${count !== 1 ? "s" : ""})` : ""}, their profiles, screening results and adherence data. ` +
       `Ask me to analyse a patient, suggest a diet modification, draft a screening summary, or anything else.`
     );
   }
   const name = (ctx as PatientChatContext | null)?.profile?.primaryDosha;
   return (
-    `${greeting(now)} — I'm your Prakriva companion. I can see your diet plan, your pantry and everything ` +
+    `${greeting(now)} — I'm Kuchu Puchu, your Prakriva companion. I can see your diet plan, your pantry and everything ` +
     `you've been tracking${name ? `, and I know you lean ${name}` : ""}, so nothing you ask me starts from scratch.`
   );
 };
@@ -109,7 +109,7 @@ const welcomeText = (ctx: PatientChatContext | DoctorChatContext | null, now: Da
 /**
  * Last few turns, oldest first, in the shape Gemini expects.
  *
- * Failure notices ("I couldn't reach your assistant…") are left out: they were
+ * Failure notices ("I couldn't reach Kuchu Puchu…") are left out: they were
  * never the assistant's answer, and replaying them as model turns teaches the
  * conversation that it is broken. Leading model turns go too — the transcript
  * opens with the companion's own greeting, and Gemini requires a conversation
@@ -188,19 +188,27 @@ const CompanionStage: React.FC<{ stage: Stage }> = ({ stage }) => {
 
   return (
     <div className="relative h-16 shrink-0 px-4" aria-hidden>
+      {/* The character used to cross the strip by animating `left` between 0%
+          and 100%, which relaid out the strip on every frame of a 700ms walk.
+          Two nested transforms do the same journey on the compositor: the rail
+          travels the width of the strip, and the character steps back by its
+          own width so it lands inside the right edge rather than past it.
+          Both run on the same curve and duration, so they read as one move. */}
       <div
-        className="absolute top-0 transition-[left,transform] duration-700 ease-ios-spring"
-        style={{
-          left: side === "right" ? "100%" : "0%",
-          transform: side === "right" ? "translateX(-100%)" : "none",
-        }}
+        className="absolute inset-x-4 top-0 transition-transform duration-stroll ease-ios-smooth will-change-transform"
+        style={{ transform: side === "right" ? "translate3d(100%, 0, 0)" : "translate3d(0, 0, 0)" }}
       >
-        <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-14 w-14" />
+        <div
+          className="inline-block transition-transform duration-stroll ease-ios-smooth will-change-transform"
+          style={{ transform: side === "right" ? "translate3d(-100%, 0, 0)" : "translate3d(0, 0, 0)" }}
+        >
+          <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-14 w-14" />
+        </div>
       </div>
 
       <span
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-caption1 font-medium text-foreground-tertiary transition-opacity duration-300",
+          "absolute top-1/2 -translate-y-1/2 text-caption1 font-medium text-foreground-tertiary transition-opacity duration-base ease-ios",
           label ? "opacity-100" : "opacity-0",
           side === "right" ? "right-16" : "left-16",
         )}
@@ -446,8 +454,8 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             id: msgId(),
             role: "assistant",
             text: unavailable
-              ? "Your wellness assistant isn't available right now. Please try again shortly."
-              : "I couldn't reach your assistant just now — please try again in a moment.",
+              ? "Kuchu Puchu isn't available right now. Please try again shortly."
+              : "I couldn't reach Kuchu Puchu just now — please try again in a moment.",
             detail: error instanceof Error ? error.message : String(error),
             isError: true,
             suggestions: [{ label: "Try again", value: text }],
@@ -594,10 +602,10 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         <button
           onClick={handleOpen}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-300 ease-ios-spring hover:scale-110 active:scale-95",
+            "group fixed bottom-6 right-6 z-50 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-transform duration-quick ease-ios hover:scale-[1.04] active:scale-[0.94] active:duration-press",
             hideTrigger && "hidden md:flex",
           )}
-          aria-label="Open wellness companion"
+          aria-label="Open Kuchu Puchu"
           style={{ filter: "drop-shadow(0 4px 12px rgba(236,107,139,0.4))" }}
         >
           <CompanionCharacter mood={teaser ? "happy" : "idle"} className="h-[72px] w-[72px]" />
@@ -621,7 +629,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         >
           <button
             onClick={dismissTeaser}
-            className="absolute right-2.5 top-2.5 rounded-full p-1 text-foreground-tertiary transition-colors hover:bg-muted hover:text-foreground"
+            className="press-sm absolute right-2.5 top-2.5 rounded-full p-1 text-foreground-tertiary hover:bg-muted hover:text-foreground"
             aria-label="Dismiss"
           >
             <X className="h-3.5 w-3.5" />
@@ -633,7 +641,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               <p className="pr-5 text-footnote leading-snug text-foreground">{teaser.teaser}</p>
               <button
                 onClick={openTeaser}
-                className="mt-2.5 rounded-full bg-gradient-to-r from-pink-400 to-pink-500 px-4 py-1.5 text-caption1 font-semibold text-white shadow-sm transition-all duration-200 ease-ios-spring hover:shadow-md hover:brightness-105 active:scale-95"
+                className="press mt-2.5 rounded-full bg-gradient-to-r from-pink-400 to-pink-500 px-4 py-1.5 text-caption1 font-semibold text-white shadow-sm hover:shadow-md hover:brightness-105"
               >
                 Show me
               </button>
@@ -645,7 +653,10 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
       {isOpen && (
         <div
           className={cn(
-            "fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-pink-200/40 bg-background shadow-xl animate-in slide-in-from-bottom-4 duration-300 ease-ios-spring",
+            "fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-pink-200/40 bg-background shadow-xl",
+            // Rises from the launcher rather than sliding up the screen: 12px
+            // and a small scale, anchored at the corner it opened from.
+            "origin-bottom-right animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-3 duration-panel ease-ios-smooth",
             expanded
               ? "inset-x-3 bottom-20 top-6 md:inset-6 md:bottom-6 md:top-6"
               : "inset-x-3 bottom-20 h-[calc(100vh-9rem)] md:inset-x-auto md:bottom-6 md:right-6 md:h-[640px] md:max-h-[calc(100vh-4rem)] md:w-[420px]",
@@ -661,7 +672,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 />
                 <div className="min-w-0">
                   <h3 className="truncate font-display text-base font-semibold leading-tight text-foreground">
-                    {mode === "doctor" ? "Clinical Assistant" : "Prakriva Companion"}
+                    Kuchu Puchu
                   </h3>
                   <p className="flex items-center gap-1.5 text-caption2 text-foreground-secondary">
                     <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-gold animate-pulse-soft" : "bg-success")} />
@@ -673,7 +684,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={handleReset}
-                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground"
+                  className="press-sm rounded-full p-2 text-foreground-secondary hover:bg-white/60 hover:text-foreground"
                   aria-label="Start a new chat"
                   title="New chat"
                 >
@@ -681,7 +692,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 </button>
                 <button
                   onClick={() => setExpanded((e) => !e)}
-                  className="hidden rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground md:inline-flex"
+                  className="press-sm hidden rounded-full p-2 text-foreground-secondary hover:bg-white/60 hover:text-foreground md:inline-flex"
                   aria-label={expanded ? "Shrink chat" : "Expand chat"}
                   title={expanded ? "Shrink" : "Expand"}
                 >
@@ -689,7 +700,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground md:hidden"
+                  className="press-sm rounded-full p-2 text-foreground-secondary hover:bg-white/60 hover:text-foreground md:hidden"
                   aria-label="Minimize chat"
                   title="Minimize"
                 >
@@ -697,7 +708,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="rounded-full p-2 text-foreground-secondary transition-colors hover:bg-white/60 hover:text-foreground"
+                  className="press-sm rounded-full p-2 text-foreground-secondary hover:bg-white/60 hover:text-foreground"
                   aria-label="Close chat"
                   title="Close"
                 >
@@ -711,7 +722,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             <div className={cn("mx-auto space-y-4 px-4 py-4", expanded ? "max-w-2xl" : "max-w-none")}>
               {statusChecked && !assistantEnabled && (
                 <div className="rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-footnote text-foreground">
-                  Your companion isn't configured on this deployment yet, so it can't answer right now.
+                  Kuchu Puchu isn't configured on this deployment yet, so it can't answer right now.
                 </div>
               )}
 
@@ -720,7 +731,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 <div className="flex flex-col items-center py-4 animate-message-in">
                   <CompanionCharacter mood="idle" className="h-32 w-32 mb-3" />
                   <p className="text-center text-caption1 font-medium text-foreground-secondary">
-                    {mode === "doctor" ? "Your clinical AI assistant" : "Your wellness companion"}
+                    {mode === "doctor" ? "Kuchu Puchu — your clinical AI assistant" : "Kuchu Puchu — your wellness companion"}
                   </p>
                 </div>
               )}
@@ -784,7 +795,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                             key={suggestion.value}
                             onClick={() => handleSuggestion(suggestion.value)}
                             disabled={isLoading}
-                            className="animate-message-in rounded-full border border-pink-200/60 bg-white/80 px-3.5 py-1.5 text-caption1 font-medium text-foreground shadow-sm transition-all duration-200 ease-ios hover:border-pink-300 hover:bg-pink-50 hover:shadow active:scale-95 disabled:opacity-50"
+                            className="press animate-message-in rounded-full border border-pink-200/60 bg-white/80 px-3.5 py-1.5 text-caption1 font-medium text-foreground shadow-sm hover:border-pink-300 hover:bg-pink-50 hover:shadow disabled:opacity-50"
                             style={{ animationDelay: `${i * 60}ms` }}
                           >
                             {suggestion.label}
@@ -818,7 +829,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
           <div className={cn("mx-auto w-full shrink-0 border-t border-pink-100/40 bg-gradient-to-t from-pink-50/30 px-3.5 pb-3 pt-2", expanded ? "max-w-2xl" : "max-w-none")}>
             <CompanionStage stage={visibleStage} />
 
-            <div className="flex items-end gap-2 rounded-[22px] border border-pink-200/50 bg-white/80 p-1.5 pl-4 shadow-sm transition-colors focus-within:border-pink-300 focus-within:ring-2 focus-within:ring-pink-200/30">
+            <div className="flex items-end gap-2 rounded-[22px] border border-pink-200/50 bg-white/80 p-1.5 pl-4 shadow-sm transition-[border-color,box-shadow] duration-base ease-ios focus-within:border-pink-300 focus-within:ring-2 focus-within:ring-pink-200/30">
               <textarea
                 ref={inputRef}
                 rows={1}
@@ -843,7 +854,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 onClick={handleSend}
                 disabled={!inputText.trim() || isLoading}
                 aria-label="Send message"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-sm transition-all duration-200 ease-ios-spring hover:shadow-md hover:brightness-105 active:scale-90 disabled:from-gray-200 disabled:to-gray-300 disabled:text-gray-400 disabled:shadow-none"
+                className="press-sm flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-sm hover:shadow-md hover:brightness-105 disabled:from-gray-200 disabled:to-gray-300 disabled:text-gray-400 disabled:shadow-none"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>

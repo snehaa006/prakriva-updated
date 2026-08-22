@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 // Self-contained — duplicates the Context/ref engine locally per spec.
 // -----------------------------------------------------------------------
 
-/** Matches the `duration-300` exit transition on the panel below. */
-const EXIT_DURATION_MS = 300;
+/** Matches the exit transition on the panel below. See `dialog.tsx`. */
+const EXIT_DURATION_MS = 280;
 
 interface SheetContextValue {
   open: boolean;
@@ -133,8 +133,12 @@ SheetClose.displayName = "SheetClose";
 const SheetPortal = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
 const SheetOverlay = () => null;
 
+// `ease-ios-smooth`, never the spring: a sheet is anchored to an edge, so any
+// overshoot carries the panel *past* its resting position and opens a strip of
+// backdrop along that edge for a frame or two. The long-tailed ease-out gives
+// the same sense of momentum with nothing to overshoot.
 const sheetVariants = cva(
-  "fixed z-50 max-w-none gap-4 p-6 transition-transform duration-300 ease-ios-spring m-0",
+  "fixed z-50 max-w-none gap-4 p-6 m-0 transition-transform will-change-transform duration-panel ease-ios-smooth data-[state=closed]:duration-base data-[state=closed]:ease-ios-in",
   {
     variants: {
       side: {
@@ -219,6 +223,7 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
         ref={dialogRef}
         onClick={handleDialogClick}
         data-state={visible ? "open" : "closed"}
+        data-visible={visible}
         className={cn(
           "glass shadow-glass backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",
           sheetVariants({ side }),

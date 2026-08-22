@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 // Escape, and the close button all dismiss via the native dialog engine.
 // -----------------------------------------------------------------------
 
-/** Matches the `duration-300` exit transition on the panel below. */
-const EXIT_DURATION_MS = 300;
+/** Matches the exit transition on the panel below. See `dialog.tsx`. */
+const EXIT_DURATION_MS = 280;
 
 interface DrawerContextValue {
   open: boolean;
@@ -202,11 +202,16 @@ const DrawerContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
       <dialog
         ref={dialogRef}
         onClick={handleDialogClick}
+        data-visible={visible}
         className={cn(
           "m-0 max-w-none w-full inset-x-0 bottom-0 top-auto h-auto max-h-[85vh] flex flex-col rounded-t-2xl border border-border bg-card",
           "backdrop:bg-foreground/40 backdrop:backdrop-blur-sm",
-          "transition-transform duration-300 ease-ios-spring translate-y-full",
-          visible && "translate-y-0",
+          // Same reasoning as the sheet: an edge-anchored panel must not
+          // overshoot, or it lifts off the bottom of the screen on arrival.
+          "transition-transform will-change-transform translate-y-full",
+          visible
+            ? "translate-y-0 duration-panel ease-ios-smooth"
+            : "duration-base ease-ios-in",
           className,
         )}
         {...props}

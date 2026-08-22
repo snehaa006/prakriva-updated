@@ -116,14 +116,14 @@ const Landing = () => {
                 onClick={() => navigate("/auth/patient")}
               >
                 Get started
-                <ArrowRight className="ml-1.5 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                <ArrowRight className="ml-1.5 h-4 w-4 transition-transform duration-base ease-ios group-hover:translate-x-1" />
               </Button>
               <button
                 onClick={() => navigate("/auth/doctor")}
                 className="group flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-white transition-colors hover:text-white/80"
               >
                 I'm a practitioner
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-base ease-ios group-hover:translate-x-1" />
               </button>
             </div>
           </Reveal>
@@ -168,7 +168,7 @@ const Landing = () => {
                 </p>
                 <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-[hsl(3_34%_76%)]">
                   Continue as a doctor
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-base ease-ios group-hover:translate-x-1" />
                 </span>
               </button>
             </Reveal>
@@ -189,7 +189,7 @@ const Landing = () => {
                 </p>
                 <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-[hsl(3_34%_76%)]">
                   Continue as a patient
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-base ease-ios group-hover:translate-x-1" />
                 </span>
               </button>
             </Reveal>
@@ -221,14 +221,14 @@ const Landing = () => {
                   onClick={() => navigate("/auth/patient")}
                 >
                   Get started
-                  <ArrowRight className="ml-1.5 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  <ArrowRight className="ml-1.5 h-4 w-4 transition-transform duration-base ease-ios group-hover:translate-x-1" />
                 </Button>
                 <button
                   onClick={() => navigate("/auth/doctor")}
                   className="group flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-foreground transition-colors hover:text-primary"
                 >
                   For practitioners
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  <ArrowRight className="h-4 w-4 transition-transform duration-base ease-ios group-hover:translate-x-1" />
                 </button>
               </div>
             </Reveal>

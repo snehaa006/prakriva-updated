@@ -310,9 +310,12 @@ export const FeatureCardStack = () => {
               <span className="text-foreground/[0.28]"> / {FEATURE_CARDS[lastIndex].num}</span>
             </span>
             <span aria-hidden className="h-px flex-1 overflow-hidden bg-foreground/[0.12]">
+              {/* `scaleX` rather than a percentage width: this is redrawn on
+                  every scroll frame, and width is the one thing here that
+                  would make the compositor go back through layout to do it. */}
               <span
-                className="block h-full bg-primary/70"
-                style={{ width: `${(reelPosition / lastIndex) * 100}%` }}
+                className="block h-full w-full origin-left bg-primary/70 will-change-transform"
+                style={{ transform: `scaleX(${clamp01(reelPosition / lastIndex)})` }}
               />
             </span>
             <span className="flex items-center gap-1.5">
@@ -324,7 +327,7 @@ export const FeatureCardStack = () => {
                   aria-label={`Go to ${card.title}`}
                   aria-current={index === activeIndex}
                   className={cn(
-                    "h-1.5 rounded-full transition-all duration-300 ease-ios",
+                    "h-1.5 rounded-full transition-[width,background-color] duration-base ease-ios",
                     index === activeIndex
                       ? "w-5 bg-primary"
                       : "w-1.5 bg-foreground/[0.2] hover:bg-foreground/[0.35]",

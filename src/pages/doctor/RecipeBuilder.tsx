@@ -254,7 +254,7 @@ const DoshaRadial: React.FC<{
             </div>
             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${info.bgColor}`}
+                className={`h-full rounded-full transition-[width] duration-sweep ease-ios-smooth ${info.bgColor}`}
                 style={{ width: `${pct}%` }}
               />
             </div>

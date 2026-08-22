@@ -1199,7 +1199,7 @@ const FoodExplorer: React.FC = () => {
     const dietBadges = getDietBadges(recipe);
 
     return (
-      <Card className="h-full hover:shadow-lg transition-shadow duration-200 flex flex-col">
+      <Card className="h-full hover:shadow-lg transition-shadow duration-base ease-ios flex flex-col">
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start gap-2">
             <CardTitle className="text-base leading-tight line-clamp-2">

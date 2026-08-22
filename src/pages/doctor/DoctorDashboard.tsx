@@ -796,7 +796,7 @@ const DoctorDashboard = () => {
                   {notifications.slice(0, 15).map(notif => (
                     <div
                       key={notif.id}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all text-sm ${
+                      className={`p-3 rounded-xl border cursor-pointer transition-[background-color,border-color,color,box-shadow,transform] duration-quick ease-ios active:scale-[0.98] active:duration-press text-sm ${
                         notif.read ? "bg-muted/20 border-muted" :
                         notif.type === "consultation_request" ? "bg-primary/5 border-primary/20" :
                         notif.type === "meal_tracking" ? "bg-accent-soft border-primary/15" :

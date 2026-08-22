@@ -495,7 +495,7 @@ const Patients: React.FC = () => {
           </div>
         ) : (
           filteredPatients.map((patient) => (
-            <Card key={patient.id} className="hover:shadow-md transition-shadow duration-200">
+            <Card key={patient.id} className="hover:shadow-md transition-shadow duration-base ease-ios">
               <CardContent className="p-6">
                 <div className="flex gap-4">
                   <Avatar className="w-12 h-12 border border-border">

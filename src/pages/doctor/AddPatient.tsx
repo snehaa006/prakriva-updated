@@ -487,7 +487,7 @@ const ConsultationRequests: React.FC = () => {
           </Card>
         ) : (
           filteredRequests.map((request) => (
-            <Card key={request.id} className="hover:shadow-md transition-shadow duration-200">
+            <Card key={request.id} className="hover:shadow-md transition-shadow duration-base ease-ios">
               <CardContent className="p-6">
                 <div className="flex gap-6">
                   <Avatar className="w-12 h-12 border border-border">

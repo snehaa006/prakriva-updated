@@ -245,12 +245,80 @@ export default {
         "glow-gold": "0 14px 32px hsl(344 41% 46% / 0.30), 0 0 0 1px hsl(344 41% 46% / 0.08)",
         lift: "0 28px 80px -20px hsl(58 23% 15% / 0.14), 0 8px 24px -8px hsl(58 23% 15% / 0.09)",
       },
+      // --- Motion curves -------------------------------------------------
+      // One family, borrowed from how iOS moves things: everything decelerates
+      // into place. `ios` is the workhorse — a strong ease-out that starts at
+      // full speed and settles, which is what makes a transition read as
+      // momentum rather than as a timer counting down. The old value here was
+      // `cubic-bezier(0.25, 0.1, 0.25, 1)`, CSS `ease` under another name: it
+      // accelerates *into* the middle of the move, so every hover and every
+      // panel arrived with a small mechanical lurch.
+      //
+      // `ios-spring` is for things that appear — sheets, dialogs, the chat
+      // panel — and carries a deliberately tiny overshoot (~3%). It used to be
+      // `cubic-bezier(0.34, 1.56, 0.64, 1)`, a 56% overshoot, which is a
+      // cartoon bounce on anything the size of a modal.
+      //
+      // `ios-in` is the mirror, for things leaving: they should accelerate
+      // away rather than decelerate into nothing.
       transitionTimingFunction: {
-        ios: "cubic-bezier(0.25, 0.1, 0.25, 1)",
-        "ios-spring": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        // Also the DEFAULT, so the ~110 call sites that write a bare
+        // `transition-colors` or `transition-all` — with no `ease-*` beside
+        // it — pick up the app's curve instead of Tailwind's stock
+        // `cubic-bezier(0.4, 0, 0.2, 1)`. That one change is most of why the
+        // app moves consistently now.
+        DEFAULT: "cubic-bezier(0.22, 1, 0.36, 1)",
+        ios: "cubic-bezier(0.22, 1, 0.36, 1)",
+        // Softer and longer-tailed — for larger travel (panels, sheets, page
+        // transitions) where the full ease-out would look abrupt at the start.
+        "ios-smooth": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "ios-spring": "cubic-bezier(0.32, 1.06, 0.36, 1)",
+        "ios-in": "cubic-bezier(0.4, 0, 1, 1)",
+        // Symmetrical, for state that toggles both ways (switches, tabs).
+        "ios-in-out": "cubic-bezier(0.4, 0, 0.2, 1)",
       },
+      // A short scale, so durations are picked rather than defaulted. The
+      // rule of thumb they encode: the smaller the element and the shorter
+      // its travel, the faster it should be — a 2px hover lift at 300ms feels
+      // like syrup, and a full-height sheet at 150ms feels like a jump cut.
+      //
+      // Every duration in the app is named here rather than written inline as
+      // `duration-[320ms]`. Two reasons, one of them non-obvious:
+      //
+      //   * the same three or four numbers were being retyped across a dozen
+      //     files, and a motion system with a dozen durations has none;
+      //   * `tailwindcss-animate` teaches `duration-*` to set
+      //     `animation-duration` as well as `transition-duration`, which makes
+      //     an *arbitrary* value ambiguous — Tailwind resolves the ambiguity by
+      //     emitting nothing at all, so `duration-[320ms]` silently produces no
+      //     CSS. Named values are unambiguous and emit both.
       transitionDuration: {
-        DEFAULT: "250ms",
+        // A bare `transition-colors` gets 200ms rather than Tailwind's 150ms —
+        // long enough to read as a fade, short enough that a menu row still
+        // highlights the instant it is pointed at.
+        DEFAULT: "200ms",
+        // Press feedback — must land inside the same frame budget as the tap.
+        press: "110ms",
+        // Hover tints, icon nudges, small state flips.
+        quick: "180ms",
+        // Cards, dropdowns, popovers, chips.
+        base: "260ms",
+        // Something closing. Always shorter than the matching entrance: nobody
+        // waits on a thing they have already dismissed.
+        exit: "220ms",
+        // A section folding away — accordion, collapsible.
+        collapse: "240ms",
+        // A rail folding — the sidebar's width.
+        fold: "280ms",
+        // A panel settling into place — dialogs, toasts.
+        settle: "320ms",
+        // Panels, sheets, drawers, route changes.
+        panel: "380ms",
+        // A bar filling, a photo zooming: motion that *is* the content.
+        sweep: "420ms",
+        // The one deliberately long one — the chat companion crossing its
+        // strip. It is a walk, and a walk that takes 300ms is a twitch.
+        stroll: "620ms",
       },
       keyframes: {
         "accordion-down": {
@@ -262,8 +330,25 @@ export default {
           to: { height: "0" },
         },
         "rise-in": {
-          from: { opacity: "0", transform: "translateY(12px)" },
-          to: { opacity: "1", transform: "none" },
+          // 10px, not 12: the reveal should read as the content settling into
+          // place, not as it travelling in from somewhere else.
+          from: { opacity: "0", transform: "translate3d(0, 10px, 0)" },
+          to: { opacity: "1", transform: "translate3d(0, 0, 0)" },
+        },
+        // Menus, popovers, dropdowns and selects: they grow out of their
+        // trigger rather than appearing. The direction is carried entirely by
+        // `transform-origin` (see src/lib/motion.ts), which is why there is no
+        // translate here — one keyframe serves a surface opening in any of the
+        // four directions, and none of them drift sideways on the way in.
+        "surface-in": {
+          from: { opacity: "0", transform: "scale(0.96)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        // Route changes. Deliberately tiny — 6px and a fade. A page that
+        // slides a whole card-width on every navigation stops feeling fast.
+        "page-in": {
+          from: { opacity: "0", transform: "translate3d(0, 6px, 0)" },
+          to: { opacity: "1", transform: "translate3d(0, 0, 0)" },
         },
         "fade-in": {
           from: { opacity: "0" },
@@ -278,8 +363,8 @@ export default {
           "50%": { transform: "scale(1.025)" },
         },
         "companion-bob": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-2.5px)" },
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "50%": { transform: "translate3d(0, -2.5px, 0)" },
         },
         "companion-blink": {
           "0%, 90%, 100%": { transform: "scaleY(1)" },
@@ -297,63 +382,79 @@ export default {
           "0%, 100%": { transform: "scale(1)", opacity: "0.65" },
           "50%": { transform: "scale(1.15)", opacity: "1" },
         },
+        // The mascot still thinks and still celebrates — it just does it with
+        // the amplitude of a person nodding rather than of a cartoon. The old
+        // values (4px/5deg at 1s, 10% scale and 8deg of swing) drew the eye
+        // away from the answer the character was delivering.
         "companion-think-bounce": {
-          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
-          "25%": { transform: "translateY(-4px) rotate(-5deg)" },
-          "75%": { transform: "translateY(-2px) rotate(5deg)" },
+          "0%, 100%": { transform: "translate3d(0, 0, 0) rotate(0deg)" },
+          "25%": { transform: "translate3d(0, -2.5px, 0) rotate(-3deg)" },
+          "75%": { transform: "translate3d(0, -1.5px, 0) rotate(3deg)" },
         },
         "companion-celebrate": {
+          // Decays instead of oscillating flat: each swing is smaller than the
+          // last, which is how a real settling motion ends.
           "0%, 100%": { transform: "scale(1) rotate(0deg)" },
-          "20%": { transform: "scale(1.1) rotate(-8deg)" },
-          "40%": { transform: "scale(1.05) rotate(8deg)" },
-          "60%": { transform: "scale(1.1) rotate(-4deg)" },
-          "80%": { transform: "scale(1.05) rotate(4deg)" },
+          "22%": { transform: "scale(1.05) rotate(-4deg)" },
+          "45%": { transform: "scale(1.03) rotate(3deg)" },
+          "68%": { transform: "scale(1.02) rotate(-1.5deg)" },
+          "86%": { transform: "scale(1.01) rotate(0.5deg)" },
         },
         "message-in": {
-          from: { opacity: "0", transform: "translateY(8px) scale(0.99)" },
-          to: { opacity: "1", transform: "none" },
+          from: { opacity: "0", transform: "translate3d(0, 8px, 0) scale(0.99)" },
+          to: { opacity: "1", transform: "translate3d(0, 0, 0) scale(1)" },
         },
         "nudge-in": {
-          from: { opacity: "0", transform: "translateY(10px) scale(0.94)" },
-          to: { opacity: "1", transform: "none" },
+          // 0.97, not 0.94: paired with the softened spring below, the popup
+          // now arrives rather than pops.
+          from: { opacity: "0", transform: "translate3d(0, 10px, 0) scale(0.97)" },
+          to: { opacity: "1", transform: "translate3d(0, 0, 0) scale(1)" },
         },
         "typing-dot": {
-          "0%, 60%, 100%": { transform: "translateY(0)", opacity: "0.4" },
-          "30%": { transform: "translateY(-3px)", opacity: "1" },
+          "0%, 60%, 100%": { transform: "translate3d(0, 0, 0)", opacity: "0.4" },
+          "30%": { transform: "translate3d(0, -3px, 0)", opacity: "1" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
         float: {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-8px)" },
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "50%": { transform: "translate3d(0, -8px, 0)" },
         },
         "pulse-soft": {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.6" },
         },
       },
+      // Durations here follow the same rule as the scale above: travel and
+      // size set the duration. Entrances all use the ease-out family so they
+      // decelerate into place; the looping ambient ones keep a symmetric
+      // in-out curve, because a loop with an ease-out reads as a stutter.
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "rise-in": "rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
-        "fade-in": "fade-in 0.5s ease-out both",
+        "accordion-down": "accordion-down 0.26s cubic-bezier(0.22, 1, 0.36, 1)",
+        "accordion-up": "accordion-up 0.22s cubic-bezier(0.4, 0, 1, 1)",
+        "rise-in": "rise-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "fade-in": "fade-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "surface-in": "surface-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "page-in": "page-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both",
         "draw-stroke": "draw-stroke 1.2s cubic-bezier(0.65, 0, 0.35, 1) both",
         breathe: "breathe 5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "companion-bob": "companion-bob 3.6s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "companion-blink": "companion-blink 5.5s ease-in-out infinite",
-        "companion-scan": "companion-scan 1.6s ease-in-out infinite",
-        "companion-think": "companion-think 1.1s ease-in-out infinite",
-        "companion-sparkle": "companion-sparkle 1.8s ease-in-out infinite",
-        "companion-think-bounce": "companion-think-bounce 1s ease-in-out infinite",
-        "companion-celebrate": "companion-celebrate 0.8s ease-in-out",
-        "message-in": "message-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both",
-        "nudge-in": "nudge-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both",
-        "typing-dot": "typing-dot 1.2s ease-in-out infinite",
-        shimmer: "shimmer 2.5s ease-in-out infinite",
-        float: "float 5s ease-in-out infinite",
-        "pulse-soft": "pulse-soft 3.5s ease-in-out infinite",
+        "companion-blink": "companion-blink 5.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-scan": "companion-scan 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-think": "companion-think 1.1s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-sparkle": "companion-sparkle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        // Slowed from 1s: the same gesture at a calmer tempo reads as thought
+        // rather than as impatience.
+        "companion-think-bounce": "companion-think-bounce 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "companion-celebrate": "companion-celebrate 1.1s cubic-bezier(0.22, 1, 0.36, 1)",
+        "message-in": "message-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "nudge-in": "nudge-in 0.42s cubic-bezier(0.32, 1.06, 0.36, 1) both",
+        "typing-dot": "typing-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        shimmer: "shimmer 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        float: "float 5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "pulse-soft": "pulse-soft 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },
   },

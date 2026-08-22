@@ -519,7 +519,7 @@ const SymptomTracking = () => {
                               </div>
                               <div className="w-full bg-muted rounded-full h-2">
                                 <div 
-                                  className={`h-2 rounded-full transition-all duration-500 ${
+                                  className={`h-2 rounded-full transition-[width] duration-sweep ease-ios-smooth ${
                                     insights.trend === "decreasing" ? "bg-rose-500" :
                                     insights.trend === "increasing" ? "bg-destructive" :
                                     "bg-plum-500"

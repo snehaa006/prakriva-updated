@@ -59,7 +59,7 @@ const RadioGroupItem = React.forwardRef<HTMLButtonElement, RadioGroupItemProps>(
         disabled={disabled}
         onClick={() => context.onValueChange?.(value)}
         className={cn(
-          "aspect-square h-4 w-4 rounded-full border border-primary text-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          "aspect-square h-4 w-4 rounded-full border border-primary text-primary ring-offset-background transition-[background-color,border-color,box-shadow,transform] duration-quick ease-ios active:scale-90 active:duration-press disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}
         {...props}

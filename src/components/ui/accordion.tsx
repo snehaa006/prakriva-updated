@@ -150,14 +150,14 @@ const AccordionTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAtt
             onClick?.(event);
           }}
           className={cn(
-            "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline",
+            "flex flex-1 items-center justify-between py-4 font-medium transition-colors hover:underline",
             className,
           )}
           {...props}
         >
           {children}
           <ChevronDown
-            className={cn("h-4 w-4 shrink-0 transition-transform duration-200", open && "rotate-180")}
+            className={cn("h-4 w-4 shrink-0 transition-transform duration-base ease-ios", open && "rotate-180")}
           />
         </button>
       </div>
@@ -197,7 +197,11 @@ const AccordionContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<H
       <div
         ref={ref}
         data-state={open ? "open" : "closed"}
-        className="overflow-hidden text-sm transition-[max-height] duration-300 ease-ios"
+        // The panel fades as it collapses rather than only being clipped —
+        // content sliding under a hard edge is the part that reads as
+        // mechanical. Opening keeps the 300ms the measurement effect above
+        // waits on; closing is quicker, and accelerates away.
+        className="overflow-hidden text-sm opacity-100 transition-[max-height,opacity] duration-300 ease-ios data-[state=closed]:opacity-0 data-[state=closed]:duration-collapse data-[state=closed]:ease-ios-in"
         style={{ maxHeight }}
         {...props}
       >

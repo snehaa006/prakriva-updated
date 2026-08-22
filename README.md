@@ -46,9 +46,16 @@ listed under "Language and translation" below.
   `FoodContext`). Data access to Supabase and other APIs lives in
   `src/services` and `src/lib`. Shared TypeScript types live in `src/types/`.
 - `public/chatbot/` — the three mascot PNG images (`idle.png`, `thinking.png`,
-  `responding.png`) used by `CompanionCharacter.tsx` for the chatbot's animated
-  character across both patient and doctor interfaces.
+  `responding.png`) used by `CompanionCharacter.tsx` for **Kuchu Puchu**, the
+  app's chatbot, across both patient and doctor interfaces. "Kuchu Puchu" is
+  the name shown to users everywhere the assistant speaks — the panel header,
+  the launcher's accessible label, both system prompts in
+  `backend/gemini_service.py`, and its failure notices.
 - `src/components/ui/logo.tsx` — the `Logo` component. See "Brand marks".
+- `src/lib/motion.ts` — the entrance shared by every floating surface (menus,
+  popovers, selects, tooltips, hover cards): which `origin-*` a surface grows
+  from, and when its keyframes are allowed to start. See "Motion and
+  illustration".
 - `src/components/landing/` — the marketing landing page's feature section
   (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`) and the
   panels floating on each scene (`FeaturePreviews.tsx`). See "Landing page".
@@ -941,7 +948,7 @@ are not persisted.
 Several features read patient data through Google's Gemini, all proxied by
 Flask (`backend/gemini_service.py`):
 
-- **Patient → wellness companion** (`/assistant/chat`,
+- **Patient → Kuchu Puchu, the wellness companion** (`/assistant/chat`,
   `src/components/chat/NutritionChatbot.tsx` with `mode="patient"`) —
   a free-form assistant, not a scripted decision tree: she can ask literally
   anything ("insights for the last 7 days", "am I improving?", "I'm craving
@@ -955,16 +962,18 @@ Flask (`backend/gemini_service.py`):
   "at home") rather than an invented dish. Conversation history is kept
   client-side and replayed on each turn, so a follow-up like "yes I have
   that" is understood in context. Only real turns are replayed: the canned
-  welcome message and any "couldn't reach your assistant" notice are left out,
+  welcome message and any "couldn't reach Kuchu Puchu" notice are left out,
   because Gemini requires a conversation to open with a *user* turn and
   replaying a failure notice as a model turn teaches the conversation that it
   is broken. When a turn does fail, the reply says so and carries the reason
   underneath it in small print (see the troubleshooting note below) plus a
   "Try again" button that re-sends the same question. The interface it does
   all this behind is described under "The companion" below.
-- **Doctor → clinical assistant** (`/assistant/doctor-chat`,
+- **Doctor → Kuchu Puchu in clinical mode** (`/assistant/doctor-chat`,
   `NutritionChatbot` with `mode="doctor"`) — a floating AI button on every
-  doctor page, opening the same chatbot component in clinical mode. Context is
+  doctor page, opening the same chatbot component in clinical mode. The name in
+  the header is the same on both sides; only the subtitle and the system prompt
+  change. Context is
   the doctor's patient roster (profiles, dosha, life stage, allergies,
   adherence, screenings) assembled by `fetchDoctorChatContext` in
   `chatAssistantService.ts`. The system prompt (`DOCTOR_CHAT_RULES`) uses
@@ -1033,10 +1042,10 @@ reporting itself as unavailable. The chatbot is the exception to the
 "ask `/analysis/status` first" rule for *sending*: it always attempts the
 call, because that check is still in flight for the first second or so after
 the widget opens and refusing to send during it answered the opening question
-with "your assistant isn't available" on a perfectly healthy deployment. The
+with "Kuchu Puchu isn't available" on a perfectly healthy deployment. The
 banner at the top of the chat still uses the status check.
 
-#### The companion: character, unprompted nudges and cards
+#### Kuchu Puchu: character, unprompted nudges and cards
 
 The chat is not a text box with a send button. Four pieces make it a companion:
 
@@ -1085,7 +1094,7 @@ model writes Markdown whether or not it is asked to, and the previous plain-text
 rendering showed literal `**asterisks**` to the patient. Nothing there produces
 HTML, so markup in a reply is inert.
 
-#### When the chatbot answers "I couldn't reach your assistant"
+#### When the chat answers "I couldn't reach Kuchu Puchu"
 
 Failure notices in the chat carry the underlying reason in small grey text
 beneath them, so the cause is visible without opening devtools:
@@ -1894,9 +1903,110 @@ the content. `full` is unchanged, so pills and avatars are untouched.
 
 ## Motion and illustration
 
+The target is iOS: motion you notice as smoothness rather than as animation.
+Nothing here is decoration you are meant to watch — it exists to make a change
+of state legible, and then get out of the way.
+
+### The motion scale
+
+Every curve and every duration is a named token in `tailwind.config.ts`. There
+are no inline `duration-[320ms]`-style values in the app, for two reasons: the
+same handful of numbers were otherwise retyped across a dozen files, and
+`tailwindcss-animate` teaches `duration-*` to set `animation-duration` as well
+as `transition-duration`, which makes an *arbitrary* value ambiguous — Tailwind
+resolves that ambiguity by emitting **no CSS at all**, so `duration-[320ms]`
+silently does nothing. Named values are unambiguous and emit both.
+
+**Curves.** One family, all decelerating, because a thing arriving under its own
+momentum is what separates a native feel from a timer running down:
+
+| Token | Curve | For |
+| --- | --- | --- |
+| `ease-ios` *(also the default)* | `cubic-bezier(0.22, 1, 0.36, 1)` | Almost everything: hovers, presses, colour, small moves. |
+| `ease-ios-smooth` | `cubic-bezier(0.16, 1, 0.3, 1)` | Longer travel — sheets, drawers, page transitions, a bar filling. |
+| `ease-ios-spring` | `cubic-bezier(0.32, 1.06, 0.36, 1)` | ~3% overshoot. Dialogs and the switch knob, nothing anchored to a screen edge. |
+| `ease-ios-in` | `cubic-bezier(0.4, 0, 1, 1)` | Anything leaving — it should accelerate away, not decelerate into nothing. |
+| `ease-ios-in-out` | `cubic-bezier(0.4, 0, 0.2, 1)` | State that toggles symmetrically both ways. |
+
+`ease-ios` is also `transitionTimingFunction.DEFAULT`, so the ~110 places that
+write a bare `transition-colors` with no `ease-*` beside it pick up the app's
+curve instead of Tailwind's stock one. That single line is most of why the app
+now moves consistently.
+
+**Durations.** Travel and size pick the duration — a 2px hover lift at 300ms is
+syrup, a full-height sheet at 150ms is a jump cut:
+
+| Token | Time | For |
+| --- | --- | --- |
+| `duration-press` | 110ms | Press feedback. Must land inside the tap's own frame budget. |
+| `duration-quick` | 180ms | Hover tints, icon nudges, small state flips. |
+| *(default)* | 200ms | A bare `transition-colors`. |
+| `duration-base` | 260ms | Cards, dropdowns, popovers, chips. |
+| `duration-exit` | 220ms | Something closing — always shorter than its entrance. |
+| `duration-collapse` | 240ms | An accordion or collapsible folding away. |
+| `duration-fold` | 280ms | The sidebar's width. |
+| `duration-settle` | 320ms | A dialog or toast settling into place. |
+| `duration-panel` | 380ms | Sheets, drawers, the chat panel, route changes. |
+| `duration-sweep` | 420ms | A bar filling, a photo zooming — motion that *is* the content. |
+| `duration-stroll` | 620ms | The chat companion crossing its strip. It is a walk. |
+
+**Two asymmetries are deliberate**, and they are what make the interface feel
+physical rather than animated:
+
+- a press goes *down* in 110ms and comes *back* over 180–260ms, which reads as
+  weight;
+- everything **enters slower than it leaves** — nobody waits on something they
+  have already dismissed.
+
+### Shared motion utilities
+
+Three classes in `src/index.css`, for the cases a Tailwind variant handles
+badly:
+
+- `.press` / `.press-sm` — press feedback on anything tappable (2.5% and 8%
+  respectively; the smaller class is for icon-sized targets, where 2.5% is
+  invisible). They carry the transition too, so an element using them should
+  not also set a `transition-*` utility.
+- `.interactive` — a 1px lift on hover and a settle on press, for tiles and
+  rows that behave like buttons without looking like them.
+- `.card-hover` — the 3px card lift, with a press that goes *below* resting
+  rather than to a shallower hover: an element that only ever rises under a
+  click never feels pushed.
+
+Where hover and press both change **scale**, use the plain `hover:` variant
+rather than an arbitrary `[@media(hover:hover)]:hover:` one. Both write the
+same Tailwind transform variable, so the winner is decided by stylesheet order
+— Tailwind emits `active:` after `hover:`, but arbitrary variants land after
+both. `hover:` and `active:` changing *different* transform properties (a
+translate and a scale, as on `Button`) compose safely in any order.
+
+### Floating surfaces
+
+Menus, popovers, selects, tooltips, hover cards, context menus and menubars are
+all positioned by the same duplicated `useFloatingPosition` hook, which mounts
+the surface hidden, asks floating-ui where it goes, and only then reveals it.
+`src/lib/motion.ts` is the shared half of the entrance that follows:
+
+- `floatingSurfaceMotion(placement, styles)` returns the entrance classes, and
+  returns nothing while the surface is still hidden — so the keyframes play
+  from their first frame rather than partly behind `visibility: hidden`;
+- `surfaceOrigin(placement)` picks the `origin-*` class, so a surface grows out
+  of the edge nearest its trigger instead of out of its own middle. Direction
+  is carried entirely by the transform origin, which is why one `surface-in`
+  keyframe serves all four sides.
+
+### Page transitions
+
+`PatientLayout` and `DoctorLayout` key `<main>` on `useLocation().pathname` and
+give it `animate-page-in` — a 6px rise and a fade over 380ms. `<main>` itself
+is keyed rather than a wrapper around `<Outlet />`, because a wrapper would sit
+between `<main>` and the pages that size themselves against it.
+
+### Primitives
+
 Animation is defined once, in `tailwind.config.ts` (`rise-in`, `fade-in`,
-`draw-stroke`, `breathe`), and reached through two primitives rather than
-hand-rolled per component:
+`surface-in`, `page-in`, `draw-stroke`, `breathe`), and reached through these
+rather than hand-rolled per component:
 
 - `<Reveal index={n}>` (`src/components/ui/reveal.tsx`) fades content up on
   mount, 70ms apart. Long lists should cap `index` — a 40-row table where row
@@ -1926,7 +2036,8 @@ looking at a pregnancy illustration should see a pictogram of her situation,
 not a character who doesn't look like her.
 
 **All of it is switched off under `prefers-reduced-motion`**, by a blanket
-guard in `src/index.css` that collapses every animation and transition to
+guard in `src/index.css` that collapses every animation and transition — plus
+their delays, and smooth scrolling, and the dialog backdrop's fade — to
 0.01ms. Motion in this app is always decoration — nothing is communicated by
 movement alone — and migraine and pregnancy both raise motion sensitivity, so
 honouring the OS setting is a requirement here rather than a nicety. Playwright

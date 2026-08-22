@@ -26,8 +26,16 @@ const ToastViewport = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 );
 ToastViewport.displayName = "ToastViewport";
 
+// `slide-in-from-*-full` moved the toast its own full height on the way in —
+// a ~90px jump for a notification that is meant to be peripheral. 12px and a
+// fade says the same thing without pulling the eye off whatever caused it.
+//
+// One `duration`/`ease` pair only: tailwindcss-animate makes those utilities
+// set `animation-duration`/`animation-timing-function` as well as the
+// transition ones, so a second pair here would leave which of them won up to
+// stylesheet order.
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-2xl p-4 shadow-lg transition-all animate-in slide-in-from-top-full sm:slide-in-from-bottom-full",
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-2xl p-4 shadow-lg transition-[opacity,transform,background-color,border-color] animate-in fade-in-0 slide-in-from-top-3 sm:slide-in-from-bottom-3 duration-settle ease-ios-smooth",
   {
     variants: {
       variant: {

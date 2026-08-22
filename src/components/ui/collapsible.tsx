@@ -120,7 +120,7 @@ const CollapsibleContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes
       <div
         ref={ref}
         data-state={open ? "open" : "closed"}
-        className="overflow-hidden transition-[max-height] duration-300 ease-ios"
+        className="overflow-hidden opacity-100 transition-[max-height,opacity] duration-300 ease-ios data-[state=closed]:opacity-0 data-[state=closed]:duration-collapse data-[state=closed]:ease-ios-in"
         style={{ maxHeight, ...style }}
         {...props}
       >

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
 import { PatientSidebar } from "./PatientSidebar";
 import { PatientBottomNav } from "./PatientBottomNav";
@@ -10,6 +10,11 @@ import { LanguageSwitcher } from "@/components/LanguageSelect";
 import { DietPlanProvider } from "@/context/DietPlanContext";
 
 const PatientLayout = () => {
+  // Keyed on the path so a route change replays the entrance below. Keying
+  // <main> itself rather than a wrapper around <Outlet /> keeps the DOM
+  // exactly as it was — a wrapper would sit between <main> and pages that
+  // size themselves against it.
+  const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -59,7 +64,12 @@ const PatientLayout = () => {
               setting" and "the app is multilingual". */}
           <LanguageSwitcher />
         </header>
-        <main className="flex-1 overflow-auto p-4 pb-28 md:p-6 md:pb-6 lg:p-8">
+        {/* A page arrives with a 6px rise and a fade — enough to register as
+            a change of place, small enough that it never reads as a slide. */}
+        <main
+          key={pathname}
+          className="flex-1 animate-page-in overflow-auto p-4 pb-28 md:p-6 md:pb-6 lg:p-8"
+        >
           <Outlet />
         </main>
       </div>

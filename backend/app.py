@@ -977,7 +977,7 @@ def assistant_chat():
 @app.route("/assistant/doctor-chat", methods=["POST"])
 @app.limiter.limit("60 per hour")
 def assistant_doctor_chat():
-    """Open-ended chat for doctors — clinical assistant with patient context.
+    """Open-ended chat for doctors — Kuchu Puchu in clinical mode, with patient context.
 
     Body: `{"message": "...", "history": [...], "context": {...}}`.
     Same structure as `/assistant/chat` but uses doctor-specific system rules

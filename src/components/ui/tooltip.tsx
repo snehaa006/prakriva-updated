@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { computePosition, autoUpdate, offset, flip, shift, type Placement } from "@floating-ui/dom";
 
 import { cn } from "@/lib/utils";
+import { floatingSurfaceMotion } from "@/lib/motion";
 
 /* -------------------------------------------------------------------------
  * Local floating-ui positioning hook (duplicated per-file by design).
@@ -215,6 +216,7 @@ const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentProps>(
         style={styles}
         className={cn(
           "z-50 overflow-hidden rounded-xl bg-foreground px-3 py-1.5 text-caption1 text-background shadow-md",
+          floatingSurfaceMotion(placement, styles),
           className,
         )}
         {...props}

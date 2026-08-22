@@ -36,14 +36,18 @@ export function ProductCard({ product, reason }: { product: ShopProduct; reason?
       to={`/patient/shop/${product.id}`}
       className={cn(
         "group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left",
-        "transition-all duration-200 ease-ios hover:border-border-strong hover:shadow-md",
+        // `interactive` (index.css) carries the 1px lift and the press; only
+        // the border and shadow are card-specific.
+        "interactive hover:border-border-strong hover:shadow-md",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       )}
     >
       <div className="relative">
         <ProductImage
           product={product}
-          imgClassName="transition-transform duration-300 ease-ios group-hover:scale-[1.04]"
+          // 1.03 over 420ms rather than 1.04 over 300: a photo zoom is one of
+          // the few places where slower reads as more expensive, not slower.
+          imgClassName="transition-transform duration-sweep ease-ios-smooth group-hover:scale-[1.03]"
         />
 
         {/* Overlaid rather than stacked above the photo: these are properties

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { computePosition, autoUpdate, offset, flip, shift, type Placement } from "@floating-ui/dom";
 
 import { cn } from "@/lib/utils";
+import { floatingSurfaceMotion } from "@/lib/motion";
 
 /* -------------------------------------------------------------------------
  * Local floating-ui positioning hook (duplicated per-file by design).
@@ -219,6 +220,7 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
         style={styles}
         className={cn(
           "z-50 w-72 rounded-2xl bg-popover p-4 text-popover-foreground shadow-lg outline-none",
+          floatingSurfaceMotion(placement, styles),
           className,
         )}
         {...props}
