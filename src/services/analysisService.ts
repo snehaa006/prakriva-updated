@@ -19,27 +19,134 @@ interface Envelope<T> {
   error?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Cold starts
+//
+// The backend runs on Render's free plan, which stops the instance after about
+// fifteen minutes of inactivity and boots it again on the next request. Render
+// puts the cost at "50 seconds or more", and this service is at the slow end of
+// that: it loads the dosha pickle and the XGBoost screening models at import.
+//
+// So the first request after an idle period was reliably losing the race with
+// the 50s abort below, and surfacing `AbortError`'s uniquely unhelpful message
+// — "signal is aborted without reason" — as though the backend were down.
+//
+// The fix is to tell a cold start apart from an outage instead of guessing:
+// on a failed request, poll `/health` (cheap, and exempt from the rate limiter
+// for exactly this reason) until the instance answers, then retry the real
+// call with a full fresh budget. A backend that is genuinely down never
+// answers the poll, and reports itself as down.
+// ---------------------------------------------------------------------------
+
+/** How long to keep waiting for a sleeping instance to boot. */
+const WAKE_BUDGET_MS = 90_000;
+
+/** Per-attempt budget for one `/health` poll while waking. */
+const WAKE_PROBE_MS = 10_000;
+
+/** Gap between polls, so waking costs a handful of requests rather than a flood. */
+const WAKE_POLL_GAP_MS = 2_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithTimeout = async (
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+/** A reason worth showing a user, out of whatever `fetch` rejected with. */
+const describeFetchError = (error: unknown, timeoutMs: number): string => {
+  const name = (error as { name?: string } | null)?.name;
+  if (name === "AbortError" || name === "TimeoutError") {
+    return `no response within ${Math.round(timeoutMs / 1000)}s`;
+  }
+  return error instanceof Error ? error.message : String(error);
+};
+
+/**
+ * Resolves once the backend answers `/health`, or false if it never does.
+ *
+ * Shared between concurrent callers: a page that fires three analysis calls at
+ * once should wake the instance once, not three times over.
+ */
+let wakeInFlight: Promise<boolean> | null = null;
+
+export const wakeBackend = (): Promise<boolean> => {
+  if (wakeInFlight) return wakeInFlight;
+
+  const run = (async () => {
+    const deadline = Date.now() + WAKE_BUDGET_MS;
+    while (Date.now() < deadline) {
+      try {
+        const response = await fetchWithTimeout(`${API_BASE}/health`, {}, WAKE_PROBE_MS);
+        // Any answer at all means the instance is up. A non-2xx health check
+        // is a backend problem to report from the real call, not a reason to
+        // keep waiting for a boot that has already happened.
+        if (response.status > 0) return true;
+      } catch {
+        // Still booting, or genuinely unreachable — the deadline decides which.
+      }
+      await sleep(WAKE_POLL_GAP_MS);
+    }
+    return false;
+  })();
+
+  wakeInFlight = run;
+  void run.catch(() => false).then(() => {
+    if (wakeInFlight === run) wakeInFlight = null;
+  });
+  return run;
+};
+
+/** Drops any in-flight wake. Test seam — nothing in the app needs this. */
+export const resetBackendWakeState = (): void => {
+  wakeInFlight = null;
+};
+
 const post = async <T>(path: string, body: unknown, timeoutMs = 50_000): Promise<T> => {
+  const attempt = () =>
+    fetchWithTimeout(
+      `${API_BASE}${path}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      timeoutMs
+    );
+
   let response: Response;
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    response = await fetch(`${API_BASE}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    response = await attempt();
   } catch (error) {
-    // `fetch` rejects the same way for a backend that is down, a wrong
-    // VITE_API_URL and a CORS rejection, so name the URL that failed — the
-    // bare "Failed to fetch" says nothing a user could act on.
-    throw new Error(
-      `Could not reach the backend at ${API_BASE} (${
-        error instanceof Error ? error.message : String(error)
-      })`
-    );
+    // `fetch` rejects the same way for a sleeping instance, a backend that is
+    // down, a wrong VITE_API_URL and a CORS rejection. Waking the instance
+    // separates the first from the rest.
+    const reason = describeFetchError(error, timeoutMs);
+    if (!(await wakeBackend())) {
+      // Name the URL that failed — the bare "Failed to fetch" says nothing a
+      // user could act on.
+      throw new Error(`Could not reach the backend at ${API_BASE} (${reason})`);
+    }
+    try {
+      response = await attempt();
+    } catch (retryError) {
+      throw new Error(
+        `Could not reach the backend at ${API_BASE} (${describeFetchError(
+          retryError,
+          timeoutMs
+        )})`
+      );
+    }
   }
 
   const payload = (await response.json().catch(() => null)) as Envelope<T> | null;
@@ -62,18 +169,24 @@ const post = async <T>(path: string, body: unknown, timeoutMs = 50_000): Promise
  * Network problems read as "not enabled" for the same reason.
  */
 export const isAnalysisEnabled = async (): Promise<boolean> => {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5_000);
-    const response = await fetch(`${API_BASE}/analysis/status`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+  const read = async (timeoutMs: number): Promise<boolean> => {
+    const response = await fetchWithTimeout(`${API_BASE}/analysis/status`, {}, timeoutMs);
     if (!response.ok) return false;
     const payload = (await response.json()) as Envelope<{ enabled: boolean }>;
     return payload.data?.enabled === true;
+  };
+
+  try {
+    return await read(8_000);
   } catch {
-    return false;
+    // A sleeping instance cannot answer in eight seconds, and reading that as
+    // "not enabled" hid the AI panels for the whole session — the user saw a
+    // feature silently missing rather than one that was still waking up.
+    try {
+      return (await wakeBackend()) ? await read(15_000) : false;
+    } catch {
+      return false;
+    }
   }
 };
 

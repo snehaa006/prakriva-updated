@@ -4,6 +4,7 @@ Enhanced Flask application with comprehensive features and production readiness
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -121,8 +122,13 @@ def get_datasets():
 def before_request():
     """Pre-request processing"""
     g.request_start_time = datetime.now(timezone.utc)
-    g.request_id = request.headers.get('X-Request-ID', 'unknown')
-    
+    # Fall back to a generated ID rather than the literal string "unknown".
+    # Almost nothing sends X-Request-ID — Render's own health prober does not —
+    # so the old default made every line in the deployed log read
+    # "Request unknown", which looks like an error and, worse, makes concurrent
+    # requests impossible to tell apart when reading a log back.
+    g.request_id = request.headers.get('X-Request-ID') or uuid.uuid4().hex[:8]
+
     # Log incoming request
     logger.info(f"Request {g.request_id}: {request.method} {request.path}")
 

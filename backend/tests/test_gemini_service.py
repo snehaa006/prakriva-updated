@@ -53,6 +53,21 @@ def model_gone_response() -> Mock:
     return response
 
 
+def overloaded_response() -> Mock:
+    """What Gemini answers when the model itself is out of capacity."""
+    response = Mock(status_code=503)
+    response.json.return_value = {
+        "error": {
+            "status": "UNAVAILABLE",
+            "message": (
+                "This model is currently experiencing high demand. Spikes in "
+                "demand are usually temporary. Please try again later."
+            ),
+        }
+    }
+    return response
+
+
 def candidates_response(text: str) -> Mock:
     response = Mock(status_code=200)
     response.json.return_value = {"candidates": [{"content": {"parts": [{"text": text}]}}]}
@@ -262,6 +277,116 @@ class TestModelFailover:
         with patch("gemini_service.requests.post", return_value=model_gone_response()):
             with pytest.raises(GeminiUnavailable, match="no usable model"):
                 gemini_service._post_gemini({}, timeout=5)
+
+
+class TestModelOverload:
+    """A 503 UNAVAILABLE — "this model is currently experiencing high demand".
+
+    This is the failure the patient actually saw: the message came back as
+    "Gemini is unavailable (last error: HTTP 503 (UNAVAILABLE — This model is
+    currently experiencing high demand))". It fell into the generic 5xx branch,
+    which blames the key: all three keys were spent against the same busy model
+    with no pause between them, and all three were left cooling down afterwards,
+    so the next few minutes of requests failed too. Capacity belongs to the
+    model, not the key.
+    """
+
+    @pytest.fixture(autouse=True)
+    def no_real_sleeping(self, monkeypatch):
+        """Keep the backoff's shape without paying for it in test time."""
+        self.slept = []
+        monkeypatch.setattr(gemini_service.time, "sleep", self.slept.append)
+
+    def test_one_busy_answer_is_retried_on_the_same_key(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[overloaded_response(), candidates_response("ok")],
+        ) as post:
+            body = gemini_service._post_gemini({}, timeout=5)
+
+        assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+        assert post.call_args_list[0].kwargs["params"] == {"key": "a"}
+        assert post.call_args_list[1].kwargs["params"] == {"key": "a"}
+
+    def test_it_waits_before_retrying(self, monkeypatch):
+        with_keys(monkeypatch, "a")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[overloaded_response(), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert self.slept == [gemini_service._OVERLOAD_BACKOFF]
+
+    def test_a_busy_model_escalates_to_another_model(self, monkeypatch):
+        """The point of the fix: another model is a separate serving pool, so
+        it is the retry with a real chance of working."""
+        with_keys(monkeypatch, "k")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[
+                overloaded_response(),
+                overloaded_response(),
+                candidates_response("ok"),
+            ],
+        ) as post:
+            body = gemini_service._post_gemini({}, timeout=5)
+
+        assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+        first = post.call_args_list[0].args[0]
+        assert post.call_args_list[1].args[0] == first
+        assert post.call_args_list[2].args[0] != first
+
+    def test_a_busy_model_does_not_burn_the_key_pool(self, monkeypatch):
+        with_keys(monkeypatch, "a", "b", "c")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[
+                overloaded_response(),
+                overloaded_response(),
+                candidates_response("ok"),
+            ],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert gemini_service._cooldown_until == {}
+
+    def test_a_busy_model_is_not_retired(self, monkeypatch):
+        """Capacity comes back. Retiring the best model for the life of the
+        process would answer a ten-second outage with a permanent downgrade."""
+        with_keys(monkeypatch, "k")
+        best = gemini_service.active_model()
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[
+                overloaded_response(),
+                overloaded_response(),
+                candidates_response("ok"),
+            ],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert best not in gemini_service._retired_models
+
+    def test_giving_up_says_busy_rather_than_broken(self, monkeypatch):
+        with_keys(monkeypatch, "k")
+        with patch("gemini_service.requests.post", return_value=overloaded_response()):
+            with pytest.raises(GeminiUnavailable, match="busy"):
+                gemini_service._post_gemini({}, timeout=5)
+
+    def test_a_busy_model_is_bounded(self, monkeypatch):
+        """A total outage must not turn one message into unbounded calls."""
+        with_keys(monkeypatch, "k")
+        with patch(
+            "gemini_service.requests.post", return_value=overloaded_response()
+        ) as post:
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=5)
+
+        assert post.call_count <= (
+            gemini_service._MAX_MODEL_ATTEMPTS * gemini_service._OVERLOAD_ATTEMPTS
+        )
 
 
 class TestModelDiscovery:
