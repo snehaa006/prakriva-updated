@@ -60,13 +60,13 @@ export function PatientBottomNav({
           <button
             onClick={onAIClick}
             aria-label="Talk to your wellness companion"
-            className="relative -mt-8 flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 ease-ios-spring hover:scale-110 active:scale-95"
+            className="relative -mt-9 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-200 ease-ios-spring hover:scale-110 active:scale-95"
             style={{ filter: "drop-shadow(0 3px 10px rgba(236,107,139,0.35))" }}
           >
             <img
               src="/chatbot/idle.png"
               alt="AI Companion"
-              className="h-16 w-16 object-contain animate-companion-bob"
+              className="h-[72px] w-[72px] object-contain animate-companion-bob"
               draggable={false}
             />
           </button>

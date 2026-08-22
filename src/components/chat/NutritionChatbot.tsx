@@ -187,7 +187,7 @@ const CompanionStage: React.FC<{ stage: Stage }> = ({ stage }) => {
   const label = STAGE_LABEL[stage];
 
   return (
-    <div className="relative h-14 shrink-0 px-4" aria-hidden>
+    <div className="relative h-16 shrink-0 px-4" aria-hidden>
       <div
         className="absolute top-0 transition-[left,transform] duration-700 ease-ios-spring"
         style={{
@@ -195,7 +195,7 @@ const CompanionStage: React.FC<{ stage: Stage }> = ({ stage }) => {
           transform: side === "right" ? "translateX(-100%)" : "none",
         }}
       >
-        <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-12 w-12" />
+        <CompanionCharacter mood={STAGE_MOOD[stage]} className="h-14 w-14" />
       </div>
 
       <span
@@ -391,11 +391,13 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
   messagesRef.current = messages;
   const contextRef = useRef(context);
   contextRef.current = context;
+  const sendingRef = useRef(false);
 
   const sendMessage = useCallback(
     async (rawText: string) => {
       const text = rawText.trim();
-      if (!text || isLoading) return;
+      if (!text || isLoading || sendingRef.current) return;
+      sendingRef.current = true;
 
       const history = buildHistory(messagesRef.current);
       const userMessage: ChatMessage = { id: msgId(), role: "user", text, timestamp: Date.now() };
@@ -454,6 +456,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         ]);
       } finally {
         setIsLoading(false);
+        sendingRef.current = false;
       }
     },
     [isLoading],
@@ -591,13 +594,13 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         <button
           onClick={handleOpen}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-full transition-all duration-300 ease-ios-spring hover:scale-110 active:scale-95",
+            "group fixed bottom-6 right-6 z-50 flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-300 ease-ios-spring hover:scale-110 active:scale-95",
             hideTrigger && "hidden md:flex",
           )}
           aria-label="Open wellness companion"
           style={{ filter: "drop-shadow(0 4px 12px rgba(236,107,139,0.4))" }}
         >
-          <CompanionCharacter mood={teaser ? "happy" : "idle"} className="h-16 w-16" />
+          <CompanionCharacter mood={teaser ? "happy" : "idle"} className="h-[72px] w-[72px]" />
           <span
             className={cn(
               "absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full ring-2 ring-background transition-colors",
@@ -625,7 +628,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
           </button>
 
           <div className="flex items-start gap-3">
-            <CompanionCharacter mood="happy" still className="h-12 w-12 shrink-0" />
+            <CompanionCharacter mood="happy" still className="h-14 w-14 shrink-0" />
             <div className="min-w-0 pt-0.5">
               <p className="pr-5 text-footnote leading-snug text-foreground">{teaser.teaser}</p>
               <button
@@ -654,7 +657,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                 <CompanionCharacter
                   mood={isLoading ? "thinking" : "idle"}
                   still={!isLoading}
-                  className="h-11 w-11 shrink-0"
+                  className="h-12 w-12 shrink-0"
                 />
                 <div className="min-w-0">
                   <h3 className="truncate font-display text-base font-semibold leading-tight text-foreground">
@@ -715,7 +718,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
               {/* Welcome hero — shown only when the conversation is fresh (just the opener). */}
               {messages.length <= 1 && !isLoading && (
                 <div className="flex flex-col items-center py-4 animate-message-in">
-                  <CompanionCharacter mood="idle" className="h-28 w-28 mb-3" />
+                  <CompanionCharacter mood="idle" className="h-32 w-32 mb-3" />
                   <p className="text-center text-caption1 font-medium text-foreground-secondary">
                     {mode === "doctor" ? "Your clinical AI assistant" : "Your wellness companion"}
                   </p>
@@ -743,10 +746,10 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                       {startsGroup ? (
                         <CompanionMark
                           mood={msg.isError ? "thinking" : "idle"}
-                          className="mt-0.5 h-9 w-9 shrink-0"
+                          className="mt-0.5 h-10 w-10 shrink-0"
                         />
                       ) : (
-                        <div className="h-9 w-9 shrink-0" aria-hidden />
+                        <div className="h-10 w-10 shrink-0" aria-hidden />
                       )}
                       <div className={cn(
                         "min-w-0 flex-1 rounded-2xl rounded-tl-md px-4 py-2.5 text-footnote leading-relaxed",
@@ -775,7 +778,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                     )}
 
                     {msg.suggestions && isLast && !isLoading && (
-                      <div className="ml-12 mt-2.5 flex flex-wrap gap-1.5">
+                      <div className="ml-[52px] mt-2.5 flex flex-wrap gap-1.5">
                         {msg.suggestions.map((suggestion, i) => (
                           <button
                             key={suggestion.value}
@@ -795,7 +798,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
 
               {isLoading && (
                 <div className="flex gap-3 animate-message-in">
-                  <CompanionCharacter mood="thinking" className="h-10 w-10 shrink-0" />
+                  <CompanionCharacter mood="thinking" className="h-11 w-11 shrink-0" />
                   <div className="flex items-center gap-2 rounded-2xl rounded-tl-md bg-pink-50/60 border border-pink-100/40 px-4 py-3">
                     <span className="text-caption1 text-foreground-secondary mr-1">Thinking</span>
                     {[0, 1, 2].map((i) => (
