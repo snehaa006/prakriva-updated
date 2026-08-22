@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { CompanionDemo } from "@/components/landing/CompanionDemo";
 import { FeatureCardStack } from "@/components/landing/FeatureCardStack";
+import { LandingFooter } from "@/components/landing/LandingFooter";
 import { Reveal } from "@/components/ui/reveal";
-import { Bloom } from "@/components/illustrations/LineArt";
 import { Logo } from "@/components/ui/logo";
 import { LanguageSwitcher } from "@/components/LanguageSelect";
-import { ArrowRight, Leaf } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Landing = () => {
@@ -31,15 +32,39 @@ const Landing = () => {
           className="absolute inset-0 -z-20 bg-[hsl(58_23%_13%)] bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/hero-bg.jpg')" }}
         />
-        {/* Two washes, not one: a flat scrim so cream type clears the pale
-            blossoms, and a bottom-weighted gradient that hands off to the sand
-            background below without a visible seam. */}
+        {/* Two washes, and they must stay two.
+            The scrim is olive and fades to *nothing*; the handoff is sand and
+            fades in from nothing. Written as one gradient — olive at 55%
+            opacity straight into opaque sand — the browser interpolates
+            between a dark translucent colour and a light opaque one, and every
+            midpoint comes out grey. That grey band across the bottom of the
+            photograph was what made the hero look cut off from the page rather
+            than continuous with it. Each layer now interpolates within its own
+            hue and its own alpha, so the photograph dissolves into the sand
+            background instead of hitting an edge.
+            The last stop is exactly `--background`; change the page background
+            and it has to move with it. */}
         <div
           aria-hidden
           className="absolute inset-0 -z-10"
           style={{
-            background:
-              "linear-gradient(to bottom, hsl(58 23% 13% / 0.42) 0%, hsl(58 23% 13% / 0.28) 42%, hsl(58 23% 13% / 0.55) 78%, hsl(29 36% 92%) 100%)",
+            background: [
+              // Sand handoff, painted over the scrim: nothing for the first
+              // two thirds, then a long ramp to the page's own background.
+              "linear-gradient(to bottom," +
+                " hsl(29 36% 92% / 0) 60%," +
+                " hsl(29 36% 92% / 0.14) 74%," +
+                " hsl(29 36% 92% / 0.52) 86%," +
+                " hsl(29 36% 92% / 0.86) 95%," +
+                " hsl(29 36% 92%) 100%)",
+              // Olive scrim, so cream type clears the pale blossoms. Gone by
+              // the time the sand arrives, so the two never mix.
+              "linear-gradient(to bottom," +
+                " hsl(58 23% 13% / 0.46) 0%," +
+                " hsl(58 23% 13% / 0.30) 40%," +
+                " hsl(58 23% 13% / 0.36) 66%," +
+                " hsl(58 23% 13% / 0) 92%)",
+            ].join(","),
           }}
         />
 
@@ -51,7 +76,7 @@ const Landing = () => {
           <Logo tone="artwork" size="sm" alt="Prakriva" />
           <nav className="hidden items-center gap-x-7 font-mono text-[12px] uppercase tracking-[0.12em] text-white/70 sm:flex">
             <a href="#features" className="transition-colors hover:text-white">Features</a>
-            <a href="#roles" className="transition-colors hover:text-white">Get started</a>
+            <a href="#companion" className="transition-colors hover:text-white">Companion</a>
           </nav>
           <div className="flex items-center gap-2">
             {/* The switcher inherits the olive foreground by default, which is
@@ -69,7 +94,9 @@ const Landing = () => {
         </header>
 
         {/* ── Brand lockup ── */}
-        <div className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pb-24 pt-10 text-center md:pb-32">
+        {/* The bottom padding is doing real work: it lifts the lockup clear of
+            the sand handoff below, so no cream type is ever read through it. */}
+        <div className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pb-32 pt-10 text-center md:pb-44">
           <Reveal>
             {/* Decorative: the wordmark directly below already carries the
                 name, so this is `alt=""` rather than a second "Prakriva". */}
@@ -125,7 +152,7 @@ const Landing = () => {
           </Reveal>
 
           <Reveal index={4}>
-            <p className="quote mt-12 max-w-md !text-white/65">
+            <p className="quote mt-12 max-w-md !text-white/70 drop-shadow-[0_1px_8px_hsl(58_23%_13%/0.6)]">
               “Prakriti” — your constitution, the ground every plan here is
               built on.
             </p>
@@ -135,115 +162,10 @@ const Landing = () => {
 
       <FeatureCardStack />
 
-      {/* ── Roles (olive contrast block) ── */}
-      <section id="roles" className="section-dark py-20 md:py-28">
-        <div className="mx-auto max-w-[1200px] px-6">
-          <Reveal>
-            <span className="section-label !text-white/40">Choose your path</span>
-          </Reveal>
-          <Reveal index={1}>
-            <h2 className="mt-4 max-w-lg font-display text-display-md tracking-tight text-white">
-              Two sides, one record.
-            </h2>
-          </Reveal>
+      <CompanionDemo />
 
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:mt-20">
-            {/* Practitioner card */}
-            <Reveal index={0} delay={120}>
-              <button
-                onClick={() => navigate("/auth/doctor")}
-                className="card-hover group flex h-full w-full flex-col items-start rounded-[22px] border border-white/[0.1] bg-white/[0.05] p-8 text-left md:p-10"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(3_34%_76%)]/15">
-                  <Leaf className="h-6 w-6 text-[hsl(3_34%_82%)]" />
-                </div>
-                <h3 className="mt-6 font-display text-title2 text-white">For practitioners</h3>
-                <p className="mt-3 text-footnote leading-relaxed text-white/60">
-                  Build and adjust Ayurvedic diet charts, review screening results,
-                  and follow a full patient list from one place.
-                </p>
-                <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-[hsl(3_34%_76%)]">
-                  Continue as a doctor
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-                </span>
-              </button>
-            </Reveal>
+      <LandingFooter />
 
-            {/* Patient card */}
-            <Reveal index={1} delay={120}>
-              <button
-                onClick={() => navigate("/auth/patient")}
-                className="card-hover group flex h-full w-full flex-col items-start rounded-[22px] border border-white/[0.1] bg-white/[0.05] p-8 text-left md:p-10"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(3_34%_76%)]/15">
-                  <Bloom animate={false} className="h-6 w-6 text-[hsl(3_34%_82%)]" />
-                </div>
-                <h3 className="mt-6 font-display text-title2 text-white">For patients</h3>
-                <p className="mt-3 text-footnote leading-relaxed text-white/60">
-                  Follow a plan built around your dosha and your stage of life, and
-                  log meals, cycles and symptoms as you go.
-                </p>
-                <span className="mt-8 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-[hsl(3_34%_76%)]">
-                  Continue as a patient
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-                </span>
-              </button>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="py-20 md:py-28">
-        <div className="mx-auto max-w-[1200px] px-6">
-          <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
-            <div>
-              <Reveal>
-                <h2 className="font-display text-display-sm tracking-tight text-foreground">
-                  Ready to start?
-                </h2>
-              </Reveal>
-              <Reveal index={1}>
-                <p className="mt-2 text-body text-foreground-secondary">
-                  Set up a patient account, or bring your practice onto Prakriva.
-                </p>
-              </Reveal>
-            </div>
-            <Reveal index={2}>
-              <div className="flex shrink-0 flex-wrap items-center gap-x-7 gap-y-4">
-                <Button
-                  size="lg"
-                  className="group rounded-full bg-primary px-8 text-[13px] font-bold uppercase tracking-wide text-primary-foreground shadow-glow-gold hover:brightness-110"
-                  onClick={() => navigate("/auth/patient")}
-                >
-                  Get started
-                  <ArrowRight className="ml-1.5 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </Button>
-                <button
-                  onClick={() => navigate("/auth/doctor")}
-                  className="group flex items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-foreground transition-colors hover:text-primary"
-                >
-                  For practitioners
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Footer ── */}
-      <footer className="border-t border-foreground/[0.08] py-10">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6">
-          <span className="flex items-center gap-2.5 text-foreground-tertiary">
-            <Logo size="sm" alt="" />
-            <Logo variant="wordmark" alt="Prakriva" className="h-4" />
-          </span>
-          <p className="font-mono text-caption2 uppercase tracking-[0.14em] text-foreground-tertiary">
-            Prakriva · Ayurvedic wellness
-          </p>
-        </div>
-      </footer>
     </div>
   );
 };

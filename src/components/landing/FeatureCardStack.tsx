@@ -214,7 +214,7 @@ export const FeatureCardStack = () => {
 
   if (reducedMotion) {
     return (
-      <section id="features" className="border-t border-foreground/[0.06] py-20 md:py-28">
+      <section id="features" className="py-20 md:py-28">
         <div className="mx-auto max-w-[1200px] px-6">
           <SectionHeading />
           <div className="mt-14 flex flex-col gap-14 md:mt-20">
@@ -241,7 +241,10 @@ export const FeatureCardStack = () => {
     <section
       id="features"
       ref={trackRef}
-      className="relative border-t border-foreground/[0.06]"
+      // No top border. The hero above dissolves into this section's own
+      // background; a hairline across the join undoes that in one pixel and is
+      // exactly what made the two read as separate pages.
+      className="relative"
       style={{ height: `${FEATURE_CARDS.length * STEP_VH}svh` }}
     >
       <div ref={stageRef} className="sticky top-0 h-svh overflow-hidden">

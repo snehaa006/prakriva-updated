@@ -50,8 +50,10 @@ listed under "Language and translation" below.
   character across both patient and doctor interfaces.
 - `src/components/ui/logo.tsx` — the `Logo` component. See "Brand marks".
 - `src/components/landing/` — the marketing landing page's feature section
-  (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`) and the
-  panels floating on each scene (`FeaturePreviews.tsx`). See "Landing page".
+  (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`), the
+  panels floating on each scene (`FeaturePreviews.tsx`), the scripted chatbot
+  embed (`CompanionDemo.tsx`) and the closing CTA + footer
+  (`LandingFooter.tsx`). See "Landing page".
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -175,6 +177,9 @@ listed under "Language and translation" below.
   `logo-wordmark.png` and `logo-butterfly.png` (the cream-on-transparent
   wordmark and butterfly that make up the landing hero lockup), `hero-bg.jpg`
   (the blurred floral photograph behind that hero),
+  `674e2b29-6de8-4865-a807-1e9b3f4e5b54.jpg` and
+  `ab9eadeb-60f7-4deb-995a-e90593218c18.jpg` (the two other florals, used once
+  each further down the landing page — see "Landing page"),
   `shop/` (one WebP photograph per shop product, ~450 KB for all 32), and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
   viruddha ahara / incompatible-combination checker). It is served directly at
@@ -1688,24 +1693,33 @@ brand.
 `src/pages/Landing.tsx` is the only public page besides the auth screen, and it
 is the one place the brand is shown rather than applied.
 
+The page runs hero → feature reel → companion embed → closing CTA → footer.
+
 **The hero is a full-bleed photograph with the brand lockup centred on it** —
 the butterfly mark above the wordmark, a one-line description, the button pair,
-and a mono pull quote. Everything below it (features, the olive roles block,
-the closing CTA, footer) sits on the sand background in the ordinary design
-system.
+and a mono pull quote. Everything below it sits on the sand background in the
+ordinary design system, except the two blocks that carry their own artwork (the
+olive companion section and the footer band).
 
-It needs three files in `public/`, none of which are generated:
+It needs these files in `public/`, none of which are generated:
 
 | File | What it is |
 |---|---|
 | `hero-bg.jpg` | the blurred floral photograph behind the hero |
 | `logo-wordmark.png` | "Prakriva" in the brand serif, cream on transparent |
 | `logo-butterfly.png` | the butterfly mark, cream on transparent |
+| `674e2b29-…jpg` | the lavender floral, a texture inside the closing CTA card |
+| `ab9eadeb-…jpg` | the pink muhly field, the band the footer card floats on |
+
+**Three photographs, used once each.** The florals are the page's only
+photography and they are deliberately rationed — hero, CTA card, footer band,
+and nowhere else. Reach for a gradient scene (see `featureCards.tsx`) before
+adding a fourth placement.
 
 They are referenced by absolute public path (`/hero-bg.jpg`), not imported, so
-a missing file degrades to the olive wash underneath instead of failing the
-build — which also means a typo'd filename is silent. If the hero renders as a
-flat dark block, check those three names first.
+a missing file degrades to the wash underneath instead of failing the build —
+which also means a typo'd filename is silent. If the hero renders as a flat
+dark block, check those names first.
 
 Two things about the hero are load-bearing and easy to undo by accident:
 
@@ -1714,10 +1728,20 @@ Two things about the hero are load-bearing and easy to undo by accident:
   children paint *behind* the page's own `bg-background` and the photograph
   disappears completely — the page still renders, just with no image. This
   happened once during the rebuild.
-- **Two scrims, not one.** A flat wash so cream type clears the pale blossoms,
-  and a bottom-weighted gradient that lands exactly on the sand background
-  (`hsl(29 36% 92%)`) so the hero hands off to the next section without a seam.
-  Change the page background and this gradient's last stop has to move with it.
+- **Two scrims, and each stays in its own hue.** One olive wash so cream type
+  clears the pale blossoms, fading to *nothing* by the bottom; over it a sand
+  layer that fades in from nothing and lands exactly on the page background
+  (`hsl(29 36% 92%)`). Collapsing them into one gradient — translucent olive
+  straight into opaque sand — is what the page used to do, and CSS interpolates
+  that pair through grey: a dull band across the bottom of the photograph that
+  made the hero look pasted onto the page rather than continuous with it. Keep
+  every stop in a layer to one hue and one colour's alpha. Change the page
+  background and the sand layer's last stop has to move with it.
+- **Nothing draws a line across the join.** The feature section below carries
+  no top border for the same reason — one hairline undoes the whole handoff.
+  The hero's lockup also carries deliberately large bottom padding (`pb-32
+  md:pb-44`) to keep cream type clear of the sand fade; trim it and the pull
+  quote starts to be read through the handoff.
 
 The chrome over the photograph is deliberately not the default: the header and
 lockup pass `tone="artwork"` so the marks are drawn as supplied rather than
@@ -1776,6 +1800,57 @@ split, a day of a generated chart, a Health Check result) and carry no live
 data on purpose, so none of them can put a number in front of a visitor that
 the app would then have to stand behind. This is the first and often the only
 description of Prakriva anyone reads — keep it to features that exist.
+
+### The companion embed
+
+`src/components/landing/CompanionDemo.tsx` is the olive block under the feature
+reel. It is the chatbot's own surface — the mascot, the bubble shapes, the
+welcome hero, the typing dots — inside a browser frame, running a **scripted**
+conversation the visitor advances one chip at a time.
+
+It replaced a "Two sides, one record" block that offered the doctor and patient
+sign-in routes as two big cards. Those routes are already on the page twice
+(the hero pair and the closing CTA), so the block was a third sign-in prompt
+where the visitor still had nothing to go on. Showing the product instead is
+the point of the section, and the copy says so: *nothing to sign in for*.
+
+Four things to keep true if you change it:
+
+- **No session, no model call, no network.** The script is a constant in the
+  file. This sits above the fold of the decision to sign up, so it can never be
+  the thing that is down — and a visitor is never shown a generated number the
+  app would then have to stand behind.
+- **Every reply describes something the app actually does** — reading the
+  active diet chart, the pantry, the meal log, and the doctor seeing the same
+  record. Same rule as the feature cards.
+- **It borrows the real panel's classes**, not lookalikes: `CompanionCharacter`
+  / `CompanionMark` for the mascot, the app's `animate-message-in` and
+  `animate-typing-dot`, its bubble radii and fills. If the chatbot's surface is
+  restyled, this is the second place to update.
+- **The transcript is bottom-anchored with `mt-auto`, not `justify-end`.** A
+  flex column that justifies to the end clips its own overflow at the top in
+  every browser, and this one scrolls.
+
+Under `prefers-reduced-motion` the companion's thinking beat is skipped and
+replies land immediately; that branch is also what the tests drive, so they
+never wait on a timer.
+
+### The closing CTA and footer
+
+`src/components/landing/LandingFooter.tsx` holds both. The CTA is a dark olive
+card with the lavender floral held back to a texture behind it; the footer is a
+cream card floating on the pink-muhly photograph, with the links, a back-to-top
+control and the wordmark set huge and clipped by the card's own bottom edge.
+
+- **The band fades out of the sand background at the top**, same-hue stops
+  throughout, for the same reason the hero fades into it.
+- **The watermark is clipped with a negative percentage margin, not a fixed
+  height.** A percentage margin resolves against the wrapper's *width*, so
+  `-12.7%` on a 4344×1452 wordmark hides the bottom 38% of the letterforms at
+  every viewport. A `clamp()` height cannot hold that fraction as the card
+  grows, and a wordmark clipped too near its ascenders reads as a smudge.
+- **The links all go somewhere real** — an anchor on this page or one of the
+  two `/auth/:role` routes. No placeholder "Careers" landing on a 404.
 
 ## Color
 
