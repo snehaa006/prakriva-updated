@@ -1178,6 +1178,18 @@ try **Groq** (Llama 3.3 70B via the OpenAI-compatible API at
 `api.groq.com`). Groq's free tier allows 30 req/min and 14.4K req/day,
 which keeps the chatbot alive while Gemini keys cool down.
 
+**Diet chart generation** also uses Groq. The Recipe Builder offers two
+generate buttons:
+
+- **Quick Generate** (default) — tries Groq first (~3-8 seconds), falls
+  back to Gemini if Groq is unavailable. Uses the same prompt and
+  normalisation pipeline, just a faster model.
+- **Detailed Generate** — Gemini only (~15-30 seconds), for when the
+  doctor wants the most thorough composition.
+
+Both paths still fall back to the FoodOScope recipe path if all LLM
+providers are unavailable.
+
 Set `GROQ_API_KEY` in Render (or `backend/.env` locally). Multiple keys
 follow the same pattern as Gemini: `GROQ_API_KEY2` … `GROQ_API_KEY10`, or a
 comma-separated list. Vision tasks (report extraction, acne photo assessment)

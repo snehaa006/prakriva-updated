@@ -855,6 +855,67 @@ def generate(
     raise gemini_error or GeminiUnavailable("No LLM provider is configured")
 
 
+def _call_groq_json(
+    system_rules: str,
+    prompt: str,
+    *,
+    max_tokens: int,
+    temperature: float = 0.4,
+) -> Any:
+    """Call Groq with JSON mode and return parsed JSON."""
+    if not _groq_configured():
+        raise GeminiUnavailable("No GROQ_API_KEY is set")
+
+    messages = [
+        {"role": "system", "content": system_rules},
+        {"role": "user", "content": prompt},
+    ]
+    last_error = "no Groq keys configured"
+
+    for key in _groq_key_candidates():
+        try:
+            response = requests.post(
+                GROQ_CHAT_URL,
+                json={
+                    "model": settings.GROQ_MODEL,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "response_format": {"type": "json_object"},
+                },
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=settings.GROQ_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as exc:
+            _groq_report(key, status=None, ok=False)
+            last_error = f"Groq network error ({exc.__class__.__name__})"
+            continue
+
+        if response.status_code == 200:
+            _groq_report(key, status=200, ok=True)
+            body = response.json()
+            text = (
+                ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            ).strip()
+            if text:
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError as exc:
+                    last_error = f"Groq returned unparseable JSON: {exc}"
+                    continue
+            last_error = "Groq returned an empty response"
+            continue
+
+        _groq_report(key, status=response.status_code, ok=False)
+        last_error = f"Groq HTTP {response.status_code}"
+        continue
+
+    raise GeminiUnavailable(f"Groq JSON generation failed ({last_error})")
+
+
 def generate_json(
     prompt: str,
     system_rules: str,
@@ -888,6 +949,41 @@ def generate_json(
     except json.JSONDecodeError as exc:
         logger.error(f"Gemini returned unparseable JSON: {exc}")
         raise GeminiUnavailable("Gemini returned an unreadable response") from exc
+
+
+def generate_json_fast(
+    prompt: str,
+    system_rules: str,
+    *,
+    max_tokens: Optional[int] = None,
+    temperature: float = 0.4,
+    timeout: Optional[int] = None,
+) -> Any:
+    """Try Groq first (much faster), fall back to Gemini.
+
+    Groq's Llama models generate tokens at 200-300 tok/s vs Gemini's ~30-50,
+    so a 7-day diet chart that takes 15-30s on Gemini takes 3-8s on Groq.
+    """
+    tokens = max_tokens or settings.GEMINI_MAX_TOKENS
+    groq_error = None
+
+    if _groq_configured():
+        try:
+            return _call_groq_json(
+                system_rules, prompt,
+                max_tokens=tokens, temperature=temperature,
+            )
+        except GeminiUnavailable as exc:
+            groq_error = exc
+            logger.warning(f"Groq JSON unavailable ({exc}); trying Gemini")
+
+    if is_configured():
+        return generate_json(
+            prompt, system_rules,
+            max_tokens=max_tokens, temperature=temperature, timeout=timeout,
+        )
+
+    raise groq_error or GeminiUnavailable("No LLM provider is configured")
 
 
 # ---------------------------------------------------------------------------
