@@ -371,7 +371,10 @@ const Login = () => {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center mb-2">
-            <Logo size="xl" />
+            <span className="flex flex-col items-center gap-3 text-primary">
+              <Logo size="lg" alt="" />
+              <Logo variant="wordmark" alt="Prakriva" className="h-6" />
+            </span>
           </CardTitle>
           <CardDescription>
             {isSignup ? "Create your account" : "Sign in to your account"} as a{" "}

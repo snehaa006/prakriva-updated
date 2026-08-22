@@ -140,7 +140,11 @@ function SidebarBody({
       {/* Brand */}
       <div className="flex items-center justify-center border-b border-sidebar-border px-4 pb-4 pt-4">
         <NavLink to="/doctor/dashboard" className="flex items-center justify-center">
-          <Logo size={collapsed ? "sm" : "lg"} />
+          {/* See PatientSidebar: painted, not drawn as supplied. */}
+          <span className="flex flex-col items-center gap-2 text-primary">
+            <Logo size={collapsed ? "sm" : "lg"} alt={collapsed ? "Prakriva" : ""} />
+            {!collapsed && <Logo variant="wordmark" alt="Prakriva" className="h-5" />}
+          </span>
         </NavLink>
       </div>
 

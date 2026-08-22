@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { FeatureCardStack } from "@/components/landing/FeatureCardStack";
 import { Reveal } from "@/components/ui/reveal";
 import { Bloom } from "@/components/illustrations/LineArt";
 import { Logo } from "@/components/ui/logo";
@@ -6,38 +7,14 @@ import { LanguageSwitcher } from "@/components/LanguageSelect";
 import { ArrowRight, Leaf } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const features = [
-  {
-    num: "01",
-    title: "Plans built per patient",
-    description:
-      "Diet charts generated from a patient's dosha, life stage, conditions and allergies — then edited by her practitioner, not shipped raw.",
-  },
-  {
-    num: "02",
-    title: "Tracking that earns its place",
-    description:
-      "Cycles, weight, skin and lifestyle logs, surfaced only for the care pathways a patient is actually on.",
-  },
-  {
-    num: "03",
-    title: "One shared record",
-    description:
-      "What a patient logs is what her doctor reviews. No re-typing, no screenshots passed back and forth.",
-  },
-  {
-    num: "04",
-    title: "Ayurveda, kept legible",
-    description:
-      "Vata, pitta and kapha stay first-class throughout, always paired with the plain-language reason behind a recommendation.",
-  },
-];
-
 const Landing = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background">
+    // `overflow-x-clip`, not `-hidden`: hidden would make this a scroll
+    // container, and the sticky stage inside FeatureCardStack would pin to it —
+    // a container that never scrolls — instead of to the viewport.
+    <div className="relative min-h-screen overflow-x-clip bg-background">
       {/* ── Hero ──
           The brand shot: the floral photograph full-bleed, the butterfly mark
           and wordmark centred over it, everything else kept out of the way.
@@ -68,9 +45,10 @@ const Landing = () => {
 
         {/* ── Navigation ── */}
         <header className="relative z-20 mx-auto flex w-full max-w-[1200px] items-center justify-between px-6 py-7 md:py-9">
-          {/* The badge artwork carries its own cream tile, which reads as a
-              sticker over the photograph — the transparent mark doesn't. */}
-          <Logo variant="butterfly" size="sm" alt="Prakriva" />
+          {/* `artwork` over the photograph: the supplied cream mark already
+              reads against it, and painting it in `currentColor` would take
+              the header's own translucent white instead. */}
+          <Logo tone="artwork" size="sm" alt="Prakriva" />
           <nav className="hidden items-center gap-x-7 font-mono text-[12px] uppercase tracking-[0.12em] text-white/70 sm:flex">
             <a href="#features" className="transition-colors hover:text-white">Features</a>
             <a href="#roles" className="transition-colors hover:text-white">Get started</a>
@@ -96,7 +74,7 @@ const Landing = () => {
             {/* Decorative: the wordmark directly below already carries the
                 name, so this is `alt=""` rather than a second "Prakriva". */}
             <Logo
-              variant="butterfly"
+              tone="artwork"
               alt=""
               className="h-14 drop-shadow-[0_2px_14px_hsl(58_23%_13%/0.55)] md:h-[4.5rem]"
             />
@@ -109,6 +87,7 @@ const Landing = () => {
             <h1 className="mt-5">
               <Logo
                 variant="wordmark"
+                tone="artwork"
                 alt="Prakriva"
                 className="h-[4.5rem] drop-shadow-[0_3px_18px_hsl(58_23%_13%/0.5)] sm:h-24 md:h-32 lg:h-40"
               />
@@ -154,36 +133,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ── Features (numbered grid) ── */}
-      <section id="features" className="py-20 md:py-28">
-        <div className="mx-auto max-w-[1200px] px-6">
-          <Reveal>
-            <span className="section-label">How it works</span>
-          </Reveal>
-          <Reveal index={1}>
-            <h2 className="mt-4 max-w-2xl font-display text-display-md tracking-tight text-foreground">
-              Built around how this care{" "}
-              <span className="italic text-primary">actually</span> runs
-            </h2>
-          </Reveal>
-
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:mt-20">
-            {features.map((feature, i) => (
-              <Reveal key={feature.num} index={i} delay={120}>
-                <div className="card-hover group h-full rounded-[22px] border border-foreground/[0.08] bg-card p-7 md:p-8">
-                  <span className="font-mono text-[13px] tracking-[0.18em] text-primary/60">
-                    {feature.num}
-                  </span>
-                  <h3 className="mt-4 font-display text-title2 text-foreground">{feature.title}</h3>
-                  <p className="mt-2.5 text-footnote leading-relaxed text-foreground-secondary">
-                    {feature.description}
-                  </p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FeatureCardStack />
 
       {/* ── Roles (olive contrast block) ── */}
       <section id="roles" className="section-dark py-20 md:py-28">
@@ -285,7 +235,10 @@ const Landing = () => {
       {/* ── Footer ── */}
       <footer className="border-t border-foreground/[0.08] py-10">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6">
-          <Logo size="sm" className="opacity-60" />
+          <span className="flex items-center gap-2.5 text-foreground-tertiary">
+            <Logo size="sm" alt="" />
+            <Logo variant="wordmark" alt="Prakriva" className="h-4" />
+          </span>
           <p className="font-mono text-caption2 uppercase tracking-[0.14em] text-foreground-tertiary">
             Prakriva · Ayurvedic wellness
           </p>

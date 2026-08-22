@@ -346,3 +346,46 @@ keeps a 5-colour palette legible across a whole product.
     border-radius: 9999px;
   }
 }
+
+@layer components {
+  /* --- Landing feature reel ---
+     The clip is derived from the card (`--reel-card`) rather than declared
+     beside it: written as two independent `min()` expressions the two drifted
+     apart by viewport — 29px of slack at 720px tall but only 8px at 900px,
+     which shaved the corners off a card meant to sit fully inside the window.
+     Both live here because only the card height changes at the breakpoint and
+     an inline style cannot hold a media query.
+
+     `REEL_GAP` in FeatureCardStack.tsx keeps the next card clear of the
+     window; the mask below cleans up whatever shadow still reaches in. */
+  .reel-stage {
+    --reel-card: min(15rem, 30svh);
+    --reel-slack: 28px;
+    height: calc(var(--reel-card) + var(--reel-slack) * 2);
+
+    /* The top and bottom of the window fade rather than cut. A card's drop
+       shadow reaches about 48px past its edge, so the card waiting its turn
+       laid a flat band of shadow inside the clip and the hard edge of that
+       band read as a seam. Sized to the slack, so a card at rest still has
+       every corner at full opacity and only the overspill dissolves. */
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--reel-slack),
+      #000 calc(100% - var(--reel-slack)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--reel-slack),
+      #000 calc(100% - var(--reel-slack)),
+      transparent 100%
+    );
+  }
+  @media (min-width: 768px) {
+    .reel-stage {
+      --reel-card: min(22rem, 42svh);
+    }
+  }
+}

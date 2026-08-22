@@ -48,20 +48,10 @@ listed under "Language and translation" below.
 - `public/chatbot/` — the three mascot PNG images (`idle.png`, `thinking.png`,
   `responding.png`) used by `CompanionCharacter.tsx` for the chatbot's animated
   character across both patient and doctor interfaces.
-- `src/components/ui/logo.tsx` — the `Logo` component, at four sizes
-  (`sm`/`md`/`lg`/`xl`) and three artworks (`variant`):
-  - `badge` (default) — `public/logo.png`, the circular mark on its own cream
-    tile. This is the app-chrome logo: the auth card, both sidebars, the mobile
-    header of both layouts, and the landing footer.
-  - `wordmark` — `public/logo-wordmark.png`, "Prakriva" in the brand serif.
-  - `butterfly` — `public/logo-butterfly.png`, the mark on its own.
-
-  `wordmark` and `butterfly` are cream on transparent and are built to sit *on*
-  something (the floral hero, a dark section); they disappear against a light
-  surface, so don't reach for either in app chrome. Use `Logo` instead of
-  hand-rolled brand markup. Every artwork carries the name, so don't pair one
-  with "Prakriva" in text — pass `alt=""` where nearby copy already names the
-  brand.
+- `src/components/ui/logo.tsx` — the `Logo` component. See "Brand marks".
+- `src/components/landing/` — the marketing landing page's feature section
+  (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`) and the
+  panels floating on each scene (`FeaturePreviews.tsx`). See "Landing page".
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -1641,6 +1631,58 @@ which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
 
+## Brand marks
+
+**The butterfly is the logo** — wings drawn as loops around an expecting
+figure. It is what `<Logo />` draws by default, and what a browser tab, a home
+screen and a shared link show. The wordmark is the name set in the brand serif;
+reach for it where the name itself has to be read, not as a substitute for the
+mark. Where both appear together the butterfly goes above the name.
+
+| File | What it is |
+|---|---|
+| `public/logo-butterfly.png` | the mark, cream on transparent |
+| `public/logo-wordmark.png` | "Prakriva" in the brand serif, cream on transparent |
+| `public/logo.png` | the older circular badge — its cream tile with the wordmark baked in |
+| `public/favicon.png`, `public/apple-touch-icon.png`, `public/social-card.png` | the butterfly in rose on the sand tile |
+
+Both supplied artworks are **a pale cream mark on a fully transparent ground**.
+That is right on the hero photograph and the olive sections and useless on
+cream, which is most of the app — so `Logo` takes a `tone`:
+
+| `tone` | What it does | Where |
+|---|---|---|
+| `ink` (default) | draws the mark in `currentColor` | app chrome, on sand: sidebars, mobile headers, the auth card, the landing footer |
+| `artwork` | the PNG exactly as supplied | the hero lockup, over the photograph |
+
+`ink` works by using the PNG as a CSS **mask** rather than an `<img>`: the file
+is one opaque shape on a transparent ground, so its alpha channel *is* the
+silhouette, and masking recolours it exactly at any size with no second copy of
+the artwork to keep in sync. Set the colour with an ordinary text class on the
+element — `text-primary` in the sidebars and auth card, the tertiary foreground
+in the footer. Two consequences worth knowing:
+
+- **A masked element has no intrinsic size.** Unlike an `<img>`, nothing tells
+  the box how wide to be, so each variant's aspect ratio is declared in
+  `logo.tsx`. If an artwork is ever redrawn at different proportions, that
+  table has to move with it.
+- **It is not an image element**, so the role and label are stated explicitly.
+  `alt=""` means decorative and drops it from the accessibility tree rather
+  than announcing an unlabelled image.
+
+If either file is ever redrawn with **more than one colour in it**, `ink` stops
+being a valid treatment and those call sites need `artwork` plus artwork that
+suits a light surface.
+
+The favicon, touch icon and social card are the butterfly painted in the brand
+rose on the sand tile — the supplied cream-on-transparent mark would disappear
+against a light tab strip. They are generated from `logo-butterfly.png` rather
+than drawn separately, so they stay in step with it.
+
+Use `Logo` instead of hand-rolled brand markup, and don't pair the wordmark
+with "Prakriva" in text — pass `alt=""` where nearby copy already names the
+brand.
+
 ## Landing page
 
 `src/pages/Landing.tsx` is the only public page besides the auth screen, and it
@@ -1677,10 +1719,63 @@ Two things about the hero are load-bearing and easy to undo by accident:
   (`hsl(29 36% 92%)`) so the hero hands off to the next section without a seam.
   Change the page background and this gradient's last stop has to move with it.
 
-The chrome over the photograph is deliberately not the default: the header uses
-the transparent butterfly rather than the `badge` artwork (whose cream tile
-reads as a sticker on the photo), and `LanguageSwitcher` is passed a light
-`className` because it otherwise inherits the olive foreground and vanishes.
+The chrome over the photograph is deliberately not the default: the header and
+lockup pass `tone="artwork"` so the marks are drawn as supplied rather than
+painted in the header's own translucent white, and `LanguageSwitcher` is passed
+a light `className` because it otherwise inherits the olive foreground and
+vanishes. See "Brand marks".
+
+**The feature section below the hero is a scroll-driven reel**
+(`src/components/landing/FeatureCardStack.tsx`). The section is six viewport
+steps tall and pins a one-viewport stage inside it. As the page scrolls past, a
+column of visual cards slides upward through a clipped window one card at a
+time, and the label for the card on screen cross-fades in the gutter beside it —
+alternating left, right, left, so a reader's eye has somewhere new to go on
+every step. The rail underneath doubles as a control: clicking a dot scrolls to
+that card.
+
+Five things about how it is built are worth knowing before changing it:
+
+- **One number drives everything.** A scroll listener recomputes `position` —
+  the fractional index of the front card — from the track's
+  `getBoundingClientRect`, coalesced to one measurement per animation frame.
+  Cards are never mounted or unmounted as they change; only `transform` and
+  `opacity` move, so nothing re-lays-out mid-animation.
+- **The reel holds, then moves.** `stepped()` converts the linear scroll into
+  the reel's own position: it advances across the first 62% of each step and
+  holds on the whole number for the rest, so a card sits still long enough to
+  read. Easing the section end to end instead would make the reel race at the
+  top, crawl at the bottom and never settle anywhere. The rail's figure counts
+  off that same stepped value, so it can't disagree with the label on screen.
+- **The window is a plain rectangle, slightly taller than one card.** Round it
+  and the cards' corners get shaved off as they slide through; make it much
+  taller and the neighbour waiting its turn shows at rest — `REEL_GAP` has to
+  clear the cards' drop shadow as well as the cards, or the shadow alone reads
+  as a phantom edge.
+- **Each card's copy exists once in the DOM.** On a phone the label stacks
+  under the reel; from `md` up the label layer is taken out of the flow and
+  hung in the gutters. The reel is a mock, so it is `aria-hidden` and the
+  labels carry the whole reading order.
+- **`prefers-reduced-motion` gets a different tree, not a faster one.** The
+  blanket CSS guard in `index.css` cannot help here — scroll-linked movement is
+  a new style every frame, not a transition with a duration — so the component
+  renders a plain alternating list with no pinning at all. See "Motion and
+  illustration".
+
+That reel is also why the page root uses `overflow-x-clip` rather than
+`overflow-x-hidden`. `hidden` would make the root a scroll container, and the
+sticky stage would then pin to *it* — a container that never scrolls — instead
+of to the viewport, which silently flattens the whole section into dead scroll.
+
+**The card copy lives in `src/components/landing/featureCards.tsx`** and the
+panel floating on each scene in `FeaturePreviews.tsx`. The scenes are three
+layered gradients mixed from the five brand colours plus one of the app's own
+line-art marks — there is no artwork to load, and the section recolours with
+the palette. The panels are stills of real surfaces (the questionnaire's dosha
+split, a day of a generated chart, a Health Check result) and carry no live
+data on purpose, so none of them can put a number in front of a visitor that
+the app would then have to stand behind. This is the first and often the only
+description of Prakriva anyone reads — keep it to features that exist.
 
 ## Color
 
@@ -1787,8 +1882,10 @@ blue that no class on the element can reach; `src/index.css` sets `accent-color`
 globally to fix that.
 
 `src/lib/__tests__/brandPalette.test.ts` fails the build if an off-brand
-utility or a hardcoded chart hex reappears — the drift happened once already,
-one reasonable-looking green badge at a time.
+utility or a hardcoded chart hex reappears, or if a chart colour lands more
+than 25° from one of the five brand hues — the drift happened once already, one
+reasonable-looking green badge at a time. Documentation may still write the
+brand hexes down; the rule is about code, so the scan strips comments first.
 
 **Corners.** The radius scale is 6/8/10/12/16/20px (`sm` → `2xl`). It used to
 be 12/20/28/36, soft enough that a chip, a card and a dialog all read as the
@@ -1804,6 +1901,12 @@ hand-rolled per component:
 - `<Reveal index={n}>` (`src/components/ui/reveal.tsx`) fades content up on
   mount, 70ms apart. Long lists should cap `index` — a 40-row table where row
   39 waits three seconds is worse than no animation.
+- `useReducedMotion()` (`src/hooks/useReducedMotion.ts`) reports the OS
+  setting and re-renders when it changes. The CSS guard below covers anything a
+  stylesheet drives; reach for the hook when motion comes from JS instead — a
+  scroll-linked transform keeps moving because the scroll position keeps
+  changing, not because a transition is running, so it needs a still version of
+  the component rather than a shorter duration.
 - `useCountUp(value)` (`src/hooks/useCountUp.ts`) counts a figure up when it
   changes. It **always lands on the exact value**, only animates *upward*, and
   never renders `NaN`/`Infinity` — these are calories and adherence scores, and

@@ -214,7 +214,13 @@ function SidebarBody({
         )}
       >
         <NavLink to="/patient/today" className="flex items-center justify-center">
-          <Logo size={collapsed ? "sm" : "lg"} />
+          {/* Collapsed, the mark alone; open, the mark over the name. Both
+              are painted rather than drawn as supplied — the artwork is cream
+              on transparent and would vanish against the sand sidebar. */}
+          <span className="flex flex-col items-center gap-2 text-primary">
+            <Logo size={collapsed ? "sm" : "lg"} alt={collapsed ? "Prakriva" : ""} />
+            {!collapsed && <Logo variant="wordmark" alt="Prakriva" className="h-5" />}
+          </span>
         </NavLink>
       </div>
 

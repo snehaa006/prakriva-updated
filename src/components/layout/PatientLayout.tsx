@@ -40,7 +40,7 @@ const PatientLayout = () => {
         <header className="glass sticky top-0 z-30 flex h-12 items-center border-b border-border px-4 lg:px-6">
           {/* Primary phone navigation moved to the bottom tab bar — this is
               just the brand mark and, on larger screens, the collapse toggle. */}
-          <Logo size="sm" className="md:hidden" />
+          <Logo size="sm" className="text-primary md:hidden" />
 
           <Button
             variant="ghost"
