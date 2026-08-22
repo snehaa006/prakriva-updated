@@ -424,3 +424,84 @@ export const buildInsights = (series: MetricSeries[]): Insight[] => {
 
   return insights;
 };
+
+// ---------------------------------------------------------------------------
+// Feeding the screening models
+
+/**
+ * Values the existing screening models already accept, derived from measured
+ * device data instead of recall.
+ *
+ * Nothing here is a new medical model — these are inputs `ScreeningInput`
+ * already has, sourced from what the Watch recorded rather than from what a
+ * patient remembers at the moment she fills the form. Blood pressure is
+ * deliberately absent: Apple Watch does not measure it, so those fields stay
+ * manual.
+ */
+export interface ScreeningSignals {
+  weightKg: number | null;
+  heightCm: number | null;
+  /** `null` when there is not enough activity data to judge either way. */
+  sedentary: boolean | null;
+  avgDailySteps: number | null;
+  weeklyExerciseMinutes: number | null;
+  restingHeartRate: number | null;
+  avgSleepHours: number | null;
+  daysOfData: number;
+}
+
+export const EMPTY_SIGNALS: ScreeningSignals = {
+  weightKg: null,
+  heightCm: null,
+  sedentary: null,
+  avgDailySteps: null,
+  weeklyExerciseMinutes: null,
+  restingHeartRate: null,
+  avgSleepHours: null,
+  daysOfData: 0,
+};
+
+/**
+ * Under 5,000 steps a day is the long-standing Tudor-Locke cut-off for a
+ * sedentary adult, which is why the flag uses it rather than a number picked to
+ * feel about right. A judgement is only offered with at least a fortnight of
+ * days behind it — a handful of days the Watch happened to be worn says more
+ * about charging habits than about how active someone is.
+ */
+const SEDENTARY_STEPS_PER_DAY = 5000;
+const MIN_DAYS_FOR_ACTIVITY_JUDGEMENT = 14;
+
+export const deriveScreeningSignals = (series: MetricSeries[]): ScreeningSignals => {
+  const find = (type: string) => series.find((s) => s.type === type);
+  const latest = (type: string): number | null => {
+    const points = find(type)?.points;
+    return points && points.length > 0 ? points[points.length - 1].value : null;
+  };
+
+  const steps = find("stepCount");
+  const exercise = find("appleExerciseTime");
+  const sleep = find("sleepAnalysis");
+
+  const avgDailySteps = steps?.average ?? null;
+  const stepDays = steps?.daysWithData ?? 0;
+
+  // Height is stored in metres; the screening form works in centimetres.
+  const heightMetres = latest("height");
+
+  return {
+    weightKg: latest("bodyMass"),
+    heightCm: heightMetres !== null ? Math.round(heightMetres * 100) : null,
+    sedentary:
+      avgDailySteps !== null && stepDays >= MIN_DAYS_FOR_ACTIVITY_JUDGEMENT
+        ? avgDailySteps < SEDENTARY_STEPS_PER_DAY
+        : null,
+    avgDailySteps,
+    weeklyExerciseMinutes:
+      exercise?.average != null && exercise.daysWithData >= 7
+        ? exercise.average * 7
+        : null,
+    restingHeartRate: latest("restingHeartRate"),
+    avgSleepHours: sleep?.average ?? null,
+    daysOfData: Math.max(...series.map((s) => s.daysWithData), 0),
+  };
+};
