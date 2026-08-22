@@ -142,14 +142,17 @@ listed under "Language and translation" below.
   palette, a generated diet chart, the selected patient) across a page refresh.
   See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
-  (`--primary`, `--secondary`, `--accent`, `--accent-soft`, `--sidebar-*`,
-  gradients) in the Prakriva brand palette (deep maroon/burgundy on a warm
-  blush white, matching `public/logo.png`). Dosha colors
-  (`--vata`/`--pitta`/`--kapha`) and status colors
-  (`--success`/`--warning`/`--info`) now sit **inside** that palette too — see
-  "Color" below.
+  (`--primary`, `--secondary`, `--accent`, `--accent-soft`, `--gold`,
+  `--sidebar-*`, gradients) in a warm cream + sage green + amber palette
+  inspired by sythra.ai's editorial aesthetic. Primary is deep sage green
+  (hsl 158); CTA accent is warm amber-orange (hsl 20); backgrounds are warm
+  ivory. Typography pairs Playfair Display (serif, display headings) with
+  Instrument Sans (body). Cards are `rounded-[22px]` with hover-lift
+  animations. Dosha colors (`--vata`/`--pitta`/`--kapha`) and status colors
+  (`--success`/`--warning`/`--info`) remain domain-critical and visually
+  distinct.
 - `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
-  strings and so can't use Tailwind classes.
+  strings and so can't use Tailwind classes. Tuned to sage/amber/terracotta.
 - `src/components/illustrations/LineArt.tsx` — the app's line-art marks
   (`Bloom`, `Expecting`, `Cradle`, `Cycle`, `Plate`), which draw their own
   strokes on mount. `lifeStageArt.tsx` maps a life stage to one of them. See
@@ -199,6 +202,13 @@ Backend (run from `/backend`):
 - `python -m pytest tests/` — run the backend suite. `backend/tests/conftest.py`
   supplies placeholder Supabase credentials, so this needs no `.env` and makes
   no network calls.
+
+### Cross-role sign-in protection
+
+Signing in with doctor credentials on the patient page (or vice versa) is
+rejected: the session is ended immediately and a toast directs the user to the
+correct sign-in page. This prevents a doctor from silently landing on the
+patient dashboard (or a patient on the doctor's).
 
 ### Signing up with an email that already has an account
 
@@ -920,12 +930,13 @@ only her own checks, and a doctor read and file for patients they treat. If the
 table is missing the feature still works — results render normally and simply
 are not persisted.
 
-### Written analysis and the patient chatbot (Gemini)
+### Written analysis and the chatbot (Gemini)
 
 Several features read patient data through Google's Gemini, all proxied by
 Flask (`backend/gemini_service.py`):
 
-- **Patient → chatbot** (`/assistant/chat`, `src/components/chat/NutritionChatbot.tsx`) —
+- **Patient → wellness companion** (`/assistant/chat`,
+  `src/components/chat/NutritionChatbot.tsx` with `mode="patient"`) —
   a free-form assistant, not a scripted decision tree: she can ask literally
   anything ("insights for the last 7 days", "am I improving?", "I'm craving
   something sweet, what can I make?"). `src/services/chatAssistantService.ts`
@@ -945,6 +956,17 @@ Flask (`backend/gemini_service.py`):
   underneath it in small print (see the troubleshooting note below) plus a
   "Try again" button that re-sends the same question. The interface it does
   all this behind is described under "The companion" below.
+- **Doctor → clinical assistant** (`/assistant/doctor-chat`,
+  `NutritionChatbot` with `mode="doctor"`) — a floating AI button on every
+  doctor page, opening the same chatbot component in clinical mode. Context is
+  the doctor's patient roster (profiles, dosha, life stage, allergies,
+  adherence, screenings) assembled by `fetchDoctorChatContext` in
+  `chatAssistantService.ts`. The system prompt (`DOCTOR_CHAT_RULES`) uses
+  clinical language, integrates Ayurvedic reasoning substantively, and keeps
+  replies structured (bullets, summaries). Suggestion chips on first open:
+  "Summarise my patients", "Diet for pregnant patient", "Screening analysis
+  tips", "PCOS nutrition guide". Proactive cues/teasers are disabled for
+  doctors.
 - **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
   panel that turns the selected patient's screening history into prose: how
   the risk picture has moved, which measurements drive it, what to check
@@ -1601,35 +1623,36 @@ and native controls — scrollbars, date pickers, dropdowns — otherwise paint
 themselves dark over light surfaces. If the app ever looks dark unexpectedly,
 check the stored choice first (`localStorage` key `prakriva:theme`).
 
-The app is pink end to end. It used to mix in the stock Tailwind ramps —
-green "success" badges, blue chart lines, amber warnings — which read as three
-palettes fighting on one warm blush page. Everything now lives in one family.
+The palette is **warm cream + sage green + amber-orange**, inspired by
+sythra.ai's editorial warmth and adapted for an Ayurvedic wellness app for
+pregnant women. The old blush-burgundy monotone was replaced with an earthy
+botanical scheme that reads "nature", "wellness" and "safe" simultaneously.
 
-**Three brand ramps** (`tailwind.config.ts`), hues ~30° apart so states stay
-tellable apart while still reading as one palette:
+**Three brand ramps** (`tailwind.config.ts`), remapped from the old hues:
 
-| Ramp | Hue | Role | Replaced |
+| Ramp | Hue | Role | Old hue |
 |---|---|---|---|
-| `plum` | 318° | informational, neutral emphasis | blue, sky, cyan, indigo, violet, purple |
-| `rose` | 340° | positive, on track, goal met | green, emerald, teal, lime |
-| `coral` | 12° | attention, partial, needs a nudge | yellow, amber, orange |
+| `rose` | 158° (sage) | positive, on track, goal met | 340° (pink) |
+| `plum` | 20° (amber) | informational, emphasis, CTA glow | 318° (magenta) |
+| `coral` | 16° (terracotta) | attention, partial, needs a nudge | 12° (coral) |
 
-They follow Tailwind's own lightness curve, so the swap kept shade numbers
-(`bg-green-100` → `bg-rose-100`) and with them the contrast each layout was
-built around. `red` keeps its native hue: it already sits inside this family
-(0°, between coral and rose) and carries the clinical high-risk signal.
+Existing class names (`bg-rose-100`, `text-plum-600`, etc.) keep working — they
+just paint in the new palette. `red` keeps its native hue for clinical
+high-risk signals.
 
-`plum` and `coral` share the hues `src/lib/chartColors.ts` uses (318° / 12°),
-so a chart line and the badge beside it are the same colour. They drifted once
-to the *dosha* hues instead (violet 256° and orange 18°), which put a violet
-avatar and an orange notification bell on the doctor dashboard — keep them off
-the dosha hues, which belong to `--vata`/`--pitta`/`--kapha` alone.
+**Typography.** Playfair Display (serif) for display headings — editorial,
+elegant, with italic accents for emphasis words. Instrument Sans for body
+text. Fluid `clamp()` sizing for display headings (`display-sm` through
+`display-lg`). Section labels use 11px uppercase with wide tracking.
+
+**Cards and buttons.** Cards are `rounded-[22px]` with hover-lift animations
+(`translateY(-4px)` + expanding warm shadow). Buttons lift on hover
+(`translateY(-0.5px)`) with spring easing. CTA buttons are pill-shaped
+(`rounded-full`) in amber-orange with a glowing box-shadow.
 
 **Neutrals.** `--background`, `--muted`, `--border` and the `gray`/`slate`
-ramps are near-achromatic but tinted a few percent toward the brand hue (340°,
-6–30% saturation). Stock Tailwind greys are blue-tinted and read cold and
-clinical next to the blush accent; these read soft without the app becoming
-"a pink app". Shadows are cast in the same warm neutral, so elevation reads as
+ramps are warm sand tones (hue ~33-38°) rather than cool gray. Shadows are
+cast in `hsl(24, 14%, 11%)` at low opacity, so elevation reads as
 depth rather than a grey haze. `--accent-soft` / `--accent-soft-foreground` are
 the tinted chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS
 variables, so gradients and inline styles can read them too, not just classes.
@@ -1767,7 +1790,7 @@ committed.
 | `VITE_API_URL` | Frontend | No | Base URL of the Flask backend, used by the recipe builder, disease detection screening, and the translation fallback (`POST /translate`). Defaults to `http://localhost:8000`. |
 | `SUPABASE_URL` | Backend | Yes | Falls back to `VITE_SUPABASE_URL` if unset. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend | Yes | Falls back to `VITE_SUPABASE_ANON_KEY` if unset, but that runs backend Supabase calls as the anon role (subject to RLS) instead of the privileged service role — set this explicitly for full backend access. **Never expose to the browser.** |
-| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, the patient chatbot, lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
+| `GEMINI_API_KEY` | Backend | No | Powers diet chart generation, the written analysis on Patient Analysis, both chatbots (patient wellness companion + doctor clinical assistant), lab-report extraction and the skin tracker's photo read. **Backend-only — never give it a `VITE_` prefix**, that compiles the key into the browser bundle. Unset disables those features cleanly; diet charts fall back to the FoodOScope recipe path. May also hold a comma-separated list of keys. |
 | `GEMINI_API_KEY2` … `GEMINI_API_KEY10` | Backend | No | Extra keys (e.g. from a second/third Google AI Studio project). The backend rotates to the next one whenever the active key is rate-limited, over quota, or rejected — see "Gemini key rotation" under Disease detection. Only `GEMINI_API_KEY` is required. |
 | `GEMINI_MODEL` | Backend | No | Pins one model ID. Leave unset: the backend then asks the API which models the key can actually call and uses the best flash model available, so a retired model ID cannot take the AI features down — see "Gemini model retirement". |
 | `GEMINI_MAX_TOKENS` | Backend | No | Output budget per call, defaults to `2048`. Current models spend part of it reasoning before they answer, so a small budget can return an empty reply. |
