@@ -14,7 +14,13 @@
 // hers via `doctor_treats()`.
 
 import { supabase } from "@/lib/supabase";
-import type { DailyBucket } from "@/lib/healthSamples";
+import {
+  buildSeries,
+  deriveScreeningSignals,
+  EMPTY_SIGNALS,
+  type DailyBucket,
+  type ScreeningSignals,
+} from "@/lib/healthSamples";
 
 /** Postgres/PostgREST codes meaning "that isn't there (yet)". */
 const MISSING_CODES = ["42P01", "42883", "PGRST202", "PGRST205", "PGRST106"];
@@ -87,4 +93,25 @@ export const fetchHealthSamples = async (
     sources: sourceMap,
     unavailable: false,
   };
+};
+
+/**
+ * The subset of synced data the screening models can consume.
+ *
+ * Ninety days on purpose: the models want her *current* weight and activity
+ * level, and a five-year average would let a very different year drag today's
+ * reading around.
+ */
+export const fetchScreeningSignals = async (
+  patientId: string,
+  days = 90
+): Promise<ScreeningSignals> => {
+  if (!patientId) return EMPTY_SIGNALS;
+
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+
+  const data = await fetchHealthSamples(patientId, start.toISOString());
+  if (data.unavailable) return EMPTY_SIGNALS;
+  return deriveScreeningSignals(buildSeries(data.buckets, data.sources));
 };

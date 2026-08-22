@@ -41,6 +41,9 @@ import { ScreeningResultsView } from "@/components/health/ScreeningResults";
 import { ScreeningExercisePlan } from "@/components/wellness/ExercisePlan";
 import { RiskScoreTrend } from "@/components/health/RiskScoreTrend";
 import { AppleHealthPanel } from "@/components/health/AppleHealthPanel";
+import { WatchSignalsCard } from "@/components/health/WatchSignalsCard";
+import { fetchScreeningSignals } from "@/services/healthSampleService";
+import { EMPTY_SIGNALS, type ScreeningSignals } from "@/lib/healthSamples";
 import { ReportUploadCard } from "@/components/health/ReportUploadCard";
 import { isAnalysisEnabled } from "@/services/analysisService";
 import { RISK_STYLES } from "@/lib/riskLevels";
@@ -95,6 +98,8 @@ const HealthRisks: React.FC = () => {
   const [rangeDays, setRangeDays] = useState<number>(0);
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
   const [useCustomRange, setUseCustomRange] = useState(false);
+
+  const [signals, setSignals] = useState<ScreeningSignals>(EMPTY_SIGNALS);
 
   const [isPregnant, setIsPregnant] = useState(true);
   const [isScreening, setIsScreening] = useState(false);
@@ -158,6 +163,37 @@ const HealthRisks: React.FC = () => {
       setForm(buildScreeningInputFromAssessment(assessment));
     }
   }, [data]);
+
+  // Measured inputs for the screening models, read from what the Watch synced.
+  useEffect(() => {
+    if (!patientId) return;
+    let cancelled = false;
+    void fetchScreeningSignals(patientId)
+      .then((next) => {
+        if (!cancelled) setSignals(next);
+      })
+      .catch((err) => console.error("Could not read Apple Health signals:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
+
+  // Seeded once, and only into fields she has not answered herself. Measured
+  // data beats recall, but it does not beat what she just typed.
+  const hasSeededSignals = useRef(false);
+  useEffect(() => {
+    if (!hasSeededForm.current || hasSeededSignals.current) return;
+    if (signals.daysOfData === 0) return;
+    hasSeededSignals.current = true;
+
+    if (signals.weightKg !== null) setWeightKg((current) => current ?? signals.weightKg);
+    // Onboarding height wins: it was entered deliberately, and a stray Health
+    // app entry should not silently move the denominator of her BMI.
+    if (signals.heightCm !== null) setHeightCm((current) => current ?? signals.heightCm);
+    if (signals.sedentary !== null) {
+      setForm((current) => ({ ...current, sedentary_lifestyle: signals.sedentary as boolean }));
+    }
+  }, [signals]);
 
   const update = <K extends keyof ScreeningInput>(key: K, value: ScreeningInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -431,6 +467,7 @@ const HealthRisks: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="check" className="space-y-5">
+          <WatchSignalsCard signals={signals} bmi={computeBmi(heightCm, weightKg)} />
           {canReadReports && <ReportUploadCard onApply={update} />}
 
           <Card>
