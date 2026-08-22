@@ -54,6 +54,9 @@ listed under "Language and translation" below.
   with the name in text (pass `alt=""` where nearby copy names the brand). It
   appears on the landing hero, the auth card, both sidebars, and the mobile
   header of both layouts.
+- `src/components/landing/` — the marketing landing page's feature section
+  (`FeatureCardStack.tsx`), its copy (`featureCards.tsx`) and the mocked panels
+  beside each card (`FeaturePreviews.tsx`). See "Landing page" below.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -308,6 +311,50 @@ validation.
 
 Supabase is mocked at the client boundary (`src/test/supabaseMock.ts`), so the
 real auth and license logic runs in tests; no test touches a live project.
+
+## Landing page
+
+`src/pages/Landing.tsx` is the signed-out marketing page at `/`: hero, feature
+section, a dark "two sides, one record" block and the CTA.
+
+**The feature section is a scroll-driven card stack**
+(`src/components/landing/FeatureCardStack.tsx`). The section is six viewport
+steps tall and pins a one-viewport stage inside it; as the page scrolls past,
+each card slides up over the one before it and parks behind the deck, with its
+top edge left showing so there is a visible cue that more follows. The rail
+underneath doubles as a control — clicking a dot scrolls to that card.
+
+Three things about how it is built are worth knowing before changing it:
+
+- **One number drives everything.** A scroll listener recomputes `position` —
+  the fractional index of the front card — from the track's
+  `getBoundingClientRect`, coalesced to one measurement per animation frame.
+  Cards are never mounted or unmounted as they change; only `transform` moves,
+  so nothing re-lays-out mid-animation.
+- **Nothing cross-fades.** Cards are opaque and sit exactly on top of one
+  another, so dissolving between them puts two sets of headings and body copy
+  half-visible in the same place — it reads as a rendering fault, not a
+  transition, even when it only lasts a frame or two. An arriving card starts
+  fully below the stage's clip line instead and covers the one it replaces the
+  way one sheet of paper covers another.
+- **`prefers-reduced-motion` gets a different tree, not a faster one.** The
+  blanket CSS guard in `index.css` cannot help here — scroll-linked movement is
+  a new style every frame, not a transition with a duration — so the component
+  renders a plain stacked list with no pinning at all. See "Motion and
+  illustration".
+
+One knock-on constraint: the page root uses `overflow-x-clip`, not
+`overflow-x-hidden`. `hidden` would make the root a scroll container, and the
+sticky stage would then pin to *it* — a container that never scrolls — instead
+of to the viewport, which silently breaks the whole section.
+
+**The card copy lives in `src/components/landing/featureCards.tsx`** and the
+mocked panel beside each card in `FeaturePreviews.tsx`. The previews are stills
+of real surfaces (the questionnaire's dosha split, a day of a generated chart, a
+Health Check result) and carry no live data on purpose, so none of them can put
+a number in front of a visitor that the app would then have to stand behind.
+This is the first and often the only description of Prakriva anyone reads —
+keep it to features that exist.
 
 ## Patient profile
 
@@ -1695,6 +1742,12 @@ hand-rolled per component:
 - `<Reveal index={n}>` (`src/components/ui/reveal.tsx`) fades content up on
   mount, 70ms apart. Long lists should cap `index` — a 40-row table where row
   39 waits three seconds is worse than no animation.
+- `useReducedMotion()` (`src/hooks/useReducedMotion.ts`) reports the OS
+  setting and re-renders when it changes. The CSS guard below covers anything a
+  stylesheet drives; reach for the hook when motion comes from JS instead — a
+  scroll-linked transform keeps moving because the scroll position keeps
+  changing, not because a transition is running, so it needs a still version of
+  the component rather than a shorter duration.
 - `useCountUp(value)` (`src/hooks/useCountUp.ts`) counts a figure up when it
   changes. It **always lands on the exact value**, only animates *upward*, and
   never renders `NaN`/`Infinity` — these are calories and adherence scores, and

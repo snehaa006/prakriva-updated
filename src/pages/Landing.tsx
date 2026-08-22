@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { FeatureCardStack } from "@/components/landing/FeatureCardStack";
 import { Reveal } from "@/components/ui/reveal";
 import { Bloom } from "@/components/illustrations/LineArt";
 import { Logo } from "@/components/ui/logo";
@@ -6,38 +7,14 @@ import { LanguageSwitcher } from "@/components/LanguageSelect";
 import { ArrowRight, Leaf } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const features = [
-  {
-    num: "01",
-    title: "Plans built per patient",
-    description:
-      "Diet charts generated from a patient's dosha, life stage, conditions and allergies — then edited by her practitioner, not shipped raw.",
-  },
-  {
-    num: "02",
-    title: "Tracking that earns its place",
-    description:
-      "Cycles, weight, skin and lifestyle logs, surfaced only for the care pathways a patient is actually on.",
-  },
-  {
-    num: "03",
-    title: "One shared record",
-    description:
-      "What a patient logs is what her doctor reviews. No re-typing, no screenshots passed back and forth.",
-  },
-  {
-    num: "04",
-    title: "Ayurveda, kept legible",
-    description:
-      "Vata, pitta and kapha stay first-class throughout, always paired with the plain-language reason behind a recommendation.",
-  },
-];
-
 const Landing = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background">
+    // `overflow-x-clip`, not `-hidden`: hidden would make this a scroll
+    // container, and the sticky stage inside FeatureCardStack would pin to it —
+    // a container that never scrolls — instead of to the viewport.
+    <div className="relative min-h-screen overflow-x-clip bg-background">
       {/* ── Navigation ── */}
       <header className="relative z-20 mx-auto flex max-w-[1200px] items-center justify-between px-6 py-7 md:py-9">
         <Logo size="sm" />
@@ -130,36 +107,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ── Features (numbered, sythra grid) ── */}
-      <section id="features" className="border-t border-foreground/[0.06] py-20 md:py-28">
-        <div className="mx-auto max-w-[1200px] px-6">
-          <Reveal>
-            <span className="section-label">How it works</span>
-          </Reveal>
-          <Reveal index={1}>
-            <h2 className="mt-4 max-w-xl font-display text-display-md tracking-tight text-foreground">
-              Built around how this care{" "}
-              <span className="italic text-primary">actually</span> runs
-            </h2>
-          </Reveal>
-
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:mt-20">
-            {features.map((feature, i) => (
-              <Reveal key={feature.num} index={i} delay={120}>
-                <div className="card-hover group rounded-[22px] border border-foreground/[0.06] bg-card p-7 md:p-8">
-                  <span className="text-display-sm font-display text-foreground/[0.12]">
-                    {feature.num}
-                  </span>
-                  <h3 className="mt-4 text-headline text-foreground">{feature.title}</h3>
-                  <p className="mt-2.5 text-footnote leading-relaxed text-foreground-secondary">
-                    {feature.description}
-                  </p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FeatureCardStack />
 
       {/* ── Roles (dark section — sythra-style contrast) ── */}
       <section id="roles" className="section-dark py-20 md:py-28">
