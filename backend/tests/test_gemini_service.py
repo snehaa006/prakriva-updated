@@ -511,6 +511,7 @@ class TestOutputBudget:
 
 class TestGenerateHistory:
     def test_builds_multi_turn_contents_from_history(self, monkeypatch):
+        with_keys(monkeypatch, "k")
         captured = {}
 
         def fake_post_gemini(payload, timeout):
@@ -537,6 +538,7 @@ class TestGenerateHistory:
         """The chatbot transcript opens with a canned welcome from the
         assistant, but Gemini requires a conversation to start with a user
         turn — sending it verbatim 400s on every single message."""
+        with_keys(monkeypatch, "k")
         captured = {}
 
         def fake_post_gemini(payload, timeout):
@@ -558,6 +560,7 @@ class TestGenerateHistory:
         assert contents[0]["parts"][0]["text"] == "hello"
 
     def test_consecutive_turns_of_one_role_are_merged(self, monkeypatch):
+        with_keys(monkeypatch, "k")
         captured = {}
 
         def fake_post_gemini(payload, timeout):
@@ -581,6 +584,7 @@ class TestGenerateHistory:
     def test_an_unanswered_question_is_folded_into_the_prompt(self, monkeypatch):
         """History ending on a user turn (the previous reply failed) must not
         produce two user turns in a row."""
+        with_keys(monkeypatch, "k")
         captured = {}
 
         def fake_post_gemini(payload, timeout):
@@ -602,6 +606,7 @@ class TestGenerateHistory:
         assert contents[-1]["parts"][0]["text"] == "unanswered\n\nretry"
 
     def test_no_history_is_a_single_turn(self, monkeypatch):
+        with_keys(monkeypatch, "k")
         captured = {}
 
         def fake_post_gemini(payload, timeout):

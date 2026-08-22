@@ -804,11 +804,12 @@ def analysis_status():
     return jsonify(APIResponse(
         success=True,
         data={
-            "enabled": gemini_service.is_configured(),
+            "enabled": gemini_service.is_configured() or gemini_service._groq_configured(),
             # Which model the backend will actually call. Reported because a
             # retired model ID looks exactly like a broken key from the
             # frontend, and this is the cheapest way to tell them apart.
             "model": gemini_service.active_model(),
+            "groq_available": gemini_service._groq_configured(),
         },
         message="Analysis availability retrieved",
     ).dict())

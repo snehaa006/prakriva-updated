@@ -54,7 +54,7 @@ class Settings:
         # GEMINI_API_KEY plus GEMINI_API_KEY2, GEMINI_API_KEY3, … or give
         # GEMINI_API_KEY a comma-separated list. gemini_service tries them in
         # order and sticks to whichever one last worked.
-        self.GEMINI_API_KEYS = self._collect_gemini_keys()
+        self.GEMINI_API_KEYS = self._collect_keys("GEMINI_API_KEY")
         # The first key, kept as its own setting for backward compatibility with
         # callers and the health check that read it directly.
         self.GEMINI_API_KEY = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
@@ -74,6 +74,16 @@ class Settings:
         # gemini-2.0-flash — too small and a reply comes back with no text.
         self.GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 2048))
         self.GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", 45))
+
+        # Groq — fallback LLM for the chatbot when Gemini is exhausted.
+        # Groq's free tier (30 req/min, 14.4K req/day on Llama 3.3 70B)
+        # keeps the chatbot alive while Gemini keys cool down. Same multi-
+        # key pattern: GROQ_API_KEY (comma-separated or single), plus
+        # GROQ_API_KEY2 … GROQ_API_KEY10.
+        self.GROQ_API_KEYS = self._collect_keys("GROQ_API_KEY")
+        self.GROQ_API_KEY = self.GROQ_API_KEYS[0] if self.GROQ_API_KEYS else ""
+        self.GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+        self.GROQ_TIMEOUT_SECONDS = int(os.getenv("GROQ_TIMEOUT_SECONDS", 45))
 
         # Supabase. The service-role key bypasses RLS, so it must never be
         # exposed to the browser — server-side only.
@@ -136,20 +146,19 @@ class Settings:
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FORMAT = os.getenv("LOG_FORMAT", "{time} | {level} | {message}")
     
-    #: How many numbered spares to look for (GEMINI_API_KEY2 … GEMINI_API_KEY10).
-    GEMINI_KEY_SLOTS = 10
+    #: How many numbered spares to look for (…_KEY2 … …_KEY10).
+    _KEY_SLOTS = 10
 
     @staticmethod
-    def _collect_gemini_keys() -> list:
-        """Every configured Gemini key, in the order they should be tried.
+    def _collect_keys(base_name: str) -> list:
+        """Every configured key for `base_name`, in order.
 
-        Accepts `GEMINI_API_KEY` (which may itself hold a comma-separated list)
-        followed by `GEMINI_API_KEY2` … `GEMINI_API_KEY10`. Blanks and repeats
-        are dropped so a duplicated key can't burn two attempts of the same
-        quota during rotation.
+        Accepts `base_name` (which may itself hold a comma-separated list)
+        followed by `base_name2` … `base_name10`. Blanks and repeats are
+        dropped so a duplicated key can't burn two attempts of the same quota.
         """
-        names = ["GEMINI_API_KEY"] + [
-            f"GEMINI_API_KEY{n}" for n in range(2, Settings.GEMINI_KEY_SLOTS + 1)
+        names = [base_name] + [
+            f"{base_name}{n}" for n in range(2, Settings._KEY_SLOTS + 1)
         ]
 
         keys = []

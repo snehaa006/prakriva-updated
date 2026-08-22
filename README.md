@@ -1091,10 +1091,11 @@ beneath them, so the cause is visible without opening devtools:
 | --- | --- |
 | `Could not reach the backend at <url>` | Flask is down, `VITE_API_URL` points somewhere wrong, or the origin is not in the backend's `ALLOWED_ORIGINS`. |
 | `Gemini returned HTTP 400 (INVALID_ARGUMENT — …)` | The request itself was rejected — a malformed conversation, not a key problem. |
-| `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured key is out of quota. Add a spare (`GEMINI_API_KEY2`) or wait. |
+| `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured Gemini key is out of quota. If `GROQ_API_KEY` is set, the chatbot falls back to Groq automatically. Otherwise add a spare (`GEMINI_API_KEY2`) or wait. |
+| `All LLM providers unavailable (Gemini: …; Groq: …)` | Both Gemini and Groq are exhausted or misconfigured. Wait for rate limits to reset or add more keys. |
 | `Gemini returned no usable model (…)` | Every model in the chain answered 404 *and* the live model list could not be fetched — see "Gemini model retirement" below. |
 | `Gemini used its whole output budget …` | The model spent `maxOutputTokens` reasoning without writing an answer, twice. Raise `GEMINI_MAX_TOKENS`. |
-| `No GEMINI_API_KEY is set` | The backend has no key; set it in the Render dashboard. |
+| `No GEMINI_API_KEY is set` | The backend has no Gemini key. Set it in the Render dashboard, or set `GROQ_API_KEY` as a standalone alternative. |
 
 Keys are redacted out of anything shown or logged.
 
@@ -1160,9 +1161,28 @@ keys.
 Error messages are reported with any configured key string replaced by `***`,
 so the reason for a failure can be logged and shown in the UI without the
 risk that made this "status codes only" before — Google's messages can echo
-the request, and the key travels in the query string. When every key fails the endpoint answers 503 and each
-caller degrades on its own terms: diet chart generation falls back to the
-FoodOScope recipe path, and the analysis panels hide themselves.
+the request, and the key travels in the query string. When every Gemini key
+fails, the chatbot and text generation endpoints fall back to **Groq** (see
+below) before giving up. If Groq is also unavailable, the endpoint answers
+503 and each caller degrades on its own terms: diet chart generation falls
+back to the FoodOScope recipe path, and the analysis panels hide themselves.
+
+#### Groq fallback
+
+When every Gemini key is exhausted or unavailable, text-generation calls
+(both chatbots, the screening analysis, and the patient Q&A) automatically
+try **Groq** (Llama 3.3 70B via the OpenAI-compatible API at
+`api.groq.com`). Groq's free tier allows 30 req/min and 14.4K req/day,
+which keeps the chatbot alive while Gemini keys cool down.
+
+Set `GROQ_API_KEY` in Render (or `backend/.env` locally). Multiple keys
+follow the same pattern as Gemini: `GROQ_API_KEY2` … `GROQ_API_KEY10`, or a
+comma-separated list. Vision tasks (report extraction, acne photo assessment)
+stay Gemini-only — Groq is a text fallback.
+
+The model defaults to `llama-3.3-70b-versatile` and can be overridden with
+`GROQ_MODEL`. `/analysis/status` reports `groq_available: true` when at
+least one key is set.
 
 *These scores are decision aids for a clinician, not a diagnosis.*
 
@@ -1799,6 +1819,10 @@ committed.
 | `GEMINI_MODEL` | Backend | No | Pins one model ID. Leave unset: the backend then asks the API which models the key can actually call and uses the best flash model available, so a retired model ID cannot take the AI features down — see "Gemini model retirement". |
 | `GEMINI_MAX_TOKENS` | Backend | No | Output budget per call, defaults to `2048`. Current models spend part of it reasoning before they answer, so a small budget can return an empty reply. |
 | `GEMINI_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. Diet chart generation overrides this with its own longer timeout. |
+| `GROQ_API_KEY` | Backend | No | Fallback LLM for chatbots and text generation when Gemini is exhausted. Groq's free tier gives 30 req/min and 14.4K req/day on Llama 3.3 70B. **Backend-only — never give it a `VITE_` prefix.** May hold a comma-separated list. |
+| `GROQ_API_KEY2` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
+| `GROQ_MODEL` | Backend | No | Defaults to `llama-3.3-70b-versatile`. |
+| `GROQ_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 | `RATE_LIMIT_PER_MINUTE` | Backend | No | Per-caller ceiling for the routes that opt into a per-minute limit, defaults to `30`. |
