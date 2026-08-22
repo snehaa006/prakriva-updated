@@ -125,16 +125,19 @@ listed under "Language and translation" below.
   `src/services/*LogService.ts` files.
 - `src/components/patients/` — shared patient-selection UI:
   `PatientPicker.tsx` (searchable dropdown over the signed-in doctor's own
-  patients, by name or patient code) and `PatientPantryPanel.tsx` (the doctor's
-  read-only view of a patient's kitchen). Both are backed by
-  `src/hooks/useDoctorPatients.ts`.
+  patients, by name or patient code), `PatientPantryPanel.tsx` (the doctor's
+  read-only view of a patient's kitchen) and `PatientMealFeedbackPanel.tsx`
+  (the doctor's read-only view of the meal feedback that patient wrote in her
+  Plan Hub). The first two are backed by `src/hooks/useDoctorPatients.ts`, the
+  third by `src/services/mealFeedbackService.ts`.
 - `src/pages/doctor/RecipeBuilder.tsx` — one screen that combines dosha-based
   generation with hand editing. Picking a patient shows their dosha profile,
   nutritional targets and restrictions (via `dietChartService.ts`); hitting
   Generate composes a plan with Gemini and drops the resulting days straight
   into the same drag-and-drop Daily/Weekly board used for building a plan by
-  hand, so the doctor can rearrange or leave it as-is before saving. See "Diet
-  chart generation" below for what feeds the generator. Loading an existing
+  hand, so the doctor can rearrange or leave it as-is before saving. Picking a
+  patient also surfaces her **meal feedback** — see "Meal feedback" below. See
+  "Diet chart generation" below for what feeds the generator. Loading an existing
   saved plan for editing (from the Diet Chart viewer's Edit button,
   `?editPlanId=&patientId=`) populates the same board.
 - `src/lib/localCache.ts` + `src/hooks/usePersistentState.ts` — the
@@ -239,6 +242,10 @@ Coverage is focused on authentication, since that is the gate on both roles:
   of stored screenings (including the missing-table fallback).
 - `src/services/__tests__/pantryService.test.ts` — the pantry row ↔ item
   mapping, insert defaults, error propagation and ingredient deduplication.
+- `src/services/__tests__/mealFeedbackService.test.ts` — the meal-feedback row
+  → entry mapping, the limit and empty-patient short circuit, error
+  propagation, and the rating averages (null, not `NaN`, when nothing was
+  rated).
 - `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
   including a 404 (no recipe matches every ingredient) reading as an empty
   result rather than a failure.
@@ -1245,6 +1252,26 @@ give a current activity streak of 4 with an earlier best of 6;
 the production streak functions over the generated month, and
 `src/pages/patient/__tests__/LifestyleTracker.test.tsx` renders the page and
 checks they reach the UI.
+
+## Meal feedback
+
+After eating a planned meal, a patient logs how it went from her Plan Hub
+(`src/pages/patient/PlanHub.tsx`): 1–5 sliders for digestion, mood and energy
+plus a free-text note, written to `meal_feedback`.
+
+That feedback is read back on the doctor side. Selecting a patient in the
+**Recipe Builder** (by name or P001-style code, through `PatientPicker`) shows
+a **Meal Feedback** card above the plan being written: the average digestion,
+mood and energy across her recent check-ins, then each check-in with its meal
+name, date, ratings and note. It sits before the generate controls on purpose —
+how the last plan landed is an input to the next one.
+
+Both sides go through `src/services/mealFeedbackService.ts`
+(`fetchMealFeedback` + `summarizeMealFeedback`); the patient chatbot's context
+builder reads the same rows through it. The service is read-only: `meal_feedback`
+carries an insert policy for the patient herself and a select policy for her and
+any treating doctor (`public.doctor_treats`), with no update or delete policy, so
+a recorded check-in is her own statement and cannot be edited from either portal.
 
 ## Diet chart generation
 

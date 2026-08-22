@@ -36,6 +36,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { PatientPicker } from "@/components/patients/PatientPicker";
+import { PatientMealFeedbackPanel } from "@/components/patients/PatientMealFeedbackPanel";
 import { useDoctorPatients } from "@/hooks/useDoctorPatients";
 import type { DoctorPatient } from "@/hooks/useDoctorPatients";
 import { usePersistentState } from "@/hooks/usePersistentState";
@@ -876,6 +877,14 @@ const RecipeBuilder = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* ===== PATIENT MEAL FEEDBACK ===== */}
+      {/* Shown as soon as a patient is picked — the feedback she wrote in her
+          Plan Hub is the read on how the last plan landed, so it belongs
+          before the next one is written, not after. */}
+      {patientId && (
+        <PatientMealFeedbackPanel patientId={patientId} patientName={patientName} />
+      )}
 
       {/* ===== PATIENT PROFILE SUMMARY (what Personalized Diet Chart used to show) ===== */}
       {patientProfile && profileAnalysis && (

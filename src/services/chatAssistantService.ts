@@ -17,6 +17,7 @@ import {
 import { fetchMealTracking } from "@/services/mealAdherenceService";
 import { fetchLifestyleLogs } from "@/services/lifestyleLogService";
 import { fetchScreenings } from "@/services/diseaseDetectionService";
+import { fetchMealFeedback } from "@/services/mealFeedbackService";
 import {
   getIngredientsByFlavor,
   getRecipesByIngredientsCategoriesTitle,
@@ -213,33 +214,19 @@ async function fetchActivePlanContext(
   return { plan: condenseActivePlan(chosen), primaryDosha: chosen?.primary_dosha ?? undefined };
 }
 
-// --- Meal feedback (no existing service reads this; kept minimal here) ---
-
-interface MealFeedbackRow {
-  meal_name: string | null;
-  digestion_rating: number | null;
-  mood_rating: number | null;
-  energy_rating: number | null;
-  notes: string | null;
-  date: string;
-}
+// --- Meal feedback ---
+// The rows themselves come from `mealFeedbackService`, which the doctor-side
+// Recipe Builder reads too; this only condenses them for the prompt.
 
 async function fetchRecentMealFeedback(patientId: string): Promise<MealFeedbackEntry[]> {
-  const { data, error } = await supabase
-    .from("meal_feedback")
-    .select("meal_name, digestion_rating, mood_rating, energy_rating, notes, date")
-    .eq("patient_id", patientId)
-    .order("date", { ascending: false })
-    .limit(10);
-  if (error) throw new Error(error.message);
-
-  return ((data ?? []) as MealFeedbackRow[]).map((row) => ({
-    date: row.date,
-    mealName: row.meal_name || "a meal",
-    digestion: row.digestion_rating,
-    mood: row.mood_rating,
-    energy: row.energy_rating,
-    notes: row.notes ?? "",
+  const entries = await fetchMealFeedback(patientId, 10);
+  return entries.map((entry) => ({
+    date: entry.date,
+    mealName: entry.mealName,
+    digestion: entry.digestion,
+    mood: entry.mood,
+    energy: entry.energy,
+    notes: entry.notes,
   }));
 }
 
