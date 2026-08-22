@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SHOP_CATALOGUE } from "@/data/shopCatalogue";
 import { usePatientStage } from "@/hooks/usePatientStage";
-import { CATEGORY_ICONS } from "@/components/shop/categoryIcons";
+import { ProductImage } from "@/components/shop/ProductImage";
 import { recommendProducts } from "@/lib/shop/recommendations";
 import { formatPrice } from "@/lib/shop/retailers";
 import { lowestPrice } from "@/lib/shop/search";
@@ -34,7 +34,6 @@ export function ShopSuggestions({ limit = 3 }: { limit?: number }) {
       </CardHeader>
       <CardContent className="space-y-1">
         {suggestions.map(({ product, reason }) => {
-          const Icon = CATEGORY_ICONS[product.category];
           const low = lowestPrice(product);
           return (
             <Link
@@ -42,9 +41,14 @@ export function ShopSuggestions({ limit = 3 }: { limit?: number }) {
               to={`/patient/shop/${product.id}`}
               className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-accent-soft/60"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-primary">
-                <Icon className="h-4 w-4" />
-              </span>
+              {/* A thumbnail rather than a glyph, so a row here looks like the
+                  tile it leads to. Square: at 40px a 4:3 crop reads as a
+                  mis-sized icon rather than as a picture. */}
+              <ProductImage
+                product={product}
+                className="aspect-square h-10 w-10 shrink-0 rounded-lg"
+                sizes="40px"
+              />
               {/* The price sits inside the second line rather than in its own
                   column: this card lives in the dashboard's narrow sidebar,
                   and a fixed price column on the right squeezed the reason

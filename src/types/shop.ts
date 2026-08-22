@@ -14,7 +14,14 @@ import type { LifeStage } from "@/lib/lifeStage";
  */
 
 /** A storefront we send patients to. */
-export type RetailerId = "amazon" | "flipkart" | "firstcry" | "nykaa" | "brand";
+export type RetailerId =
+  | "amazon"
+  | "flipkart"
+  | "blinkit"
+  | "instamart"
+  | "firstcry"
+  | "nykaa"
+  | "brand";
 
 /** One retailer's listing for a product. */
 export interface RetailerOffer {
@@ -37,6 +44,17 @@ export interface RetailerOffer {
    */
   url?: string;
   inStock: boolean;
+  /**
+   * Delivery, in the retailer's own terms, when it differs from what that
+   * storefront normally promises (`Retailer.delivery`).
+   *
+   * Quick-commerce apps are the reason this exists: Blinkit and Instamart are
+   * often dearer than a marketplace and worth it anyway, because the thing
+   * arrives in minutes rather than days. A price table that hides that is
+   * comparing on the wrong axis — cheapest is not the same as best when
+   * someone has run out of nursing pads at 2am.
+   */
+  delivery?: string;
 }
 
 export type ShopCategory =
@@ -49,6 +67,26 @@ export type ShopCategory =
   | "intimate-care"
   | "baby-essentials"
   | "movement";
+
+/**
+ * The photograph shown for a product.
+ *
+ * Stock photography of the *kind* of thing, served from the app's own
+ * `public/shop` folder rather than hot-linked from a retailer. Two reasons:
+ * a retailer's product shot is theirs, not ours, and a hot-linked one breaks
+ * the moment they re-key their CDN — leaving a grid of broken frames in front
+ * of a patient. Local files also mean the shop renders with no network.
+ *
+ * Because it is a stand-in rather than the exact item, the UI must never let
+ * the picture carry information the copy doesn't: it is scenery for the shelf,
+ * and the blurb, the price and the retailer are what she decides on.
+ */
+export interface ProductImage {
+  /** Absolute path under `/public`, e.g. `/shop/move-yoga-mat.webp`. */
+  src: string;
+  /** What the photo shows. Never repeats the title — a screen reader has that. */
+  alt: string;
+}
 
 export interface ShopProduct {
   id: string;
@@ -78,6 +116,8 @@ export interface ShopProduct {
   reviewCount?: number;
   /** Extra search terms — how a patient might actually phrase it. */
   keywords: string[];
+  /** Shelf photograph. See `ProductImage` for why it is ours and not theirs. */
+  image?: ProductImage;
   offers: RetailerOffer[];
 }
 
@@ -90,4 +130,12 @@ export interface ShopFilters {
   retailer?: RetailerId | "all";
   maxPrice?: number;
   inStockOnly?: boolean;
+  /**
+   * Only products a ten-minute app carries.
+   *
+   * Its own filter rather than a seller choice between Blinkit and Instamart,
+   * because at 2am with no nursing pads left the question is "who can get this
+   * here tonight", not "which of these two apps".
+   */
+  quickDeliveryOnly?: boolean;
 }

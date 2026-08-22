@@ -6,6 +6,8 @@ import type { ShopProduct } from "@/types/shop";
 import {
   applyFilters,
   bestOffer,
+  fastestOffer,
+  hasQuickDelivery,
   highestPrice,
   lowestPrice,
   relevanceScore,
@@ -260,6 +262,60 @@ describe("searchProducts against the real catalogue", () => {
     const prices = results.map((p) => lowestPrice(p) ?? Infinity);
     expect([...prices].sort((a, b) => a - b)).toEqual(prices);
     expect(results.every((p) => p.offers.some((o) => o.inStock))).toBe(true);
+  });
+});
+
+describe("quick delivery", () => {
+  const quick = make({
+    id: "quick",
+    offers: [
+      { retailer: "amazon", price: 100, inStock: true },
+      { retailer: "blinkit", price: 130, inStock: true },
+      { retailer: "instamart", price: 120, inStock: true },
+    ],
+  });
+  const slow = make({
+    id: "slow",
+    offers: [{ retailer: "amazon", price: 100, inStock: true }],
+  });
+
+  it("spots a product a ten-minute app carries", () => {
+    expect(hasQuickDelivery(quick)).toBe(true);
+    expect(hasQuickDelivery(slow)).toBe(false);
+  });
+
+  it("picks the cheapest ten-minute listing, not the cheapest overall", () => {
+    // The whole reason it exists: Amazon at ₹100 is cheapest, and it is not
+    // the answer to "who can get this here tonight".
+    expect(bestOffer(quick)?.retailer).toBe("amazon");
+    expect(fastestOffer(quick)?.retailer).toBe("instamart");
+  });
+
+  it("ignores a ten-minute listing that is out of stock", () => {
+    const out = make({
+      id: "out",
+      offers: [
+        { retailer: "amazon", price: 100, inStock: true },
+        { retailer: "blinkit", price: 110, inStock: false },
+      ],
+    });
+    expect(fastestOffer(out)).toBeUndefined();
+    // Still listed, so the filter keeps showing it — she can check the app.
+    expect(hasQuickDelivery(out)).toBe(true);
+  });
+
+  it("has no fastest offer when no app carries it", () => {
+    expect(fastestOffer(slow)).toBeUndefined();
+  });
+
+  it("filters the grid down to what an app can bring tonight", () => {
+    const results = applyFilters([quick, slow], { quickDeliveryOnly: true });
+    expect(results.map((p) => p.id)).toEqual(["quick"]);
+  });
+
+  it("composes with the other filters rather than replacing them", () => {
+    const results = applyFilters([quick, slow], { quickDeliveryOnly: true, maxPrice: 50 });
+    expect(results).toEqual([]);
   });
 });
 

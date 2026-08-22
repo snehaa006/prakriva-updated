@@ -1,3 +1,4 @@
+import { isQuickCommerce } from "@/lib/shop/retailers";
 import type {
   RetailerOffer,
   ShopFilters,
@@ -43,6 +44,25 @@ export const highestPrice = (product: ShopProduct): number | undefined =>
   product.offers.length === 0
     ? undefined
     : Math.max(...product.offers.map((o) => o.price));
+
+/**
+ * The cheapest in-stock ten-minute offer, if any app carries it.
+ *
+ * Separate from `bestOffer` on purpose: the fastest way to get something is a
+ * different answer from the cheapest, and a comparison that only ever names
+ * the cheapest hides the one that matters at 2am.
+ */
+export const fastestOffer = (product: ShopProduct): RetailerOffer | undefined =>
+  product.offers
+    .filter((o) => o.inStock && isQuickCommerce(o))
+    .reduce<RetailerOffer | undefined>(
+      (best, o) => (best === undefined || o.price < best.price ? o : best),
+      undefined,
+    );
+
+/** Whether any ten-minute app lists this product at all, in stock or not. */
+export const hasQuickDelivery = (product: ShopProduct): boolean =>
+  product.offers.some(isQuickCommerce);
 
 /**
  * How well a product answers a query, 0 meaning "not a match at all".
@@ -104,6 +124,7 @@ export const applyFilters = (
       return false;
     }
     if (filters.inStockOnly && !product.offers.some((o) => o.inStock)) return false;
+    if (filters.quickDeliveryOnly && !hasQuickDelivery(product)) return false;
     if (filters.maxPrice !== undefined) {
       const low = lowestPrice(product);
       // A product with no offers has no price to compare, so a price ceiling

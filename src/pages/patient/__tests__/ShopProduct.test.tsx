@@ -53,7 +53,7 @@ describe("the product page", () => {
     const badge = screen.getByText("Lowest price");
     // The badge and the price it belongs to share a row, so assert on the row
     // rather than on the page — "₹1,899" also appears in the header summary.
-    const row = badge.closest("div.flex")!.parentElement!.parentElement!;
+    const row = badge.closest("li")!;
     expect(within(row).getByText("₹1,899")).toBeInTheDocument();
     expect(within(row).getByText(/View on Amazon/)).toBeInTheDocument();
   });
@@ -134,5 +134,67 @@ describe("outbound links", () => {
     renderProduct("sleep-full-body-pillow");
     expect(screen.getByText(/doesn't sell these products/i)).toBeInTheDocument();
     expect(screen.getByText(/doesn't take a cut/i)).toBeInTheDocument();
+  });
+});
+
+describe("comparing on speed as well as price", () => {
+  it("names each seller's delivery on its own row", () => {
+    // baby-water-wipes carries Amazon, FirstCry, Flipkart, Blinkit and
+    // Instamart, so both kinds of storefront are on the page at once.
+    renderProduct("baby-water-wipes");
+
+    const blinkit = screen.getByText("Blinkit").closest("li")!;
+    expect(within(blinkit).getByText("In 10–15 min")).toBeInTheDocument();
+
+    const amazon = screen.getByText("Amazon").closest("li")!;
+    expect(within(amazon).getByText("1–3 days")).toBeInTheDocument();
+  });
+
+  it("calls out the soonest listing as well as the cheapest", () => {
+    renderProduct("baby-water-wipes");
+    // FirstCry at ₹519 is cheapest; the ten-minute apps are dearer and still
+    // the right answer for someone who has run out tonight.
+    expect(screen.getByText("Lowest price").closest("li")).toContainElement(
+      screen.getByText("FirstCry"),
+    );
+    expect(screen.getByText("Fastest").closest("li")).toContainElement(
+      screen.getByText("Blinkit"),
+    );
+  });
+
+  it("links out to Blinkit and Instamart with the same safety as Amazon", () => {
+    renderProduct("baby-water-wipes");
+    const hosts = outboundLinks().map((a) => new URL(a.getAttribute("href")!).hostname);
+    expect(hosts).toContain("blinkit.com");
+    expect(hosts).toContain("www.swiggy.com");
+    for (const link of outboundLinks()) {
+      expect(link.getAttribute("target")).toBe("_blank");
+      for (const token of ["noopener", "noreferrer", "nofollow", "sponsored"]) {
+        expect(link.getAttribute("rel")).toContain(token);
+      }
+    }
+  });
+
+  it("says nothing about minutes on a product no app carries", () => {
+    renderProduct("mon-bp-monitor");
+    expect(screen.queryByText("Fastest")).not.toBeInTheDocument();
+    expect(screen.queryByText("In minutes")).not.toBeInTheDocument();
+  });
+});
+
+describe("the product photograph", () => {
+  it("shows the item and loads it eagerly, since it is above the fold", () => {
+    renderProduct("move-yoga-mat");
+    const hero = screen.getAllByRole("img")[0];
+    expect(hero).toHaveAttribute("src", "/shop/move-yoga-mat.webp");
+    expect(hero).toHaveAttribute("loading", "eager");
+    expect(hero.getAttribute("alt")?.length ?? 0).toBeGreaterThan(15);
+  });
+
+  it("keeps the related tiles' photos lazy", () => {
+    renderProduct("move-yoga-mat");
+    const [, ...rest] = screen.getAllByRole("img");
+    expect(rest.length).toBeGreaterThan(0);
+    for (const img of rest) expect(img).toHaveAttribute("loading", "lazy");
   });
 });
