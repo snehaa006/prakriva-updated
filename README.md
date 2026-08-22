@@ -55,8 +55,8 @@ listed under "Language and translation" below.
   appears on the landing hero, the auth card, both sidebars, and the mobile
   header of both layouts.
 - `src/components/landing/` — the marketing landing page's feature section
-  (`FeatureCardStack.tsx`), its copy (`featureCards.tsx`) and the mocked panels
-  beside each card (`FeaturePreviews.tsx`). See "Landing page" below.
+  (`FeatureCardStack.tsx`), its copy and scenes (`featureCards.tsx`) and the
+  panels floating on each scene (`FeaturePreviews.tsx`). See "Landing page".
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -317,30 +317,41 @@ real auth and license logic runs in tests; no test touches a live project.
 `src/pages/Landing.tsx` is the signed-out marketing page at `/`: hero, feature
 section, a dark "two sides, one record" block and the CTA.
 
-**The feature section is a scroll-driven card stack**
+**The feature section is a scroll-driven reel**
 (`src/components/landing/FeatureCardStack.tsx`). The section is six viewport
-steps tall and pins a one-viewport stage inside it; as the page scrolls past,
-each card slides up over the one before it and parks behind the deck, with its
-top edge left showing so there is a visible cue that more follows. The rail
-underneath doubles as a control — clicking a dot scrolls to that card.
+steps tall and pins a one-viewport stage inside it. As the page scrolls past,
+a column of visual cards slides upward through a clipped window one card at a
+time, and the label for the card on screen cross-fades in the gutter beside it —
+alternating left, right, left, so a reader's eye has somewhere new to go on
+every step. The rail underneath doubles as a control: clicking a dot scrolls to
+that card.
 
-Three things about how it is built are worth knowing before changing it:
+Five things about how it is built are worth knowing before changing it:
 
 - **One number drives everything.** A scroll listener recomputes `position` —
   the fractional index of the front card — from the track's
   `getBoundingClientRect`, coalesced to one measurement per animation frame.
-  Cards are never mounted or unmounted as they change; only `transform` moves,
-  so nothing re-lays-out mid-animation.
-- **Nothing cross-fades.** Cards are opaque and sit exactly on top of one
-  another, so dissolving between them puts two sets of headings and body copy
-  half-visible in the same place — it reads as a rendering fault, not a
-  transition, even when it only lasts a frame or two. An arriving card starts
-  fully below the stage's clip line instead and covers the one it replaces the
-  way one sheet of paper covers another.
+  Cards are never mounted or unmounted as they change; only `transform` and
+  `opacity` move, so nothing re-lays-out mid-animation.
+- **The reel holds, then moves.** `stepped()` converts the linear scroll into
+  the reel's own position: it advances across the first 62% of each step and
+  holds on the whole number for the rest, so a card sits still long enough to
+  read. Easing the section end to end instead would make the reel race at the
+  top, crawl at the bottom and never settle anywhere. The rail's figure counts
+  off that same stepped value, so it can't disagree with the label on screen.
+- **The window is a plain rectangle, slightly taller than one card.** Round it
+  and the cards' corners get shaved off as they slide through; make it much
+  taller and the neighbour waiting its turn shows at rest — `REEL_GAP` has to
+  clear the cards' drop shadow as well as the cards, or the shadow alone reads
+  as a phantom edge.
+- **Each card's copy exists once in the DOM.** On a phone the label stacks
+  under the reel; from `md` up the label layer is taken out of the flow and
+  hung in the gutters. The reel is a mock, so it is `aria-hidden` and the
+  labels carry the whole reading order.
 - **`prefers-reduced-motion` gets a different tree, not a faster one.** The
   blanket CSS guard in `index.css` cannot help here — scroll-linked movement is
   a new style every frame, not a transition with a duration — so the component
-  renders a plain stacked list with no pinning at all. See "Motion and
+  renders a plain alternating list with no pinning at all. See "Motion and
   illustration".
 
 One knock-on constraint: the page root uses `overflow-x-clip`, not
@@ -349,12 +360,14 @@ sticky stage would then pin to *it* — a container that never scrolls — inste
 of to the viewport, which silently breaks the whole section.
 
 **The card copy lives in `src/components/landing/featureCards.tsx`** and the
-mocked panel beside each card in `FeaturePreviews.tsx`. The previews are stills
-of real surfaces (the questionnaire's dosha split, a day of a generated chart, a
-Health Check result) and carry no live data on purpose, so none of them can put
-a number in front of a visitor that the app would then have to stand behind.
-This is the first and often the only description of Prakriva anyone reads —
-keep it to features that exist.
+panel floating on each scene in `FeaturePreviews.tsx`. The scenes are three
+layered gradients mixed from the five brand colours plus one of the app's own
+line-art marks — there is no artwork to load, and the whole section recolours
+with the palette. The panels are stills of real surfaces (the questionnaire's
+dosha split, a day of a generated chart, a Health Check result) and carry no
+live data on purpose, so none of them can put a number in front of a visitor
+that the app would then have to stand behind. This is the first and often the
+only description of Prakriva anyone reads — keep it to features that exist.
 
 ## Patient profile
 
@@ -1674,39 +1687,65 @@ and native controls — scrollbars, date pickers, dropdowns — otherwise paint
 themselves dark over light surfaces. If the app ever looks dark unexpectedly,
 check the stored choice first (`localStorage` key `prakriva:theme`).
 
-The palette is **warm cream + sage green + amber-orange**, inspired by
-sythra.ai's editorial warmth and adapted for an Ayurvedic wellness app for
-pregnant women. The old blush-burgundy monotone was replaced with an earthy
-botanical scheme that reads "nature", "wellness" and "safe" simultaneously.
+**The palette is five colours and nothing else** — cream, three roses and an
+olive. Every token in `src/index.css` is one of them or a tint of one of their
+hues, so a sixth colour cannot arrive one reasonable-looking badge at a time:
 
-**Three brand ramps** (`tailwind.config.ts`), remapped from the old hues:
-
-| Ramp | Hue | Role | Old hue |
+| Swatch | Hex | HSL | Role |
 |---|---|---|---|
-| `rose` | 158° (sage) | positive, on track, goal met | 340° (pink) |
-| `plum` | 20° (amber) | informational, emphasis, CTA glow | 318° (magenta) |
-| `coral` | 16° (terracotta) | attention, partial, needs a nudge | 12° (coral) |
+| Rose | `#A6465F` | `344 41% 46%` | brand: marks, active states, fills, `--primary` |
+| Brick | `#9B5152` | `359 31% 46%` | calls to action and second emphasis, `--accent` |
+| Dusty rose | `#B17A77` | `3 27% 58%` | soft accents, chips, the vata dosha |
+| Cream | `#E3D3C4` | `29 36% 83%` | the canvas, surfaces and borders |
+| Olive | `#414029` | `58 23% 21%` | ink, dark sections, "on track" |
 
-Existing class names (`bg-rose-100`, `text-plum-600`, etc.) keep working — they
-just paint in the new palette. `red` keeps its native hue for clinical
-high-risk signals.
+One deliberate deviation: `--background` is `29 36% 86%`, three points lighter
+than the cream swatch. At the raw value, rose on cream measures 3.99:1 — under
+the 4.5:1 floor for body text — and the lift buys the margin back without
+reading as a different colour. Rose still belongs on marks, headings and fills
+rather than paragraphs; the ink is olive.
 
-**Typography.** Playfair Display (serif) for display headings — editorial,
-elegant, with italic accents for emphasis words. Instrument Sans for body
-text. Fluid `clamp()` sizing for display headings (`display-sm` through
-`display-lg`). Section labels use 11px uppercase with wide tracking.
+**The brand ramps** (`tailwind.config.ts`) are all remapped, so existing class
+names keep working and paint in the new palette:
+
+| Ramp | Hue | Role |
+|---|---|---|
+| `plum` | 344° (rose) | brand emphasis, CTA glow |
+| `coral` | 359° (brick) | attention, partial, needs a nudge |
+| `rose` | 3° (dusty) | positive, on track, goal met |
+| `pink` | 344° (rose) | the chatbot, which is built almost entirely on `pink-*` |
+| `gray` / `slate` | 29–58° | warm neutrals running from cream to olive |
+
+`red` keeps its native hue for clinical high-risk signals.
+
+**Typography.** Three faces, each with one job:
+
+| Face | Class | Used for |
+|---|---|---|
+| IM Fell DW Pica | `font-display` | headings and pull quotes |
+| Inter, or Suisse Intl where licensed | `font-sans` | everything read as prose |
+| IBM Plex Mono (DM Mono as fallback) | `font-mono` | labels, eyebrows, figures, quotations |
+
+They load from one `<link>` in `index.html`; there is no CSS `@import`, which
+would only add a second, serialised request behind the stylesheet. Suisse Intl
+is licensed rather than served, so it sits first in the `sans` stack and Inter
+carries anyone who does not have it. IM Fell DW Pica is a 17th-century face —
+textured, small on the body, and unreadable much below 20px — so it belongs on
+display sizes only, never on UI text. Fluid `clamp()` sizing for display
+headings (`display-sm` through `display-lg`); section labels are 11px mono,
+uppercase, with wide tracking.
 
 **Cards and buttons.** Cards are `rounded-[22px]` with hover-lift animations
 (`translateY(-4px)` + expanding warm shadow). Buttons lift on hover
 (`translateY(-0.5px)`) with spring easing. CTA buttons are pill-shaped
-(`rounded-full`) in amber-orange with a glowing box-shadow.
+(`rounded-full`) in brick rose with a glowing box-shadow.
 
 **Neutrals.** `--background`, `--muted`, `--border` and the `gray`/`slate`
-ramps are warm sand tones (hue ~33-38°) rather than cool gray. Shadows are
-cast in `hsl(24, 14%, 11%)` at low opacity, so elevation reads as
-depth rather than a grey haze. `--accent-soft` / `--accent-soft-foreground` are
-the tinted chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS
-variables, so gradients and inline styles can read them too, not just classes.
+ramps run on the cream and olive hues rather than cool gray. Shadows are cast
+in `hsl(58, 20%, 12%)` at low opacity, so elevation reads as depth rather than
+a grey haze. `--accent-soft` / `--accent-soft-foreground` are the tinted
+chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS variables, so
+gradients and inline styles can read them too, not just classes.
 
 Two rules follow from having one hue family, both learned from looking at the
 rendered pages rather than the code:
@@ -1716,17 +1755,20 @@ rendered pages rather than the code:
   target?" strip. Achieved days are solid (`bg-rose-600 text-white`), missed
   ones are pale and outlined.
 - **Colour never carries meaning alone.** Risk levels escalate in *intensity*
-  as well as hue (pale rose → coral → saturated red), so the ordering survives
-  greyscale and colour vision deficiency, and high risk is the only filled
-  badge. Every level also renders its `label` in words.
+  as well as hue (olive → dusty rose → saturated red, lightness falling the
+  whole way), so the ordering survives greyscale and colour vision deficiency,
+  and high risk is the only filled badge. Every level also renders its `label`
+  in words.
 
 Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
 blue that no class on the element can reach; `src/index.css` sets `accent-color`
 globally to fix that.
 
 `src/lib/__tests__/brandPalette.test.ts` fails the build if an off-brand
-utility or a hardcoded chart hex reappears — the drift happened once already,
-one reasonable-looking green badge at a time.
+utility or a hardcoded chart hex reappears, or if a chart colour lands more
+than 25° from one of the five brand hues — the drift happened once already, one
+reasonable-looking green badge at a time. Documentation may still write the
+brand hexes down; the rule is about code, so the scan strips comments first.
 
 **Corners.** The radius scale is 6/8/10/12/16/20px (`sm` → `2xl`). It used to
 be 12/20/28/36, soft enough that a chip, a card and a dialog all read as the

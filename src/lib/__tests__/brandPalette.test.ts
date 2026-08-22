@@ -10,11 +10,15 @@ import {
 } from "../chartColors";
 
 /**
- * Guards the pink palette against drift.
+ * Guards the cream / rose / olive palette against drift.
  *
  * The app went off-brand once already — a green badge here, a blue chart line
  * there, each one reasonable on its own. These tests fail the build the next
  * time that starts, which is cheaper than another 578-utility sweep.
+ *
+ * The palette is five colours and nothing else: rose #A6465F, brick #9B5152,
+ * dusty rose #B17A77, cream #E3D3C4 and olive #414029. Anything new has to be
+ * a tint of one of their hues.
  */
 
 const SRC = join(process.cwd(), "src");
@@ -59,15 +63,20 @@ describe("no off-brand Tailwind colors", () => {
   });
 });
 
+/** Strips `/* … *\/` and `// …` so documentation may name the brand hexes. */
+const withoutComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+
 describe("no hardcoded chart colors", () => {
   it("routes every chart color through src/lib/chartColors.ts", () => {
     // Six-digit hex literals in chart-bearing code are how the palette drifted
-    // last time. Neutral black/white shorthand is fine.
+    // last time. Neutral black/white shorthand is fine, and so is a comment
+    // that writes the brand hexes down — the rule is about code, not docs.
     const offenders: string[] = [];
 
     for (const file of sourceFiles) {
       if (file.endsWith("chartColors.ts")) continue;
-      const contents = readFileSync(file, "utf8");
+      const contents = withoutComments(readFileSync(file, "utf8"));
       for (const match of contents.matchAll(/#[0-9a-fA-F]{6}\b/g)) {
         if (/^#(fff|000)/i.test(match[0]) || /^#(ffffff|000000)$/i.test(match[0])) continue;
         offenders.push(`${file.replace(process.cwd(), "")}: ${match[0]}`);
@@ -100,11 +109,14 @@ describe("the chart palette itself", () => {
     ...Object.values(CHART_RISK),
   ];
 
-  it("keeps every chart color inside the pink family", () => {
+  /** The five brand hues: rose, brick, dusty rose, cream, olive. */
+  const BRAND_HUES = [344, 359, 3, 29, 58];
+
+  it("keeps every chart color on one of the five brand hues", () => {
     for (const color of allColors) {
-      const hue = hueDistance(hueOf(color), 345);
-      // Everything within ~40° of the brand hue: plum 318 → red 0 → coral 12.
-      expect(hue).toBeLessThanOrEqual(40);
+      const nearest = Math.min(...BRAND_HUES.map((h) => hueDistance(hueOf(color), h)));
+      // A tint of an anchor is fine; a sixth hue is not.
+      expect(nearest).toBeLessThanOrEqual(25);
     }
   });
 
@@ -122,7 +134,8 @@ describe("the chart palette itself", () => {
 
   it("escalates risk-trend colors the way the risk badges do", () => {
     // Chart lines and badges must agree, or a trend contradicts the label
-    // sitting next to it. Lightness falls as severity rises.
+    // sitting next to it. Lightness falls as severity rises, and the hue runs
+    // olive → rose → red, so severity reads without relying on colour alone.
     const lightness = (c: string) => Number(c.match(HSL)?.[3]);
     expect(lightness(CHART_RISK.low)).toBeGreaterThan(lightness(CHART_RISK.moderate));
     expect(lightness(CHART_RISK.moderate)).toBeGreaterThan(lightness(CHART_RISK.high));

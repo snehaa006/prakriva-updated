@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Bloom, Cycle, Expecting, Plate } from "@/components/illustrations/LineArt";
-import { Languages, LineChart } from "lucide-react";
+import { Bloom, Cradle, Cycle, Expecting, Plate } from "@/components/illustrations/LineArt";
+import { Languages } from "lucide-react";
 import {
   DoshaPreview,
   LanguagePreview,
@@ -11,96 +11,140 @@ import {
 } from "@/components/landing/FeaturePreviews";
 
 /**
- * The content shown in the landing page's card stack.
+ * The content shown in the landing page's feature reel.
  *
- * Every card describes something the app actually does, and the preview beside
- * it is drawn from the same surface — the dosha split from the questionnaire,
- * the meal rows from Recipe Builder, the risk rows from Health Check. Keep it
- * that way: this is the first and often only description of Prakriva a visitor
- * reads, so a card promising a feature that doesn't exist is a support ticket
- * and a lost trust, not a marketing flourish.
+ * Every card describes something the app actually does, and the panel floating
+ * on its scene is drawn from the same surface — the dosha split from the
+ * questionnaire, the meal rows from Recipe Builder, the risk rows from Health
+ * Check. Keep it that way: this is the first and often only description of
+ * Prakriva a visitor reads, so a card promising a feature that doesn't exist is
+ * a support ticket and a lost trust, not a marketing flourish.
+ *
+ * Copy runs short on purpose. The title is one line and the body is two, so a
+ * reader takes both in during the beat a card holds still.
  */
 export interface FeatureCard {
-  /** Stable key, and the figure printed on the card. */
+  /** Stable key, and the figure printed above the title. */
   num: string;
-  eyebrow: string;
   title: string;
-  /** The one word set in italic serif inside `title`. Must appear in it. */
+  /** The one word set in italic. Must appear in `title`. */
   accent: string;
   description: string;
-  /** Two or three short proof points, rendered as chips. */
-  points: string[];
-  icon: ReactNode;
-  preview: ReactNode;
+  /** Which side of the reel the label sits on; they alternate down the list. */
+  side: "left" | "right";
+  /**
+   * The scene behind the panel, as layered gradients.
+   *
+   * Each is mixed from the five brand colours, and no two neighbours share a
+   * cast — a reader should be able to tell one card from the next out of the
+   * corner of their eye, before reading a word of it.
+   */
+  scene: string;
+  /** Drawn large and faint behind the panel, in the same line-art family as the app. */
+  mark: ReactNode;
+  panel: ReactNode;
 }
 
-// ── Cards ──────────────────────────────────────────────────────────────────
+/**
+ * Shorthand for a scene: a light in the sky, a swell along the ground and a
+ * wash between them. Three layers is enough to read as a place rather than a
+ * colour block, and costs nothing to ship — there is no artwork to load, and
+ * the whole thing recolours with the palette.
+ */
+const scene = (sky: string, ground: string, wash: string) =>
+  `radial-gradient(90% 62% at 18% 2%, ${sky}, transparent 66%),` +
+  `radial-gradient(140% 72% at 50% 116%, ${ground}, transparent 62%),` +
+  `linear-gradient(170deg, ${wash})`;
 
 export const FEATURE_CARDS: FeatureCard[] = [
   {
     num: "01",
-    eyebrow: "The assessment",
-    title: "Her prakriti comes first",
+    title: "Reads her prakriti first",
     accent: "prakriti",
     description:
-      "A one-time Ayurvedic assessment scores vata, pitta and kapha. Everything downstream — portions, meals, the notes her doctor reads — is built on that answer rather than on an average.",
-    points: ["5-section questionnaire", "Asked once, not weekly"],
-    icon: <Bloom animate={false} className="h-5 w-5" />,
-    preview: <DoshaPreview />,
+      "A one-time Ayurvedic assessment scores vata, pitta and kapha — and every plan after it is built on that answer rather than on an average.",
+    side: "left",
+    scene: scene(
+      "hsl(344 41% 62% / 0.55)",
+      "hsl(29 36% 83% / 0.9)",
+      "hsl(344 30% 48%), hsl(3 27% 58%)",
+    ),
+    mark: <Bloom animate={false} className="h-full w-full" />,
+    panel: <DoshaPreview />,
   },
   {
     num: "02",
-    eyebrow: "Diet charts",
-    title: "Generated, then signed off",
-    accent: "signed off",
+    title: "Builds the chart, then hands it over",
+    accent: "hands it over",
     description:
-      "Recipe Builder composes a chart from her dosha, calorie target, conditions and allergies — and drops it on the same board her practitioner edits by hand. Nothing reaches a patient unreviewed.",
-    points: ["Dosha-aware generation", "Drag-and-drop editing", "1200 kcal floor"],
-    icon: <Plate animate={false} className="h-5 w-5" />,
-    preview: <PlanPreview />,
+      "Generated from her dosha, calorie target and allergies, then edited by her practitioner on the same board before it ever reaches her.",
+    side: "right",
+    scene: scene(
+      "hsl(29 40% 88% / 0.85)",
+      "hsl(359 31% 46% / 0.55)",
+      "hsl(3 27% 58%), hsl(359 34% 40%)",
+    ),
+    mark: <Plate animate={false} className="h-full w-full" />,
+    panel: <PlanPreview />,
   },
   {
     num: "03",
-    eyebrow: "Tracking",
-    title: "Only the tracking she needs",
-    accent: "needs",
+    title: "Shows only the tracking she needs",
+    accent: "she needs",
     description:
-      "Cycle, weight, skin and lifestyle logs appear for the care tracks a patient is actually on, and nowhere else. Pregnancy takes precedence over every other track, as a safety rule.",
-    points: ["Care-track adaptive tabs", "One daily check-in"],
-    icon: <Cycle animate={false} className="h-5 w-5" />,
-    preview: <TrackPreview />,
+      "Cycle, weight, skin and lifestyle logs appear for the care tracks she is on, and nowhere else. Pregnancy takes precedence, as a safety rule.",
+    side: "left",
+    scene: scene(
+      "hsl(58 24% 46% / 0.6)",
+      "hsl(29 36% 83% / 0.75)",
+      "hsl(58 23% 26%), hsl(29 20% 52%)",
+    ),
+    mark: <Cycle animate={false} className="h-full w-full" />,
+    panel: <TrackPreview />,
   },
   {
     num: "04",
-    eyebrow: "Health Check",
-    title: "Screening that names the next step",
+    title: "Screens, and names the next step",
     accent: "next step",
     description:
-      "Trained models read anaemia, gestational diabetes, thyroid and pregnancy risk, then return the exercise plan matched to whatever was flagged. A score on its own is not an answer.",
-    points: ["Per-condition risk", "Matched exercise plan", "Full history kept"],
-    icon: <Expecting animate={false} className="h-5 w-5" />,
-    preview: <ScreeningPreview />,
+      "Trained models read anaemia, gestational diabetes, thyroid and pregnancy risk, then return the exercise plan matched to whatever was flagged.",
+    side: "right",
+    scene: scene(
+      "hsl(359 34% 52% / 0.6)",
+      "hsl(58 22% 40% / 0.5)",
+      "hsl(359 31% 40%), hsl(344 32% 34%)",
+    ),
+    mark: <Expecting animate={false} className="h-full w-full" />,
+    panel: <ScreeningPreview />,
   },
   {
     num: "05",
-    eyebrow: "Shared record",
-    title: "Two sides, one record",
+    title: "Keeps one record, not two",
     accent: "one record",
     description:
-      "What a patient logs is what her doctor opens. Adherence, trends and screening history land in Patient Analysis without a screenshot or a re-typed number in between.",
-    points: ["No re-typing", "Trends across visits"],
-    icon: <LineChart className="h-5 w-5" strokeWidth={1.5} />,
-    preview: <RecordPreview />,
+      "What a patient logs is what her doctor opens. Adherence, trends and screening history, with nothing screenshotted or re-typed in between.",
+    side: "left",
+    scene: scene(
+      "hsl(29 42% 92% / 0.8)",
+      "hsl(344 38% 50% / 0.45)",
+      "hsl(29 24% 58%), hsl(58 20% 34%)",
+    ),
+    mark: <Cradle animate={false} className="h-full w-full" />,
+    panel: <RecordPreview />,
   },
   {
     num: "06",
-    eyebrow: "Reach",
-    title: "Read in her own language",
+    title: "Reads in her own language",
     accent: "own language",
     description:
-      "The whole app translates into 25 languages, right-to-left included — not just the menus. Peer circles and a companion grounded in her own data sit behind the same login.",
-    points: ["25 languages", "Moderated circles", "Companion chat"],
-    icon: <Languages className="h-5 w-5" strokeWidth={1.5} />,
-    preview: <LanguagePreview />,
+      "The whole app translates into 25 languages, right-to-left included — not just the menus. Peer circles sit behind the same login.",
+    side: "right",
+    scene: scene(
+      "hsl(3 30% 66% / 0.6)",
+      "hsl(58 23% 32% / 0.55)",
+      "hsl(344 34% 42%), hsl(29 24% 60%)",
+    ),
+    mark: <Languages className="h-full w-full" strokeWidth={1} />,
+    panel: <LanguagePreview />,
   },
 ];

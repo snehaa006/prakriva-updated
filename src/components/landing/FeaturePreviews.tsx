@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * The small mocked panels that sit beside each landing-page feature card.
+ * The floating panels that sit on each landing-page scene.
  *
  * They are stills of real surfaces — the questionnaire's dosha split, a day of
  * a generated chart, a Health Check result — and deliberately carry no live
@@ -13,12 +13,24 @@ import type { ReactNode } from "react";
  * is what keeps fast refresh working across both.
  */
 
-const PreviewShell = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex w-full flex-col rounded-[20px] border border-foreground/[0.07] bg-background/70 p-5">
-    <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground-tertiary">
-      {label}
-    </span>
-    <div className="mt-4 flex flex-col gap-3">{children}</div>
+/** The white sheet the reference floats over each scene. */
+const Panel = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="w-full rounded-2xl bg-background-elevated/95 p-4 shadow-lg backdrop-blur-sm">
+    <div className="flex items-center gap-2">
+      <span aria-hidden className="h-1 w-1 rounded-full bg-primary" />
+      <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-foreground-secondary">
+        {label}
+      </span>
+    </div>
+    <div className="mt-3 flex flex-col gap-2">{children}</div>
+  </div>
+);
+
+/** One row of the panel — a label on the left, a small figure on the right. */
+const Row = ({ children, meta }: { children: ReactNode; meta?: string }) => (
+  <div className="flex items-center justify-between gap-3 border-b border-foreground/[0.07] pb-2 last:border-0 last:pb-0">
+    <span className="min-w-0 truncate text-caption1 text-foreground">{children}</span>
+    {meta ? <span className="shrink-0 font-mono text-[10px] text-foreground-tertiary">{meta}</span> : null}
   </div>
 );
 
@@ -29,44 +41,27 @@ const DOSHA = [
 ];
 
 export const DoshaPreview = () => (
-  <PreviewShell label="Prakriti">
+  <Panel label="Prakriti">
     {DOSHA.map((dosha) => (
-      <div key={dosha.label} className="flex items-center gap-3">
-        <span className="w-12 shrink-0 text-caption1 text-foreground-secondary">{dosha.label}</span>
-        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]">
+      <div key={dosha.label} className="flex items-center gap-2.5">
+        <span className="w-11 shrink-0 text-caption1 text-foreground-secondary">{dosha.label}</span>
+        <span className="h-1 flex-1 overflow-hidden rounded-full bg-foreground/[0.08]">
           <span className={`block h-full rounded-full ${dosha.bar}`} style={{ width: `${dosha.value}%` }} />
         </span>
-        <span className="w-8 shrink-0 text-right text-caption1 tabular-nums text-foreground-tertiary">
+        <span className="w-7 shrink-0 text-right font-mono text-[10px] text-foreground-tertiary">
           {dosha.value}%
         </span>
       </div>
     ))}
-  </PreviewShell>
+  </Panel>
 );
 
-const MEALS = [
-  { slot: "Breakfast", dish: "Vegetable poha", kcal: "310 kcal" },
-  { slot: "Lunch", dish: "Moong dal khichdi", kcal: "480 kcal" },
-  { slot: "Dinner", dish: "Lauki sabzi, 2 roti", kcal: "420 kcal" },
-];
-
 export const PlanPreview = () => (
-  <PreviewShell label="Day 3 of her chart">
-    {MEALS.map((meal) => (
-      <div
-        key={meal.slot}
-        className="flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-card px-3 py-2.5"
-      >
-        <span className="min-w-0">
-          <span className="block text-caption2 uppercase tracking-[0.12em] text-foreground-tertiary">
-            {meal.slot}
-          </span>
-          <span className="block truncate text-caption1 text-foreground">{meal.dish}</span>
-        </span>
-        <span className="shrink-0 text-caption1 tabular-nums text-foreground-tertiary">{meal.kcal}</span>
-      </div>
-    ))}
-  </PreviewShell>
+  <Panel label="Day 3 of her chart">
+    <Row meta="310 kcal">Vegetable poha</Row>
+    <Row meta="480 kcal">Moong dal khichdi</Row>
+    <Row meta="420 kcal">Lauki sabzi, 2 roti</Row>
+  </Panel>
 );
 
 const TRACKS = [
@@ -76,17 +71,17 @@ const TRACKS = [
 ];
 
 export const TrackPreview = () => (
-  <PreviewShell label="Care tracks">
+  <Panel label="Care tracks">
     {TRACKS.map((row) => (
-      <div key={row.track} className="flex items-center gap-2.5">
-        <span className="rounded-full bg-accent-soft px-2.5 py-1 text-caption2 font-medium text-accent-soft-foreground">
+      <div key={row.track} className="flex items-center gap-2">
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-soft-foreground">
           {row.track}
         </span>
-        <span aria-hidden className="h-px flex-1 bg-foreground/[0.10]" />
-        <span className="text-caption1 text-foreground-secondary">{row.unlocks}</span>
+        <span aria-hidden className="h-px flex-1 bg-foreground/[0.12]" />
+        <span className="font-mono text-[10px] text-foreground-secondary">{row.unlocks}</span>
       </div>
     ))}
-  </PreviewShell>
+  </Panel>
 );
 
 const RISKS = [
@@ -96,58 +91,60 @@ const RISKS = [
 ];
 
 export const ScreeningPreview = () => (
-  <PreviewShell label="Last health check">
+  <Panel label="Last health check">
     {RISKS.map((risk) => (
       <div
         key={risk.condition}
-        className="flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-card px-3 py-2.5"
+        className="flex items-center justify-between gap-3 border-b border-foreground/[0.07] pb-2 last:border-0 last:pb-0"
       >
         <span className="min-w-0 truncate text-caption1 text-foreground">{risk.condition}</span>
-        <span className="flex shrink-0 items-center gap-1.5 text-caption1 text-foreground-secondary">
+        <span className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] text-foreground-secondary">
           <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
           {risk.level}
         </span>
       </div>
     ))}
-  </PreviewShell>
+  </Panel>
 );
 
 const RECORD = [
-  { hers: "Logged breakfast", his: "Adherence 6 of 7 days" },
-  { hers: "Weight, 14 days on", his: "Trend, not a single reading" },
+  { hers: "Logged breakfast", his: "6 of 7 days" },
+  { hers: "Weight, 14 days on", his: "Trend, not a reading" },
   { hers: "Screening answers", his: "Risk across visits" },
 ];
 
 export const RecordPreview = () => (
-  <PreviewShell label="One record">
-    <div className="grid grid-cols-2 gap-x-3 pb-1">
-      <span className="text-caption2 uppercase tracking-[0.12em] text-foreground-tertiary">She logs</span>
-      <span className="text-caption2 uppercase tracking-[0.12em] text-foreground-tertiary">He reviews</span>
+  <Panel label="One record">
+    <div className="grid grid-cols-2 gap-x-3">
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-tertiary">She logs</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-tertiary">He reviews</span>
     </div>
     {RECORD.map((row) => (
       <div key={row.hers} className="grid grid-cols-2 items-center gap-x-3">
-        <span className="rounded-lg bg-card px-2.5 py-2 text-caption1 text-foreground-secondary">{row.hers}</span>
-        <span className="rounded-lg bg-primary/[0.07] px-2.5 py-2 text-caption1 text-foreground-secondary">
+        <span className="truncate rounded-lg bg-secondary px-2 py-1.5 text-[11px] text-foreground-secondary">
+          {row.hers}
+        </span>
+        <span className="truncate rounded-lg bg-primary/[0.09] px-2 py-1.5 text-[11px] text-foreground-secondary">
           {row.his}
         </span>
       </div>
     ))}
-  </PreviewShell>
+  </Panel>
 );
 
-const LANGUAGES = ["हिन्दी", "தமிழ்", "বাংলা", "मराठी", "ગુજરાતી", "اردو", "+19 more"];
+const LANGUAGES = ["हिन्दी", "தமிழ்", "বাংলা", "मराठी", "ગુજરાતી", "اردو", "+19"];
 
 export const LanguagePreview = () => (
-  <PreviewShell label="25 languages">
-    <div className="flex flex-wrap gap-2">
+  <Panel label="25 languages">
+    <div className="flex flex-wrap gap-1.5">
       {LANGUAGES.map((language) => (
         <span
           key={language}
-          className="rounded-full border border-foreground/[0.08] bg-card px-3 py-1.5 text-caption1 text-foreground-secondary"
+          className="rounded-full border border-foreground/[0.10] px-2 py-0.5 text-[11px] text-foreground-secondary"
         >
           {language}
         </span>
       ))}
     </div>
-  </PreviewShell>
+  </Panel>
 );
