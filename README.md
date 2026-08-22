@@ -48,12 +48,20 @@ listed under "Language and translation" below.
 - `public/chatbot/` — the three mascot PNG images (`idle.png`, `thinking.png`,
   `responding.png`) used by `CompanionCharacter.tsx` for the chatbot's animated
   character across both patient and doctor interfaces.
-- `src/components/ui/logo.tsx` — the `Logo` component wrapping `public/logo.png`
-  at four sizes (`sm`/`md`/`lg`/`xl`). Use it instead of hand-rolled brand
-  markup; the artwork already contains the "Prakriva" wordmark, so don't pair it
-  with the name in text (pass `alt=""` where nearby copy names the brand). It
-  appears on the landing hero, the auth card, both sidebars, and the mobile
-  header of both layouts.
+- `src/components/ui/logo.tsx` — the `Logo` component, at four sizes
+  (`sm`/`md`/`lg`/`xl`) and three artworks (`variant`):
+  - `badge` (default) — `public/logo.png`, the circular mark on its own cream
+    tile. This is the app-chrome logo: the auth card, both sidebars, the mobile
+    header of both layouts, and the landing footer.
+  - `wordmark` — `public/logo-wordmark.png`, "Prakriva" in the brand serif.
+  - `butterfly` — `public/logo-butterfly.png`, the mark on its own.
+
+  `wordmark` and `butterfly` are cream on transparent and are built to sit *on*
+  something (the floral hero, a dark section); they disappear against a light
+  surface, so don't reach for either in app chrome. Use `Logo` instead of
+  hand-rolled brand markup. Every artwork carries the name, so don't pair one
+  with "Prakriva" in text — pass `alt=""` where nearby copy already names the
+  brand.
 - `src/pages/auth/` — the combined sign-in / sign-up screen mounted at
   `/auth/:role`, split by layer:
   - `Login.tsx` — form state and orchestration for both roles.
@@ -146,16 +154,18 @@ listed under "Language and translation" below.
   See "Caching" below.
 - `src/index.css` — the design system: shadcn/Tailwind CSS variables
   (`--primary`, `--secondary`, `--accent`, `--accent-soft`, `--gold`,
-  `--sidebar-*`, gradients) in a warm cream + sage green + amber palette
-  inspired by sythra.ai's editorial aesthetic. Primary is deep sage green
-  (hsl 158); CTA accent is warm amber-orange (hsl 20); backgrounds are warm
-  ivory. Typography pairs Playfair Display (serif, display headings) with
-  Instrument Sans (body). Cards are `rounded-[22px]` with hover-lift
-  animations. Dosha colors (`--vata`/`--pitta`/`--kapha`) and status colors
-  (`--success`/`--warning`/`--info`) remain domain-critical and visually
-  distinct.
+  `--sidebar-*`, gradients) built from the five brand colours — berry
+  `#A6465F`, brick `#9B5152`, dusty rose `#B17A77`, sand `#E3D3C4` and olive
+  `#414029`. Primary is the berry (hsl 344); accent is the brick (hsl 359);
+  every surface is sand and every piece of text is olive. Typography is
+  IM Fell DW Pica (display headings), Inter (body) and IBM Plex Mono
+  (eyebrows, captions, pull quotes). Cards are `rounded-[22px]` with
+  hover-lift animations. Dosha colors (`--vata`/`--pitta`/`--kapha`) and
+  status colors (`--success`/`--warning`/`--info`) remain domain-critical and
+  visually distinct. See "Color" below.
 - `src/lib/chartColors.ts` — the palette for Recharts, which takes raw color
-  strings and so can't use Tailwind classes. Tuned to sage/amber/terracotta.
+  strings and so can't use Tailwind classes. Tuned to the berry family, with
+  adjacent series separated by lightness as well as hue.
 - `src/components/illustrations/LineArt.tsx` — the app's line-art marks
   (`Bloom`, `Expecting`, `Cradle`, `Cycle`, `Plate`), which draw their own
   strokes on mount. `lifeStageArt.tsx` maps a life stage to one of them. See
@@ -170,8 +180,11 @@ listed under "Language and translation" below.
 - `src/lib/shop/` + `src/data/shopCatalogue.ts` — the patient shop: search,
   stage-aware recommendations, and the outbound-link host allow-list. See
   "Shop (price comparison and referral)" below.
-- `public/` — static assets served as-is: `logo.png` (the Prakriva brand mark,
+- `public/` — static assets served as-is: `logo.png` (the badge brand mark,
   also used as the browser-tab favicon and the social preview image),
+  `logo-wordmark.png` and `logo-butterfly.png` (the cream-on-transparent
+  wordmark and butterfly that make up the landing hero lockup), `hero-bg.jpg`
+  (the blurred floral photograph behind that hero),
   `shop/` (one WebP photograph per shop product, ~450 KB for all 32), and the
   standalone `mealCompatibility.html` "Food Compatibility" tool (Ayurvedic
   viruddha ahara / incompatible-combination checker). It is served directly at
@@ -1628,12 +1641,53 @@ which register allopathic doctors. The `ayush` council option is the correct
 one for this app; `mci`/`nmc` exist for an applicant who also holds an
 allopathic registration.
 
+## Landing page
+
+`src/pages/Landing.tsx` is the only public page besides the auth screen, and it
+is the one place the brand is shown rather than applied.
+
+**The hero is a full-bleed photograph with the brand lockup centred on it** —
+the butterfly mark above the wordmark, a one-line description, the button pair,
+and a mono pull quote. Everything below it (features, the olive roles block,
+the closing CTA, footer) sits on the sand background in the ordinary design
+system.
+
+It needs three files in `public/`, none of which are generated:
+
+| File | What it is |
+|---|---|
+| `hero-bg.jpg` | the blurred floral photograph behind the hero |
+| `logo-wordmark.png` | "Prakriva" in the brand serif, cream on transparent |
+| `logo-butterfly.png` | the butterfly mark, cream on transparent |
+
+They are referenced by absolute public path (`/hero-bg.jpg`), not imported, so
+a missing file degrades to the olive wash underneath instead of failing the
+build — which also means a typo'd filename is silent. If the hero renders as a
+flat dark block, check those three names first.
+
+Two things about the hero are load-bearing and easy to undo by accident:
+
+- **The section carries `isolate`.** The photograph and its scrim sit at
+  `-z-20` and `-z-10`. Without a stacking context on the section, negative-`z`
+  children paint *behind* the page's own `bg-background` and the photograph
+  disappears completely — the page still renders, just with no image. This
+  happened once during the rebuild.
+- **Two scrims, not one.** A flat wash so cream type clears the pale blossoms,
+  and a bottom-weighted gradient that lands exactly on the sand background
+  (`hsl(29 36% 92%)`) so the hero hands off to the next section without a seam.
+  Change the page background and this gradient's last stop has to move with it.
+
+The chrome over the photograph is deliberately not the default: the header uses
+the transparent butterfly rather than the `badge` artwork (whose cream tile
+reads as a sticker on the photo), and `LanguageSwitcher` is passed a light
+`className` because it otherwise inherits the olive foreground and vanishes.
+
 ## Color
 
 **The app is light unless you ask for dark.** There is a real theme control now
 (`src/lib/theme.ts`, wired into Settings), and it defaults to **light** rather
 than to "system". Following the OS is the usual default and was the wrong one
-here: every screen in this app was designed and reviewed against the blush
+here: every screen in this app was designed and reviewed against the light
 palette, the dark palette has never had the same eyes on it, and defaulting to
 "system" meant a patient on a dark-mode phone opened the app one morning to a
 different-looking product she never chose. Dark is available — it is just a
@@ -1647,39 +1701,72 @@ and native controls — scrollbars, date pickers, dropdowns — otherwise paint
 themselves dark over light surfaces. If the app ever looks dark unexpectedly,
 check the stored choice first (`localStorage` key `prakriva:theme`).
 
-The palette is **warm cream + sage green + amber-orange**, inspired by
-sythra.ai's editorial warmth and adapted for an Ayurvedic wellness app for
-pregnant women. The old blush-burgundy monotone was replaced with an earthy
-botanical scheme that reads "nature", "wellness" and "safe" simultaneously.
+The palette is **five colours and nothing outside them**:
 
-**Three brand ramps** (`tailwind.config.ts`), remapped from the old hues:
-
-| Ramp | Hue | Role | Old hue |
+| | Hex | HSL | Role |
 |---|---|---|---|
-| `rose` | 158° (sage) | positive, on track, goal met | 340° (pink) |
-| `plum` | 20° (amber) | informational, emphasis, CTA glow | 318° (magenta) |
-| `coral` | 16° (terracotta) | attention, partial, needs a nudge | 12° (coral) |
+| Berry | `#A6465F` | `344 41% 46%` | `--primary`, CTAs, the brand mark |
+| Brick | `#9B5152` | `359 31% 46%` | `--accent`, secondary emphasis |
+| Dusty rose | `#B17A77` | `3 27% 58%` | soft tints, decorative fills, borders |
+| Sand | `#E3D3C4` | `29 36% 83%` | every surface — page, card, chip |
+| Olive | `#414029` | `58 23% 21%` | every piece of text, and dark sections |
 
-Existing class names (`bg-rose-100`, `text-plum-600`, etc.) keep working — they
-just paint in the new palette. `red` keeps its native hue for clinical
-high-risk signals.
+Three of the five sit within 20° of each other on the wheel, so **hue alone can
+never carry meaning here**. Separation is done with lightness and fill.
 
-**Typography.** Playfair Display (serif) for display headings — editorial,
-elegant, with italic accents for emphasis words. Instrument Sans for body
-text. Fluid `clamp()` sizing for display headings (`display-sm` through
-`display-lg`). Section labels use 11px uppercase with wide tracking.
+The page background sits a little lighter than the sand swatch (`29 36% 92%`)
+so cards have somewhere to go above it; the swatch itself is the
+chip/secondary tone. Text is the olive, deepened to `58 23% 15%` for contrast.
+
+**Three brand ramps** (`tailwind.config.ts`), one per chromatic swatch:
+
+| Ramp | Swatch | Role |
+|---|---|---|
+| `rose` | berry `#A6465F` | positive, on track, goal met |
+| `plum` | brick `#9B5152` | informational, emphasis, CTA glow |
+| `coral` | dusty rose `#B17A77` | attention, partial, needs a nudge |
+
+Because the three hues are close, each ramp is also offset in lightness and
+saturation: `coral` runs consistently lighter than `rose`, `plum` consistently
+darker. `pink` is remapped to the berry ramp as well — the chat surfaces and a
+couple of recipe badges reach for `pink-*` directly, and remapping the ramp
+brings all 26 call sites into the palette at once instead of leaking Tailwind's
+default candy pink. Existing class names (`bg-rose-100`, `text-plum-600`, etc.)
+keep working — they just paint in the brand colours. `red` keeps its native hue
+for clinical high-risk signals, deliberately outside the brand hues so a
+high-risk badge cannot be mistaken for a berry-toned decorative one.
+
+**Typography.** Three faces, each with a job:
+
+| Family | Tailwind | Used for |
+|---|---|---|
+| IM Fell DW Pica | `font-display` | headings, display sizes, italic emphasis |
+| Inter | `font-sans` (default) | body and all UI copy |
+| IBM Plex Mono | `font-mono` | eyebrows, captions, pull quotes, figures |
+
+Fluid `clamp()` sizing for display headings (`display-sm` through
+`display-lg`). Two helper classes wrap the mono voice: `.section-label` (11px
+uppercase, wide tracking — the numbered eyebrow above a section) and `.quote`.
+
+**IM Fell DW Pica ships one weight.** Asking a browser for 600 or 700 gets a
+synthesised smear of the real face, so `src/index.css` pins `.font-display` to
+`font-weight: 400` with `font-synthesis-weight: none`, and the `display-*`
+sizes declare 400 rather than 700. The face is dark and high-contrast enough
+that it reads as a heading without extra weight. If a heading ever looks
+blurry or over-inked, something has re-applied `font-bold` over it.
 
 **Cards and buttons.** Cards are `rounded-[22px]` with hover-lift animations
 (`translateY(-4px)` + expanding warm shadow). Buttons lift on hover
 (`translateY(-0.5px)`) with spring easing. CTA buttons are pill-shaped
-(`rounded-full`) in amber-orange with a glowing box-shadow.
+(`rounded-full`) in the berry with a glowing box-shadow.
 
 **Neutrals.** `--background`, `--muted`, `--border` and the `gray`/`slate`
-ramps are warm sand tones (hue ~33-38°) rather than cool gray. Shadows are
-cast in `hsl(24, 14%, 11%)` at low opacity, so elevation reads as
-depth rather than a grey haze. `--accent-soft` / `--accent-soft-foreground` are
-the tinted chip/pill/icon-well surface (`bg-accent-soft`); they are real CSS
-variables, so gradients and inline styles can read them too, not just classes.
+ramps are sand tones (hue ~29°) rather than cool gray, deepening into olive
+(hue ~58°) at the dark end. Shadows are cast in `hsl(58, 23%, 15%)` at low
+opacity, so elevation reads as warm depth rather than a grey haze.
+`--accent-soft` / `--accent-soft-foreground` are the tinted chip/pill/icon-well
+surface (`bg-accent-soft`); they are real CSS variables, so gradients and
+inline styles can read them too, not just classes.
 
 Two rules follow from having one hue family, both learned from looking at the
 rendered pages rather than the code:
@@ -1689,9 +1776,11 @@ rendered pages rather than the code:
   target?" strip. Achieved days are solid (`bg-rose-600 text-white`), missed
   ones are pale and outlined.
 - **Colour never carries meaning alone.** Risk levels escalate in *intensity*
-  as well as hue (pale rose → coral → saturated red), so the ordering survives
+  as well as hue (dusty rose → brick → saturated red), so the ordering survives
   greyscale and colour vision deficiency, and high risk is the only filled
-  badge. Every level also renders its `label` in words.
+  badge. Every level also renders its `label` in words. This matters more here
+  than it did under the old scheme: with three brand hues inside 20°, intensity
+  is doing most of the work.
 
 Native form controls (`input[type=range|checkbox|radio]`) paint a browser-default
 blue that no class on the element can reach; `src/index.css` sets `accent-color`

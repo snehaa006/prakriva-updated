@@ -10,7 +10,7 @@ import {
 } from "../chartColors";
 
 /**
- * Guards the pink palette against drift.
+ * Guards the brand palette against drift.
  *
  * The app went off-brand once already — a green badge here, a blue chart line
  * there, each one reasonable on its own. These tests fail the build the next
@@ -59,6 +59,15 @@ describe("no off-brand Tailwind colors", () => {
   });
 });
 
+/**
+ * Strips `//` and block comments so the scan below reads code, not prose.
+ * The palette is *documented* by hex in `src/index.css` — that block is the
+ * spec the tokens were derived from and belongs in the file. What the guard
+ * is actually for is a hex that something renders.
+ */
+const stripComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
 describe("no hardcoded chart colors", () => {
   it("routes every chart color through src/lib/chartColors.ts", () => {
     // Six-digit hex literals in chart-bearing code are how the palette drifted
@@ -67,7 +76,7 @@ describe("no hardcoded chart colors", () => {
 
     for (const file of sourceFiles) {
       if (file.endsWith("chartColors.ts")) continue;
-      const contents = readFileSync(file, "utf8");
+      const contents = stripComments(readFileSync(file, "utf8"));
       for (const match of contents.matchAll(/#[0-9a-fA-F]{6}\b/g)) {
         if (/^#(fff|000)/i.test(match[0]) || /^#(ffffff|000000)$/i.test(match[0])) continue;
         offenders.push(`${file.replace(process.cwd(), "")}: ${match[0]}`);
@@ -103,7 +112,7 @@ describe("the chart palette itself", () => {
   it("keeps every chart color inside the pink family", () => {
     for (const color of allColors) {
       const hue = hueDistance(hueOf(color), 345);
-      // Everything within ~40° of the brand hue: plum 318 → red 0 → coral 12.
+      // Everything within ~40° of the brand hue: berry 344 → red 0 → terracotta 12.
       expect(hue).toBeLessThanOrEqual(40);
     }
   });

@@ -1,154 +1,168 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+DW+Pica:ital@0;1&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Prakriva Design System — Warm Cream + Sage Green + Amber.
-Inspired by sythra.ai's warm editorial aesthetic and harmanmanik.in's generous
-whitespace. The background is a true warm cream (#f3eee8 style), the primary
-is deep sage green for brand identity, and the CTA accent is a warm
-amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
+/* Prakriva Design System — Sand + Berry + Olive.
+
+Five brand colours, and nothing outside them:
+
+  #A6465F  berry     344 41% 46%   primary, CTAs, the brand mark
+  #9B5152  brick     359 31% 46%   accent, secondary emphasis
+  #B17A77  dusty     3 27% 58%     soft tints, decorative fills, borders
+  #E3D3C4  sand      29 36% 83%    every surface — page, card, chip
+  #414029  olive     58 23% 21%    every piece of text, and the dark sections
+
+Three of the five sit within 20° of each other on the wheel, so hue alone can
+never carry meaning here. Separation is done with lightness and fill: a state
+is solid or it is tinted, never one tint against another. That rule is what
+keeps a 5-colour palette legible across a whole product.
 */
 
 @layer base {
   :root {
-    /* Base — warm cream, sythra-style */
-    --background: 33 28% 94%;
-    --background-elevated: 33 22% 97%;
-    --foreground: 24 14% 11%;
-    --foreground-secondary: 24 8% 36%;
-    --foreground-tertiary: 24 6% 52%;
+    /* Base — sand. The page sits a little lighter than #E3D3C4 so cards have
+       somewhere to go above it; the swatch itself is the chip/secondary tone. */
+    --background: 29 36% 92%;
+    --background-elevated: 29 40% 97%;
+    --foreground: 58 23% 15%;
+    --foreground-secondary: 55 13% 30%;
+    --foreground-tertiary: 48 10% 45%;
 
-    /* Card — slightly lighter cream */
-    --card: 33 20% 96%;
-    --card-foreground: 24 14% 11%;
+    /* Card — the lightest sand */
+    --card: 29 40% 97%;
+    --card-foreground: 58 23% 15%;
 
     /* Popover */
-    --popover: 33 20% 96%;
-    --popover-foreground: 24 14% 11%;
+    --popover: 29 40% 97%;
+    --popover-foreground: 58 23% 15%;
 
-    /* Primary — deep sage green */
-    --primary: 158 38% 28%;
-    --primary-foreground: 33 22% 97%;
+    /* Primary — berry #A6465F */
+    --primary: 344 41% 46%;
+    --primary-foreground: 29 40% 97%;
 
-    /* Secondary — warm tint */
-    --secondary: 33 25% 92%;
-    --secondary-foreground: 24 14% 18%;
+    /* Secondary — the sand swatch itself */
+    --secondary: 29 36% 87%;
+    --secondary-foreground: 58 23% 18%;
 
     /* Muted */
-    --muted: 33 18% 92%;
-    --muted-foreground: 24 8% 42%;
+    --muted: 29 30% 89%;
+    --muted-foreground: 48 10% 40%;
 
-    /* Accent — amber-orange, warm CTA color (sythra-inspired) */
-    --accent: 20 90% 52%;
-    --accent-foreground: 0 0% 100%;
-    --accent-soft: 158 26% 92%;
-    --accent-soft-foreground: 158 38% 24%;
+    /* Accent — brick #9B5152 */
+    --accent: 359 31% 46%;
+    --accent-foreground: 29 40% 97%;
+    --accent-soft: 3 34% 90%;
+    --accent-soft-foreground: 344 41% 32%;
 
-    /* Destructive */
-    --destructive: 4 78% 52%;
+    /* Destructive — clinical red, deliberately outside the brand hues so a
+       high-risk badge cannot be mistaken for a berry-toned decorative one. */
+    --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders — warm, subtle */
-    --border: 24 12% 86%;
-    --border-strong: 24 10% 74%;
-    --input: 24 12% 86%;
-    --ring: 158 38% 28%;
+    /* Borders — sand, one and two steps down */
+    --border: 29 22% 82%;
+    --border-strong: 29 16% 70%;
+    --input: 29 22% 82%;
+    --ring: 344 41% 46%;
 
     --radius: 0.75rem;
     color-scheme: light;
 
-    /* Gold / amber CTA */
-    --gold: 20 90% 52%;
-    --gold-soft: 20 40% 94%;
-    --gold-foreground: 0 0% 100%;
+    /* "Gold" — kept as a token name because the app reaches for it in a dozen
+       places; it now paints the dusty rose, deepened enough that `text-gold`
+       icons stay legible on `bg-gold-soft`. */
+    --gold: 3 27% 48%;
+    --gold-soft: 3 34% 90%;
+    --gold-foreground: 29 40% 97%;
 
-    /* Dosha — domain-critical, unchanged */
-    --vata: 256 45% 58%;
-    --pitta: 18 75% 55%;
-    --kapha: 152 40% 42%;
-    --success: 152 50% 36%;
-    --warning: 38 92% 50%;
-    --info: 210 60% 52%;
+    /* Dosha — domain-critical. Pulled into the palette but held apart by
+       lightness as well as hue, so the three never blur together. */
+    --vata: 3 30% 58%;
+    --pitta: 344 45% 46%;
+    --kapha: 58 25% 32%;
+    --success: 88 26% 32%;
+    --warning: 38 55% 45%;
+    --info: 3 27% 48%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(158, 38%, 24%), hsl(158, 35%, 36%));
-    --gradient-gold: linear-gradient(135deg, hsl(20, 90%, 50%), hsl(28, 80%, 56%));
-    --gradient-hero: linear-gradient(135deg, hsl(24, 14%, 11%), hsl(24, 10%, 16%), hsl(24, 8%, 22%));
-    --gradient-secondary: linear-gradient(135deg, hsl(33, 18%, 92%), hsl(33, 20%, 96%));
+    --gradient-primary: linear-gradient(135deg, hsl(344, 41%, 38%), hsl(359, 31%, 50%));
+    --gradient-gold: linear-gradient(135deg, hsl(359, 31%, 46%), hsl(3, 27%, 58%));
+    --gradient-hero: linear-gradient(135deg, hsl(58, 23%, 12%), hsl(55, 16%, 17%), hsl(48, 12%, 23%));
+    --gradient-secondary: linear-gradient(135deg, hsl(29, 30%, 89%), hsl(29, 40%, 97%));
     --gradient-dosha: linear-gradient(90deg, hsl(var(--vata)), hsl(var(--pitta)), hsl(var(--kapha)));
 
     /* Sidebar */
-    --sidebar-background: 33 20% 96%;
-    --sidebar-foreground: 24 14% 11%;
-    --sidebar-primary: 158 38% 28%;
-    --sidebar-primary-foreground: 33 22% 97%;
-    --sidebar-accent: 158 26% 92%;
-    --sidebar-accent-foreground: 158 38% 24%;
-    --sidebar-border: 24 12% 86%;
-    --sidebar-ring: 158 38% 28%;
+    --sidebar-background: 29 40% 97%;
+    --sidebar-foreground: 58 23% 15%;
+    --sidebar-primary: 344 41% 46%;
+    --sidebar-primary-foreground: 29 40% 97%;
+    --sidebar-accent: 3 34% 90%;
+    --sidebar-accent-foreground: 344 41% 32%;
+    --sidebar-border: 29 22% 82%;
+    --sidebar-ring: 344 41% 46%;
   }
 
   .dark {
-    --background: 24 8% 7%;
-    --background-elevated: 24 8% 11%;
-    --foreground: 33 15% 92%;
-    --foreground-secondary: 24 6% 58%;
-    --foreground-tertiary: 24 5% 42%;
+    --background: 58 14% 8%;
+    --background-elevated: 55 12% 12%;
+    --foreground: 29 30% 90%;
+    --foreground-secondary: 33 10% 62%;
+    --foreground-tertiary: 40 8% 46%;
 
-    --card: 24 8% 11%;
-    --card-foreground: 33 15% 92%;
+    --card: 55 12% 12%;
+    --card-foreground: 29 30% 90%;
 
-    --popover: 24 8% 11%;
-    --popover-foreground: 33 15% 92%;
+    --popover: 55 12% 12%;
+    --popover-foreground: 29 30% 90%;
 
-    --primary: 158 42% 46%;
-    --primary-foreground: 24 8% 7%;
+    --primary: 344 42% 60%;
+    --primary-foreground: 58 14% 8%;
 
-    --secondary: 24 10% 15%;
-    --secondary-foreground: 33 15% 88%;
+    --secondary: 55 10% 17%;
+    --secondary-foreground: 29 26% 88%;
 
-    --muted: 24 6% 15%;
-    --muted-foreground: 24 6% 58%;
+    --muted: 55 8% 16%;
+    --muted-foreground: 33 10% 62%;
 
-    --accent: 20 85% 58%;
-    --accent-foreground: 0 0% 100%;
-    --accent-soft: 158 22% 14%;
-    --accent-soft-foreground: 158 38% 68%;
+    --accent: 3 32% 60%;
+    --accent-foreground: 58 14% 8%;
+    --accent-soft: 359 18% 18%;
+    --accent-soft-foreground: 3 34% 76%;
 
-    --destructive: 4 70% 58%;
+    --destructive: 0 58% 58%;
     --destructive-foreground: 0 0% 96%;
 
-    --border: 24 6% 17%;
-    --border-strong: 24 6% 24%;
-    --input: 24 6% 17%;
-    --ring: 158 42% 46%;
+    --border: 55 8% 18%;
+    --border-strong: 50 7% 26%;
+    --input: 55 8% 18%;
+    --ring: 344 42% 60%;
 
-    --gold: 20 85% 58%;
-    --gold-soft: 20 30% 14%;
-    --gold-foreground: 0 0% 100%;
+    --gold: 3 32% 62%;
+    --gold-soft: 359 18% 18%;
+    --gold-foreground: 58 14% 8%;
 
-    --vata: 256 50% 70%;
-    --pitta: 18 70% 62%;
-    --kapha: 152 40% 52%;
-    --success: 152 45% 48%;
-    --warning: 38 85% 58%;
-    --info: 210 55% 62%;
+    --vata: 3 34% 68%;
+    --pitta: 344 46% 62%;
+    --kapha: 58 22% 52%;
+    --success: 88 24% 48%;
+    --warning: 38 52% 58%;
+    --info: 3 30% 62%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(158, 38%, 20%), hsl(158, 35%, 32%));
-    --gradient-gold: linear-gradient(135deg, hsl(20, 85%, 46%), hsl(28, 75%, 52%));
-    --gradient-hero: linear-gradient(135deg, hsl(24, 10%, 5%), hsl(24, 8%, 9%), hsl(24, 6%, 14%));
-    --gradient-secondary: linear-gradient(135deg, hsl(24, 6%, 15%), hsl(24, 8%, 11%));
+    --gradient-primary: linear-gradient(135deg, hsl(344, 38%, 34%), hsl(359, 30%, 44%));
+    --gradient-gold: linear-gradient(135deg, hsl(359, 30%, 42%), hsl(3, 26%, 52%));
+    --gradient-hero: linear-gradient(135deg, hsl(58, 14%, 6%), hsl(55, 12%, 10%), hsl(48, 10%, 15%));
+    --gradient-secondary: linear-gradient(135deg, hsl(55, 8%, 16%), hsl(55, 12%, 12%));
 
-    --sidebar-background: 24 8% 9%;
-    --sidebar-foreground: 33 15% 92%;
-    --sidebar-primary: 158 42% 46%;
-    --sidebar-primary-foreground: 24 8% 7%;
-    --sidebar-accent: 158 22% 14%;
-    --sidebar-accent-foreground: 158 38% 68%;
-    --sidebar-border: 24 6% 17%;
-    --sidebar-ring: 158 42% 46%;
+    --sidebar-background: 58 14% 10%;
+    --sidebar-foreground: 29 30% 90%;
+    --sidebar-primary: 344 42% 60%;
+    --sidebar-primary-foreground: 58 14% 8%;
+    --sidebar-accent: 359 18% 18%;
+    --sidebar-accent-foreground: 3 34% 76%;
+    --sidebar-border: 55 8% 18%;
+    --sidebar-ring: 344 42% 60%;
   }
 }
 
@@ -161,6 +175,16 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
     @apply bg-background text-foreground font-sans antialiased;
   }
 
+  /* IM Fell DW Pica ships one weight (400) and its italic. Asking a browser
+     for 600 or 700 gets a synthesised smear of the real face, so every display
+     heading is pinned to 400 here rather than left to whatever `font-bold` a
+     page happens to carry. The face is dark and high-contrast enough that it
+     still reads as a heading without any extra weight. */
+  .font-display {
+    font-weight: 400;
+    font-synthesis-weight: none;
+  }
+
   input[type="range"],
   input[type="checkbox"],
   input[type="radio"],
@@ -169,7 +193,7 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
   }
 
   ::selection {
-    background-color: hsl(var(--accent) / 0.15);
+    background-color: hsl(var(--primary) / 0.16);
     color: hsl(var(--foreground));
   }
 
@@ -224,14 +248,14 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
   .bg-gold { background-color: hsl(var(--gold)); }
   .bg-gold-soft { background-color: hsl(var(--gold-soft)); }
 
-  /* --- Hover lift (sythra-style) --- */
+  /* --- Hover lift --- */
   .card-hover {
     @apply transition-all duration-300 ease-ios;
   }
   .card-hover:hover {
     transform: translateY(-4px);
-    box-shadow: 0 28px 80px -20px hsl(24 14% 11% / 0.12),
-                0 8px 24px -8px hsl(24 14% 11% / 0.08);
+    box-shadow: 0 28px 80px -20px hsl(58 23% 15% / 0.14),
+                0 8px 24px -8px hsl(58 23% 15% / 0.09);
   }
   .card-hover:active {
     transform: translateY(-1px);
@@ -242,28 +266,28 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
     @apply transition-all duration-300 ease-in-out;
   }
 
-  /* --- Frosted glass (warm cream edition) --- */
+  /* --- Frosted glass (sand edition) --- */
   .glass {
     background-color: hsl(var(--background-elevated) / 0.82);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid hsl(24 12% 80% / 0.35);
+    border: 1px solid hsl(29 22% 78% / 0.4);
   }
   .dark .glass {
-    background-color: hsl(24 8% 11% / 0.65);
+    background-color: hsl(55 12% 12% / 0.65);
     border-color: hsl(0 0% 100% / 0.08);
   }
 
-  /* --- Gradient text (green to gold) --- */
+  /* --- Gradient text (berry to dusty rose) --- */
   .text-gradient {
-    background: linear-gradient(135deg, hsl(158, 38%, 28%), hsl(158, 42%, 40%), hsl(20, 90%, 52%));
+    background: linear-gradient(135deg, hsl(344, 41%, 40%), hsl(359, 31%, 46%), hsl(3, 27%, 58%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-gold {
-    background: linear-gradient(135deg, hsl(20, 90%, 48%), hsl(28, 80%, 56%), hsl(38, 70%, 50%));
+    background: linear-gradient(135deg, hsl(359, 31%, 44%), hsl(3, 27%, 54%), hsl(29, 30%, 66%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -271,30 +295,38 @@ amber-orange that reads "Ayurvedic warmth" and "take action" simultaneously.
 
   /* --- Glow effects --- */
   .glow-green {
-    box-shadow: 0 0 24px -4px hsl(158, 38%, 28% / 0.25),
-                0 0 64px -8px hsl(158, 38%, 28% / 0.12);
+    box-shadow: 0 0 24px -4px hsl(344, 41%, 46% / 0.25),
+                0 0 64px -8px hsl(344, 41%, 46% / 0.12);
   }
   .glow-gold {
-    box-shadow: 0 14px 32px hsl(20, 90%, 52% / 0.28),
-                0 0 0 1px hsl(20, 90%, 52% / 0.06);
+    box-shadow: 0 14px 32px hsl(344, 41%, 46% / 0.3),
+                0 0 0 1px hsl(344, 41%, 46% / 0.08);
   }
 
-  /* --- Section label (numbered, uppercase, sythra-style) --- */
+  /* --- Section label (mono eyebrow) ---
+     IBM Plex Mono, per the type scale: monospace is the app's voice for the
+     small structural text that frames content rather than being content. */
   .section-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.16em];
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em];
     color: hsl(var(--foreground-tertiary));
   }
 
-  /* --- Dark section (sythra-style contrast block) --- */
+  /* --- Pull quote --- */
+  .quote {
+    @apply font-mono text-[13px] leading-relaxed;
+    color: hsl(var(--foreground-secondary));
+  }
+
+  /* --- Dark section (olive contrast block) --- */
   .section-dark {
-    background: hsl(24, 14%, 11%);
-    color: hsl(33, 20%, 96%);
+    background: hsl(58, 23%, 13%);
+    color: hsl(29, 36%, 92%);
   }
   .section-dark .text-foreground-secondary {
-    color: hsl(33, 10%, 62%);
+    color: hsl(29, 16%, 68%);
   }
   .section-dark .text-foreground-tertiary {
-    color: hsl(33, 8%, 48%);
+    color: hsl(29, 12%, 52%);
   }
 
   /* --- Slim scrollbar --- */
