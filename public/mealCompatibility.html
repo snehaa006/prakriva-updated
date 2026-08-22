@@ -1530,15 +1530,14 @@
         function createDetailedFemaleBody() {
             bodyGroup = new THREE.Group();
 
-            // Semi-transparent body mesh material (like x-ray effect). Kept
-            // faint so the skeleton and organs read through it, as in a real
-            // x-ray plate.
-            const bodyMat = new THREE.MeshPhongMaterial({
+            // --- Materials ------------------------------------------------
+            const bodyMat = new THREE.MeshStandardMaterial({
                 color: 0x3d7a5f,
                 transparent: true,
-                opacity: 0.07,
+                opacity: 0.08,
                 side: THREE.DoubleSide,
-                shininess: 30,
+                metalness: 0.1,
+                roughness: 0.3,
                 depthWrite: false
             });
 
@@ -1546,175 +1545,146 @@
                 color: 0x3d7a5f,
                 wireframe: true,
                 transparent: true,
-                opacity: 0.3
+                opacity: 0.12
             });
 
-            // HEAD
-            const headGeo = new THREE.SphereGeometry(0.22, 48, 48);
-            const head = new THREE.Mesh(headGeo, bodyMat.clone());
-            head.scale.set(0.9, 1.1, 0.95);
-            head.position.y = 1.82;
-            bodyGroup.add(head);
+            const glowMat = new THREE.MeshStandardMaterial({
+                color: 0x3d7a5f,
+                transparent: true,
+                opacity: 0.04,
+                side: THREE.BackSide,
+                metalness: 0,
+                roughness: 1,
+                depthWrite: false
+            });
 
-            const headWire = new THREE.Mesh(headGeo, wireMat.clone());
-            headWire.scale.copy(head.scale);
-            headWire.position.copy(head.position);
-            bodyGroup.add(headWire);
+            // --- Continuous body silhouette (LatheGeometry) ----------------
+            // Profile curve: radius vs height, from crotch (bottom) to head
+            // top. LatheGeometry expects the points ordered bottom-to-top with
+            // radius on x and height on y.
+            const profile = [
+                // Crotch / inner thigh
+                [0.001, 0.00],
+                [0.04,  0.03],
+                [0.09,  0.08],
+                // Hips — widest
+                [0.22,  0.18],
+                [0.24,  0.28],
+                [0.235, 0.38],
+                // Waist — narrowest
+                [0.15,  0.52],
+                [0.14,  0.58],
+                [0.145, 0.62],
+                // Ribcage
+                [0.17,  0.70],
+                [0.20,  0.78],
+                // Bust
+                [0.23,  0.86],
+                [0.225, 0.92],
+                // Upper chest / shoulders
+                [0.21,  0.96],
+                [0.22,  1.00],
+                // Shoulder peak
+                [0.22,  1.05],
+                [0.18,  1.10],
+                // Neck base
+                [0.09,  1.15],
+                [0.07,  1.20],
+                [0.07,  1.28],
+                // Chin / jaw
+                [0.09,  1.32],
+                [0.14,  1.36],
+                [0.17,  1.40],
+                // Temples / forehead
+                [0.19,  1.46],
+                [0.20,  1.52],
+                // Crown
+                [0.195, 1.58],
+                [0.17,  1.62],
+                [0.12,  1.65],
+                [0.05,  1.67],
+                [0.001, 1.68],
+            ].map(function (p) { return new THREE.Vector2(p[0], p[1]); });
 
-            // NECK
-            const neckGeo = new THREE.CylinderGeometry(0.08, 0.09, 0.2, 16);
-            const neck = new THREE.Mesh(neckGeo, bodyMat.clone());
-            neck.position.y = 1.62;
-            bodyGroup.add(neck);
+            var torsoGeo = new THREE.LatheGeometry(profile, 64);
 
-            // SHOULDERS - wider for female anatomy
-            const shoulderGeo = new THREE.SphereGeometry(0.12, 32, 32);
-            const leftShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
-            leftShoulder.position.set(-0.24, 1.5, 0);
-            leftShoulder.scale.set(1.2, 0.8, 0.8);
-            bodyGroup.add(leftShoulder);
+            var torsoMesh = new THREE.Mesh(torsoGeo, bodyMat.clone());
+            torsoMesh.position.y = 0.36;
+            bodyGroup.add(torsoMesh);
 
-            const rightShoulder = new THREE.Mesh(shoulderGeo, bodyMat.clone());
-            rightShoulder.position.set(0.24, 1.5, 0);
-            rightShoulder.scale.set(1.2, 0.8, 0.8);
-            bodyGroup.add(rightShoulder);
-
-            // CHEST & TORSO - anatomically accurate female shape
-            const torsoPoints = [];
-            for (let i = 0; i <= 32; i++) {
-                const t = i / 32;
-                const y = t * 0.95;
-                
-                // Create natural hourglass shape
-                let radius;
-                if (t < 0.25) { // Upper chest
-                    radius = 0.18 + t * 0.1;
-                } else if (t < 0.45) { // Bust
-                    radius = 0.23 - (t - 0.25) * 0.4;
-                } else if (t < 0.7) { // Waist
-                    radius = 0.15 + Math.sin((t - 0.45) * Math.PI * 2) * 0.01;
-                } else { // Hips
-                    radius = 0.15 + (t - 0.7) * 0.4;
-                }
-                
-                torsoPoints.push(new THREE.Vector2(radius, y));
-            }
-            
-            const torsoGeo = new THREE.LatheGeometry(torsoPoints, 48);
-            const torso = new THREE.Mesh(torsoGeo, bodyMat.clone());
-            torso.position.y = 0.57;
-            bodyGroup.add(torso);
-
-            const torsoWire = new THREE.Mesh(torsoGeo, wireMat.clone());
-            torsoWire.position.copy(torso.position);
+            var torsoWire = new THREE.Mesh(torsoGeo, wireMat.clone());
+            torsoWire.position.y = 0.36;
             bodyGroup.add(torsoWire);
 
-            // PELVIS/HIPS - wider for female anatomy
-            const pelvisPoints = [];
-            for (let i = 0; i <= 16; i++) {
-                const t = i / 16;
-                const y = t * 0.35;
-                const radius = 0.27 - t * 0.08;
-                pelvisPoints.push(new THREE.Vector2(radius, y));
-            }
-            const pelvisGeo = new THREE.LatheGeometry(pelvisPoints, 48);
-            const pelvis = new THREE.Mesh(pelvisGeo, bodyMat.clone());
-            pelvis.position.y = 0.22;
-            bodyGroup.add(pelvis);
+            var torsoGlow = new THREE.Mesh(torsoGeo, glowMat.clone());
+            torsoGlow.position.y = 0.36;
+            torsoGlow.scale.set(1.03, 1.03, 1.03);
+            bodyGroup.add(torsoGlow);
 
-            // ARMS - slender and anatomically correct
+            // --- Smooth tube arms -----------------------------------------
             function createArm(side) {
-                const armGroup = new THREE.Group();
-                
-                // Upper arm
-                const upperArmGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.38, 12);
-                const upperArm = new THREE.Mesh(upperArmGeo, bodyMat.clone());
-                upperArm.position.y = -0.21;
-                upperArm.rotation.z = side * 0.2;
-                armGroup.add(upperArm);
+                var armCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(side * 0.22, 1.41, 0),
+                    new THREE.Vector3(side * 0.30, 1.30, 0.01),
+                    new THREE.Vector3(side * 0.34, 1.15, 0.02),
+                    new THREE.Vector3(side * 0.36, 1.00, 0.03),
+                    new THREE.Vector3(side * 0.35, 0.85, 0.04),
+                    new THREE.Vector3(side * 0.34, 0.70, 0.04),
+                ]);
+                var armGeo = new THREE.TubeGeometry(armCurve, 32, 0.04, 12, false);
 
-                // Elbow joint
-                const elbowGeo = new THREE.SphereGeometry(0.042, 24, 24);
-                const elbow = new THREE.Mesh(elbowGeo, bodyMat.clone());
-                elbow.position.y = -0.42;
-                elbow.position.x = side * 0.038;
-                armGroup.add(elbow);
+                var arm = new THREE.Mesh(armGeo, bodyMat.clone());
+                bodyGroup.add(arm);
 
-                // Forearm
-                const forearmGeo = new THREE.CylinderGeometry(0.038, 0.032, 0.35, 12);
-                const forearm = new THREE.Mesh(forearmGeo, bodyMat.clone());
-                forearm.position.y = -0.62;
-                forearm.position.x = side * 0.076;
-                forearm.rotation.z = side * 0.15;
-                armGroup.add(forearm);
+                var armWire = new THREE.Mesh(armGeo, wireMat.clone());
+                bodyGroup.add(armWire);
 
-                // Hand
-                const handGeo = new THREE.BoxGeometry(0.08, 0.12, 0.04);
-                const hand = new THREE.Mesh(handGeo, bodyMat.clone());
-                hand.position.y = -0.84;
-                hand.position.x = side * 0.12;
-                armGroup.add(hand);
+                var armGlw = new THREE.Mesh(armGeo, glowMat.clone());
+                armGlw.scale.set(1.04, 1.04, 1.04);
+                bodyGroup.add(armGlw);
 
-                armGroup.position.set(side * 0.24, 1.5, 0);
-                return armGroup;
+                // Hand — small sphere at the wrist
+                var handGeo = new THREE.SphereGeometry(0.045, 16, 16);
+                var hand = new THREE.Mesh(handGeo, bodyMat.clone());
+                hand.scale.set(1.1, 1.4, 0.7);
+                hand.position.set(side * 0.34, 0.65, 0.04);
+                bodyGroup.add(hand);
             }
+            createArm(-1);
+            createArm(1);
 
-            bodyGroup.add(createArm(-1));
-            bodyGroup.add(createArm(1));
-
-            // LEGS - longer and anatomically correct
+            // --- Smooth tube legs -----------------------------------------
             function createLeg(side) {
-                const legGroup = new THREE.Group();
+                var legCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(side * 0.11, 0.54, 0),
+                    new THREE.Vector3(side * 0.12, 0.40, 0),
+                    new THREE.Vector3(side * 0.12, 0.22, 0.01),
+                    new THREE.Vector3(side * 0.12, 0.05, 0),
+                    new THREE.Vector3(side * 0.12, -0.12, -0.01),
+                    new THREE.Vector3(side * 0.12, -0.30, -0.01),
+                    new THREE.Vector3(side * 0.12, -0.48, -0.02),
+                ]);
+                var legGeo = new THREE.TubeGeometry(legCurve, 40, 0.055, 14, false);
 
-                // Thigh
-                const thighPoints = [];
-                for (let i = 0; i <= 20; i++) {
-                    const t = i / 20;
-                    const y = -t * 0.52;
-                    const radius = 0.08 - t * 0.02;
-                    thighPoints.push(new THREE.Vector2(radius, y));
-                }
-                const thighGeo = new THREE.LatheGeometry(thighPoints, 32);
-                const thigh = new THREE.Mesh(thighGeo, bodyMat.clone());
-                legGroup.add(thigh);
+                var leg = new THREE.Mesh(legGeo, bodyMat.clone());
+                bodyGroup.add(leg);
 
-                // Knee
-                const kneeGeo = new THREE.SphereGeometry(0.055, 24, 24);
-                const knee = new THREE.Mesh(kneeGeo, bodyMat.clone());
-                knee.position.y = -0.53;
-                legGroup.add(knee);
+                var legWire = new THREE.Mesh(legGeo, wireMat.clone());
+                bodyGroup.add(legWire);
 
-                // Calf
-                const calfPoints = [];
-                for (let i = 0; i <= 20; i++) {
-                    const t = i / 20;
-                    const y = -t * 0.5;
-                    const radius = 0.055 - t * 0.018 + (t > 0.2 && t < 0.5 ? 0.008 : 0);
-                    calfPoints.push(new THREE.Vector2(radius, y));
-                }
-                const calfGeo = new THREE.LatheGeometry(calfPoints, 32);
-                const calf = new THREE.Mesh(calfGeo, bodyMat.clone());
-                calf.position.y = -0.53;
-                legGroup.add(calf);
+                var legGlw = new THREE.Mesh(legGeo, glowMat.clone());
+                legGlw.scale.set(1.04, 1.04, 1.04);
+                bodyGroup.add(legGlw);
 
-                // Ankle
-                const ankleGeo = new THREE.CylinderGeometry(0.035, 0.038, 0.1, 12);
-                const ankle = new THREE.Mesh(ankleGeo, bodyMat.clone());
-                ankle.position.y = -1.08;
-                legGroup.add(ankle);
-
-                // Foot
-                const footGeo = new THREE.BoxGeometry(0.09, 0.06, 0.2);
-                const foot = new THREE.Mesh(footGeo, bodyMat.clone());
-                foot.position.set(0, -1.16, 0.06);
-                legGroup.add(foot);
-
-                legGroup.position.set(side * 0.11, 0.57, 0);
-                return legGroup;
+                // Foot — rounded box
+                var footGeo = new THREE.SphereGeometry(0.06, 16, 12);
+                var foot = new THREE.Mesh(footGeo, bodyMat.clone());
+                foot.scale.set(0.9, 0.5, 1.6);
+                foot.position.set(side * 0.12, -0.52, 0.04);
+                bodyGroup.add(foot);
             }
-
-            bodyGroup.add(createLeg(-1));
-            bodyGroup.add(createLeg(1));
+            createLeg(-1);
+            createLeg(1);
 
             // ===== SKELETON — the element that makes it read as an x-ray =====
             const boneMat = new THREE.MeshPhongMaterial({
@@ -1819,26 +1789,30 @@
 
             bodyGroup.add(skeleton);
 
-            // INTERNAL ORGANS - glowing and interactive
-            
+            // INTERNAL ORGANS — glowing and interactive
+            // All organs use MeshStandardMaterial for PBR rendering.
+
+            function organMat(color, emissive, emissiveIntensity, opacity) {
+                return new THREE.MeshStandardMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: opacity !== undefined ? opacity : 0.85,
+                    emissive: emissive,
+                    emissiveIntensity: emissiveIntensity !== undefined ? emissiveIntensity : 0.4,
+                    metalness: 0.0,
+                    roughness: 0.4
+                });
+            }
+
             // BRAIN
             const brainGeo = new THREE.SphereGeometry(0.15, 48, 48);
             brainGeo.scale(0.9, 1, 0.95);
-            const brainMat = new THREE.MeshPhongMaterial({
-                color: 0xff1493,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xff1493,
-                emissiveIntensity: 0.4,
-                shininess: 100
-            });
-            const brain = new THREE.Mesh(brainGeo, brainMat);
+            const brain = new THREE.Mesh(brainGeo, organMat(0xff1493, 0xff1493, 0.4));
             brain.position.y = 1.82;
             brain.userData = { organ: 'brain' };
             bodyGroup.add(brain);
             organs.brain = brain;
 
-            // Add glow sphere for brain
             const brainGlowGeo = new THREE.SphereGeometry(0.18, 16, 16);
             const brainGlow = new THREE.Mesh(brainGlowGeo, new THREE.MeshBasicMaterial({
                 color: 0xff1493,
@@ -1849,101 +1823,94 @@
             brainGlow.position.copy(brain.position);
             bodyGroup.add(brainGlow);
 
-            // LUNGS (two separate organs)
+            // LUNGS — elongated ellipsoids
             const lungGeo = new THREE.SphereGeometry(0.12, 36, 36);
             lungGeo.scale(0.7, 1.3, 0.6);
-            
-            const lungMat = new THREE.MeshPhongMaterial({
-                color: 0x60a5fa,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0x3b82f6,
-                emissiveIntensity: 0.35
-            });
-            
-            const leftLung = new THREE.Mesh(lungGeo, lungMat.clone());
+
+            const leftLung = new THREE.Mesh(lungGeo, organMat(0x60a5fa, 0x3b82f6, 0.35, 0.8));
             leftLung.position.set(-0.13, 1.32, -0.01);
             leftLung.userData = { organ: 'lungs' };
             bodyGroup.add(leftLung);
 
-            const rightLung = new THREE.Mesh(lungGeo, lungMat.clone());
+            const rightLung = new THREE.Mesh(lungGeo, organMat(0x60a5fa, 0x3b82f6, 0.35, 0.8));
             rightLung.position.set(0.13, 1.32, -0.01);
             rightLung.userData = { organ: 'lungs' };
             bodyGroup.add(rightLung);
-            
-            organs.lungs = leftLung; // Use one for hit detection
 
-            // HEART
-            const heartGeo = new THREE.SphereGeometry(0.1, 36, 36);
-            heartGeo.scale(0.9, 1.2, 0.8);
-            const heartMat = new THREE.MeshPhongMaterial({
-                color: 0xef4444,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xdc2626,
-                emissiveIntensity: 0.5
+            organs.lungs = leftLung;
+
+            // HEART — proper heart shape via THREE.Shape + ExtrudeGeometry
+            var heartShape = new THREE.Shape();
+            heartShape.moveTo(0, 0);
+            heartShape.bezierCurveTo(0, -0.06, -0.1, -0.12, -0.1, -0.06);
+            heartShape.bezierCurveTo(-0.1, 0.02, 0, 0.06, 0, 0.12);
+            heartShape.bezierCurveTo(0, 0.06, 0.1, 0.02, 0.1, -0.06);
+            heartShape.bezierCurveTo(0.1, -0.12, 0, -0.06, 0, 0);
+            var heartGeo = new THREE.ExtrudeGeometry(heartShape, {
+                depth: 0.08,
+                bevelEnabled: true,
+                bevelSegments: 6,
+                bevelSize: 0.012,
+                bevelThickness: 0.01,
+                curveSegments: 24
             });
-            const heart = new THREE.Mesh(heartGeo, heartMat);
-            // Slightly to the patient's left and forward, between the lungs.
+            heartGeo.center();
+            var heart = new THREE.Mesh(heartGeo, organMat(0xef4444, 0xdc2626, 0.5));
+            heart.scale.set(0.7, 0.7, 0.7);
+            heart.rotation.set(Math.PI, 0, Math.PI);
             heart.position.set(0.05, 1.24, 0.05);
             heart.userData = { organ: 'heart' };
             bodyGroup.add(heart);
             organs.heart = heart;
 
-            // LIVER — patient's right upper abdomen, just under the ribs
-            // (viewer's left in this front-facing view). Larger, wedge-like.
-            const liverGeo = new THREE.BoxGeometry(0.22, 0.15, 0.13);
-            const liverMat = new THREE.MeshPhongMaterial({
-                color: 0x92400e,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0x78350f,
-                emissiveIntensity: 0.3
-            });
-            const liver = new THREE.Mesh(liverGeo, liverMat);
+            // LIVER — smooth wedge (flattened sphere)
+            var liverGeo = new THREE.SphereGeometry(0.14, 32, 32);
+            liverGeo.scale(1.5, 0.8, 0.9);
+            var liver = new THREE.Mesh(liverGeo, organMat(0x92400e, 0x78350f, 0.3, 0.8));
             liver.position.set(-0.10, 1.08, 0.04);
             liver.rotation.set(0, -0.3, 0.12);
             liver.userData = { organ: 'liver' };
             bodyGroup.add(liver);
             organs.liver = liver;
 
-            // STOMACH
-            const stomachGeo = new THREE.SphereGeometry(0.12, 36, 36);
-            stomachGeo.scale(1.1, 0.95, 0.85);
-            const stomachMat = new THREE.MeshPhongMaterial({
-                color: 0xfbbf24,
-                transparent: true,
-                opacity: 0.85,
-                emissive: 0xf59e0b,
-                emissiveIntensity: 0.4
-            });
-            const stomach = new THREE.Mesh(stomachGeo, stomachMat);
-            // Patient's left upper abdomen, opposite the liver.
+            // STOMACH — J/bean shape via LatheGeometry
+            var stomachProfile = [
+                [0.001, 0.00],
+                [0.06,  0.02],
+                [0.10,  0.06],
+                [0.11,  0.10],
+                [0.10,  0.14],
+                [0.08,  0.18],
+                [0.05,  0.20],
+                [0.001, 0.21],
+            ].map(function (p) { return new THREE.Vector2(p[0], p[1]); });
+            var stomachGeo = new THREE.LatheGeometry(stomachProfile, 32);
+            stomachGeo.center();
+            var stomach = new THREE.Mesh(stomachGeo, organMat(0xfbbf24, 0xf59e0b, 0.4));
+            stomach.scale.set(1.0, 1.1, 0.85);
+            stomach.rotation.set(0.2, 0.3, -0.15);
             stomach.position.set(0.09, 1.06, 0.05);
             stomach.userData = { organ: 'stomach' };
             bodyGroup.add(stomach);
             organs.stomach = stomach;
 
-            // INTESTINES - realistic curved tube
-            // Coiled through the lower abdomen, below the stomach/liver and
-            // above the pelvis.
-            const intestineCurve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(-0.09, 0.98, 0.05),
-                new THREE.Vector3(0.10, 0.90, 0.07),
-                new THREE.Vector3(-0.10, 0.82, 0.06),
-                new THREE.Vector3(0.10, 0.74, 0.07),
-                new THREE.Vector3(-0.08, 0.66, 0.05),
-                new THREE.Vector3(0.08, 0.60, 0.06)
+            // INTESTINES — densely coiled tube
+            var intestineCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-0.10, 0.98, 0.05),
+                new THREE.Vector3( 0.10, 0.94, 0.07),
+                new THREE.Vector3(-0.09, 0.90, 0.06),
+                new THREE.Vector3( 0.09, 0.86, 0.07),
+                new THREE.Vector3(-0.08, 0.82, 0.06),
+                new THREE.Vector3( 0.10, 0.78, 0.07),
+                new THREE.Vector3(-0.10, 0.74, 0.05),
+                new THREE.Vector3( 0.08, 0.70, 0.07),
+                new THREE.Vector3(-0.07, 0.66, 0.06),
+                new THREE.Vector3( 0.09, 0.62, 0.06),
+                new THREE.Vector3(-0.06, 0.58, 0.05),
+                new THREE.Vector3( 0.06, 0.55, 0.06),
             ]);
-            const intestineGeo = new THREE.TubeGeometry(intestineCurve, 80, 0.035, 12, false);
-            const intestineMat = new THREE.MeshPhongMaterial({
-                color: 0xfb923c,
-                transparent: true,
-                opacity: 0.8,
-                emissive: 0xf97316,
-                emissiveIntensity: 0.3
-            });
-            const intestines = new THREE.Mesh(intestineGeo, intestineMat);
+            var intestineGeo = new THREE.TubeGeometry(intestineCurve, 120, 0.028, 12, false);
+            var intestines = new THREE.Mesh(intestineGeo, organMat(0xfb923c, 0xf97316, 0.3, 0.8));
             intestines.userData = { organ: 'intestines' };
             bodyGroup.add(intestines);
             organs.intestines = intestines;
