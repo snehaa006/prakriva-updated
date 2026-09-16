@@ -190,6 +190,10 @@ listed under "Language and translation" below.
   embeds it in an iframe so it is reachable from the patient sidebar.
 - `vercel.json` — frontend-only: Vite framework preset builds to `dist/`,
   with a catch-all rewrite to `index.html` for client-side routing.
+- `INTERVIEW_NOTES.md` — a plain-language revision sheet for this codebase:
+  the architecture, the frontend/backend concepts, the database and security
+  rules, the ML/LLM pieces, and the CS fundamentals each one demonstrates.
+  Documentation only; nothing in the app reads it.
 
 ## Getting started
 
