@@ -29,7 +29,7 @@ from dosha_estimator import dosha_predictor
 from calorie_calculator import estimate_calories, get_calorie_breakdown
 from planner import meal_planner
 from db import db_manager
-from auth import require_admin, require_self
+from auth import can_access_patient, forbidden, require_admin, require_auth, require_self
 from disease_detection import (
     SYMPTOMS,
     ScreeningInput,
@@ -303,6 +303,7 @@ def health_check():
 
 @app.route("/generate", methods=["POST"])
 @app.limiter.limit(f"{settings.RATE_LIMIT_PER_MINUTE} per minute")
+@require_auth
 def generate_meal_plan():
     """
     Generate personalized meal plan
@@ -323,7 +324,13 @@ def generate_meal_plan():
         days = request_data.days
         model_name = request_data.model
         preferences = request_data.preferences or {}
-        
+
+        # The plan is saved against Patient_ID, so that id has to be the
+        # caller or a patient she treats — checked before any model is paid for.
+        owner_id = str(user_profile.Patient_ID or g.user_id)
+        if not can_access_patient(g.user_id, owner_id):
+            return forbidden("You can only generate plans for yourself or a patient you treat.")
+
         logger.info(f"Generating meal plan for user: {days} days, model: {model_name}")
         
         # Load datasets
@@ -400,7 +407,7 @@ def generate_meal_plan():
             }
             
             doc_id = db_manager.save_generated_plan(
-                user_id=user_profile.Patient_ID or "anonymous",
+                user_id=owner_id,
                 payload=save_payload,
                 metadata=metadata
             )
@@ -441,6 +448,7 @@ def generate_meal_plan():
 
 @app.route("/diet-chart/generate", methods=["POST"])
 @app.limiter.limit("30 per hour")
+@require_auth
 def generate_diet_chart():
     """Compose a diet chart with Gemini from the context the frontend holds.
 
@@ -485,19 +493,36 @@ def generate_diet_chart():
         raise MealPlanGenerationError(f"Diet chart generation failed: {e}")
 
 
+def _load_plan_for_caller(plan_id: str):
+    """Returns (plan, None) when the signed-in caller may see the plan, or
+    (None, error_response) when it does not exist or is not hers to see.
+
+    The plan's owner is its `user_id`; she and any doctor treating her have
+    access. The backend reads with the service-role key, so this check is the
+    only thing standing between a plan id and someone else's diet record.
+    """
+    plan = db_manager.get_generated_plan(plan_id)
+    if not plan:
+        return None, (jsonify(APIResponse(
+            success=False,
+            error="Plan not found",
+            message=f"No meal plan found with ID: {plan_id}"
+        ).dict()), 404)
+    if not can_access_patient(g.user_id, plan.get("user_id")):
+        logger.warning(f"{g.user_id} was refused plan {plan_id}")
+        return None, forbidden("You do not have access to this meal plan.")
+    return plan, None
+
+
 @app.route("/plan/<plan_id>", methods=["GET"])
 @app.limiter.limit("60 per minute")
+@require_auth
 def get_meal_plan(plan_id: str):
     """Get a specific meal plan by ID"""
     try:
-        plan = db_manager.get_generated_plan(plan_id)
-        
-        if not plan:
-            return jsonify(APIResponse(
-                success=False,
-                error="Plan not found",
-                message=f"No meal plan found with ID: {plan_id}"
-            ).dict()), 404
+        plan, error = _load_plan_for_caller(plan_id)
+        if error:
+            return error
         
         return jsonify(APIResponse(
             success=True,
@@ -545,6 +570,7 @@ def get_user_meal_plans(user_id: str):
 
 @app.route("/plan/<plan_id>/edit", methods=["POST"])
 @app.limiter.limit("10 per minute")
+@require_auth
 def edit_meal_plan(plan_id: str):
     """Allow doctors to edit meal plans"""
     try:
@@ -552,21 +578,30 @@ def edit_meal_plan(plan_id: str):
             raise ValidationError("Content-Type must be application/json")
         
         data = request.json
-        doctor_id = data.get('doctor_id')
+        claimed_doctor_id = data.get('doctor_id')
         edited_plan = data.get('edited_plan')
         reason = data.get('reason', '')
         edit_type = data.get('edit_type', 'modification')
         
-        if not doctor_id:
-            raise ValidationError("doctor_id is required")
+        # The editing doctor is whoever the token says; a doctor_id in the
+        # body is still accepted, but only when it names the same account.
+        if claimed_doctor_id and str(claimed_doctor_id) != g.user_id:
+            return forbidden("doctor_id must be your own account.")
         
         if not edited_plan:
             raise ValidationError("edited_plan is required")
         
+        plan, error = _load_plan_for_caller(plan_id)
+        if error:
+            return error
+        # Access alone also admits the patient herself; an edit is a doctor's.
+        if str(plan.get("user_id")) == g.user_id:
+            return forbidden("Only a doctor treating this patient can edit her meal plan.")
+        
         # Save the edit
         edit_id = db_manager.save_doctor_edit(
             plan_id=plan_id,
-            doctor_id=doctor_id,
+            doctor_id=g.user_id,
             edited_plan=edited_plan,
             reason=reason,
             edit_type=edit_type
@@ -589,9 +624,14 @@ def edit_meal_plan(plan_id: str):
 
 @app.route("/plan/<plan_id>/edits", methods=["GET"])
 @app.limiter.limit("30 per minute")
+@require_auth
 def get_plan_edits(plan_id: str):
     """Get all edits for a specific meal plan"""
     try:
+        _, error = _load_plan_for_caller(plan_id)
+        if error:
+            return error
+        
         edits = db_manager.get_plan_edits(plan_id)
         
         return jsonify(APIResponse(
@@ -613,6 +653,7 @@ def get_plan_edits(plan_id: str):
 
 @app.route("/plan/<plan_id>/feedback", methods=["POST"])
 @app.limiter.limit("5 per minute")
+@require_auth
 def submit_feedback(plan_id: str):
     """Submit user feedback for a meal plan"""
     try:
@@ -620,20 +661,26 @@ def submit_feedback(plan_id: str):
             raise ValidationError("Content-Type must be application/json")
         
         data = request.json
-        user_id = data.get('user_id')
+        claimed_user_id = data.get('user_id')
         rating = data.get('rating')
         feedback = data.get('feedback', '')
         categories = data.get('categories', [])
         
-        if not user_id:
-            raise ValidationError("user_id is required")
+        # Feedback is filed under the verified caller; a user_id in the body
+        # is still accepted, but only when it names the same account.
+        if claimed_user_id and str(claimed_user_id) != g.user_id:
+            return forbidden("user_id must be your own account.")
         
         if not isinstance(rating, int) or rating < 1 or rating > 5:
             raise ValidationError("rating must be an integer between 1 and 5")
         
+        _, error = _load_plan_for_caller(plan_id)
+        if error:
+            return error
+        
         feedback_id = db_manager.save_user_feedback(
             plan_id=plan_id,
-            user_id=user_id,
+            user_id=g.user_id,
             rating=rating,
             feedback=feedback,
             categories=categories
@@ -821,6 +868,7 @@ def analysis_status():
 
 @app.route("/analysis/screening", methods=["POST"])
 @app.limiter.limit("20 per hour")
+@require_auth
 def analyse_screenings():
     """Narrative clinical read of a patient's screening history.
 
@@ -861,6 +909,7 @@ def analyse_screenings():
 
 @app.route("/assistant/ask", methods=["POST"])
 @app.limiter.limit("30 per hour")
+@require_auth
 def assistant_ask():
     """Answer a patient's question about her own screening results.
 
@@ -912,6 +961,7 @@ _MAX_CHAT_MESSAGE_CHARS = 2000
 
 @app.route("/assistant/chat", methods=["POST"])
 @app.limiter.limit("60 per hour")
+@require_auth
 def assistant_chat():
     """Open-ended chat with the patient's full context, not just screenings.
 
@@ -976,6 +1026,7 @@ def assistant_chat():
 
 @app.route("/assistant/doctor-chat", methods=["POST"])
 @app.limiter.limit("60 per hour")
+@require_auth
 def assistant_doctor_chat():
     """Open-ended chat for doctors — Kuchu Puchu in clinical mode, with patient context.
 
@@ -1040,6 +1091,7 @@ _MAX_REPORT_BASE64_CHARS = 11_000_000
 
 @app.route("/analysis/extract-report", methods=["POST"])
 @app.limiter.limit("20 per hour")
+@require_auth
 def extract_report():
     """Read lab values off a photographed or scanned report.
 
@@ -1095,6 +1147,7 @@ _ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic",
 
 @app.route("/analysis/acne-photo", methods=["POST"])
 @app.limiter.limit("20 per hour")
+@require_auth
 def assess_acne_photo():
     """Describe the acne visible in a skin photo, for the PCOD/PCOS tracker.
 

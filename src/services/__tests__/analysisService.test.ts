@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const auth = vi.hoisted(() => ({ getAccessToken: vi.fn() }));
+vi.mock("@/lib/supabase", () => ({ getAccessToken: auth.getAccessToken }));
+
 import {
   askChat,
   isAnalysisEnabled,
@@ -32,6 +36,7 @@ const chatOk = (answer: string) => okJson({ success: true, data: { answer } });
 
 beforeEach(() => {
   resetBackendWakeState();
+  auth.getAccessToken.mockReset().mockResolvedValue("session-token");
 });
 
 afterEach(() => {
@@ -127,5 +132,68 @@ describe("isAnalysisEnabled", () => {
     await vi.advanceTimersByTimeAsync(120_000);
 
     await expect(answer).resolves.toBe(false);
+  });
+});
+
+describe("authentication", () => {
+  // The backend refuses its analysis and assistant routes without a token.
+  const headersOf = (fetchMock: ReturnType<typeof vi.fn>, call = 0) =>
+    (fetchMock.mock.calls[call][1] as RequestInit).headers as Record<string, string>;
+
+  it("sends the signed-in user's token as a bearer header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(chatOk("hi"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await askChat("hello", [], {});
+
+    expect(headersOf(fetchMock)).toMatchObject({
+      Authorization: "Bearer session-token",
+      "Content-Type": "application/json",
+    });
+  });
+
+  it("keeps the token on the retry after a cold start", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(abortError())
+      .mockResolvedValueOnce(okJson({ status: "healthy" }))
+      .mockResolvedValueOnce(chatOk("namaste"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await askChat("hi", [], {});
+
+    expect(headersOf(fetchMock, 2).Authorization).toBe("Bearer session-token");
+  });
+
+  it("sends no Authorization header when signed out", async () => {
+    auth.getAccessToken.mockResolvedValue(null);
+    const fetchMock = vi.fn().mockResolvedValue(chatOk("hi"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await askChat("hello", [], {});
+
+    expect(headersOf(fetchMock)).not.toHaveProperty("Authorization");
+  });
+
+  it("still makes the request when reading the session fails", async () => {
+    auth.getAccessToken.mockRejectedValue(new Error("storage unavailable"));
+    const fetchMock = vi.fn().mockResolvedValue(chatOk("hi"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(askChat("hello", [], {})).resolves.toBe("hi");
+    expect(headersOf(fetchMock)).not.toHaveProperty("Authorization");
+  });
+
+  it("surfaces the backend's message when the token is refused", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ success: false, error: "Invalid or expired token." }),
+      }),
+    );
+
+    await expect(askChat("hello", [], {})).rejects.toThrow("Invalid or expired token.");
   });
 });

@@ -9,6 +9,7 @@ Set before any test module is imported — pytest loads conftest first.
 """
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,3 +54,43 @@ def reset_gemini_model_state():
     reset()
     yield
     reset()
+
+
+@pytest.fixture
+def sign_in(monkeypatch):
+    """Make every request arrive as `user_id`, as if it carried a valid token.
+
+    Only the token check itself (`auth._authenticate`, which would ask
+    Supabase) is replaced, so the routes' decorators and ownership checks run
+    for real. Call it again to switch users mid-test.
+    """
+    import auth
+
+    def _sign_in(user_id: str = "test_user"):
+        user = SimpleNamespace(id=user_id, email=f"{user_id}@example.com")
+        monkeypatch.setattr(auth, "_authenticate", lambda: (user, None))
+        return user
+
+    return _sign_in
+
+
+@pytest.fixture
+def signed_in(sign_in):
+    """Every request in the test arrives signed in as `test_user`."""
+    return sign_in()
+
+
+@pytest.fixture
+def treating(monkeypatch):
+    """Declare which doctors treat which patients, without a database.
+
+    `treating(("doctor_1", "patient_1"))` stands in for consultation_requests
+    rows; any pair not listed is not a treating relationship.
+    """
+    import auth
+
+    def _treating(*pairs):
+        allowed = {(str(d), str(p)) for d, p in pairs}
+        monkeypatch.setattr(auth, "_treats_patient", lambda d, p: (d, p) in allowed)
+
+    return _treating

@@ -153,9 +153,11 @@ describe("patient sign in", () => {
     });
   });
 
-  it("routes by the role on the account, not the role in the URL", async () => {
+  it("turns a doctor account away from the patient sign-in", async () => {
     const user = userEvent.setup();
-    // A doctor signing in through the patient door still lands on /doctor.
+    // A doctor signing in through the patient door is signed straight back
+    // out and pointed at the practitioner page, rather than silently landing
+    // on /doctor from a screen that said "Patient".
     supabaseMock.setTable("profiles", { data: { role: "doctor" } });
 
     renderLogin("patient");
@@ -163,8 +165,33 @@ describe("patient sign in", () => {
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
-      expect(mock.navigate).toHaveBeenCalledWith("/doctor/dashboard", { replace: true })
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        "This is a doctor account. Please sign in on the practitioner page."
+      )
     );
+    expect(supabaseMock.signOut).toHaveBeenCalled();
+    expect(mock.navigate).not.toHaveBeenCalled();
+    expect(mock.toast.success).not.toHaveBeenCalled();
+  });
+
+  it("turns a patient account away from the practitioner sign-in", async () => {
+    const user = userEvent.setup();
+    supabaseMock.setTable("profiles", { data: { role: "patient" } });
+    supabaseMock.setTable("patients", {
+      data: { questionnaire_completed: true, health_tracks: [], assessment_data: null },
+    });
+
+    renderLogin("doctor");
+    await fillCredentials(user, { email: "asha@example.com", password: "secret123" });
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() =>
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        "This is a patient account. Please sign in on the patient page."
+      )
+    );
+    expect(supabaseMock.signOut).toHaveBeenCalled();
+    expect(mock.navigate).not.toHaveBeenCalled();
   });
 
   it("surfaces a readable message for bad credentials", async () => {

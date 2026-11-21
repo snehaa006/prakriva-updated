@@ -52,8 +52,48 @@ def _unauthorised(message: str) -> Tuple[Any, int]:
     return jsonify({"success": False, "error": message}), 401
 
 
-def _forbidden(message: str) -> Tuple[Any, int]:
+def forbidden(message: str) -> Tuple[Any, int]:
+    """A 403 in the same shape the decorators use, for routes' own checks."""
     return jsonify({"success": False, "error": message}), 403
+
+
+#: consultation_requests statuses under which a doctor is treating a patient.
+#: Mirrors TREATED_STATUSES in src/hooks/useDoctorPatients.ts, so a doctor
+#: reaches exactly the patients here that the app lists as hers.
+TREATED_STATUSES = ("pending", "accepted", "completed")
+
+
+def _treats_patient(doctor_id: str, patient_id: str) -> bool:
+    try:
+        from db import db_manager
+
+        result = (
+            db_manager.db.table("consultation_requests")
+            .select("patient_id")
+            .eq("doctor_id", doctor_id)
+            .eq("patient_id", patient_id)
+            .in_("status", list(TREATED_STATUSES))
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as exc:
+        # As with the admin check: a lookup that failed grants nothing.
+        logger.error(f"Doctor-patient check failed for {doctor_id} -> {patient_id}: {exc}")
+        return False
+
+
+def can_access_patient(caller_id: Optional[str], patient_id: Optional[str]) -> bool:
+    """Whether the verified caller may act on `patient_id`'s records.
+
+    True for the patient herself and for a doctor treating her; false for
+    everyone else, including when either id is missing.
+    """
+    if not caller_id or not patient_id:
+        return False
+    if str(caller_id) == str(patient_id):
+        return True
+    return _treats_patient(str(caller_id), str(patient_id))
 
 
 def _authenticate() -> Tuple[Optional[Any], Optional[Tuple[Any, int]]]:
@@ -124,7 +164,7 @@ def require_admin(view):
         g.user_email = getattr(user, "email", None)
         if not _is_admin(g.user_id):
             logger.warning(f"Non-admin {g.user_id} attempted {request.path}")
-            return _forbidden("This endpoint is restricted to administrators.")
+            return forbidden("This endpoint is restricted to administrators.")
         return view(*args, **kwargs)
 
     return wrapped
@@ -153,7 +193,7 @@ def require_self(param: str = "user_id"):
                 logger.warning(
                     f"{g.user_id} attempted to read {param}={claimed} on {request.path}"
                 )
-                return _forbidden("You can only access your own records.")
+                return forbidden("You can only access your own records.")
             return view(*args, **kwargs)
 
         return wrapped

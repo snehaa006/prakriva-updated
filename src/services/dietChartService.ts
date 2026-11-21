@@ -12,6 +12,7 @@ import {
   getIngredientsByFlavor,
   RecipeBasic,
 } from "./foodoscopeApi";
+import { backendAuthHeaders } from "@/lib/backendAuth";
 
 // --- Medical Guidelines by Life Stage ---
 
@@ -1223,7 +1224,7 @@ export async function generateDietChartWithAI(
 
   const response = await fetch(`${API_BASE}/diet-chart/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await backendAuthHeaders()) },
     body: JSON.stringify({
       days: numDays,
       profile: {

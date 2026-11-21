@@ -7,6 +7,7 @@
 
 import type { StoredScreening } from "@/types/diseaseDetection";
 import type { AcneRegion, AcneSeverity } from "@/lib/acneGuidance";
+import { backendAuthHeaders } from "@/lib/backendAuth";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -113,12 +114,14 @@ export const resetBackendWakeState = (): void => {
 };
 
 const post = async <T>(path: string, body: unknown, timeoutMs = 50_000): Promise<T> => {
+  // Every analysis and assistant route needs the signed-in user's token.
+  const authHeaders = await backendAuthHeaders();
   const attempt = () =>
     fetchWithTimeout(
       `${API_BASE}${path}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(body),
       },
       timeoutMs
