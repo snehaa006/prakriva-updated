@@ -402,26 +402,59 @@ export async function fetchFoodoscopePath<T = unknown>(path: string): Promise<T>
   return apiFetch<T>(`${BASE_URL}${path}`);
 }
 
+// --- Reply shapes ---
+//
+// FoodOScope's published spec wraps every reply in `payload`
+// (`{ success, message, payload: { data, pagination } }`), but the live API
+// answers most endpoints flat (`{ success, message, data, pagination }`) and
+// moves the rest over without notice — recipesinfo's switch crashed Food
+// Explorer on `payload.data`. The readers below accept either shape, per reply.
+
+/** The object in a reply that holds `data`: its `payload` if wrapped, else the reply. */
+function replyBody<T>(reply: unknown): T {
+  const wrapped = (reply as { payload?: unknown } | null | undefined)?.payload;
+  return (wrapped && typeof wrapped === "object" ? wrapped : reply) as T;
+}
+
+/** The list in a reply. Throws a readable error naming what *was* there. */
+function listOf<T>(reply: unknown, what: string): T[] {
+  const body = replyBody<{ data?: unknown } | null | undefined>(reply);
+  if (Array.isArray(body?.data)) return body.data as T[];
+  const keys = body && typeof body === "object" ? Object.keys(body).join(", ") : String(body);
+  throw new FoodoscopeApiError(
+    `Unexpected FoodOScope reply for ${what}: no list in it (found: ${keys || "nothing"})`
+  );
+}
+
+/** A list plus its pagination; a single page stands in when the reply has none. */
+function pageOf<T>(reply: unknown, what: string, page: number) {
+  const data = listOf<T>(reply, what);
+  const body = replyBody<{ pagination?: PaginationInfo } & Partial<PaginationInfo>>(reply);
+  const pagination: PaginationInfo = body.pagination ?? {
+    totalCount: body.totalCount ?? body.totalResults ?? data.length,
+    totalPages: body.totalPages ?? 1,
+    currentPage: body.currentPage ?? page,
+  };
+  return { data, pagination };
+}
+
+/** A single record: `data` when the reply nests it there, else the body itself. */
+function recordOf<T>(reply: unknown): T {
+  const body = replyBody<{ data?: unknown }>(reply);
+  const inner = body?.data;
+  return (inner && typeof inner === "object" && !Array.isArray(inner) ? inner : body) as T;
+}
+
 // --- Endpoint 1: Get Recipes Info (paginated browse) ---
 export async function getRecipesInfo(page = 1, limit = 12) {
   const url = `${BASE_URL}/recipe/recipesinfo?page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: RecipeBasic[]; pagination: PaginationInfo };
-  }>(url);
-  return data.payload;
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes", page);
 }
 
 // --- Endpoint 2: Get Recipe of the Day ---
 export async function getRecipeOfDay() {
   const url = `${BASE_URL}/recipe/recipeofday`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: RecipeOfDay };
-  }>(url);
-  return data.payload.data;
+  return recordOf<RecipeOfDay>(await apiFetch<unknown>(url));
 }
 
 // --- Endpoint 3: Get Recipe of Day with Ingredient/Category Filters ---
@@ -433,34 +466,19 @@ export async function getRecipeDayWithFilters(
   if (excludeIngredients) params.set("excludeIngredients", excludeIngredients);
   if (excludeCategories) params.set("excludeCategories", excludeCategories);
   const url = `${BASE_URL}/recipe/recipe-day/with-ingredients-categories?${params}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    payload: RecipeOfDay;
-  }>(url);
-  return data.payload;
+  return recordOf<RecipeOfDay>(await apiFetch<unknown>(url));
 }
 
 // --- Endpoint 4: Get Nutrition Info (paginated) ---
 export async function getNutritionInfo(page = 1, limit = 10) {
   const url = `${BASE_URL}/recipe-nutri/nutritioninfo?page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: NutritionInfo[]; pagination: PaginationInfo };
-  }>(url);
-  return data.payload;
+  return pageOf<NutritionInfo>(await apiFetch<unknown>(url), "nutrition info", page);
 }
 
 // --- Endpoint 5: Get Micronutrition Info (paginated) ---
 export async function getMicronutritionInfo(page = 1, limit = 10) {
   const url = `${BASE_URL}/recipe-micronutri/micronutritioninfo?page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    payload: { data: MicronutritionInfo[]; pagination: PaginationInfo };
-  }>(url);
-  return data.payload;
+  return pageOf<MicronutritionInfo>(await apiFetch<unknown>(url), "micronutrition info", page);
 }
 
 // --- Endpoint 6: Get Recipes by Range ---
@@ -723,12 +741,7 @@ export async function getRecipeDayByCategory(
   params.set("page", String(page));
   params.set("limit", String(limit));
   const url = `${BASE_URL}/recipe-Day-category/?${params}`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: RecipeOfDay[] };
-  }>(url);
-  return data.payload.data;
+  return listOf<RecipeOfDay>(await apiFetch<unknown>(url), "recipes of the day");
 }
 
 // --- Endpoint 20: Get Recipes by Protein Range ---
@@ -770,12 +783,7 @@ export async function getRecipesByCategory(
   params.set("page", String(page));
   params.set("limit", String(limit));
   const url = `${BASE_URL}/category/?${params}`;
-  const data = await apiFetch<{
-    success: string;
-    message: string;
-    payload: { data: RecipeBasic[] };
-  }>(url);
-  return data.payload.data;
+  return listOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by category");
 }
 
 // --- Endpoint 22: Get Recipes by Ingredients/Categories/Title ---
@@ -801,12 +809,7 @@ export async function getRecipesByIngredientsCategoriesTitle(
   const url = `${BASE_URL}/recipebyingredient/by-ingredients-categories-title?${searchParams}`;
 
   try {
-    const data = await apiFetch<{
-      success: string;
-      message: string;
-      payload: { data: RecipeBasic[] };
-    }>(url);
-    return data.payload.data;
+    return listOf<RecipeBasic>(await apiFetch<unknown>(url), "recipe search");
   } catch (err) {
     // This endpoint answers 404 when no recipe contains every requested
     // ingredient — a normal outcome of a narrow filter, not a failure. Report

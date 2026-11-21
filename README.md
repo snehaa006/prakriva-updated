@@ -320,6 +320,9 @@ Coverage is focused on authentication, since that is the gate on both roles:
   `400` still failing fast, and a readable error when every key is exhausted.
 - `src/services/__tests__/foodoscopeLimit.test.ts` — the 10-result cap on every
   request, leaving every other query parameter byte-for-byte as it was.
+- `src/services/__tests__/foodoscopeReplyShape.test.ts` — payload-wrapped and
+  flat replies both read the same, a missing pagination standing in as one
+  page, and the readable error for a reply with no list.
 - `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
   unique labels, known categories, normalized search terms and alias lookup.
 - `src/services/__tests__/ingredientCatalogService.test.ts` — building the
@@ -2266,6 +2269,15 @@ still ask for more; they get pages of 10, and paging stays consistent because
 screens page by the API's own pagination totals. The ingredient catalogue
 therefore takes up to 50 ingredients per flavor category (5 pages) rather than
 500.
+
+**Reply shapes.** FoodOScope's published spec wraps every reply in `payload`
+(`{ success, message, payload: { data, pagination } }`), but the live API
+answers most endpoints flat (`{ success, message, data, pagination }`) and has
+been moving the rest over without notice. The readers in
+`foodoscopeApi.ts` that once expected `payload` go through `pageOf` /
+`listOf` / `recordOf`, which accept either shape per reply; a reply with
+neither fails with `Unexpected FoodOScope reply for …: no list in it (found:
+…)`, naming the fields it did contain, rather than a bare `undefined` error.
 
 **Retire exhausted keys.** Rotation gets past them, but every page load still
 spends one request on each exhausted key that sorts ahead of a working one
