@@ -318,6 +318,8 @@ Coverage is focused on authentication, since that is the gate on both roles:
   FoodOScope's real failure shapes: moving past a key that answers
   `400 Not enough tokens`, staying on the working key afterwards, a genuine
   `400` still failing fast, and a readable error when every key is exhausted.
+- `src/services/__tests__/foodoscopeLimit.test.ts` — the 10-result cap on every
+  request, leaving every other query parameter byte-for-byte as it was.
 - `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
   unique labels, known categories, normalized search terms and alias lookup.
 - `src/services/__tests__/ingredientCatalogService.test.ts` — building the
@@ -2255,6 +2257,15 @@ How rotation behaves:
   carrying the HTTP `status` and, for a `400`, FoodOScope's own reason (e.g.
   `API error: 400 Not enough tokens`). `getKeyPoolStatus()` from the same
   module returns a redacted snapshot of each key's state for debugging.
+
+**At most 10 results per request.** FoodOScope answers a `limit` above 10
+with `400 Limit cannot be greater than 10` instead of a shorter page, so
+`apiFetch` caps the `limit` parameter of every request at
+`FOODOSCOPE_MAX_LIMIT` (10), touching nothing else in the URL. Call sites may
+still ask for more; they get pages of 10, and paging stays consistent because
+screens page by the API's own pagination totals. The ingredient catalogue
+therefore takes up to 50 ingredients per flavor category (5 pages) rather than
+500.
 
 **Retire exhausted keys.** Rotation gets past them, but every page load still
 spends one request on each exhausted key that sorts ahead of a working one

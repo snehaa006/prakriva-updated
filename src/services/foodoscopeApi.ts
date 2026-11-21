@@ -314,7 +314,26 @@ export interface RecipeOfDay {
 // the key-rotation logic already knows how to route around.
 const REQUEST_TIMEOUT_MS = 15_000;
 
-async function apiFetch<T>(url: string): Promise<T> {
+/**
+ * The most results FoodOScope returns in one request. Asking for more is not
+ * a shorter page but a 400 ("Limit cannot be greater than 10"), which took
+ * Food Explorer down when it asked for 12. Every URL is capped here, in the
+ * one place all calls pass through, rather than at each call site. Callers
+ * page by the API's own pagination totals, so page counts stay consistent.
+ */
+export const FOODOSCOPE_MAX_LIMIT = 10;
+
+/** `url` with its `limit` query parameter lowered to the API's maximum. */
+export function capLimit(url: string): string {
+  // Only the limit value is touched: re-serialising the whole query string
+  // would re-encode the other parameters (commas in ingredient lists, etc.).
+  return url.replace(/([?&]limit=)(\d+)/, (match, prefix: string, value: string) =>
+    Number(value) > FOODOSCOPE_MAX_LIMIT ? `${prefix}${FOODOSCOPE_MAX_LIMIT}` : match
+  );
+}
+
+async function apiFetch<T>(rawUrl: string): Promise<T> {
+  const url = capLimit(rawUrl);
   await ensureRemoteKeys();
 
   let lastError: Error = new FoodoscopeApiError("No FoodOScope API key configured");
