@@ -258,6 +258,11 @@ class TestCalorieCalculation:
 
 class TestMealPlanGeneration:
     """Test meal plan generation"""
+
+    @pytest.fixture(autouse=True)
+    def _as_sample_patient(self, sign_in, sample_user_profile):
+        """/generate saves against Patient_ID, so sign in as that patient."""
+        sign_in(sample_user_profile["Patient_ID"])
     
     @patch('app.get_datasets')
     @patch('app.dosha_predictor')
@@ -350,7 +355,7 @@ class TestDatabaseOperations:
     """Test database operations"""
     
     @patch('app.db_manager')
-    def test_get_meal_plan_success(self, mock_db, client):
+    def test_get_meal_plan_success(self, mock_db, client, signed_in):
         """Test successful meal plan retrieval"""
         mock_plan = {
             "id": "test_plan_123",
@@ -368,7 +373,7 @@ class TestDatabaseOperations:
         assert data['data']['id'] == "test_plan_123"
     
     @patch('app.db_manager')
-    def test_get_meal_plan_not_found(self, mock_db, client):
+    def test_get_meal_plan_not_found(self, mock_db, client, signed_in):
         """Test meal plan not found"""
         mock_db.get_generated_plan.return_value = None
         
@@ -379,7 +384,7 @@ class TestDatabaseOperations:
         assert data['success'] is False
     
     @patch('app.db_manager')
-    def test_get_user_plans(self, mock_db, client):
+    def test_get_user_plans(self, mock_db, client, signed_in):
         """Test getting user meal plans"""
         mock_plans = [
             {"id": "plan1", "created_at": "2024-01-01T00:00:00Z"},
@@ -395,8 +400,11 @@ class TestDatabaseOperations:
         assert len(data['data']['plans']) == 2
     
     @patch('app.db_manager')
-    def test_edit_meal_plan(self, mock_db, client):
+    def test_edit_meal_plan(self, mock_db, client, sign_in, treating):
         """Test meal plan editing"""
+        sign_in("doctor_456")
+        treating(("doctor_456", "patient_1"))
+        mock_db.get_generated_plan.return_value = {"id": "test_plan_123", "user_id": "patient_1"}
         mock_db.save_doctor_edit.return_value = "edit_123"
         
         edit_data = {
@@ -414,10 +422,13 @@ class TestDatabaseOperations:
         data = json.loads(response.data)
         assert data['success'] is True
         assert data['data']['edit_id'] == "edit_123"
+        assert mock_db.save_doctor_edit.call_args.kwargs['doctor_id'] == "doctor_456"
     
     @patch('app.db_manager')
-    def test_submit_feedback(self, mock_db, client):
+    def test_submit_feedback(self, mock_db, client, sign_in):
         """Test feedback submission"""
+        sign_in("user_789")
+        mock_db.get_generated_plan.return_value = {"id": "test_plan_123", "user_id": "user_789"}
         mock_db.save_user_feedback.return_value = "feedback_123"
         
         feedback_data = {
@@ -457,6 +468,11 @@ class TestRateLimiting:
 
 class TestErrorHandling:
     """Test error handling"""
+
+    @pytest.fixture(autouse=True)
+    def _as_sample_patient(self, sign_in, sample_user_profile):
+        """/generate saves against Patient_ID, so sign in as that patient."""
+        sign_in(sample_user_profile["Patient_ID"])
     
     def test_404_handling(self, client):
         """Test 404 error handling"""
@@ -499,8 +515,10 @@ class TestUtilityEndpoints:
         assert 'food' in data['data']
     
     @patch('app.db_manager')
-    def test_analytics_endpoint(self, mock_db, client):
+    def test_analytics_endpoint(self, mock_db, client, signed_in, monkeypatch):
         """Test analytics endpoint"""
+        import auth
+        monkeypatch.setattr(auth, "_is_admin", lambda user_id: True)
         mock_analytics = {
             "total_plans": 100,
             "avg_rating": 4.2,
@@ -532,6 +550,11 @@ class TestIntegration:
 # Performance tests
 class TestPerformance:
     """Performance tests"""
+
+    @pytest.fixture(autouse=True)
+    def _as_sample_patient(self, sign_in, sample_user_profile):
+        """/generate saves against Patient_ID, so sign in as that patient."""
+        sign_in(sample_user_profile["Patient_ID"])
     
     @pytest.mark.performance
     def test_meal_plan_generation_time(self, client, sample_meal_plan_request):

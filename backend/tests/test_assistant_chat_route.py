@@ -21,6 +21,11 @@ def client():
     return flask_app.test_client()
 
 
+@pytest.fixture(autouse=True)
+def _signed_in(signed_in):
+    """The chatbot is for signed-in users; test_route_auth.py covers the 401."""
+
+
 class TestAssistantChat:
     def test_requires_a_message(self, client):
         resp = client.post("/assistant/chat", json={"context": {}})

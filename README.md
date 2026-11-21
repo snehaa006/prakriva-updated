@@ -86,6 +86,9 @@ listed under "Language and translation" below.
   the signed-in patient's own rows and downloads them as JSON.
 - `src/lib/theme.ts` — light/dark/system theme, applied as a class on `<html>`
   before the first render (`src/main.tsx`).
+- `src/lib/backendAuth.ts` — `backendAuthHeaders()`, the signed-in user's
+  `Authorization: Bearer <token>` header for calls to the Flask backend. See
+  "Backend authentication".
 - `src/test/` — Vitest setup (`setup.ts`), the Supabase client mock
   (`supabaseMock.ts`) and `renderPage.tsx` (renders a page with the router and
   a fresh react-query client, which pages need since they load through
@@ -95,7 +98,10 @@ listed under "Language and translation" below.
   (`dosha_estimator.py`, `dosha_model.pkl`), calorie calculation
   (`calorie_calculator.py`), meal planning (`planner.py`), and dataset/DB
   access (`dataset_loader.py`, `db.py`). Config comes from `config.py` and
-  `backend/.env` (see `backend/.env.example`).
+  `backend/.env` (see `backend/.env.example`). `auth.py` holds the bearer-token
+  checks (`require_auth`, `require_self`, `require_admin`) and the
+  doctor-patient access rule (`can_access_patient`); see "Backend
+  authentication".
 - `backend/disease_detection/` — the maternal disease detection pipeline:
   input/output models (`schemas.py`), the rule-based baseline detectors
   (`rules.py`), clinical next steps (`recommendations.py`) and the detector
@@ -223,6 +229,43 @@ rejected: the session is ended immediately and a toast directs the user to the
 correct sign-in page. This prevents a doctor from silently landing on the
 patient dashboard (or a patient on the doctor's).
 
+### Backend authentication
+
+The Flask backend holds the Supabase **service-role** key, which bypasses row
+level security, and it pays for every Gemini/Groq/OpenAI call. So it cannot
+rely on RLS to know who is asking: the routes that read or write patient data
+or spend model quota require the signed-in user's Supabase access token as
+`Authorization: Bearer <token>`, verified with Supabase on every request
+(`backend/auth.py`). The frontend attaches it through `backendAuthHeaders()`
+(`src/lib/backendAuth.ts`) in `analysisService.ts` and `dietChartService.ts`.
+
+| Needs a signed-in user | Public |
+| --- | --- |
+| `/assistant/chat`, `/assistant/doctor-chat`, `/assistant/ask` | `/`, `/health` |
+| `/analysis/screening`, `/analysis/extract-report`, `/analysis/acne-photo` | `/analysis/status` |
+| `/diet-chart/generate`, `/generate` | `/translate` (the logged-out landing page uses it) |
+| `/plan/<id>`, `/plan/<id>/edits`, `/plan/<id>/edit`, `/plan/<id>/feedback` | `/dosha/predict`, `/calories/calculate` |
+| `/user/<id>/plans` (own id only), `/analytics` (admins only) | `/disease/conditions`, `/disease/screen`, `/datasets/info`, `/test/validate` |
+
+The public ones are free, stateless calculations that read no stored data.
+Without a token the protected ones answer **401**; with one that is not allowed
+the record, **403**.
+
+**Who may touch a plan.** A plan belongs to its `user_id`. The patient herself
+and any doctor *treating* her may read it and its edits — "treating" meaning a
+`consultation_requests` row between them in `pending`, `accepted` or
+`completed`, the same `TREATED_STATUSES` the doctor's patient list uses
+(`src/hooks/useDoctorPatients.ts`). Only a treating doctor may file an edit,
+and edits and feedback are recorded under the verified caller: a `doctor_id` or
+`user_id` in the body is optional now, and refused if it names anyone else.
+`/generate` saves the plan for `Patient_ID` (or the caller when it is absent),
+which must likewise be the caller or a patient she treats.
+
+**Deploying a change to this.** Sending the header is harmless to a backend
+that does not check it, so ship the frontend before (or with) the backend.
+A browser tab still running the previous frontend will get 401s from the AI
+features until it is reloaded.
+
 ### Signing up with an email that already has an account
 
 Worth knowing when testing the auth screen, because Supabase makes this case
@@ -256,8 +299,13 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/authService.test.ts` — signup metadata for each role,
   role lookup with retries, post-auth routing, and Supabase error mapping.
 - `src/pages/auth/__tests__/Login.test.tsx` — the rendered screen for both
-  roles: patient sign-in and sign-up, doctor sign-in, and the full four-step
-  doctor sign-up wizard including license verification.
+  roles: patient sign-in and sign-up, doctor sign-in, cross-role sign-in being
+  turned away, and the full four-step doctor sign-up wizard including license
+  verification.
+- `src/lib/__tests__/backendAuth.test.ts` and the "authentication" block of
+  `src/services/__tests__/analysisService.test.ts` — the bearer header sent to
+  the backend, its absence when signed out, and a session that cannot be read
+  not stopping the request.
 - `src/services/__tests__/diseaseDetectionService.test.ts` — the questionnaire →
   screening-form mapping, the screening API client, and the Supabase read/write
   of stored screenings (including the missing-table fallback).
@@ -305,7 +353,14 @@ Coverage is focused on authentication, since that is the gate on both roles:
   started, re-translating what a re-render puts back in English, preserved
   whitespace, and an exact restore on stop.
 
-On the backend, `backend/tests/test_disease_detection.py` covers input
+On the backend, `backend/tests/test_route_auth.py` covers "Backend
+authentication": every protected route refusing an anonymous caller, the free
+routes staying public, plan access for the patient, her doctor and nobody else,
+and the doctor-patient lookup failing closed. `backend/tests/conftest.py`
+provides the fixtures for it — `signed_in` / `sign_in(user_id)` stand in for a
+verified token, and `treating((doctor, patient))` for consultation rows — so
+tests of protected routes sign in rather than skip the check.
+`backend/tests/test_disease_detection.py` covers input
 validation, each rule-based detector, the detector registry (including swapping
 a detector out) and the `/disease/*` endpoints.
 `backend/tests/test_dataset_loader.py` covers `load_all_datasets` directly —
@@ -1024,8 +1079,9 @@ Four things are deliberate here:
 4. **The backend never looks a patient up.** Every Gemini-backed endpoint is
    handed already-fetched data by the caller (itself scoped by Supabase RLS to
    the signed-in patient's own rows) rather than querying Supabase itself, so
-   none of them can leak another patient's data even without their own auth
-   check.
+   none of them can leak another patient's data. They still require a
+   signed-in caller's bearer token, so the model quota cannot be spent by
+   anyone who finds the URL — see "Backend authentication".
 
 All Gemini features hide themselves when no key is set (the frontend asks
 `/analysis/status` first), and a Gemini outage degrades to the existing

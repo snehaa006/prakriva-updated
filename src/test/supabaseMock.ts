@@ -26,6 +26,8 @@ export const createSupabaseMock = () => {
     error: null,
   }));
 
+  const signOut = vi.fn(async () => ({ error: null }));
+
   const from = vi.fn((table: string) => {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
@@ -42,11 +44,12 @@ export const createSupabaseMock = () => {
 
   return {
     supabase: {
-      auth: { signUp, signInWithPassword },
+      auth: { signUp, signInWithPassword, signOut },
       from,
     },
     signUp,
     signInWithPassword,
+    signOut,
     from,
     setTable(table: string, response: TableResponse) {
       tableResponses.set(table, response);
@@ -55,6 +58,7 @@ export const createSupabaseMock = () => {
       tableResponses.clear();
       signUp.mockClear();
       signInWithPassword.mockClear();
+      signOut.mockClear();
       from.mockClear();
     },
   };

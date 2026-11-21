@@ -428,6 +428,10 @@ class TestKeyCollection:
 # ---------------------------------------------------------------------------
 
 class TestEndpoint:
+    @pytest.fixture(autouse=True)
+    def _signed_in(self, signed_in):
+        """The route needs a signed-in caller; test_route_auth.py covers the 401."""
+
     @pytest.fixture
     def client(self):
         from app import app
