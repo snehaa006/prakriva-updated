@@ -1,5 +1,5 @@
 // src/pages/doctor/FoodExplorer.tsx
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useFoodContext, Food } from "@/context/FoodContext";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,7 @@ import {
   RecipeOfDay,
 } from "@/services/foodoscopeApi";
 import { PatientPantryPanel } from "@/components/patients/PatientPantryPanel";
+import { hasFullMacros, macrosOf, type RecipeMacros } from "@/lib/recipeMacros";
 
 // --- Constants ---
 
@@ -154,15 +155,17 @@ function recipeToFood(recipe: RecipeBasic): Food {
   const isOvoLactoVeg = parseFloat(recipe.ovo_lacto_vegetarian || "0") === 1;
   const isOvoVeg = parseFloat(recipe.ovo_vegetarian || "0") === 1;
   const isVegetarian = isVegan || isLactoVeg || isOvoLactoVeg || isOvoVeg;
+  // Under whichever names this recipe's endpoint uses (see recipeMacros.ts).
+  const macros = macrosOf(recipe);
 
   return {
     id: recipe.Recipe_id || recipe._id,
     Food_Item: recipe.Recipe_title,
     Category: recipe.Region || "Unknown",
-    Calories: Number(recipe.Calories) || 0,
-    Protein: Number(recipe["Protein (g)"]) || 0,
-    Carbs: Number(recipe["Carbohydrate, by difference (g)"]) || 0,
-    Fat: Number(recipe["Total lipid (fat) (g)"]) || 0,
+    Calories: macros.calories ?? 0,
+    Protein: macros.protein ?? 0,
+    Carbs: macros.carbs ?? 0,
+    Fat: macros.fat ?? 0,
     Vegetarian: isVegetarian ? "Yes" : "No",
     Vegan: isVegan ? "Yes" : "No",
     Dosha_Vata: "Neutral",
@@ -170,6 +173,22 @@ function recipeToFood(recipe: RecipeBasic): Food {
     Dosha_Kapha: "Neutral",
     Food_Group: recipe.Continent || "General",
   };
+}
+
+/**
+ * A recipe as a selectable food with its real macros. Most FoodOScope lists
+ * leave some out (search and cuisine carry calories only), so when the card's
+ * recipe lacks them the full record is fetched first — otherwise the selection
+ * summary would add up 0g. If that fetch fails, the food is added as it is.
+ */
+async function toSelectableFood(recipe: RecipeBasic): Promise<Food> {
+  if (hasFullMacros(recipe) || !recipe.Recipe_id) return recipeToFood(recipe);
+  try {
+    const { recipe: full } = await searchRecipeById(recipe.Recipe_id);
+    return recipeToFood({ ...recipe, ...full });
+  } catch {
+    return recipeToFood(recipe);
+  }
 }
 
 function getDietBadges(recipe: RecipeBasic) {
@@ -722,8 +741,8 @@ function RecipeOfDayCard() {
             {!isAlreadySelected ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  addToSelectedFoods(recipeToFood(rotd as unknown as RecipeBasic));
+                onClick={async () => {
+                  addToSelectedFoods(await toSelectableFood(rotd as unknown as RecipeBasic));
                   toast.success(`Added ${rotd.Recipe_title} to selection`);
                 }}
                 className="gap-1"
@@ -859,6 +878,50 @@ const FoodExplorer: React.FC = () => {
     removeFromSelectedFoods,
     setSelectedFoods,
   } = useFoodContext();
+
+  // The selection is saved in the browser, and adding a recipe already in it
+  // keeps the first copy. Recipes first added from a list without macros (the
+  // search and cuisine lists carry calories only) were saved at 0g and stayed
+  // there. Fill each such FoodOScope recipe in once from its full record.
+  const macroBackfillTried = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = selectedFoods.filter(
+      (food) =>
+        /^\d+$/.test(food.id) && // FoodOScope recipe ids; local foods are left alone
+        !food.Protein &&
+        !food.Carbs &&
+        !food.Fat &&
+        !macroBackfillTried.current.has(food.id)
+    );
+    if (missing.length === 0) return;
+    missing.forEach((food) => macroBackfillTried.current.add(food.id));
+
+    void Promise.all(
+      missing.map((food) =>
+        searchRecipeById(food.id)
+          .then(({ recipe }) => [food.id, macrosOf(recipe)] as const)
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const found = new Map<string, RecipeMacros>(
+        results.filter((entry): entry is readonly [string, RecipeMacros] => entry !== null)
+      );
+      if (found.size === 0) return;
+      setSelectedFoods((prev) =>
+        prev.map((food) => {
+          const macros = found.get(food.id);
+          return macros
+            ? {
+                ...food,
+                Protein: macros.protein ?? food.Protein,
+                Carbs: macros.carbs ?? food.Carbs,
+                Fat: macros.fat ?? food.Fat,
+              }
+            : food;
+        })
+      );
+    });
+  }, [selectedFoods, setSelectedFoods]);
 
   // --- Filter State ---
   const [searchTitle, setSearchTitle] = useState("");
@@ -1307,8 +1370,8 @@ const FoodExplorer: React.FC = () => {
             {!selected ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  addToSelectedFoods(recipeToFood(recipe));
+                onClick={async () => {
+                  addToSelectedFoods(await toSelectableFood(recipe));
                   toast.success(`Added ${recipe.Recipe_title} to selection`);
                 }}
                 className="flex-1 gap-1"
@@ -1403,8 +1466,8 @@ const FoodExplorer: React.FC = () => {
               {!selected ? (
                 <Button
                   size="sm"
-                  onClick={() => {
-                    addToSelectedFoods(recipeToFood(recipe));
+                  onClick={async () => {
+                    addToSelectedFoods(await toSelectableFood(recipe));
                     toast.success(`Added ${recipe.Recipe_title} to selection`);
                   }}
                 >

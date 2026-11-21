@@ -289,6 +289,44 @@ class TestGenerateDietChart:
         prompt = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
         assert f"Compose a {diet_planner.MAX_DAYS}-day" in prompt
 
+    def test_thinking_is_switched_off_inside_generation_config(self, payload):
+        # Gemini only knows thinkingConfig as part of generationConfig. Sent at
+        # the top level of the request it rejects the whole call with
+        # 400 "Unknown name thinkingConfig", and every AI chart fell back to
+        # the FoodOScope recipes.
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", return_value=ok_response(gemini_reply())) as post:
+            diet_planner.generate_diet_chart(payload)
+
+        sent = post.call_args.kwargs["json"]
+        assert "thinkingConfig" not in sent
+        assert sent["generationConfig"]["thinkingConfig"] == {"thinkingBudget": 0}
+
+    def test_a_model_that_cannot_switch_thinking_off_is_asked_again_with_it_on(self, payload):
+        refused = FakeResponse(400, {"error": {
+            "status": "INVALID_ARGUMENT",
+            "message": "Budget 0 is invalid. This model only works in thinking mode.",
+        }})
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post",
+                   side_effect=[refused, ok_response(gemini_reply())]) as post:
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["source"] == "gemini"
+        first, second = (call.kwargs["json"]["generationConfig"] for call in post.call_args_list)
+        assert first["thinkingConfig"] == {"thinkingBudget": 0}
+        assert "thinkingConfig" not in second
+
+    def test_an_unrelated_bad_request_is_not_retried(self, payload):
+        bad = FakeResponse(400, {"error": {
+            "status": "INVALID_ARGUMENT", "message": "Request contains an invalid argument.",
+        }})
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", return_value=bad) as post:
+            with pytest.raises(GeminiUnavailable):
+                diet_planner.generate_diet_chart(payload)
+        assert post.call_count == 1
+
     def test_without_a_key_it_is_unavailable(self, payload):
         with patch.object(settings, "GEMINI_API_KEYS", []):
             with pytest.raises(GeminiUnavailable):

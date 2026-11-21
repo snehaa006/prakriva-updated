@@ -869,6 +869,12 @@ def generate(
     raise gemini_error or GeminiUnavailable("No LLM provider is configured")
 
 
+def _rejects_thinking_budget(error: str) -> bool:
+    """Whether a Gemini error is a 400 about the thinking budget/config."""
+    lowered = error.lower()
+    return "http 400" in lowered and ("thinking" in lowered or "budget" in lowered)
+
+
 def generate_json(
     prompt: str,
     system_rules: str,
@@ -896,13 +902,18 @@ def generate_json(
         "responseMimeType": "application/json",
     }
 
+    if disable_thinking:
+        # thinkingConfig belongs INSIDE generationConfig. At the top level of
+        # the request Gemini rejects the whole call with 400 INVALID_ARGUMENT
+        # ("Unknown name thinkingConfig") — which is what silently turned every
+        # AI diet chart into the FoodOScope fallback.
+        gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+
     payload: Dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": system_rules}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": gen_config,
     }
-    if disable_thinking:
-        payload["thinkingConfig"] = {"thinkingBudget": 0}
 
     effective_timeout = timeout or settings.GEMINI_TIMEOUT_SECONDS
 
@@ -911,9 +922,26 @@ def generate_json(
         # won't be eaten by reasoning tokens, and the retry doubles wall time.
         # A wall-clock deadline prevents the model cascade from stacking up.
         deadline = time.monotonic() + effective_timeout
-        text = _first_text(
-            _post_gemini(payload, timeout=effective_timeout, deadline=deadline)
-        )
+        try:
+            text = _first_text(
+                _post_gemini(payload, timeout=effective_timeout, deadline=deadline)
+            )
+        except GeminiUnavailable as exc:
+            if not _rejects_thinking_budget(str(exc)):
+                raise
+            # Some models cannot switch thinking off and answer a zero budget
+            # with 400. Rather than lose the AI chart, ask once more with the
+            # model's own thinking, inside the same deadline.
+            logger.warning(f"Gemini refused a zero thinking budget ({exc}); retrying with thinking on")
+            with_thinking = {
+                **payload,
+                "generationConfig": {
+                    k: v for k, v in gen_config.items() if k != "thinkingConfig"
+                },
+            }
+            text = _first_text(
+                _post_gemini(with_thinking, timeout=effective_timeout, deadline=deadline)
+            )
     else:
         text = _text_from(payload, timeout=effective_timeout)
 

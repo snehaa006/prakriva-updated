@@ -886,6 +886,11 @@ export interface GeneratedDietChart {
   generatedAt: string;
   /** Which generator produced this chart. */
   source: "gemini" | "foodoscope";
+  /**
+   * Why the AI planner was not used, when `source` is "foodoscope". Shown to
+   * the doctor so a broken AI path is visible rather than silently replaced.
+   */
+  fallbackReason?: string;
   /** How the disease screening results shaped the plan (Gemini only). */
   clinicalFocus?: string[];
   /** Ingredients the plan needs that aren't in the patient's kitchen yet. */
@@ -1307,6 +1312,7 @@ export async function generateDietChart(
     return await generateDietChartWithAI(profile, numDays, context);
   } catch (err) {
     console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
-    return generateDietChartFromRecipes(profile, numDays, context.adjustment);
+    const chart = await generateDietChartFromRecipes(profile, numDays, context.adjustment);
+    return { ...chart, fallbackReason: err instanceof Error ? err.message : String(err) };
   }
 }

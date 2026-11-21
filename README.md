@@ -86,6 +86,11 @@ listed under "Language and translation" below.
   the signed-in patient's own rows and downloads them as JSON.
 - `src/lib/theme.ts` — light/dark/system theme, applied as a class on `<html>`
   before the first render (`src/main.tsx`).
+- `src/lib/recipeMacros.ts` — a FoodOScope recipe's calories, protein, carbs
+  and fat under whichever field names its endpoint uses. Food Explorer adds
+  recipes through it, fetching the full recipe first when the list left the
+  macros out, so the selection summary never adds up 0g. See "FoodOScope API key
+  rotation".
 - `src/lib/backendAuth.ts` — `backendAuthHeaders()`, the signed-in user's
   `Authorization: Bearer <token>` header for calls to the Flask backend. See
   "Backend authentication".
@@ -320,6 +325,8 @@ Coverage is focused on authentication, since that is the gate on both roles:
   `400` still failing fast, and a readable error when every key is exhausted.
 - `src/services/__tests__/foodoscopeLimit.test.ts` — the 10-result cap on every
   request, leaving every other query parameter byte-for-byte as it was.
+- `src/lib/__tests__/recipeMacros.test.ts` — macros read under each endpoint's
+  field names, and missing values left undefined rather than counted as 0.
 - `src/services/__tests__/foodoscopeLiveReplies.test.ts` — every FoodOScope
   reader run on a reply recorded from the live API
   (`__tests__/fixtures/foodoscope/`): lists, page counts taken from `meta`, the
@@ -1427,7 +1434,19 @@ exhausted (`POST /diet-chart/generate` → 503), generation falls back to the
 original FoodOScope path: recipes filtered by dosha, life stage and calorie
 range, dealt into meal slots. That chart is tagged `source: "foodoscope"` and
 the toast says so — it knows nothing about the kitchen or the screening, and the
-doctor should be told which one they got.
+doctor should be told which one they got. The toast also carries **why** the AI
+planner was not used (the chart's `fallbackReason`, e.g. a Gemini error or an
+expired sign-in), so a broken AI path is visible on the screen instead of being
+quietly replaced by the recipe chart.
+
+**Thinking is switched off for speed.** The chart request sets
+`generationConfig.thinkingConfig.thinkingBudget = 0` (`gemini_service.generate_json`)
+so the whole output budget goes to the plan. It must sit *inside*
+`generationConfig`: placed at the top level of the request, Gemini rejects the
+call with `400 Unknown name "thinkingConfig"`, and for a while every chart
+silently became the FoodOScope fallback. A model that cannot switch thinking
+off answers a zero budget with a 400; the request is then retried once with the
+model's own thinking, within the same 60-second deadline.
 
 ## Community
 
@@ -2297,6 +2316,16 @@ counts as a `PageInfo` that carries every name the screens read
 fields it did contain. The cuisine endpoint takes `limit` (it rejects the old
 `page_size`), and `/recipes/range` accepts only `total_time`, `prep_time` or
 `cook_time` as its `field`.
+
+**Nutrients differ per list.** Browse and `/search-recipe` carry all four values
+(`Calories`, `Protein (g)`, `Total lipid (fat) (g)`, `Carbohydrate, by
+difference (g)`); `/category` names them `Protein`, `Fat`, `Carbohydrate`; the
+diet lists carry protein only; title search, cuisine and the ingredient search
+carry calories alone. Food Explorer reads them through `src/lib/recipeMacros.ts`
+and, when a card's recipe lacks them, fetches its full record before adding it
+to the selection. Recipes already saved in a doctor's selection at 0g (from
+before this) are filled in once, automatically, the next time Food Explorer
+opens.
 
 **If FoodOScope changes shape again**, re-record one reply per endpoint into
 `src/services/__tests__/fixtures/foodoscope/` (trimmed to structure; they hold

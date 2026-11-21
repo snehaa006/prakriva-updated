@@ -594,7 +594,9 @@ const RecipeBuilder = () => {
       toast.success(
         chart.source === "gemini"
           ? `${chart.days.length}-day plan generated (${chart.primaryDosha.toUpperCase()} dosha, personalised to her kitchen). Drag & drop to adjust, then save.`
-          : `${chart.days.length}-day plan generated from the recipe database (${chart.primaryDosha.toUpperCase()} dosha) — the AI planner was unavailable. Drag & drop to adjust, then save.`
+          : `${chart.days.length}-day plan generated from the recipe database (${chart.primaryDosha.toUpperCase()} dosha) — the AI planner was unavailable${
+              chart.fallbackReason ? ` (${chart.fallbackReason})` : ""
+            }. Drag & drop to adjust, then save.`
       );
 
       if (chart.rejectedMeals?.length) {
