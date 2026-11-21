@@ -85,6 +85,16 @@ class Settings:
         self.GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
         self.GROQ_TIMEOUT_SECONDS = int(os.getenv("GROQ_TIMEOUT_SECONDS", 45))
 
+        # Which provider answers chat-style text first: "groq" (default) or
+        # "gemini". Groq is fast and has its own quota, so the chatbot and the
+        # written analyses no longer compete with diet charts (which always
+        # use Gemini) for Gemini's quota. The other provider is the fallback.
+        self.LLM_TEXT_PRIMARY = os.getenv("LLM_TEXT_PRIMARY", "groq").strip().lower()
+        # Total seconds one chat reply may take across every provider tried.
+        # Kept under the frontend's 50 s wait, so the doctor or patient always
+        # gets a reply or a clear error instead of a silent timeout.
+        self.CHAT_DEADLINE_SECONDS = int(os.getenv("CHAT_DEADLINE_SECONDS", 40))
+
         # Supabase. The service-role key bypasses RLS, so it must never be
         # exposed to the browser — server-side only.
         # Falls back to the VITE_-prefixed frontend vars when the

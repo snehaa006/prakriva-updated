@@ -1,5 +1,5 @@
 // src/pages/doctor/FoodExplorer.tsx
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useFoodContext, Food } from "@/context/FoodContext";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,7 @@ import {
   RecipeOfDay,
 } from "@/services/foodoscopeApi";
 import { PatientPantryPanel } from "@/components/patients/PatientPantryPanel";
-import { hasFullMacros, macrosOf, type RecipeMacros } from "@/lib/recipeMacros";
+import { hasFullMacros, macrosOf, perServingMacros, type RecipeMacros } from "@/lib/recipeMacros";
 
 // --- Constants ---
 
@@ -155,8 +155,9 @@ function recipeToFood(recipe: RecipeBasic): Food {
   const isOvoLactoVeg = parseFloat(recipe.ovo_lacto_vegetarian || "0") === 1;
   const isOvoVeg = parseFloat(recipe.ovo_vegetarian || "0") === 1;
   const isVegetarian = isVegan || isLactoVeg || isOvoLactoVeg || isOvoVeg;
-  // Under whichever names this recipe's endpoint uses (see recipeMacros.ts).
-  const macros = macrosOf(recipe);
+  // Under whichever names this recipe's endpoint uses, scaled to one serving
+  // so they sit on the same basis as its calories (see recipeMacros.ts).
+  const macros = perServingMacros(macrosOf(recipe));
 
   return {
     id: recipe.Recipe_id || recipe._id,
@@ -204,6 +205,17 @@ function getDietBadges(recipe: RecipeBasic) {
   if (parseFloat(recipe.pescetarian || "0") === 1)
     badges.push({ label: "Pescetarian", color: "bg-plum-100 text-plum-800" });
   return badges;
+}
+
+/**
+ * Protein, carbs and fat for one serving. FoodOScope's "Calories" is per
+ * serving but its macros are for the whole dish — a card read "45 cal · 73.2g
+ * fat". When a list left some macros out they cannot be scaled, so they show
+ * as "—" (the Details view loads the full record).
+ */
+function servingOf(recipe: object): RecipeMacros {
+  const macros = perServingMacros(macrosOf(recipe));
+  return hasFullMacros(recipe) ? macros : { calories: macros.calories };
 }
 
 function formatNumber(val: string | number | undefined): string {
@@ -457,19 +469,19 @@ function RecipeDetailModal({
                     </div>
                     <div className="text-center p-3 rounded-xl bg-rose-50">
                       <p className="text-xl font-bold text-rose-700">
-                        {formatNumber(recipe["Protein (g)"])}g
+                        {formatNumber(servingOf(recipe).protein)}g
                       </p>
                       <p className="text-xs text-muted-foreground">Protein</p>
                     </div>
                     <div className="text-center p-3 rounded-xl bg-plum-50">
                       <p className="text-xl font-bold text-plum-700">
-                        {formatNumber(recipe["Carbohydrate, by difference (g)"])}g
+                        {formatNumber(servingOf(recipe).carbs)}g
                       </p>
                       <p className="text-xs text-muted-foreground">Carbs</p>
                     </div>
                     <div className="text-center p-3 rounded-xl bg-rose-50">
                       <p className="text-xl font-bold text-rose-700">
-                        {formatNumber(recipe["Total lipid (fat) (g)"])}g
+                        {formatNumber(servingOf(recipe).fat)}g
                       </p>
                       <p className="text-xs text-muted-foreground">Fat</p>
                     </div>
@@ -690,19 +702,19 @@ function RecipeOfDayCard() {
               <div>
                 <span className="text-muted-foreground">Protein:</span>{" "}
                 <span className="font-medium">
-                  {formatNumber(rotd["Protein (g)"])}g
+                  {formatNumber(servingOf(rotd).protein)}g
                 </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Carbs:</span>{" "}
                 <span className="font-medium">
-                  {formatNumber(rotd["Carbohydrate, by difference (g)"])}g
+                  {formatNumber(servingOf(rotd).carbs)}g
                 </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Fat:</span>{" "}
                 <span className="font-medium">
-                  {formatNumber(rotd["Total lipid (fat) (g)"])}g
+                  {formatNumber(servingOf(rotd).fat)}g
                 </span>
               </div>
             </div>
@@ -879,49 +891,6 @@ const FoodExplorer: React.FC = () => {
     setSelectedFoods,
   } = useFoodContext();
 
-  // The selection is saved in the browser, and adding a recipe already in it
-  // keeps the first copy. Recipes first added from a list without macros (the
-  // search and cuisine lists carry calories only) were saved at 0g and stayed
-  // there. Fill each such FoodOScope recipe in once from its full record.
-  const macroBackfillTried = useRef(new Set<string>());
-  useEffect(() => {
-    const missing = selectedFoods.filter(
-      (food) =>
-        /^\d+$/.test(food.id) && // FoodOScope recipe ids; local foods are left alone
-        !food.Protein &&
-        !food.Carbs &&
-        !food.Fat &&
-        !macroBackfillTried.current.has(food.id)
-    );
-    if (missing.length === 0) return;
-    missing.forEach((food) => macroBackfillTried.current.add(food.id));
-
-    void Promise.all(
-      missing.map((food) =>
-        searchRecipeById(food.id)
-          .then(({ recipe }) => [food.id, macrosOf(recipe)] as const)
-          .catch(() => null)
-      )
-    ).then((results) => {
-      const found = new Map<string, RecipeMacros>(
-        results.filter((entry): entry is readonly [string, RecipeMacros] => entry !== null)
-      );
-      if (found.size === 0) return;
-      setSelectedFoods((prev) =>
-        prev.map((food) => {
-          const macros = found.get(food.id);
-          return macros
-            ? {
-                ...food,
-                Protein: macros.protein ?? food.Protein,
-                Carbs: macros.carbs ?? food.Carbs,
-                Fat: macros.fat ?? food.Fat,
-              }
-            : food;
-        })
-      );
-    });
-  }, [selectedFoods, setSelectedFoods]);
 
   // --- Filter State ---
   const [searchTitle, setSearchTitle] = useState("");
@@ -1314,19 +1283,19 @@ const FoodExplorer: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Protein:</span>
                 <span className="font-medium">
-                  {formatNumber(recipe["Protein (g)"])}g
+                  {formatNumber(servingOf(recipe).protein)}g
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Carbs:</span>
                 <span className="font-medium">
-                  {formatNumber(recipe["Carbohydrate, by difference (g)"])}g
+                  {formatNumber(servingOf(recipe).carbs)}g
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Fat:</span>
                 <span className="font-medium">
-                  {formatNumber(recipe["Total lipid (fat) (g)"])}g
+                  {formatNumber(servingOf(recipe).fat)}g
                 </span>
               </div>
             </div>
@@ -1438,10 +1407,10 @@ const FoodExplorer: React.FC = () => {
               </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                 <span>{formatNumber(recipe.Calories)} cal</span>
-                <span>{formatNumber(recipe["Protein (g)"])}g protein</span>
-                <span>{formatNumber(recipe["Total lipid (fat) (g)"])}g fat</span>
+                <span>{formatNumber(servingOf(recipe).protein)}g protein</span>
+                <span>{formatNumber(servingOf(recipe).fat)}g fat</span>
                 <span>
-                  {formatNumber(recipe["Carbohydrate, by difference (g)"])}g carbs
+                  {formatNumber(servingOf(recipe).carbs)}g carbs
                 </span>
                 {recipe.total_time && recipe.total_time !== "0" && (
                   <span className="flex items-center gap-1">
@@ -2019,6 +1988,10 @@ const FoodExplorer: React.FC = () => {
             <CardTitle className="text-lg">
               Selected Foods Nutrition Summary
             </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Per serving. FoodOScope lists protein, carbs and fat for the whole dish, so they are
+              scaled to one serving to match the calories.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

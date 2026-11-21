@@ -4,9 +4,12 @@ import {
   useState,
   ReactNode,
   useEffect,
+  useRef,
 } from "react";
 import { readCache, writeCache, CACHE_KEYS, ONE_DAY_MS } from "@/lib/localCache";
 import { usePersistentState } from "@/hooks/usePersistentState";
+import { macrosOf, perServingMacros, type RecipeMacros } from "@/lib/recipeMacros";
+import { searchRecipeById } from "@/services/foodoscopeApi";
 
 export interface Food {
   id: string; // Unique ID for React keys
@@ -67,6 +70,62 @@ export const FoodProvider = ({ children }: { children: ReactNode }) => {
       })
       .catch((err) => console.error("Error loading food database:", err));
   }, []);
+
+  // The selection is saved in the browser and re-adding a recipe keeps the
+  // first copy, so FoodOScope recipes saved earlier can hold whole-dish macros
+  // (73 g fat beside 45 per-serving calories) or none at all (added from a list
+  // that left them out: the palette read "g protein · g fat"). Correct each
+  // once: scale complete ones to a serving in place, and fill incomplete ones
+  // from the recipe's full record. Local foods (non-numeric ids) are left alone.
+  const nutrientFixTried = useRef(new Set<string>());
+  useEffect(() => {
+    const isRecipe = (food: Food) => /^\d+$/.test(food.id);
+    const incomplete = (food: Food) => [food.Protein, food.Carbs, food.Fat].filter((v) => !v).length >= 2;
+
+    let scaledAny = false;
+    const scaled = selectedFoods.map((food) => {
+      if (!isRecipe(food) || incomplete(food)) return food;
+      const serving = perServingMacros({
+        calories: food.Calories, protein: food.Protein, carbs: food.Carbs, fat: food.Fat,
+      });
+      if (serving.protein === food.Protein && serving.carbs === food.Carbs && serving.fat === food.Fat) {
+        return food;
+      }
+      scaledAny = true;
+      return { ...food, Protein: serving.protein ?? 0, Carbs: serving.carbs ?? 0, Fat: serving.fat ?? 0 };
+    });
+    if (scaledAny) {
+      setSelectedFoods(scaled);
+      return;
+    }
+
+    const missing = selectedFoods.filter(
+      (food) => isRecipe(food) && incomplete(food) && !nutrientFixTried.current.has(food.id)
+    );
+    if (missing.length === 0) return;
+    missing.forEach((food) => nutrientFixTried.current.add(food.id));
+
+    void Promise.all(
+      missing.map((food) =>
+        searchRecipeById(food.id)
+          .then(({ recipe }) => [food.id, perServingMacros(macrosOf(recipe))] as const)
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const found = new Map<string, RecipeMacros>(
+        results.filter((entry): entry is readonly [string, RecipeMacros] => entry !== null)
+      );
+      if (found.size === 0) return;
+      setSelectedFoods((prev) =>
+        prev.map((food) => {
+          const macros = found.get(food.id);
+          return macros && macros.protein !== undefined && macros.carbs !== undefined && macros.fat !== undefined
+            ? { ...food, Protein: macros.protein, Carbs: macros.carbs, Fat: macros.fat }
+            : food;
+        })
+      );
+    });
+  }, [selectedFoods, setSelectedFoods]);
 
   // 🔹 Add to selectedFoods (no duplicates)
   const addToSelectedFoods = (food: Food) => {

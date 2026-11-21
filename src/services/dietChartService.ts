@@ -13,6 +13,7 @@ import {
   RecipeBasic,
 } from "./foodoscopeApi";
 import { backendAuthHeaders } from "@/lib/backendAuth";
+import { hasFullMacros, macrosOf, perServingMacros } from "@/lib/recipeMacros";
 
 // --- Medical Guidelines by Life Stage ---
 
@@ -748,15 +749,15 @@ async function fetchWithRetry<T>(
   }
 }
 
-// --- Estimate macros from calories when API doesn't return them ---
+// --- Estimate macros from calories when no usable values exist ---
 
 function ensureMacros(recipe: RecipeBasic): RecipeBasic {
   const cal = Number(recipe.Calories || recipe["Energy (kcal)"] || 0);
-  const hasProtein = recipe["Protein (g)"] && Number(recipe["Protein (g)"]) > 0;
-  const hasCarbs = recipe["Carbohydrate, by difference (g)"] && Number(recipe["Carbohydrate, by difference (g)"]) > 0;
-  const hasFat = recipe["Total lipid (fat) (g)"] && Number(recipe["Total lipid (fat) (g)"]) > 0;
 
-  if (!hasProtein && !hasCarbs && !hasFat && cal > 0) {
+  // Incomplete counts as missing: FoodOScope's diet lists carry protein alone,
+  // and that figure is for the whole recipe, so it cannot be scaled to a
+  // serving without the other two. Keeping it showed "0g fat · 0g carbs".
+  if (!hasFullMacros(recipe) && cal > 0) {
     // Standard macro distribution: 20% protein, 50% carbs, 30% fat
     return {
       ...recipe,
@@ -794,15 +795,21 @@ export async function fetchRecipesForMeal(
       const searchExcludes = excludeIngredients.slice(0, 5).join(",");
       const searchCategories = focusCategories.slice(0, 3).join(",");
 
-      const results = await fetchWithRetry(() =>
-        getRecipesByIngredientsCategoriesTitle({
-          includeIngredients: searchIncludes || undefined,
-          excludeIngredients: searchExcludes || undefined,
-          includeCategories: searchCategories || undefined,
-          page: Math.floor(Math.random() * 5) + 1,
-          limit: 20,
-        })
-      );
+      const search = (page: number) =>
+        fetchWithRetry(() =>
+          getRecipesByIngredientsCategoriesTitle({
+            includeIngredients: searchIncludes || undefined,
+            excludeIngredients: searchExcludes || undefined,
+            includeCategories: searchCategories || undefined,
+            page,
+            limit: 20,
+          })
+        );
+      // A random page for variety; a narrow search often has a single page,
+      // so an empty later page falls back to the first rather than to nothing.
+      const page = Math.floor(Math.random() * 5) + 1;
+      let results = await search(page);
+      if ((!results || results.length === 0) && page > 1) results = await search(1);
 
       if (results && results.length > 0) {
         // Filter by calorie range client-side
@@ -983,6 +990,69 @@ export function applyIngredientAdjustment(
   return { excludeIngredients, includeIngredients };
 }
 
+// --- Real per-serving nutrients for the recipes a chart uses ---
+
+/** Full FoodOScope records fetched this session, by Recipe_id. */
+const fullRecipeCache = new Map<string, RecipeBasic>();
+
+/**
+ * Each recipe with its full nutrient record merged in, by Recipe_id. Most
+ * FoodOScope lists leave protein, carbs or fat out (the diet lists carry
+ * protein only), so each distinct recipe missing them is fetched once — three
+ * at a time, cached for the session. A failed fetch keeps the list entry.
+ */
+async function fillNutrients(recipes: RecipeBasic[]): Promise<Map<string, RecipeBasic>> {
+  const result = new Map<string, RecipeBasic>();
+  const toFetch: RecipeBasic[] = [];
+  for (const recipe of recipes) {
+    if (!recipe.Recipe_id || result.has(recipe.Recipe_id)) continue;
+    const cached = fullRecipeCache.get(recipe.Recipe_id);
+    if (hasFullMacros(recipe)) result.set(recipe.Recipe_id, recipe);
+    else if (cached) result.set(recipe.Recipe_id, { ...recipe, ...cached });
+    else {
+      result.set(recipe.Recipe_id, recipe);
+      toFetch.push(recipe);
+    }
+  }
+
+  const queue = [...toFetch];
+  const worker = async () => {
+    for (let recipe = queue.shift(); recipe; recipe = queue.shift()) {
+      try {
+        const { recipe: full } = await fetchWithRetry(() => searchRecipeById(recipe!.Recipe_id));
+        fullRecipeCache.set(recipe.Recipe_id, full);
+        result.set(recipe.Recipe_id, { ...recipe, ...full });
+      } catch (err) {
+        console.warn(`Could not load nutrients for recipe ${recipe.Recipe_id}:`, err);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  return result;
+}
+
+const oneDecimal = (n: number) => String(Math.round(n * 10) / 10);
+
+/**
+ * The recipe with protein, carbs and fat for ONE serving, matching its
+ * Calories. FoodOScope's "Calories" is per serving but its macros are for the
+ * whole dish (they add up to "Energy (kcal)"), so a day's totals mixed the two:
+ * ~145 g protein beside 0 g fat. Estimated from calories only when FoodOScope
+ * has no usable values at all.
+ */
+export function servingRecipe(recipe: RecipeBasic): RecipeBasic {
+  const { protein, carbs, fat } = perServingMacros(macrosOf(recipe));
+  if (protein === undefined || carbs === undefined || fat === undefined) return ensureMacros(recipe);
+  return {
+    ...recipe,
+    "Protein (g)": oneDecimal(protein),
+    "Carbohydrate, by difference (g)": oneDecimal(carbs),
+    "Total lipid (fat) (g)": oneDecimal(fat),
+    // The macros now describe one serving, so the energy figure does too.
+    "Energy (kcal)": recipe.Calories,
+  };
+}
+
 async function generateDietChartFromRecipes(
   profile: PatientProfile,
   numDays: number = 7,
@@ -1047,6 +1117,22 @@ async function generateDietChartFromRecipes(
     }
   }
 
+  // Pick every day's recipes first, so each distinct recipe's full record is
+  // fetched once below rather than once per day it appears.
+  const picks: (RecipeBasic | null)[][] = [];
+  for (let d = 0; d < numDays; d++) {
+    picks.push(
+      MEAL_STRUCTURE.map((mealSlot) => {
+        const pool = mealRecipePools.get(mealSlot.mealType) || [];
+        // A random recipe from the pool for variety across days
+        return pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
+      })
+    );
+  }
+  const withNutrients = await fillNutrients(
+    picks.flat().filter((r): r is RecipeBasic => r !== null)
+  );
+
   for (let d = 0; d < numDays; d++) {
     const meals: DietChartMeal[] = [];
     let dayTotalCal = 0;
@@ -1054,13 +1140,12 @@ async function generateDietChartFromRecipes(
     let dayTotalCarbs = 0;
     let dayTotalFat = 0;
 
-    for (const mealSlot of MEAL_STRUCTURE) {
+    for (const [slotIndex, mealSlot] of MEAL_STRUCTURE.entries()) {
       const targetCal = Math.round(dailyCalories * mealSlot.caloriePercent);
-      const pool = mealRecipePools.get(mealSlot.mealType) || [];
+      const picked = picks[d][slotIndex];
 
-      if (pool.length > 0) {
-        // Pick a random recipe from the pool for variety across days
-        const recipe = ensureMacros(pool[Math.floor(Math.random() * pool.length)]);
+      if (picked) {
+        const recipe = servingRecipe(withNutrients.get(picked.Recipe_id) ?? picked);
         const actualCal = Number(recipe.Calories || 0);
 
         meals.push({

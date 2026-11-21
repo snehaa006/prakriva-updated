@@ -106,6 +106,9 @@ function isKeyFailure(status: number): boolean {
  */
 const OUT_OF_TOKENS = /not enough tokens/i;
 
+/** FoodOScope's reply to a page number beyond the last page of results. */
+const PAGE_PAST_END = /page \d+ does not exist/i;
+
 /** The `error` message from a FoodOScope error body, or "" if there isn't one. */
 async function errorMessageOf(res: Response): Promise<string> {
   try {
@@ -375,6 +378,12 @@ async function apiFetch<T>(rawUrl: string): Promise<T> {
       `API error: ${res.status} ${detail || res.statusText}`.trim(),
       res.status
     );
+    // A page past the end of a result set is an empty page, not a failure:
+    // FoodOScope answers it with 400 "Page 5 does not exist", which used to
+    // abort a whole meal slot of the fallback diet chart (empty breakfasts).
+    if (res.status === 400 && PAGE_PAST_END.test(detail)) {
+      return { success: true, data: [], meta: {} } as T;
+    }
     // An exhausted key is a key failure, whatever status it arrives with;
     // treat it as the 402 it means so it cools down like one.
     const keyStatus = OUT_OF_TOKENS.test(detail) ? 402 : res.status;

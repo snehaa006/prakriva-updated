@@ -31,6 +31,7 @@ import {
 import { CompanionCharacter, CompanionMark, type CompanionMood } from "./CompanionCharacter";
 import { CueCard } from "./CueCard";
 import { RichText } from "./RichText";
+import { answerFromRecords } from "@/lib/doctorChatAnswers";
 
 // ──────────────────────────────────────────────
 // Types
@@ -49,6 +50,8 @@ interface ChatMessage {
   cardChoiceId?: string;
   /** Continue has been pressed — the card locks. */
   cardSpent?: boolean;
+  /** Answered straight from the patient records rather than by an AI model. */
+  fromRecords?: boolean;
   /** The cue this message came from, so the same nudge isn't raised twice. */
   cueId?: string;
   /** A failure notice rather than a real reply — see `buildHistory`. */
@@ -415,10 +418,19 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
       try {
         const baseContext = contextRef.current ?? EMPTY_CONTEXT;
         let answer: string;
+        let fromRecords = false;
 
         if (mode === "doctor") {
-          // Doctor mode: send to doctor-specific endpoint, no recipe grounding
-          answer = await askDoctorChat(text, history, baseContext as Record<string, unknown>);
+          // Data questions ("summarise my patients", "who is high risk?") are
+          // answered from the loaded records — instant, exact, and unaffected
+          // by AI quota. Everything else goes to the doctor-chat endpoint.
+          const recordsAnswer = answerFromRecords(text, contextRef.current);
+          if (recordsAnswer) {
+            answer = recordsAnswer;
+            fromRecords = true;
+          } else {
+            answer = await askDoctorChat(text, history, baseContext as Record<string, unknown>);
+          }
         } else {
           // Patient mode: recipe grounding + patient chat endpoint
           let recipeCandidates: Awaited<ReturnType<typeof maybeFetchRecipeCandidates>> = [];
@@ -442,6 +454,7 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
             role: "assistant",
             text: answer,
             suggestions: mode === "doctor" ? undefined : buildFollowUps(text, contextRef.current),
+            fromRecords,
             timestamp: Date.now(),
           },
         ]);
@@ -771,6 +784,11 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
                             : "bg-pink-50/60 text-foreground border border-pink-100/40",
                       )}>
                         <RichText text={msg.text} />
+                        {msg.fromRecords && (
+                          <p className="mt-1.5 text-caption2 text-foreground-tertiary">
+                            From your patient records — answered instantly, without the AI.
+                          </p>
+                        )}
                         {msg.detail && (
                           <p className="mt-1 break-words text-caption2 text-foreground-tertiary">{msg.detail}</p>
                         )}

@@ -334,7 +334,10 @@ export interface DoctorChatContext {
     primaryDosha?: string;
     dietaryPreference?: string;
     allergies?: string[];
+    /** Conditions from her assessment (e.g. PCOS, hypothyroidism). */
+    conditions?: string[];
     adherence?: number;
+    /** Her latest disease screening, when she has one. */
     screenings?: {
       date: string;
       overallRisk: string;
@@ -394,6 +397,25 @@ export const fetchDoctorChatContext = async (doctorId: string): Promise<DoctorCh
       (trackRows ?? []).map((t: any) => [t.patient_id, t])
     );
 
+    // Each patient's latest screening, which the opener promises the doctor.
+    // Newest first, so the first row seen per patient is her latest. A
+    // project without the table just goes without.
+    const { data: screeningRows } = await supabase
+      .from("disease_screenings")
+      .select("patient_id, created_at, overall_risk_level, result")
+      .in("patient_id", patientIds)
+      .order("created_at", { ascending: false });
+    type ScreeningRow = {
+      patient_id: string;
+      created_at: string;
+      overall_risk_level: string;
+      result?: { conditions?: { label?: string; condition?: string; risk_level?: string }[] } | null;
+    };
+    const latestScreeningByPatient = new Map<string, ScreeningRow>();
+    for (const s of (screeningRows ?? []) as ScreeningRow[]) {
+      if (!latestScreeningByPatient.has(s.patient_id)) latestScreeningByPatient.set(s.patient_id, s);
+    }
+
     for (const row of (patientRows ?? []) as any[]) {
       const a = (row.assessment_data as Record<string, any>) || {};
       const track = trackByPatient.get(row.id);
@@ -402,6 +424,11 @@ export const fetchDoctorChatContext = async (doctorId: string): Promise<DoctorCh
           ? Math.round((track.eaten_count / track.total_meals) * 100)
           : undefined;
 
+      const screening = latestScreeningByPatient.get(row.id);
+      const conditions = (Array.isArray(a.currentConditions) ? a.currentConditions : [])
+        .map((c: unknown) => String(c).trim())
+        .filter((c: string) => c && !/^(none|no|n\/a)$/i.test(c));
+
       patientSummaries.push({
         name: row.name || uniquePatients.get(row.id) || "Unknown",
         lifeStage: a.lifeStage,
@@ -409,7 +436,20 @@ export const fetchDoctorChatContext = async (doctorId: string): Promise<DoctorCh
         primaryDosha: a.primaryDosha,
         dietaryPreference: a.dietaryPreferences,
         allergies: Array.isArray(a.allergies) ? a.allergies : row.allergies,
+        conditions: conditions.length ? conditions : undefined,
         adherence,
+        screenings: screening
+          ? [
+              {
+                date: screening.created_at,
+                overallRisk: screening.overall_risk_level,
+                conditions: (screening.result?.conditions ?? []).map((c) => ({
+                  label: String(c.label ?? c.condition ?? ""),
+                  riskLevel: String(c.risk_level ?? ""),
+                })),
+              },
+            ]
+          : undefined,
       });
     }
   }

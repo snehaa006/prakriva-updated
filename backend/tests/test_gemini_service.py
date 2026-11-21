@@ -25,6 +25,8 @@ def reset_key_pool_state(monkeypatch):
     reach the network by exhausting it.
     """
     with_keys(monkeypatch)
+    # Groq stays off unless a test turns it on, whatever a local .env holds.
+    monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", [])
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
     gemini_service._retired_models.clear()
@@ -514,7 +516,7 @@ class TestGenerateHistory:
         with_keys(monkeypatch, "k")
         captured = {}
 
-        def fake_post_gemini(payload, timeout):
+        def fake_post_gemini(payload, timeout, deadline=None):
             captured["payload"] = payload
             return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
 
@@ -541,7 +543,7 @@ class TestGenerateHistory:
         with_keys(monkeypatch, "k")
         captured = {}
 
-        def fake_post_gemini(payload, timeout):
+        def fake_post_gemini(payload, timeout, deadline=None):
             captured["payload"] = payload
             return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
 
@@ -563,7 +565,7 @@ class TestGenerateHistory:
         with_keys(monkeypatch, "k")
         captured = {}
 
-        def fake_post_gemini(payload, timeout):
+        def fake_post_gemini(payload, timeout, deadline=None):
             captured["payload"] = payload
             return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
 
@@ -587,7 +589,7 @@ class TestGenerateHistory:
         with_keys(monkeypatch, "k")
         captured = {}
 
-        def fake_post_gemini(payload, timeout):
+        def fake_post_gemini(payload, timeout, deadline=None):
             captured["payload"] = payload
             return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
 
@@ -609,7 +611,7 @@ class TestGenerateHistory:
         with_keys(monkeypatch, "k")
         captured = {}
 
-        def fake_post_gemini(payload, timeout):
+        def fake_post_gemini(payload, timeout, deadline=None):
             captured["payload"] = payload
             return {"candidates": [{"content": {"parts": [{"text": "reply"}]}}]}
 
@@ -784,3 +786,83 @@ class TestAssessAcnePhoto:
         with patch("requests.post", return_value=response):
             with pytest.raises(GeminiUnavailable):
                 gemini_service.assess_acne_photo("Zm9v", "image/jpeg")
+
+
+class _Reply:
+    def __init__(self, status_code, body):
+        self.status_code = status_code
+        self._body = body
+        self.text = ""
+
+    def json(self):
+        return self._body
+
+
+GEMINI_OK = _Reply(200, {"candidates": [{"content": {"parts": [{"text": "from gemini"}]}}]})
+GROQ_OK = _Reply(200, {"choices": [{"message": {"content": "from groq"}}]})
+
+
+class TestTextProviderOrder:
+    """generate(): Groq first by default, Gemini as the fallback, one deadline.
+
+    Chat used to try Gemini first with a 45 s timeout per request, so a
+    struggling Gemini ran past the frontend's 50 s wait before Groq was ever
+    tried, and the chatbot said it could not reach the backend.
+    """
+
+    def route(self, monkeypatch, groq, gemini):
+        calls = []
+
+        def fake_post(url, **kwargs):
+            if url == gemini_service.GROQ_CHAT_URL:
+                calls.append("groq")
+                return groq
+            calls.append("gemini")
+            return gemini
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        return calls
+
+    def both_configured(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", ["groq-key"])
+
+    def test_groq_answers_first_and_gemini_is_left_alone(self, monkeypatch):
+        self.both_configured(monkeypatch)
+        calls = self.route(monkeypatch, GROQ_OK, GEMINI_OK)
+        assert gemini_service.generate("hi", "rules") == "from groq"
+        assert calls == ["groq"]
+
+    def test_gemini_answers_when_groq_fails(self, monkeypatch):
+        self.both_configured(monkeypatch)
+        calls = self.route(monkeypatch, _Reply(429, {}), GEMINI_OK)
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert calls == ["groq", "gemini"]
+
+    def test_gemini_first_when_configured_so(self, monkeypatch):
+        self.both_configured(monkeypatch)
+        monkeypatch.setattr(gemini_service.settings, "LLM_TEXT_PRIMARY", "gemini")
+        calls = self.route(monkeypatch, GROQ_OK, GEMINI_OK)
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert calls == ["gemini"]
+
+    def test_gemini_alone_still_answers(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        calls = self.route(monkeypatch, GROQ_OK, GEMINI_OK)
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert calls == ["gemini"]
+
+    def test_every_providers_reason_is_reported(self, monkeypatch):
+        self.both_configured(monkeypatch)
+        self.route(monkeypatch, _Reply(429, {}), _Reply(400, {"error": {"message": "bad"}}))
+        with pytest.raises(GeminiUnavailable) as exc:
+            gemini_service.generate("hi", "rules")
+        assert "Groq:" in str(exc.value) and "Gemini:" in str(exc.value)
+
+    def test_a_spent_deadline_stops_before_any_request(self, monkeypatch):
+        self.both_configured(monkeypatch)
+        monkeypatch.setattr(gemini_service.settings, "CHAT_DEADLINE_SECONDS", 0)
+        calls = self.route(monkeypatch, GROQ_OK, GEMINI_OK)
+        with pytest.raises(GeminiUnavailable, match="no time left"):
+            gemini_service.generate("hi", "rules")
+        assert calls == []

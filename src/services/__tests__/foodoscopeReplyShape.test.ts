@@ -123,3 +123,35 @@ describe("single records", () => {
     await expect(getRecipeDayWithFilters("peanut")).resolves.toEqual(RECIPE);
   });
 });
+
+describe("a page past the end", () => {
+  // FoodOScope answers it with 400 "Page 5 does not exist"; the fallback diet
+  // chart asks for a random page, and the error emptied whole meal slots.
+  const pastTheEnd = () =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        json: async () => ({
+          success: false,
+          message: "Page 5 does not exist. Please provide a page between 1 and 1.",
+        }),
+      }))
+    );
+
+  it("is an empty search result, not an error", async () => {
+    pastTheEnd();
+    await expect(
+      getRecipesByIngredientsCategoriesTitle({ includeIngredients: "rice", page: 5 })
+    ).resolves.toEqual([]);
+  });
+
+  it("is an empty page for paginated lists too", async () => {
+    pastTheEnd();
+    const { data, pagination } = await getRecipesInfo(5, 10);
+    expect(data).toEqual([]);
+    expect(pagination.currentPage).toBe(5);
+  });
+});

@@ -667,7 +667,9 @@ def _first_text(body: Dict[str, Any]) -> str:
     )
 
 
-def _text_from(payload: Dict[str, Any], *, timeout: int) -> str:
+def _text_from(
+    payload: Dict[str, Any], *, timeout: int, deadline: Optional[float] = None
+) -> str:
     """The reply text for `payload`, retrying once with a bigger budget.
 
     Current Gemini models reason internally before they answer, and those
@@ -677,7 +679,7 @@ def _text_from(payload: Dict[str, Any], *, timeout: int) -> str:
     failure to the patient, the request is repeated once with room to finish.
     """
     try:
-        return _first_text(_post_gemini(payload, timeout=timeout))
+        return _first_text(_post_gemini(payload, timeout=timeout, deadline=deadline))
     except _OutputBudgetSpent:
         config = dict(payload.get("generationConfig") or {})
         current = int(config.get("maxOutputTokens") or settings.GEMINI_MAX_TOKENS)
@@ -692,7 +694,9 @@ def _text_from(payload: Dict[str, Any], *, timeout: int) -> str:
         # A copy, so the caller's payload is not quietly left with the raised
         # budget — the next call should start from its own sizing again.
         return _first_text(
-            _post_gemini({**payload, "generationConfig": config}, timeout=timeout)
+            _post_gemini(
+                {**payload, "generationConfig": config}, timeout=timeout, deadline=deadline
+            )
         )
 
 
@@ -743,8 +747,13 @@ def _call_groq(
     *,
     max_tokens: int,
     history: Optional[List[Dict[str, str]]] = None,
+    deadline: Optional[float] = None,
 ) -> str:
-    """Call Groq's chat completions API, rotating keys on failure."""
+    """Call Groq's chat completions API, rotating keys on failure.
+
+    ``deadline`` (monotonic timestamp) caps the whole rotation, so a slow key
+    cannot use up the time the next provider needs.
+    """
     if not _groq_configured():
         raise GeminiUnavailable("No GROQ_API_KEY is set")
 
@@ -767,6 +776,13 @@ def _call_groq(
     last_error = "no Groq keys configured"
 
     for key in _groq_key_candidates():
+        request_timeout = settings.GROQ_TIMEOUT_SECONDS
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 1:
+                last_error = "out of time"
+                break
+            request_timeout = max(1, min(request_timeout, int(remaining)))
         try:
             response = requests.post(
                 GROQ_CHAT_URL,
@@ -780,7 +796,7 @@ def _call_groq(
                     "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
                 },
-                timeout=settings.GROQ_TIMEOUT_SECONDS,
+                timeout=request_timeout,
             )
         except requests.RequestException as exc:
             _groq_report(key, status=None, ok=False)
@@ -817,8 +833,9 @@ def generate(
     max_tokens: Optional[int] = None,
     history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """Send one prompt to Gemini and return the text response, falling back to
-    Groq when Gemini is unavailable.
+    """Send one prompt and return the text reply: Groq first by default, then
+    Gemini (`LLM_TEXT_PRIMARY=gemini` reverses that), all within
+    `CHAT_DEADLINE_SECONDS`.
 
     `history` is prior conversation turns, oldest first, as
     `{"role": "user" | "model", "text": ...}`. It is passed in by the caller
@@ -828,16 +845,43 @@ def generate(
     instead of a question with no context behind it.
     """
     tokens = max_tokens or settings.GEMINI_MAX_TOKENS
+    # One budget for the whole reply, whichever providers it takes. Without it
+    # Gemini's per-request timeout, key rotation and model cascade could run
+    # past the frontend's 50 s wait before the fallback was ever tried, and the
+    # chatbot answered "could not reach the backend".
+    deadline = time.monotonic() + settings.CHAT_DEADLINE_SECONDS
 
-    gemini_error: Optional[GeminiUnavailable] = None
+    # Groq answers first by default: it is fast, and it keeps chat traffic off
+    # Gemini's quota, which diet chart generation depends on.
+    order = ["gemini", "groq"] if settings.LLM_TEXT_PRIMARY == "gemini" else ["groq", "gemini"]
+    errors: List[str] = []
 
-    if is_configured():
+    for provider in order:
+        if time.monotonic() >= deadline:
+            errors.append(f"{provider}: no time left")
+            break
+
+        if provider == "groq":
+            if not _groq_configured():
+                errors.append("Groq: no GROQ_API_KEY is set")
+                continue
+            try:
+                return _call_groq(
+                    system_rules, prompt, max_tokens=tokens, history=history, deadline=deadline,
+                )
+            except GeminiUnavailable as exc:
+                logger.warning(f"Groq unavailable ({exc}); trying the next provider")
+                errors.append(f"Groq: {exc}")
+            continue
+
+        if not is_configured():
+            errors.append("Gemini: no GEMINI_API_KEY is set")
+            continue
         contents = _history_contents(history)
         if contents and contents[-1]["role"] == "user":
             contents[-1]["parts"][0]["text"] += f"\n\n{prompt}"
         else:
             contents.append({"role": "user", "parts": [{"text": prompt}]})
-
         payload = {
             "systemInstruction": {"parts": [{"text": system_rules}]},
             "contents": contents,
@@ -846,27 +890,18 @@ def generate(
                 "maxOutputTokens": tokens,
             },
         }
-
         try:
-            return _text_from(payload, timeout=settings.GEMINI_TIMEOUT_SECONDS)
-        except GeminiUnavailable as exc:
-            gemini_error = exc
-            logger.warning(f"Gemini unavailable ({exc}); trying Groq fallback")
-    else:
-        gemini_error = GeminiUnavailable("No GEMINI_API_KEY is set")
-
-    if _groq_configured():
-        try:
-            return _call_groq(
-                system_rules, prompt, max_tokens=tokens, history=history,
+            remaining = max(5, int(deadline - time.monotonic()))
+            return _text_from(
+                payload,
+                timeout=min(settings.GEMINI_TIMEOUT_SECONDS, remaining),
+                deadline=deadline,
             )
         except GeminiUnavailable as exc:
-            logger.warning(f"Groq fallback also failed: {exc}")
-            raise GeminiUnavailable(
-                f"All LLM providers unavailable (Gemini: {gemini_error}; Groq: {exc})"
-            )
+            logger.warning(f"Gemini unavailable ({exc}); trying the next provider")
+            errors.append(f"Gemini: {exc}")
 
-    raise gemini_error or GeminiUnavailable("No LLM provider is configured")
+    raise GeminiUnavailable("All LLM providers unavailable (" + "; ".join(errors) + ")")
 
 
 def _rejects_thinking_budget(error: str) -> bool:

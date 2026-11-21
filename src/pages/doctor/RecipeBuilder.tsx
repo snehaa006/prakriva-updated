@@ -61,6 +61,14 @@ import { fetchScreenings } from "@/services/diseaseDetectionService";
 import type { RiskLevel, StoredScreening } from "@/types/diseaseDetection";
 import { RISK_STYLES } from "@/lib/riskLevels";
 
+/** A nutrient amount for display: rounded, and 0 rather than blank when missing. */
+const grams = (value: unknown, decimals = 1): string => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  const factor = 10 ** decimals;
+  return String(Math.round(n * factor) / factor);
+};
+
 const mealSlots = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const weekDays = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
@@ -690,7 +698,7 @@ const RecipeBuilder = () => {
         >
           <div className="font-medium">{food.Food_Item || food.name}</div>
           <div className="text-xs text-gray-500">
-            {food.Calories || food.calories} cal • {food.Protein || food.protein}g protein • {food.Fat || food.fat}g fat • {food.Carbs || food.carbs}g carbs
+            {grams(food.Calories ?? food.calories, 0)} cal • {grams(food.Protein ?? food.protein)}g protein • {grams(food.Fat ?? food.fat)}g fat • {grams(food.Carbs ?? food.carbs)}g carbs
           </div>
         </div>
       )}

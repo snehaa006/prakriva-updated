@@ -86,6 +86,9 @@ listed under "Language and translation" below.
   the signed-in patient's own rows and downloads them as JSON.
 - `src/lib/theme.ts` — light/dark/system theme, applied as a class on `<html>`
   before the first render (`src/main.tsx`).
+- `src/lib/doctorChatAnswers.ts` — answers the doctor's data questions
+  (patient summary, counts, risk, adherence, allergies) from the chatbot's
+  loaded records, labelled as such; see "Written analysis and the chatbot".
 - `src/lib/recipeMacros.ts` — a FoodOScope recipe's calories, protein, carbs
   and fat under whichever field names its endpoint uses. Food Explorer adds
   recipes through it, fetching the full recipe first when the list left the
@@ -326,7 +329,15 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/foodoscopeLimit.test.ts` — the 10-result cap on every
   request, leaving every other query parameter byte-for-byte as it was.
 - `src/lib/__tests__/recipeMacros.test.ts` — macros read under each endpoint's
-  field names, and missing values left undefined rather than counted as 0.
+  field names, missing values left undefined rather than counted as 0, and
+  whole-dish macros scaled to the serving its calories describe.
+- `src/services/__tests__/dietChartServing.test.ts` — the fallback chart's
+  meals: per-serving macros, and no 0 g fat or carbs where calories are known.
+- `src/context/__tests__/FoodContext.test.tsx` — the saved selection corrected
+  once: scaled in place, filled from the full record, local foods untouched.
+- `src/lib/__tests__/doctorChatAnswers.test.ts` and the doctor cases in
+  `NutritionChatbot.test.tsx` — data questions answered from the records
+  (without calling the AI), judgement questions still sent to it.
 - `src/services/__tests__/foodoscopeLiveReplies.test.ts` — every FoodOScope
   reader run on a reply recorded from the live API
   (`__tests__/fixtures/foodoscope/`): lists, page counts taken from `meta`, the
@@ -1058,7 +1069,18 @@ Flask (`backend/gemini_service.py`):
   replies structured (bullets, summaries). Suggestion chips on first open:
   "Summarise my patients", "Diet for pregnant patient", "Screening analysis
   tips", "PCOS nutrition guide". Proactive cues/teasers are disabled for
-  doctors.
+  doctors. The context carries each patient's assessment conditions and her
+  latest `disease_screenings` row (overall risk and flagged conditions).
+
+  **Data questions are answered from the records, not the AI.** "Summarise my
+  patients", "how many patients", "who is high risk", "today's adherence",
+  "allergies" and "tell me about <patient>" are lookups, so
+  `src/lib/doctorChatAnswers.ts` answers them from that context in the
+  browser: instant, exact, and unaffected by AI quota or a sleeping backend.
+  Those replies carry the note *"From your patient records — answered
+  instantly, without the AI"*, so they are never passed off as AI output.
+  Anything needing judgement ("suggest a diet modification for Asha") returns
+  `null` there and goes to `/assistant/doctor-chat` as before.
 - **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
   panel that turns the selected patient's screening history into prose: how
   the risk picture has moved, which measurements drive it, what to check
@@ -1257,13 +1279,24 @@ below) before giving up. If Groq is also unavailable, the endpoint answers
 503 and each caller degrades on its own terms: diet chart generation falls
 back to the FoodOScope recipe path, and the analysis panels hide themselves.
 
-#### Groq fallback
+#### Groq first for chat
 
-When every Gemini key is exhausted or unavailable, text-generation calls
-(both chatbots, the screening analysis, and the patient Q&A) automatically
-try **Groq** (Llama 3.3 70B via the OpenAI-compatible API at
-`api.groq.com`). Groq's free tier allows 30 req/min and 14.4K req/day,
-which keeps the chatbot alive while Gemini keys cool down.
+Text-generation calls (both chatbots, the screening analysis and the patient
+Q&A) go to **Groq** first (Llama 3.3 70B via the OpenAI-compatible API at
+`api.groq.com`) and to Gemini only if Groq fails; `LLM_TEXT_PRIMARY=gemini`
+reverses that. Two reasons:
+
+- **Speed and a hard time limit.** The whole reply, across both providers,
+  has `CHAT_DEADLINE_SECONDS` (40 s). Chat used to try Gemini first with 45 s
+  per request plus key and model retries, so a struggling Gemini ran past the
+  frontend's 50 s wait before Groq was ever tried, and Kuchu Puchu answered
+  "Could not reach the backend … (no response within 50s)".
+- **Separate quotas.** Diet charts always use Gemini. With chat on Groq, the
+  two no longer compete for Gemini's quota. (A spare Gemini key only adds
+  quota if it comes from a different Google Cloud project — keys in one
+  project share its limit.)
+
+Groq's free tier allows 30 req/min and 14.4K req/day.
 
 Set `GROQ_API_KEY` in Render (or `backend/.env` locally). Multiple keys
 follow the same pattern as Gemini: `GROQ_API_KEY2` … `GROQ_API_KEY10`, or a
@@ -1438,6 +1471,20 @@ doctor should be told which one they got. The toast also carries **why** the AI
 planner was not used (the chart's `fallbackReason`, e.g. a Gemini error or an
 expired sign-in), so a broken AI path is visible on the screen instead of being
 quietly replaced by the recipe chart.
+
+**The fallback chart's nutrients are real and per serving.** FoodOScope's
+`Calories` is per serving, but its protein, carbs and fat are for the whole
+dish (they add up to `Energy (kcal)`), and its diet lists carry protein alone
+— so the board once read "533 cal · 51 g protein · 0 g fat · 0 g carbs" and a
+week totalled ~150 g protein a day beside 0 g fat. Now each distinct recipe the
+chart uses is fetched once in full (`/search-recipe`, three at a time, cached
+for the session) and its macros are scaled to one serving
+(`perServingMacros` in `src/lib/recipeMacros.ts`: × Calories ÷ (4·protein +
+4·carbs + 9·fat)), so they add up to its calories. Only a recipe with no
+usable values at all is estimated from calories (20/50/30). The search asks
+for a random page for variety; FoodOScope's `400 Page N does not exist` is
+treated as an empty page and retried at page 1 — that error used to leave
+breakfast empty every day.
 
 **Thinking is switched off for speed.** The chart request sets
 `generationConfig.thinkingConfig.thinkingBudget = 0` (`gemini_service.generate_json`)
@@ -2216,6 +2263,8 @@ committed.
 | `GROQ_API_KEY1` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
 | `GROQ_MODEL` | Backend | No | Defaults to `llama-3.3-70b-versatile`. |
 | `GROQ_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. |
+| `LLM_TEXT_PRIMARY` | Backend | No | Which provider answers chat-style text first: `groq` (default) or `gemini`; the other is the fallback. Diet charts always use Gemini. See "Groq first for chat". |
+| `CHAT_DEADLINE_SECONDS` | Backend | No | Defaults to `40`. Total time one chat reply may take across both providers, kept under the frontend's 50 s wait so a reply or a clear error always arrives. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |
 | `RATE_LIMIT_PER_MINUTE` | Backend | No | Per-caller ceiling for the routes that opt into a per-minute limit, defaults to `30`. |
@@ -2323,9 +2372,13 @@ difference (g)`); `/category` names them `Protein`, `Fat`, `Carbohydrate`; the
 diet lists carry protein only; title search, cuisine and the ingredient search
 carry calories alone. Food Explorer reads them through `src/lib/recipeMacros.ts`
 and, when a card's recipe lacks them, fetches its full record before adding it
-to the selection. Recipes already saved in a doctor's selection at 0g (from
-before this) are filled in once, automatically, the next time Food Explorer
-opens.
+to the selection. Cards, the details view and the selection all show values
+**per serving**, scaled with `perServingMacros` so they match the calories
+(FoodOScope's own macros are for the whole dish); a list that left some out
+shows "—" until Details loads the full record. Recipes already saved in a doctor's selection with whole-dish
+or missing macros are corrected once by `FoodContext` — scaled in place, or
+filled from the full record — wherever the selection is shown, including the
+Recipe Builder palette.
 
 **If FoodOScope changes shape again**, re-record one reply per endpoint into
 `src/services/__tests__/fixtures/foodoscope/` (trimmed to structure; they hold

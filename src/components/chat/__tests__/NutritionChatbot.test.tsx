@@ -3,8 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import NutritionChatbot from "@/components/chat/NutritionChatbot";
-import { AnalysisUnavailableError, askChat, isAnalysisEnabled } from "@/services/analysisService";
-import { fetchPatientChatContext } from "@/services/chatAssistantService";
+import {
+  AnalysisUnavailableError,
+  askChat,
+  askDoctorChat,
+  isAnalysisEnabled,
+} from "@/services/analysisService";
+import { fetchDoctorChatContext, fetchPatientChatContext } from "@/services/chatAssistantService";
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
@@ -19,6 +24,7 @@ vi.mock("@/services/analysisService", async () => {
   return {
     ...actual,
     askChat: vi.fn(),
+    askDoctorChat: vi.fn(),
     isAnalysisEnabled: vi.fn(),
   };
 });
@@ -30,6 +36,7 @@ vi.mock("@/services/chatAssistantService", async () => {
   return {
     ...actual,
     fetchPatientChatContext: vi.fn(),
+    fetchDoctorChatContext: vi.fn(),
     maybeFetchRecipeCandidates: vi.fn().mockResolvedValue([]),
   };
 });
@@ -206,5 +213,48 @@ describe("NutritionChatbot", () => {
     expect(screen.getByText("warm").tagName).toBe("STRONG");
     expect(screen.queryByText(/\*\*warm\*\*/)).not.toBeInTheDocument();
     expect(screen.getByText("Ginger tea")).toBeInTheDocument();
+  });
+});
+describe("NutritionChatbot (doctor)", () => {
+  const roster = {
+    doctor: { patientCount: 2 },
+    patients: [
+      { name: "Asha Verma", lifeStage: "pregnancy", adherence: 40 },
+      { name: "Meera Iyer", lifeStage: "pcos", adherence: 100 },
+    ],
+  };
+
+  const openDoctorChat = async (user: ReturnType<typeof userEvent.setup>) => {
+    render(<NutritionChatbot mode="doctor" />);
+    await user.click(screen.getByRole("button", { name: /open kuchu puchu/i }));
+    await waitFor(() => expect(fetchDoctorChatContext).toHaveBeenCalled());
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(isAnalysisEnabled).mockResolvedValue(true);
+    vi.mocked(fetchDoctorChatContext).mockResolvedValue(roster);
+    vi.mocked(askDoctorChat).mockReset();
+  });
+
+  it("answers the patient summary from the records, without calling the AI", async () => {
+    const user = userEvent.setup();
+    await openDoctorChat(user);
+    await send(user, "Give me a summary of all my patients, their conditions and adherence");
+
+    expect(await screen.findByText(/From your patient records/)).toBeInTheDocument();
+    expect(screen.getByText(/Your patients \(2\)/)).toBeInTheDocument();
+    expect(askDoctorChat).not.toHaveBeenCalled();
+  });
+
+  it("still sends questions that need judgement to the AI", async () => {
+    vi.mocked(askDoctorChat).mockResolvedValue("Consider iron-rich foods.");
+    const user = userEvent.setup();
+    await openDoctorChat(user);
+    await send(user, "Suggest a diet modification for Asha");
+
+    expect(await screen.findByText("Consider iron-rich foods.")).toBeInTheDocument();
+    expect(askDoctorChat).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/From your patient records/)).not.toBeInTheDocument();
   });
 });

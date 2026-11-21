@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasFullMacros, macrosOf } from "@/lib/recipeMacros";
+import { hasFullMacros, macrosOf, perServingMacros } from "@/lib/recipeMacros";
 
 // Field names and values as FoodOScope's live endpoints return them
 // (recorded November 2026). Each list carries a different slice.
@@ -45,5 +45,33 @@ describe("hasFullMacros", () => {
     expect(hasFullMacros(CATEGORY)).toBe(true);
     expect(hasFullMacros(DIET)).toBe(false);
     expect(hasFullMacros(TITLE_SEARCH)).toBe(false);
+  });
+});
+
+describe("perServingMacros", () => {
+  // Egyptian Lentil Soup as FoodOScope returns it: 196 kcal per serving, but
+  // macros for the whole pot (they add up to ~836 kcal).
+  const LENTIL_SOUP = { calories: 196, protein: 49.554, carbs: 146.7606, fat: 5.6564 };
+
+  it("scales whole-dish macros to the serving its calories describe", () => {
+    const serving = perServingMacros(LENTIL_SOUP);
+    expect(serving).toEqual({ calories: 196, protein: 11.6, carbs: 34.4, fat: 1.3 });
+    const kcal = 4 * serving.protein! + 4 * serving.carbs! + 9 * serving.fat!;
+    expect(Math.abs(kcal - 196)).toBeLessThan(2);
+  });
+
+  it("leaves figures that are already per serving alone", () => {
+    const palakPaneer = { calories: 517, protein: 25.3, carbs: 42.1, fat: 27.5 };
+    expect(perServingMacros(palakPaneer)).toBe(palakPaneer);
+  });
+
+  it("is stable when applied twice", () => {
+    const once = perServingMacros(LENTIL_SOUP);
+    expect(perServingMacros(once)).toEqual(once);
+  });
+
+  it("cannot scale an incomplete set, so returns it unchanged", () => {
+    const proteinOnly = { calories: 45, protein: 26.18 };
+    expect(perServingMacros(proteinOnly)).toBe(proteinOnly);
   });
 });
