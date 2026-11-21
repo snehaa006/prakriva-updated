@@ -1,0 +1,37 @@
+{
+ "success": true,
+ "message": "Recipe fetched successfully.",
+ "data": {
+  "_id": "640572dca13d0d2d358a4aac",
+  "Recipe_id": "112304",
+  "Calories": "158.7",
+  "cook_time": "0",
+  "prep_time": "0",
+  "servings": "1 1/2 pound loaf",
+  "Recipe_title": "French Pear Bread",
+  "total_time": "93",
+  "Region": "French",
+  "Sub_region": "French",
+  "Continent": "European",
+  "Source": "Geniuskitchen",
+  "img_url": "https://img.sndimg.com/food/image/upload/w_555,h_416,c_fit,fl_progressive,q_95/v",
+  "Carbohydrate, by difference (g)": "315.8589",
+  "Energy (kcal)": "1626.8816",
+  "Protein (g)": "57.3585",
+  "Total lipid (fat) (g)": "11.788",
+  "Processes": "select||add||add||dry||select",
+  "vegan": "0.0",
+  "pescetarian": "0.0",
+  "ovo_vegetarian": "0.0",
+  "lacto_vegetarian": "0.0",
+  "ovo_lacto_vegetarian": "0.0",
+  "CaloriesNum": 158.7,
+  "TotalTimeNum": 93,
+  "PrepTimeNum": 0,
+  "CookTimeNum": 0,
+  "EnergyNum": 1626.8816
+ },
+ "meta": {
+  "date": "2026-11-21"
+ }
+}

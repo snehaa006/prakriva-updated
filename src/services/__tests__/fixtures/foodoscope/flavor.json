@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Data fetched successfully",
+ "data": [
+  {
+   "_id": "640f11cba80bf2bc741cf328",
+   "IngID": "410",
+   "ingredient": "parsnip",
+   "frequency": "348",
+   "generic_name": "Parsnip",
+   "FlavorDB_Category": "Vegetable-Root",
+   "Dietrx_Category": "Vegetable",
+   "flavordb_id": "369"
+  },
+  {
+   "_id": "640f11cda80bf2bc741cfdfa",
+   "IngID": "3335",
+   "ingredient": "lemon grass root",
+   "frequency": "8",
+   "generic_name": "Lemon grass",
+   "FlavorDB_Category": "Vegetable-Root",
+   "Dietrx_Category": "Vegetable",
+   "flavordb_id": "113"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 3,
+  "totalPages": 2
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully.",
+ "data": [
+  {
+   "_id": "6405721fa13d0d2d35890ef8",
+   "Recipe_id": "3009",
+   "Calories": "275.0",
+   "cook_time": "10",
+   "prep_time": "10",
+   "servings": "4",
+   "Recipe_title": "Chinese Cold Pasta Salad",
+   "total_time": "80"
+  },
+  {
+   "_id": "6405721fa13d0d2d35890f7f",
+   "Recipe_id": "3144",
+   "Calories": "505.0",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "5",
+   "Recipe_title": "Sweet and Sour Pasta",
+   "total_time": "0"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 10,
+  "total": 2439,
+  "totalPages": 244
+ }
+}

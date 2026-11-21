@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully.",
+ "data": [
+  {
+   "Recipe_id": "100000",
+   "Recipe_title": "Southwestern Beef Brisket",
+   "Calories": "272.8",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "06-Aug",
+   "total_time": "205",
+   "Region": "South American"
+  },
+  {
+   "Recipe_id": "100001",
+   "Recipe_title": "Crushed Heirloom Potatoes",
+   "Calories": "465.8",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "4",
+   "total_time": "30",
+   "Region": "South American"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 68128,
+  "totalPages": 34064
+ }
+}

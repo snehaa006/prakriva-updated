@@ -2386,9 +2386,12 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 
-                const data = await response.json();
-                
-                if (data.recipe) {
+                const body = await response.json();
+                // FoodOScope now nests the recipe: { data: { recipe, ingredients } }.
+                // Older replies had both at the top level; read either.
+                const data = (body && body.data && body.data.recipe) ? body.data : body;
+
+                if (data && data.recipe) {
                     selectedFoods.push({ ...data.recipe, ingredients: data.ingredients || [] });
                     updateSelectedFoods();
                     updateFoodVisuals();

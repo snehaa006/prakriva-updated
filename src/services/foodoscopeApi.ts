@@ -404,45 +404,111 @@ export async function fetchFoodoscopePath<T = unknown>(path: string): Promise<T>
 
 // --- Reply shapes ---
 //
-// FoodOScope's published spec wraps every reply in `payload`
-// (`{ success, message, payload: { data, pagination } }`), but the live API
-// answers most endpoints flat (`{ success, message, data, pagination }`) and
-// moves the rest over without notice — recipesinfo's switch crashed Food
-// Explorer on `payload.data`. The readers below accept either shape, per reply.
+// Every endpoint the app uses now answers in one shape (recorded from the live
+// API in November 2026):
+//
+//   { success, message, data, meta: { page, limit, total, totalPages } }
+//
+// `data` is the list, or the single record (search-recipe nests
+// `{ recipe, ingredients, instructions }` inside it). The published spec still
+// shows the older `{ payload: { data, pagination } }`, and earlier live replies
+// put lists and page counts at the top level under several names. The readers
+// below accept all of these, so the next reshuffle degrades instead of breaking,
+// and a reply they cannot read fails with an error naming what it did contain.
+
+type Obj = Record<string, unknown>;
+const isObj = (value: unknown): value is Obj =>
+  !!value && typeof value === "object" && !Array.isArray(value);
 
 /** The object in a reply that holds `data`: its `payload` if wrapped, else the reply. */
-function replyBody<T>(reply: unknown): T {
-  const wrapped = (reply as { payload?: unknown } | null | undefined)?.payload;
-  return (wrapped && typeof wrapped === "object" ? wrapped : reply) as T;
+function replyBody(reply: unknown): Obj {
+  if (isObj(reply) && isObj(reply.payload)) return reply.payload;
+  return isObj(reply) ? reply : {};
 }
+
+const fieldsOf = (body: Obj) => Object.keys(body).join(", ") || "nothing";
 
 /** The list in a reply. Throws a readable error naming what *was* there. */
 function listOf<T>(reply: unknown, what: string): T[] {
-  const body = replyBody<{ data?: unknown } | null | undefined>(reply);
-  if (Array.isArray(body?.data)) return body.data as T[];
-  const keys = body && typeof body === "object" ? Object.keys(body).join(", ") : String(body);
+  if (Array.isArray(reply)) return reply as T[];
+  const body = replyBody(reply);
+  // `recipes` is where the energy endpoint used to put its list.
+  const list = [body.data, body.recipes].find(Array.isArray);
+  if (list) return list as T[];
   throw new FoodoscopeApiError(
-    `Unexpected FoodOScope reply for ${what}: no list in it (found: ${keys || "nothing"})`
+    `Unexpected FoodOScope reply for ${what}: no list in it (found: ${fieldsOf(body)})`
   );
 }
 
-/** A list plus its pagination; a single page stands in when the reply has none. */
+/**
+ * Page counts under every name the app's screens read them by — each was
+ * written against a different reply (`totalCount`, `totalResults`, `total`,
+ * `totalRecipes`; `totalPages`, `pages`; `currentPage`, `page`) — so a screen
+ * keeps working whichever name it uses.
+ */
+export interface PageInfo {
+  totalCount: number;
+  totalResults: number;
+  total: number;
+  totalRecipes: number;
+  totalPages: number;
+  pages: number;
+  currentPage: number;
+  page: number;
+  limit: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+const COUNT_KEYS = ["total", "totalCount", "totalResults", "totalRecipes"];
+const PAGES_KEYS = ["totalPages", "pages"];
+
+/** Page counts from `meta` (live), `pagination` (spec/older) or the top level. */
+function pageInfoOf(body: Obj, count: number, page: number): PageInfo {
+  const source =
+    [body.meta, body.pagination, body].find(
+      (o): o is Obj => isObj(o) && [...COUNT_KEYS, ...PAGES_KEYS].some((k) => k in o)
+    ) ?? {};
+  const num = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))) {
+        return Number(value);
+      }
+    }
+    return undefined;
+  };
+  const total = num(...COUNT_KEYS) ?? count;
+  const limit = num("limit", "itemsPerPage", "recipesPerPage") ?? Math.max(count, 1);
+  const totalPages = num(...PAGES_KEYS) ?? Math.max(1, Math.ceil(total / limit));
+  const currentPage = num("page", "currentPage") ?? page;
+  return {
+    totalCount: total,
+    totalResults: total,
+    total,
+    totalRecipes: total,
+    totalPages,
+    pages: totalPages,
+    currentPage,
+    page: currentPage,
+    limit,
+    itemsPerPage: limit,
+    hasNextPage: currentPage < totalPages,
+    hasPrevPage: currentPage > 1,
+  };
+}
+
+/** A list plus its page counts. */
 function pageOf<T>(reply: unknown, what: string, page: number) {
   const data = listOf<T>(reply, what);
-  const body = replyBody<{ pagination?: PaginationInfo } & Partial<PaginationInfo>>(reply);
-  const pagination: PaginationInfo = body.pagination ?? {
-    totalCount: body.totalCount ?? body.totalResults ?? data.length,
-    totalPages: body.totalPages ?? 1,
-    currentPage: body.currentPage ?? page,
-  };
-  return { data, pagination };
+  return { data, pagination: pageInfoOf(replyBody(reply), data.length, page) };
 }
 
 /** A single record: `data` when the reply nests it there, else the body itself. */
 function recordOf<T>(reply: unknown): T {
-  const body = replyBody<{ data?: unknown }>(reply);
-  const inner = body?.data;
-  return (inner && typeof inner === "object" && !Array.isArray(inner) ? inner : body) as T;
+  const body = replyBody(reply);
+  return (isObj(body.data) ? body.data : body) as T;
 }
 
 // --- Endpoint 1: Get Recipes Info (paginated browse) ---
@@ -483,6 +549,7 @@ export async function getMicronutritionInfo(page = 1, limit = 10) {
 
 // --- Endpoint 6: Get Recipes by Range ---
 export async function getRecipesByRange(
+  /** One of `total_time`, `prep_time` or `cook_time` — the API rejects any other field. */
   field: string,
   min = 0,
   max = 259260,
@@ -490,21 +557,7 @@ export async function getRecipesByRange(
   limit = 12
 ) {
   const url = `${BASE_URL}/recipes/range?min=${min}&max=${max}&page=${page}&limit=${limit}&field=${field}`;
-  const data = await apiFetch<{
-    success: boolean;
-    page: number;
-    totalPages: number;
-    totalResults: number;
-    data: RecipeBasic[];
-  }>(url);
-  return {
-    data: data.data,
-    pagination: {
-      totalPages: data.totalPages,
-      totalResults: data.totalResults,
-      currentPage: data.page,
-    },
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by range", page);
 }
 
 // --- Endpoint 7: Get Recipes by Cuisine ---
@@ -520,39 +573,21 @@ export async function getRecipesByCuisine(
 ) {
   const params = new URLSearchParams();
   params.set("page", String(page));
-  params.set("page_size", String(pageSize));
+  // The endpoint now takes `limit`; it rejects the old `page_size` outright.
+  params.set("limit", String(pageSize));
   params.set("min", String(min));
   params.set("max", String(max));
   if (field) params.set("field", field);
   if (continent) params.set("continent", continent);
   if (subRegion) params.set("subRegion", subRegion);
   const url = `${BASE_URL}/recipes_cuisine/cuisine/${encodeURIComponent(region)}?${params}`;
-  const data = await apiFetch<{
-    success: boolean;
-    page: number;
-    totalPages: number;
-    totalResults: number;
-    data: RecipeBasic[];
-  }>(url);
-  return {
-    data: data.data,
-    pagination: {
-      totalPages: data.totalPages,
-      totalResults: data.totalResults,
-      currentPage: data.page,
-    },
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by cuisine", page);
 }
 
 // --- Endpoint 8: Get Recipe by Title ---
 export async function getRecipeByTitle(title: string) {
   const url = `${BASE_URL}/recipe-bytitle/recipeByTitle?title=${encodeURIComponent(title)}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    data: RecipeBasic[];
-  }>(url);
-  return data.data;
+  return listOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by title");
 }
 
 // --- Endpoint 9: Get Recipes by Calories ---
@@ -563,16 +598,7 @@ export async function getRecipesByCalories(
   page = 1
 ) {
   const url = `${BASE_URL}/recipes-calories/calories?minCalories=${minCalories}&maxCalories=${maxCalories}&limit=${limit}&page=${page}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    data: RecipeBasic[];
-    pagination: { totalResults: number; totalPages: number; currentPage: number; itemsPerPage: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by calories", page);
 }
 
 // --- Endpoint 10: Get Recipes by Region and Diet ---
@@ -583,16 +609,7 @@ export async function getRecipesByRegionAndDiet(
   page = 1
 ) {
   const url = `${BASE_URL}/recipe/region-diet/region-diet?region=${encodeURIComponent(region)}&diet=${encodeURIComponent(diet)}&limit=${limit}&page=${page}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    data: RecipeBasic[];
-    pagination: { totalCount: number; totalPages: number; currentPage: number; itemsPerPage: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by region and diet", page);
 }
 
 // --- Endpoint 11: Get Recipes by Diet ---
@@ -602,16 +619,7 @@ export async function getRecipesByDiet(
   page = 1
 ) {
   const url = `${BASE_URL}/recipe-diet/recipe-diet?diet=${diet}&limit=${limit}&page=${page}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    data: RecipeBasic[];
-    pagination: { totalCount: number; totalPages: number; currentPage: number; itemsPerPage: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by diet", page);
 }
 
 // --- Endpoint 12: Get Recipes by Carbs ---
@@ -622,26 +630,22 @@ export async function getRecipesByCarbs(
   page = 1
 ) {
   const url = `${BASE_URL}/recipe-carbo/recipes-by-carbs?minCarbs=${minCarbs}&maxCarbs=${maxCarbs}&limit=${limit}&page=${page}`;
-  const data = await apiFetch<{
-    success: boolean;
-    message: string;
-    data: RecipeBasic[];
-    pagination: { totalCount: number; totalPages: number; currentPage: number; itemsPerPage: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by carbs", page);
 }
 
 // --- Endpoint 13: Get Instructions by Recipe ID ---
-export async function getInstructionsByRecipeId(recipeId: string) {
+export async function getInstructionsByRecipeId(
+  recipeId: string
+): Promise<{ recipe_id: string; steps: string[] }> {
   const url = `${BASE_URL}/instructions/${recipeId}`;
-  const data = await apiFetch<{
-    recipe_id: string;
-    steps: string[];
-  }>(url);
-  return data;
+  // Live: { data: { recipe_id, steps } }; older replies had both at the top.
+  const record = recordOf<{ recipe_id?: unknown; steps?: unknown }>(await apiFetch<unknown>(url));
+  const steps = Array.isArray(record.steps)
+    ? record.steps.map(String)
+    : typeof record.steps === "string" && record.steps
+      ? [record.steps]
+      : [];
+  return { recipe_id: String(record.recipe_id ?? recipeId), steps };
 }
 
 // --- Endpoint 14: Get Ingredients by Flavor ---
@@ -651,15 +655,7 @@ export async function getIngredientsByFlavor(
   limit = 20
 ) {
   const url = `${BASE_URL}/ingredients/flavor/${encodeURIComponent(flavor)}?page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    status: string;
-    data: FlavorIngredient[];
-    pagination: { total: number; page: number; pages: number; limit: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<FlavorIngredient>(await apiFetch<unknown>(url), "ingredients by flavor", page);
 }
 
 // --- Endpoint 15: Get Recipes by Utensils ---
@@ -669,15 +665,7 @@ export async function getRecipesByUtensils(
   limit = 12
 ) {
   const url = `${BASE_URL}/byutensils/utensils?utensils=${encodeURIComponent(utensils)}&page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    success: boolean;
-    data: RecipeBasic[];
-    pagination: { total: number; totalPages: number; currentPage: number; limit: number; hasNextPage: boolean; hasPrevPage: boolean };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: data.pagination,
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by utensils", page);
 }
 
 // --- Endpoint 16: Get Recipes by Cooking Method ---
@@ -686,19 +674,7 @@ export async function getRecipesByCookingMethod(
   page = 1
 ) {
   const url = `${BASE_URL}/recipes-method/${encodeURIComponent(method)}?page=${page}`;
-  const data = await apiFetch<{
-    status: string;
-    data: RecipeBasic[];
-    pagination: { total: number; page: number; pages: number };
-  }>(url);
-  return {
-    data: data.data,
-    pagination: {
-      totalResults: data.pagination.total,
-      totalPages: data.pagination.pages,
-      currentPage: data.pagination.page,
-    },
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by cooking method", page);
 }
 
 // --- Endpoint 17: Get Recipes by Energy ---
@@ -709,25 +685,28 @@ export async function getRecipesByEnergy(
   limit = 12
 ) {
   const url = `${BASE_URL}/byenergy/energy?minEnergy=${minEnergy}&maxEnergy=${maxEnergy}&page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    recipes: RecipeBasic[];
-    pagination: { totalRecipes: number; totalPages: number; currentPage: number; limit: number };
-  }>(url);
-  return {
-    data: data.recipes,
-    pagination: {
-      totalResults: data.pagination.totalRecipes,
-      totalPages: data.pagination.totalPages,
-      currentPage: data.pagination.currentPage,
-    },
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by energy", page);
 }
 
 // --- Endpoint 18: Search Recipe by ID (with Ingredients) ---
-export async function searchRecipeById(recipeId: string) {
+export async function searchRecipeById(recipeId: string): Promise<RecipeWithIngredients> {
   const url = `${BASE_URL}/search-recipe/${recipeId}`;
-  const data = await apiFetch<RecipeWithIngredients>(url);
-  return data;
+  const body = replyBody(await apiFetch<unknown>(url));
+  // Live: data: { recipe, ingredients, instructions }. Older: { recipe,
+  // ingredients } at the top. Spec: payload: { data: <the recipe>, ingredients }.
+  const data = isObj(body.data) ? body.data : undefined;
+  const holder = data && isObj(data.recipe) ? data : body;
+  const recipe = isObj(holder.recipe) ? holder.recipe : data;
+  if (!recipe) {
+    throw new FoodoscopeApiError(
+      `Unexpected FoodOScope reply for recipe ${recipeId}: no recipe in it (found: ${fieldsOf(body)})`
+    );
+  }
+  const ingredients = [holder.ingredients, body.ingredients].find(Array.isArray) ?? [];
+  return {
+    recipe: recipe as unknown as RecipeBasic,
+    ingredients: ingredients as RecipeIngredient[],
+  };
 }
 
 // --- Endpoint 19: Get Recipe of Day by Category ---
@@ -752,22 +731,7 @@ export async function getRecipesByProtein(
   limit = 12
 ) {
   const url = `${BASE_URL}/protein/protein-range?min=${min}&max=${max}&page=${page}&limit=${limit}`;
-  const data = await apiFetch<{
-    success: boolean;
-    currentPage: number;
-    totalPages: number;
-    totalRecipes: number;
-    recipesPerPage: number;
-    data: RecipeBasic[];
-  }>(url);
-  return {
-    data: data.data,
-    pagination: {
-      totalResults: data.totalRecipes,
-      totalPages: data.totalPages,
-      currentPage: data.currentPage,
-    },
-  };
+  return pageOf<RecipeBasic>(await apiFetch<unknown>(url), "recipes by protein", page);
 }
 
 // --- Endpoint 21: Get Recipes by Category (Include/Exclude) ---

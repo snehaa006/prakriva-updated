@@ -1,0 +1,33 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully.",
+ "data": [
+  {
+   "_id": "64057253a13d0d2d35896f57",
+   "Recipe_id": "56115",
+   "Calories": "371.7",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "4",
+   "Recipe_title": "Chinese Take-Out Fried Rice",
+   "total_time": "35"
+  },
+  {
+   "_id": "64057265a13d0d2d358988a1",
+   "Recipe_id": "62591",
+   "Calories": "1397.6",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "02-Apr",
+   "Recipe_title": "Fried Spicy Drum Stick- Wings With Fish Sauce",
+   "total_time": "60"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 10,
+  "totalPages": 5,
+  "date": "2026-11-21"
+ }
+}

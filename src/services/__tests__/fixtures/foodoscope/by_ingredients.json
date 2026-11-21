@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully",
+ "data": [
+  {
+   "_id": "640572c5a13d0d2d358a1aa8",
+   "Recipe_id": "100006",
+   "Calories": "446.7",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "6",
+   "Recipe_title": "Creole \"style\" Chicken & Sausage Jambalaya",
+   "total_time": "55"
+  },
+  {
+   "_id": "640572c5a13d0d2d358a1aa9",
+   "Recipe_id": "100007",
+   "Calories": "566.5",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "06-Aug",
+   "Recipe_title": "Chicken, Wild Rice and Green Bean Soup",
+   "total_time": "80"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 12020,
+  "totalPages": 6010
+ }
+}

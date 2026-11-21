@@ -320,9 +320,15 @@ Coverage is focused on authentication, since that is the gate on both roles:
   `400` still failing fast, and a readable error when every key is exhausted.
 - `src/services/__tests__/foodoscopeLimit.test.ts` — the 10-result cap on every
   request, leaving every other query parameter byte-for-byte as it was.
-- `src/services/__tests__/foodoscopeReplyShape.test.ts` — payload-wrapped and
-  flat replies both read the same, a missing pagination standing in as one
-  page, and the readable error for a reply with no list.
+- `src/services/__tests__/foodoscopeLiveReplies.test.ts` — every FoodOScope
+  reader run on a reply recorded from the live API
+  (`__tests__/fixtures/foodoscope/`): lists, page counts taken from `meta`, the
+  recipe and ingredients nested in `/search-recipe`, the steps nested in
+  `/instructions`, and the cuisine endpoint asked for `limit`.
+- `src/services/__tests__/foodoscopeReplyShape.test.ts` — the older reply shapes
+  (payload-wrapped, counts under `pagination` or at the top level) still read,
+  a reply with no counts standing in as one page, and the readable error for a
+  reply with no list.
 - `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
   unique labels, known categories, normalized search terms and alias lookup.
 - `src/services/__tests__/ingredientCatalogService.test.ts` — building the
@@ -2270,14 +2276,32 @@ screens page by the API's own pagination totals. The ingredient catalogue
 therefore takes up to 50 ingredients per flavor category (5 pages) rather than
 500.
 
-**Reply shapes.** FoodOScope's published spec wraps every reply in `payload`
-(`{ success, message, payload: { data, pagination } }`), but the live API
-answers most endpoints flat (`{ success, message, data, pagination }`) and has
-been moving the rest over without notice. The readers in
-`foodoscopeApi.ts` that once expected `payload` go through `pageOf` /
-`listOf` / `recordOf`, which accept either shape per reply; a reply with
-neither fails with `Unexpected FoodOScope reply for …: no list in it (found:
-…)`, naming the fields it did contain, rather than a bare `undefined` error.
+**Reply shapes.** Every endpoint the app uses answers in one shape, recorded
+from the live API in November 2026:
+
+```
+{ success, message, data, meta: { page, limit, total, totalPages } }
+```
+
+`data` is the list, or the single record — `/search-recipe/{id}` nests
+`{ recipe, ingredients, instructions }` inside it, and `/instructions/{id}`
+nests `{ recipe_id, steps }`. FoodOScope's published spec still shows an older
+`{ payload: { data, pagination } }`, and earlier live replies put lists and
+page counts at the top level under several names; each reshuffle broke a
+different screen. The readers in `foodoscopeApi.ts` therefore go through
+`pageOf` / `listOf` / `recordOf`, which accept all of these, and return page
+counts as a `PageInfo` that carries every name the screens read
+(`total`/`totalCount`/`totalResults`/`totalRecipes`, `totalPages`/`pages`,
+`currentPage`/`page`). A reply they cannot read fails with
+`Unexpected FoodOScope reply for …: no list in it (found: …)`, naming the
+fields it did contain. The cuisine endpoint takes `limit` (it rejects the old
+`page_size`), and `/recipes/range` accepts only `total_time`, `prep_time` or
+`cook_time` as its `field`.
+
+**If FoodOScope changes shape again**, re-record one reply per endpoint into
+`src/services/__tests__/fixtures/foodoscope/` (trimmed to structure; they hold
+recipe data only) and run `foodoscopeLiveReplies.test.ts` — it calls every
+reader on those replies and shows which ones need to follow.
 
 **Retire exhausted keys.** Rotation gets past them, but every page load still
 spends one request on each exhausted key that sorts ahead of a working one

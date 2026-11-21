@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully",
+ "data": [
+  {
+   "_id": "64057221a13d0d2d35891383",
+   "Recipe_id": "4172",
+   "Calories": "28.0",
+   "cook_time": "0",
+   "prep_time": "5",
+   "servings": "4",
+   "Recipe_title": "Indian Spiced Onions",
+   "total_time": "1Day5"
+  },
+  {
+   "_id": "64057221a13d0d2d35891384",
+   "Recipe_id": "4173",
+   "Calories": "51.0",
+   "cook_time": "120",
+   "prep_time": "480",
+   "servings": "96",
+   "Recipe_title": "Spicy Peach Chutney",
+   "total_time": "600"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 768,
+  "totalPages": 384
+ }
+}

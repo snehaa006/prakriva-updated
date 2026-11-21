@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully.",
+ "data": [
+  {
+   "_id": "6405732fa13d0d2d358ac60b",
+   "Recipe_id": "143907",
+   "Calories": "391.8",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "15 1 in brownies",
+   "Recipe_title": "- Disgustingly Rich  Brownies -",
+   "total_time": "10"
+  },
+  {
+   "_id": "6405728aa13d0d2d3589c5b2",
+   "Recipe_id": "78230",
+   "Calories": "51.5",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "03-Apr",
+   "Recipe_title": "! Arriba ! Baked Winter Squash Mexican-Style",
+   "total_time": "55"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 10,
+  "total": 27525,
+  "totalPages": 2753
+ }
+}

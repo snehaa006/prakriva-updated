@@ -1,0 +1,36 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully.",
+ "data": [
+  {
+   "_id": "64057221a13d0d2d35891316",
+   "Recipe_id": "4063",
+   "Calories": "717.0",
+   "cook_time": "49",
+   "prep_time": "60",
+   "servings": "8",
+   "Recipe_title": "Fried Chicken Biryani (Filipino-Style)",
+   "total_time": "129"
+  },
+  {
+   "_id": "64057223a13d0d2d358915df",
+   "Recipe_id": "4776",
+   "Calories": "153.0",
+   "cook_time": "60",
+   "prep_time": "15",
+   "servings": "16",
+   "Recipe_title": "Korean Rice Cake (Tteok)",
+   "total_time": "95"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 12184,
+  "totalPages": 6092,
+  "query": {
+   "min": 10,
+   "max": 20
+  }
+ }
+}

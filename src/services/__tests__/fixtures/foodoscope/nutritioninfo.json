@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Nutrition information fetched successfully.",
+ "data": [
+  {
+   "recipeTitle": "Egyptian Lentil Soup",
+   "ingredientName": "coriander",
+   "_id": "64c4197fc6779f7b31e6dd71",
+   "Recipe_id": "2610",
+   "ndb_id": "2013",
+   "Ash (g)": "0.0271",
+   "Calcium, Ca (mg)": "3.1905",
+   "Carbohydrate, by difference (g)": "0.2475"
+  },
+  {
+   "recipeTitle": "Egyptian Lentil Soup",
+   "ingredientName": "cumin",
+   "_id": "64c4197fc6779f7b31e6dd72",
+   "Recipe_id": "2610",
+   "ndb_id": "2014",
+   "Ash (g)": "0.32",
+   "Calcium, Ca (mg)": "39.102",
+   "Carbohydrate, by difference (g)": "1.8581"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 720883,
+  "totalPages": 360442
+ }
+}

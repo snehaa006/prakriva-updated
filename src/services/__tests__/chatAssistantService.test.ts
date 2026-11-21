@@ -196,7 +196,11 @@ describe("maybeFetchRecipeCandidates", () => {
   it("narrows to the pantry/flavour overlap when a flavour word is present", async () => {
     vi.mocked(getIngredientsByFlavor).mockResolvedValue({
       data: [{ _id: "f1", IngID: "1", ingredient: "jaggery", frequency: "10", generic_name: "", FlavorDB_Category: "", Dietrx_Category: "", flavordb_id: "", Diet_rx_link: "" }],
-      pagination: { total: 1, page: 1, pages: 1, limit: 40 },
+      pagination: {
+        total: 1, totalCount: 1, totalResults: 1, totalRecipes: 1,
+        page: 1, currentPage: 1, pages: 1, totalPages: 1,
+        limit: 10, itemsPerPage: 10, hasNextPage: false, hasPrevPage: false,
+      },
     });
     vi.mocked(getRecipesByIngredientsCategoriesTitle).mockResolvedValue([recipe()]);
 

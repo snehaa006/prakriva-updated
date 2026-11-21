@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Recipes fetched successfully",
+ "data": [
+  {
+   "_id": "64057221a13d0d2d358911f9",
+   "Recipe_id": "3778",
+   "Calories": "100.0",
+   "cook_time": "45",
+   "prep_time": "10",
+   "servings": "6",
+   "Recipe_title": "Crabmeat and Asparagus Soup",
+   "total_time": "55"
+  },
+  {
+   "_id": "64057221a13d0d2d35891406",
+   "Recipe_id": "4303",
+   "Calories": "100.0",
+   "cook_time": "15",
+   "prep_time": "20",
+   "servings": "4",
+   "Recipe_title": "Bhindi Masala (Spicy Okra Curry)",
+   "total_time": "35"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 38760,
+  "totalPages": 19380
+ }
+}

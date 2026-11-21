@@ -35,6 +35,12 @@ const replyWith = (body: unknown) =>
 
 const RECIPES = [{ Recipe_id: "2610", Recipe_title: "Egyptian Lentil Soup" }];
 const PAGINATION = { totalCount: 118000, totalPages: 11800, currentPage: 2, itemsPerPage: 10 };
+/** The same counts as every screen reads them, whichever name it uses. */
+const PAGE_INFO = {
+  total: 118000, totalCount: 118000, totalResults: 118000, totalRecipes: 118000,
+  totalPages: 11800, pages: 11800, currentPage: 2, page: 2,
+  limit: 10, itemsPerPage: 10, hasNextPage: true, hasPrevPage: true,
+};
 const RECIPE = { Recipe_id: "7", Recipe_title: "Khichdi" };
 
 afterEach(() => {
@@ -44,34 +50,41 @@ afterEach(() => {
 describe("paginated lists (recipesinfo)", () => {
   it("reads the documented payload-wrapped reply exactly as before", async () => {
     replyWith({ success: "true", message: "ok", payload: { data: RECIPES, pagination: PAGINATION } });
-    await expect(getRecipesInfo(2, 10)).resolves.toEqual({ data: RECIPES, pagination: PAGINATION });
+    await expect(getRecipesInfo(2, 10)).resolves.toEqual({ data: RECIPES, pagination: PAGE_INFO });
   });
 
-  it("reads the flat reply the live API now sends", async () => {
+  it("reads a flat reply with its counts under pagination", async () => {
     replyWith({ success: true, message: "ok", data: RECIPES, pagination: PAGINATION });
-    await expect(getRecipesInfo(2, 10)).resolves.toEqual({ data: RECIPES, pagination: PAGINATION });
+    await expect(getRecipesInfo(2, 10)).resolves.toEqual({ data: RECIPES, pagination: PAGE_INFO });
+  });
+
+  it("reads the live reply, counts under meta", async () => {
+    replyWith({
+      success: true, message: "ok", data: RECIPES,
+      meta: { page: 2, limit: 10, total: 118000, totalPages: 11800 },
+    });
+    await expect(getRecipesInfo(2, 10)).resolves.toEqual({ data: RECIPES, pagination: PAGE_INFO });
   });
 
   it("stands in a single page when the reply carries no pagination", async () => {
     replyWith({ success: true, data: RECIPES });
-    await expect(getRecipesInfo(1, 10)).resolves.toEqual({
-      data: RECIPES,
-      pagination: { totalCount: 1, totalPages: 1, currentPage: 1 },
-    });
+    const { data, pagination } = await getRecipesInfo(1, 10);
+    expect(data).toEqual(RECIPES);
+    expect(pagination).toMatchObject({ total: 1, totalCount: 1, totalPages: 1, pages: 1, currentPage: 1 });
   });
 
   it("uses top-level page fields when that is where the reply puts them", async () => {
     replyWith({ success: true, data: RECIPES, totalPages: 7, currentPage: 3, totalResults: 70 });
     const { pagination } = await getRecipesInfo(3, 10);
-    expect(pagination).toEqual({ totalCount: 70, totalPages: 7, currentPage: 3 });
+    expect(pagination).toMatchObject({ totalCount: 70, totalResults: 70, totalPages: 7, pages: 7, currentPage: 3 });
   });
 
   it("names what it found when the reply holds no list at all", async () => {
-    replyWith({ success: true, message: "ok", recipes: RECIPES });
+    replyWith({ success: true, message: "ok", results: RECIPES });
     const error = await getRecipesInfo(1, 10).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(FoodoscopeApiError);
     expect((error as Error).message).toBe(
-      "Unexpected FoodOScope reply for recipes: no list in it (found: success, message, recipes)"
+      "Unexpected FoodOScope reply for recipes: no list in it (found: success, message, results)"
     );
   });
 });

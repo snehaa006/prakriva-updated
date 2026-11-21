@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Data fetched successfully",
+ "data": [
+  {
+   "_id": "640572f9a13d0d2d358a8565",
+   "Recipe_id": "127349",
+   "Calories": "36.0",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "1",
+   "Recipe_title": "Coconut-Raspberry (Or Strawberry) Italian Soda (Diabetic)",
+   "total_time": "5"
+  },
+  {
+   "_id": "6405729ea13d0d2d3589da1e",
+   "Recipe_id": "83465",
+   "Calories": "165.9",
+   "cook_time": "0",
+   "prep_time": "0",
+   "servings": "4",
+   "Recipe_title": "Jicama-Orange Salad with Chipotle Vinaigrette",
+   "total_time": "30"
+  }
+ ],
+ "meta": {
+  "page": 1,
+  "limit": 2,
+  "total": 10424,
+  "totalPages": 5212
+ }
+}

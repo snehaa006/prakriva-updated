@@ -1,0 +1,26 @@
+{
+ "success": true,
+ "message": "Recipe fetched successfully.",
+ "data": {
+  "Recipe_title": "Corn Flake Cookies",
+  "img_url": "https://img.sndimg.com/food/image/upload/w_555,h_416,c_fit,fl_progressive,q_95/v",
+  "url": "http://www.geniuskitchen.com/recipe/corn-flake-cookies-344641",
+  "Calories": "125.9",
+  "total_time": "20",
+  "servings": "30 cookies",
+  "Sub_region": "Australian",
+  "Region": "Australian",
+  "ingredients": [
+   {
+    "name": "flour"
+   },
+   {
+    "name": "sugar"
+   }
+  ],
+  "instructions": "preheat th eoven to 180°c . sift together the flour & baking powder . beat marga"
+ },
+ "meta": {
+  "date": "2026-11-21"
+ }
+}

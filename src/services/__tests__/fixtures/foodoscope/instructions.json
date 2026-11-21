@@ -1,0 +1,11 @@
+{
+ "success": true,
+ "message": "Data fetched successfully",
+ "data": {
+  "recipe_id": "2610",
+  "steps": [
+   "place 3 cups water , lentils , tomato , carrot , onion , garlic , and chicken bo",
+   "cook until vegetables and lentils are softened , 20 to 25 minutes"
+  ]
+ }
+}

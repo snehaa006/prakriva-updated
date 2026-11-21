@@ -1,0 +1,32 @@
+{
+ "success": true,
+ "message": "Data fetched successfully",
+ "data": [
+  {
+   "_id": "64057221a13d0d2d358911aa",
+   "Recipe_id": "3699",
+   "Calories": "671.0",
+   "cook_time": "30",
+   "prep_time": "25",
+   "servings": "2",
+   "Recipe_title": "Egg and Potato Curry",
+   "total_time": "55"
+  },
+  {
+   "_id": "64057221a13d0d2d358911ab",
+   "Recipe_id": "3700",
+   "Calories": "321.0",
+   "cook_time": "35",
+   "prep_time": "25",
+   "servings": "6",
+   "Recipe_title": "Butter Lamb Gravy",
+   "total_time": "60"
+  }
+ ],
+ "meta": {
+  "page": 2,
+  "limit": 2,
+  "total": 6463,
+  "totalPages": 3232
+ }
+}
