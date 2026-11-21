@@ -875,10 +875,22 @@
                 }
 
                 lastResponse = response;
+                // FoodOScope answers a key that is out of credits with 400
+                // "Not enough tokens" rather than 402. Read a clone so the
+                // caller still gets an unread body; treat it as the 402 it is.
+                let status = response.status;
+                if (status === 400) {
+                    try {
+                        const body = await response.clone().json();
+                        if (/not enough tokens/i.test(String(body && body.error))) status = 402;
+                    } catch (e) {
+                        // Not JSON: a genuine bad request.
+                    }
+                }
                 // A bad request or missing recipe fails the same way on every key.
-                if (!isTokenFailure(response.status)) return response;
+                if (!isTokenFailure(status)) return response;
 
-                tokenCooldownUntil[i] = Date.now() + tokenCooldownFor(response.status);
+                tokenCooldownUntil[i] = Date.now() + tokenCooldownFor(status);
                 if (activeTokenIndex === i) activeTokenIndex = (i + 1) % API_TOKENS.length;
             }
 

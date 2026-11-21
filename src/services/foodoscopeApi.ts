@@ -99,6 +99,23 @@ function isKeyFailure(status: number): boolean {
   );
 }
 
+/**
+ * FoodOScope's own words for a key that has run out of credits. It answers
+ * that case with **400**, not 402, and checks credits before it looks at the
+ * request — so this 400 says nothing about the request, only about the key.
+ */
+const OUT_OF_TOKENS = /not enough tokens/i;
+
+/** The `error` message from a FoodOScope error body, or "" if there isn't one. */
+async function errorMessageOf(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: unknown; message?: unknown } | null;
+    return String(body?.error ?? body?.message ?? "");
+  } catch {
+    return "";
+  }
+}
+
 /** How long to park a key after a failure, based on why it failed. */
 function cooldownFor(status: number): number {
   if (status === 429) return 60_000;
@@ -334,14 +351,18 @@ async function apiFetch<T>(url: string): Promise<T> {
       return res.json();
     }
 
+    const detail = res.status === 400 ? await errorMessageOf(res) : "";
     const error = new FoodoscopeApiError(
-      `API error: ${res.status} ${res.statusText}`,
+      `API error: ${res.status} ${detail || res.statusText}`.trim(),
       res.status
     );
+    // An exhausted key is a key failure, whatever status it arrives with;
+    // treat it as the 402 it means so it cools down like one.
+    const keyStatus = OUT_OF_TOKENS.test(detail) ? 402 : res.status;
     // A bad request or missing recipe fails identically on every key.
-    if (!isKeyFailure(res.status)) throw error;
+    if (!isKeyFailure(keyStatus)) throw error;
 
-    penalize(index, res.status);
+    penalize(index, keyStatus);
     lastError = error;
   }
 

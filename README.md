@@ -314,6 +314,10 @@ Coverage is focused on authentication, since that is the gate on both roles:
 - `src/services/__tests__/foodoscopeApi.test.ts` — the ingredient recipe search,
   including a 404 (no recipe matches every ingredient) reading as an empty
   result rather than a failure.
+- `src/services/__tests__/foodoscopeKeyRotation.test.ts` — key rotation against
+  FoodOScope's real failure shapes: moving past a key that answers
+  `400 Not enough tokens`, staying on the working key afterwards, a genuine
+  `400` still failing fast, and a readable error when every key is exhausted.
 - `src/data/__tests__/ingredients.test.ts` — bundled catalogue invariants:
   unique labels, known categories, normalized search terms and alias lookup.
 - `src/services/__tests__/ingredientCatalogService.test.ts` — building the
@@ -2235,15 +2239,27 @@ How rotation behaves:
   key instead of cycling.
 - On `401`/`402`/`403` (invalid, exhausted, or suspended key), `429` (rate
   limited), or any `5xx`, the request is retried on the next key.
+- **An exhausted key arrives as `400`, not `402`.** FoodOScope answers a key
+  that has run out of credits with `400 {"error":"Not enough tokens"}`, and
+  checks credits before it reads the request. A `400` with that message is
+  therefore treated as the key failure it is (cooled down like a `402`) and
+  the next key is tried. Before this was handled, the first exhausted key in
+  the table ended every request, so keys added after it were never reached.
 - A failed key is put in cooldown — 60s after a `429`, 15 min after an auth
   failure, 30s after a server or network error — and skipped while a healthy
   key is available. If every key is cooling down, they're still tried rather
   than failing outright.
-- `4xx` responses that aren't key-related (e.g. `400`, `404`) throw
-  immediately, since another key would return the same thing.
+- Any other `4xx` (a genuine bad request, `404`) throws immediately, since
+  another key would return the same thing.
 - When all keys fail, the last error is thrown as a `FoodoscopeApiError`
-  carrying the HTTP `status`. `getKeyPoolStatus()` from the same module returns
-  a redacted snapshot of each key's state for debugging.
+  carrying the HTTP `status` and, for a `400`, FoodOScope's own reason (e.g.
+  `API error: 400 Not enough tokens`). `getKeyPoolStatus()` from the same
+  module returns a redacted snapshot of each key's state for debugging.
+
+**Retire exhausted keys.** Rotation gets past them, but every page load still
+spends one request on each exhausted key that sorts ahead of a working one
+(the browser console shows those as `400`s). Set `is_active = false` on keys
+that are out of credits, or give the new ones a lower `priority`.
 
 These keys are **not secrets** — a row readable by signed-in users is readable
 by every signed-in user, and the keys reach the browser either way. FoodOScope
@@ -2257,7 +2273,8 @@ the patient **Food Compatibility** page it borrows the app's pool over a
 `postMessage` bridge instead: the iframe posts
 `{ type: "foodoscope-request", id, path }`, `FoodCompatibility.tsx` calls
 `fetchFoodoscopePath()` with the rotating keys and posts the JSON back as
-`{ type: "foodoscope-response", id, ok, data | status }`. The host only answers
+`{ type: "foodoscope-response", id, ok, data | status }` — so the page gets the
+same rotation, including moving past an exhausted key. The host only answers
 its own same-origin iframe, and only for `/recipe-bytitle/…` and
 `/search-recipe/…`. Opened directly at `/mealCompatibility.html` — or if the
 host doesn't answer — the page falls back to its own hardcoded `API_TOKENS`
