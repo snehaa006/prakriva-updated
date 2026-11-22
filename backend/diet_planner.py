@@ -51,12 +51,12 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 #: request inside Gemini's output budget.
 MAX_DAYS = 14
 
-#: Days per Gemini request. A whole week in one request asked for ~9k tokens of
-#: JSON — 45–60 s of generation, right at the 60 s deadline — so the chart often
-#: failed (503) and the doctor then waited for the recipe-database fallback on
-#: top. Chunks of up to three days are composed in parallel, so a week takes
-#: about as long as three days.
-CHUNK_DAYS = 3
+#: Days per Gemini request. Measured on the live backend (gemini-3.8-flash), one
+#: day of five meals takes ~34 s, and a whole week in one request ran past the
+#: 60 s deadline every time ("Gemini wall-clock deadline exceeded") - so every
+#: Generate silently became the recipe-database fallback. One day per request,
+#: all composed in parallel, makes a week take about as long as one day.
+CHUNK_DAYS = 1
 
 #: A different emphasis per chunk. The chunks are composed separately, so this
 #: is what keeps a week from serving the same handful of dishes three times.
@@ -498,20 +498,43 @@ def _unique(items: List[str]) -> List[str]:
 
 
 def _merge_chunks(
-    chunks: List[Tuple[int, int]], parts: List[Dict[str, Any]]
+    chunks: List[Tuple[int, int]], parts: List[Optional[Dict[str, Any]]]
 ) -> Dict[str, Any]:
-    """One plan from per-chunk plans, days renumbered into one sequence."""
+    """One plan from per-chunk plans, days renumbered into one sequence.
+
+    A chunk that failed (None) is filled by repeating the composed days in
+    order, so the week is still complete and still the AI's; the summary says
+    which days repeat.
+    """
+    done = [part for part in parts if part is not None]
+    composed = [day for part in done for day in part["days"]]
+
     days: List[Dict[str, Any]] = []
-    for (first_day, _count), part in zip(chunks, parts):
-        for offset, day in enumerate(part["days"]):
+    repeated: List[int] = []
+    for (first_day, count), part in zip(chunks, parts):
+        source_days = part["days"] if part is not None else [
+            composed[(first_day - 1 + offset) % len(composed)] for offset in range(count)
+        ]
+        for offset, day in enumerate(source_days):
             number = first_day + offset
+            if part is None:
+                repeated.append(number)
             days.append({**day, "dayNumber": number, "dayLabel": DAY_NAMES[(number - 1) % 7]})
+
+    summary = next((part["summary"] for part in done if part["summary"]), "")
+    if repeated:
+        labels = ", ".join(DAY_NAMES[(n - 1) % 7] for n in repeated)
+        summary = (summary + " " if summary else "") + (
+            f"{labels} repeat{'s' if len(repeated) == 1 else ''} earlier days: the AI "
+            "planner was busy for those."
+        )
+
     return {
         "days": days,
-        "clinicalFocus": _unique([f for part in parts for f in part["clinicalFocus"]]),
-        "pantryGaps": _unique([g for part in parts for g in part["pantryGaps"]]),
-        "summary": next((part["summary"] for part in parts if part["summary"]), ""),
-        "rejectedMeals": [r for part in parts for r in part["rejectedMeals"]],
+        "clinicalFocus": _unique([f for part in done for f in part["clinicalFocus"]]),
+        "pantryGaps": _unique([g for part in done for g in part["pantryGaps"]]),
+        "summary": summary,
+        "rejectedMeals": [r for part in done for r in part["rejectedMeals"]],
         "source": "gemini",
     }
 
@@ -549,11 +572,15 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
         prompt = build_diet_prompt(payload, count, daily_calories)
         if len(chunks) > 1:
             index = chunks.index(chunk)
+            covers = (
+                f"day {first_day}" if count == 1
+                else f"days {first_day}–{first_day + count - 1}"
+            )
+            numbering = "Number this day 1." if count == 1 else f"Number these days 1 to {count}."
             prompt += (
-                f"\n\nThis request covers days {first_day}–{first_day + count - 1} of a "
-                f"{days}-day plan; the other days are composed separately. Number these "
-                f"days 1 to {count}. For variety across the week, lean towards "
-                f"{CHUNK_EMPHASIS[index % len(CHUNK_EMPHASIS)]}."
+                f"\n\nThis request covers {covers} of a {days}-day plan; the other days "
+                f"are composed separately. {numbering} For variety across the week, lean "
+                f"towards {CHUNK_EMPHASIS[index % len(CHUNK_EMPHASIS)]}."
             )
         raw = gemini_service.generate_json(
             prompt,
@@ -575,12 +602,28 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
     t0 = _time.monotonic()
 
     if len(chunks) == 1:
-        parts = [compose(chunks[0])]
+        parts: List[Optional[Dict[str, Any]]] = [compose(chunks[0])]
     else:
-        # Any chunk failing fails the chart: the frontend's fallback is a whole
-        # plan, which beats a week with a hole in the middle.
+        # Seven requests at once can meet Gemini's per-minute limit. A day that
+        # is refused is filled from the days that came back (see _merge_chunks)
+        # rather than failing the whole chart; only if every day fails does
+        # the doctor get the recipe-database fallback.
+        errors: List[Exception] = []
+        parts = []
         with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
-            parts = list(pool.map(compose, chunks))
+            for future in [pool.submit(compose, chunk) for chunk in chunks]:
+                try:
+                    parts.append(future.result())
+                except GeminiUnavailable as exc:
+                    errors.append(exc)
+                    parts.append(None)
+        if all(part is None for part in parts):
+            raise errors[0]
+        if errors:
+            logger.warning(
+                f"{len(errors)} of {len(chunks)} diet chart days failed ({errors[0]}); "
+                "filling them from the days that succeeded"
+            )
 
     elapsed = _time.monotonic() - t0
     logger.info(

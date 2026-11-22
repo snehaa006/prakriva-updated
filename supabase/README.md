@@ -99,7 +99,12 @@ browser console).
 
 `demo_doctors.sql` seeds three fictional demonstration practitioners flagged
 `doctors.is_demo`, verified through `verify_doctor()` like any real approval.
-Purge them before launch:
+`demo_patients_and_requests.sql` adds four more demo doctors, six demo patients
+(`*.patient.demo@prakriva.app`) with completed questionnaires, screenings and
+kitchens, and their consultation requests to Dr. Rajesh Kumar (four pending,
+two accepted). Set the shared demo password on its `>>> SET THIS <<<` line
+before running; it is safe to re-run, and its last lines remove everything it
+created. Purge the demo doctors before launch:
 
 ```sql
 delete from auth.users where id in (select id from public.doctors where is_demo);

@@ -123,7 +123,9 @@ listed under "Language and translation" below.
   (`preeclampsia_featurize.py`, `convert_preeclampsia_model.py`,
   `preeclampsia_model.json`). See "Disease detection" below.
 - `render.yaml` — Render blueprint for deploying the Flask backend.
-- `supabase/` — SQL migrations for the Supabase project, including
+- `supabase/` — SQL migrations for the Supabase project, plus the demo seeds
+  `demo_doctors.sql` and `demo_patients_and_requests.sql` (see "Demo doctor
+  accounts"), including
   `disease_screenings.sql` for the screening history table,
   `lifestyle_logs.sql` for the Lifestyle Tracker's daily sleep/activity/
   hydration log, `patient_pantry_items.sql` for the patient kitchen list and
@@ -1509,15 +1511,18 @@ distinct recipe, cached); the fixes are applied to the latest board, so a drag
 made meanwhile is kept. Slots that were left empty are not refilled — generate
 again for those. The palette also picks up the selection's corrections.
 
-**A week is composed in parallel.** One Gemini request for a whole week asked
-for ~9k tokens of JSON — 45–60 s of generation, right at the 60 s deadline — so
-the AI chart often failed (503) and the doctor then also waited for the
-fallback. `diet_planner.generate_diet_chart` now splits the plan into chunks of
-at most three days (`CHUNK_DAYS`; a week is 3 + 2 + 2), composes them
-concurrently, and stitches them back into one numbered week. Each chunk gets a
-different cooking emphasis (`CHUNK_EMPHASIS`) so a week composed in parallel
-does not repeat itself; if any chunk fails, the whole AI chart fails and the
-fallback takes over. The website waits at most 70 s for the AI chart (the
+**A week is composed one day per request, in parallel.** Measured on the live
+backend, `gemini-3.8-flash` takes ~34 s for one day of five meals, so a whole
+week in one request always ran past the 60 s deadline (`Gemini wall-clock
+deadline exceeded`) and every Generate silently became the recipe-database
+fallback. `diet_planner.generate_diet_chart` now asks for each day separately
+(`CHUNK_DAYS = 1`), all at once, and stitches them into one numbered week, so a
+week takes about as long as a day. Each day gets a different cooking emphasis
+(`CHUNK_EMPHASIS`, cycling) so a week composed in parallel does not repeat
+itself. Seven requests at once can meet Gemini's per-minute limit: a refused
+day is filled by repeating the days that came back, and the summary says which
+("Wednesday, Saturday repeat earlier days…"); only if every day fails does the
+fallback take over. The website waits at most 70 s for the AI chart (the
 backend's 60 s plus margin), and the Generate button says which generator is
 working: "Composing with AI…" or "Building from recipe database…".
 
@@ -1812,6 +1817,23 @@ the app sees real patients:
 ```sql
 delete from auth.users where id in (select id from public.doctors where is_demo);
 ```
+
+`supabase/demo_patients_and_requests.sql` adds four more demonstration doctors
+(Dr. Ananya Deshpande — pregnancy nutrition, Dr. Sameer Joshi — diabetes and
+metabolic care, Dr. Harpreet Kaur — PCOS and lifestyle, Dr. Farah Siddiqui —
+digestive, skin and hair; verified the same way) and six demonstration patients
+(`*.patient.demo@prakriva.app`, patient codes assigned on creation) with
+completed questionnaires: three pregnant (Kavya Reddy, Pooja Iyer — also PCOS,
+Sana Sheikh), two on the PCOS track (Aisha Khan, Ritu Malhotra) and one general
+(Neha Bansal). Each sends Dr. Rajesh Kumar (`rajesh.kumar.demo@prakriva.app`) a
+consultation request: four **pending**, to accept on his dashboard, and two
+**accepted** (Kavya, Pooja), already in his patient list and the Recipe Builder
+picker with a recent screening and a stocked kitchen, so Generate Diet Chart has
+everything. Accounts are created as a real signup creates them — through
+`auth.users` and the `handle_new_user()` trigger — and sign in with one shared
+demo password, which is set on the line marked `>>> SET THIS <<<` when the
+script is run (never committed). It is safe to re-run. The bottom of the file
+holds the one `delete` that removes all of it.
 
 Note that Ayurvedic practitioners (BAMS/MD) register under the Ministry of
 AYUSH / NCISM and their state Board of Indian Medicine — not the MCI or NMC,

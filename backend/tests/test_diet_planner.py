@@ -283,49 +283,65 @@ class TestGenerateDietChart:
         payload["days"] = 90
 
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
-             patch("gemini_service.requests.post", side_effect=lambda *a, **k: ok_response(gemini_reply(days=3))) as post:
+             patch("gemini_service.requests.post", side_effect=lambda *a, **k: ok_response(gemini_reply(days=1))) as post:
             plan = diet_planner.generate_diet_chart(payload)
 
         assert [d["dayNumber"] for d in plan["days"]] == list(range(1, diet_planner.MAX_DAYS + 1))
-        # 14 days in chunks of at most three: 3+3+3+3+2.
-        assert post.call_count == 5
+        assert post.call_count == diet_planner.MAX_DAYS  # one day per request
 
-    def test_a_week_is_composed_in_parallel_chunks_and_stitched_together(self, payload):
-        # One request for a whole week ran ~45–60 s, right at the deadline.
+    def test_a_week_is_composed_one_day_per_request_in_parallel(self, payload):
+        # Measured live: ~34 s per day, so a week in one request always ran
+        # past the 60 s deadline and every chart fell back to the recipes.
         payload["days"] = 7
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
-             patch("gemini_service.requests.post", side_effect=lambda *a, **k: ok_response(gemini_reply(days=3))) as post:
+             patch("gemini_service.requests.post", side_effect=lambda *a, **k: ok_response(gemini_reply(days=1))) as post:
             plan = diet_planner.generate_diet_chart(payload)
 
         prompts = [c.kwargs["json"]["contents"][0]["parts"][0]["text"] for c in post.call_args_list]
-        assert sorted(p.split("-day")[0].split()[-1] for p in prompts) == ["2", "2", "3"]
-        assert any("days 1–3 of a 7-day plan" in p for p in prompts)
-        assert any("days 6–7 of a 7-day plan" in p for p in prompts)
-        # A different emphasis per chunk keeps the week varied.
-        assert len({p.rsplit("lean towards", 1)[1] for p in prompts}) == 3
+        assert len(prompts) == 7
+        assert all("Compose a 1-day" in p and "Number this day 1." in p for p in prompts)
+        assert sorted(p.split("covers day ")[1].split(" ")[0] for p in prompts) == list("1234567")
+        # A different emphasis per day keeps the week varied (five, cycling).
+        assert len({p.rsplit("lean towards", 1)[1] for p in prompts}) == len(diet_planner.CHUNK_EMPHASIS)
         assert [d["dayNumber"] for d in plan["days"]] == [1, 2, 3, 4, 5, 6, 7]
-        assert [d["dayLabel"] for d in plan["days"]][:2] == ["Monday", "Tuesday"]
-        assert plan["days"][6]["dayLabel"] == "Sunday"
+        assert [d["dayLabel"] for d in plan["days"]] == [
+            "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+        ]
         assert plan["clinicalFocus"] == ["Iron pairings for the anaemia flag"]  # de-duplicated
 
-    def test_a_short_chart_is_still_one_request(self, payload):
-        payload["days"] = 3
+    def test_a_one_day_chart_is_one_request_without_a_week_note(self, payload):
+        payload["days"] = 1
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
-             patch("gemini_service.requests.post", return_value=ok_response(gemini_reply(days=3))) as post:
+             patch("gemini_service.requests.post", return_value=ok_response(gemini_reply(days=1))) as post:
             diet_planner.generate_diet_chart(payload)
         assert post.call_count == 1
         prompt = post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
-        assert "of a 3-day plan" not in prompt
+        assert "-day plan; the other days" not in prompt
 
-    def test_one_failed_chunk_fails_the_chart(self, payload):
+    def test_a_refused_day_is_filled_from_the_days_that_came_back(self, payload):
+        # Seven requests at once can meet Gemini's per-minute limit.
         payload["days"] = 7
-        replies = iter([
-            ok_response(gemini_reply(days=3)),
-            FakeResponse(400, {"error": {"status": "INVALID_ARGUMENT", "message": "bad"}}),
-            ok_response(gemini_reply(days=2)),
-        ])
+        refused = FakeResponse(400, {"error": {"status": "INVALID_ARGUMENT", "message": "bad"}})
+
+        def reply(*args, **kwargs):
+            prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+            failing = "covers day 3 of" in prompt or "covers day 6 of" in prompt
+            return refused if failing else ok_response(gemini_reply(days=1))
+
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
-             patch("gemini_service.requests.post", side_effect=lambda *a, **k: next(replies)):
+             patch("gemini_service.requests.post", side_effect=reply):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["source"] == "gemini"
+        assert [d["dayNumber"] for d in plan["days"]] == [1, 2, 3, 4, 5, 6, 7]
+        assert all(day["meals"] for day in plan["days"])
+        assert "Wednesday, Saturday repeat earlier days" in plan["summary"]
+
+    def test_every_day_failing_fails_the_chart(self, payload):
+        payload["days"] = 7
+        refused = FakeResponse(400, {"error": {"status": "INVALID_ARGUMENT", "message": "bad"}})
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", return_value=refused):
             with pytest.raises(GeminiUnavailable):
                 diet_planner.generate_diet_chart(payload)
 
@@ -334,8 +350,9 @@ class TestGenerateDietChart:
         # the top level of the request it rejects the whole call with
         # 400 "Unknown name thinkingConfig", and every AI chart fell back to
         # the FoodOScope recipes.
+        payload["days"] = 1
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
-             patch("gemini_service.requests.post", return_value=ok_response(gemini_reply())) as post:
+             patch("gemini_service.requests.post", return_value=ok_response(gemini_reply(days=1))) as post:
             diet_planner.generate_diet_chart(payload)
 
         sent = post.call_args.kwargs["json"]
@@ -343,13 +360,14 @@ class TestGenerateDietChart:
         assert sent["generationConfig"]["thinkingConfig"] == {"thinkingBudget": 0}
 
     def test_a_model_that_cannot_switch_thinking_off_is_asked_again_with_it_on(self, payload):
+        payload["days"] = 1
         refused = FakeResponse(400, {"error": {
             "status": "INVALID_ARGUMENT",
             "message": "Budget 0 is invalid. This model only works in thinking mode.",
         }})
         with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
              patch("gemini_service.requests.post",
-                   side_effect=[refused, ok_response(gemini_reply())]) as post:
+                   side_effect=[refused, ok_response(gemini_reply(days=1))]) as post:
             plan = diet_planner.generate_diet_chart(payload)
 
         assert plan["source"] == "gemini"
@@ -358,6 +376,7 @@ class TestGenerateDietChart:
         assert "thinkingConfig" not in second
 
     def test_an_unrelated_bad_request_is_not_retried(self, payload):
+        payload["days"] = 1
         bad = FakeResponse(400, {"error": {
             "status": "INVALID_ARGUMENT", "message": "Request contains an invalid argument.",
         }})
