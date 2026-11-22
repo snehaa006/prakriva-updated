@@ -1484,7 +1484,12 @@ days of a pregnancy chart), while "egg" still catches "eggs" and "milk"
 catches "buttermilk". Any meal naming an excluded
 ingredient is **dropped rather than corrected** — the doctor sees a gap they can
 fill, which beats a plausible-looking meal nobody checked. The count of dropped
-meals is surfaced as a toast.
+meals is surfaced as a toast. Meal slots are matched loosely ("Mid-Morning
+Snack", "LUNCH", "evening snack" all land in the right slot), and a day the
+model offered fewer than half its meals for is treated as incomplete and filled
+from a complete day, rather than reaching the board with one meal (meals
+rejected for an excluded ingredient still count as offered, so those gaps stay
+visible).
 
 Generated meals arrive in the same shape FoodOScope recipes do, so the
 drag-and-drop board, the save path and the saved-plan schema needed no changes.

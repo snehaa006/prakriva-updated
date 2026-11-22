@@ -46,6 +46,39 @@ DEFAULT_MEAL_STRUCTURE = [
     {"mealType": "dinner", "label": "Dinner", "time": "7:30 PM", "caloriePercent": 0.25},
 ]
 
+#: Other names models use for the default slots. Live, Groq returned most of
+#: a day's meals under names the exact match did not know, and the day came
+#: back with one meal.
+_SLOT_ALIASES = {
+    "morning_snack": "mid_morning",
+    "midmorning": "mid_morning",
+    "mid_morning_snack": "mid_morning",
+    "snack": "afternoon_snack",
+    "evening_snack": "afternoon_snack",
+    "afternoon": "afternoon_snack",
+    "supper": "dinner",
+}
+
+
+def _slot_key(value: Any) -> str:
+    """"Mid-Morning Snack", "mid morning" -> "mid_morning_snack", "mid_morning"."""
+    return re.sub(r"[^a-z]+", "_", str(value or "").lower()).strip("_")
+
+
+def _slot_lookup(meal_structure: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Every name a model might give a slot: its type, its label, an alias."""
+    lookup: Dict[str, Dict[str, Any]] = {}
+    for slot in meal_structure:
+        for name in (slot.get("label"), slot["mealType"]):
+            if _slot_key(name):
+                lookup[_slot_key(name)] = slot
+    for alias, meal_type in _SLOT_ALIASES.items():
+        target = lookup.get(meal_type)
+        if target is not None:
+            lookup.setdefault(alias, target)
+    return lookup
+
+
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 #: A fortnight is the longest plan the UI offers, and the cap that keeps one
@@ -397,7 +430,11 @@ def normalise_plan(
     if not isinstance(raw_days, list) or not raw_days:
         raise GeminiUnavailable("Gemini returned no days")
 
-    slots_by_type = {slot["mealType"]: slot for slot in meal_structure}
+    slots_by_type = _slot_lookup(meal_structure)
+    # A day the model offered fewer meals than this for is incomplete, not a
+    # day with gaps: it is dropped, so a week fills it from a complete day.
+    # Meals rejected for an excluded ingredient still count as offered.
+    min_offered = (len(meal_structure) + 1) // 2
     rejected: List[str] = []
     out_days: List[Dict[str, Any]] = []
 
@@ -408,13 +445,15 @@ def normalise_plan(
         day_number = int(_number(raw_day.get("dayNumber"), index + 1)) or index + 1
         meals: List[Dict[str, Any]] = []
         totals = {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0}
+        offered = 0
 
         for raw_meal in raw_day.get("meals") or []:
             if not isinstance(raw_meal, dict):
                 continue
-            slot = slots_by_type.get(str(raw_meal.get("mealType") or "").strip())
+            slot = slots_by_type.get(_slot_key(raw_meal.get("mealType")))
             if slot is None:
                 continue
+            offered += 1
 
             offender = _contains_excluded(raw_meal, excluded)
             if offender:
@@ -443,6 +482,12 @@ def normalise_plan(
             totals["fat"] += _number(recipe["Total lipid (fat) (g)"])
 
         if not meals:
+            continue
+        if offered < min_offered:
+            logger.warning(
+                f"Dropped generated day {day_number}: {offered} of "
+                f"{len(meal_structure)} meals offered"
+            )
             continue
 
         # Keep the slots in the configured order however Gemini ordered them.

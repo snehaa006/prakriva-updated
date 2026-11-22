@@ -256,6 +256,38 @@ class TestNormalisation:
 
         assert len(plan["rejectedMeals"]) == 1
 
+    def test_slot_names_are_matched_loosely(self):
+        reply = gemini_reply(days=1)
+        names = ["Breakfast", "Mid-Morning Snack", "LUNCH", "evening snack", "Dinner"]
+        for meal, name in zip(reply["days"][0]["meals"], names):
+            meal["mealType"] = name
+
+        plan = self.normalise(reply)
+
+        assert [m["mealType"] for m in plan["days"][0]["meals"]] == [
+            "breakfast", "mid_morning", "lunch", "afternoon_snack", "dinner",
+        ]
+
+    def test_a_day_with_most_meals_missing_is_dropped(self):
+        # Live: a day came back with one meal of five, 588 kcal.
+        reply = gemini_reply(days=2)
+        reply["days"][1]["meals"] = reply["days"][1]["meals"][:1]
+
+        plan = self.normalise(reply)
+
+        assert [d["dayNumber"] for d in plan["days"]] == [1]
+
+    def test_meals_rejected_for_exclusions_still_count_as_offered(self):
+        # The gaps are the doctor's to see, not a reason to lose the day.
+        reply = gemini_reply(days=1)
+        for meal in reply["days"][0]["meals"][:3]:
+            meal["ingredients"] = ["peanut"]
+
+        plan = self.normalise(reply)
+
+        assert len(plan["days"][0]["meals"]) == 2
+        assert len(plan["rejectedMeals"]) == 3
+
     def test_unknown_meal_slots_are_ignored(self):
         reply = gemini_reply(days=1)
         reply["days"][0]["meals"].append({"mealType": "midnight_feast", "calories": 900})
@@ -283,8 +315,9 @@ class TestNormalisation:
         reply = {"days": [{"dayNumber": 1, "meals": [
             {"mealType": "lunch", "recipeTitle": "Khichdi", "calories": "480"}
         ]}]}
+        lunch_only = [s for s in diet_planner.DEFAULT_MEAL_STRUCTURE if s["mealType"] == "lunch"]
 
-        plan = self.normalise(reply)
+        plan = self.normalise(reply, meal_structure=lunch_only)
 
         assert plan["days"][0]["meals"][0]["recipe"]["Protein (g)"] == "0.0"
         assert plan["days"][0]["totalCalories"] == 480
@@ -347,6 +380,22 @@ class TestGenerateDietChart:
             "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
         ]
         assert plan["clinicalFocus"] == ["Iron pairings for the anaemia flag"]  # de-duplicated
+
+    def test_an_incomplete_day_is_filled_from_a_complete_one(self, payload):
+        payload["days"] = 7
+        short = gemini_reply(days=1)
+        short["days"][0]["meals"] = short["days"][0]["meals"][:1]
+
+        def reply(*args, **kwargs):
+            prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+            return ok_response(short if "covers day 3 of" in prompt else gemini_reply(days=1))
+
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", side_effect=reply):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert all(len(day["meals"]) == 5 for day in plan["days"])
+        assert "Wednesday repeats earlier days" in plan["summary"]
 
     def test_a_weeks_summary_does_not_call_itself_a_one_day_plan(self, payload):
         payload["days"] = 7
