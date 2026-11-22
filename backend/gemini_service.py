@@ -946,6 +946,10 @@ def _call_groq(
             }
             if json_mode:
                 body_json["response_format"] = {"type": "json_object"}
+                # gpt-oss reasons before it answers, and at its default effort
+                # one day of a diet chart ran past the ~22 s Groq is given.
+                if "gpt-oss" in model:
+                    body_json["reasoning_effort"] = "low"
             try:
                 response = requests.post(
                     GROQ_CHAT_URL,

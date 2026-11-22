@@ -220,6 +220,33 @@ class TestNormalisation:
         assert plan["rejectedMeals"] == []
         assert len(plan["days"][0]["meals"]) == 5
 
+    def test_liver_is_not_found_inside_slivered_almonds(self):
+        # The live failure: a pregnancy chart excludes "liver", the model wrote
+        # "slivered almonds", and two of five meals vanished from most days.
+        reply = gemini_reply(days=1)
+        reply["days"][0]["meals"][0]["ingredients"] = ["semolina", "slivered almonds"]
+
+        plan = self.normalise(reply, excluded=["liver", "raw egg"])
+
+        assert plan["rejectedMeals"] == []
+        assert len(plan["days"][0]["meals"]) == 5
+
+    @pytest.mark.parametrize("ingredient, term", [
+        ("chicken liver", "liver"),
+        ("boiled eggs, sliced", "egg"),
+        ("egg, beaten", "egg"),
+        ("masala buttermilk", "milk"),
+        ("roasted peanuts", "peanut"),
+    ])
+    def test_an_excluded_term_is_still_caught_at_the_end_of_a_word(self, ingredient, term):
+        reply = gemini_reply(days=1)
+        reply["days"][0]["meals"][0]["ingredients"] = [ingredient]
+
+        plan = self.normalise(reply, excluded=[term])
+
+        assert len(plan["rejectedMeals"]) == 1
+        assert term in plan["rejectedMeals"][0]
+
     def test_exclusion_checks_the_dish_name_too(self):
         reply = gemini_reply(days=1)
         reply["days"][0]["meals"][0]["recipeTitle"] = "Peanut chutney"
@@ -320,6 +347,16 @@ class TestGenerateDietChart:
             "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
         ]
         assert plan["clinicalFocus"] == ["Iron pairings for the anaemia flag"]  # de-duplicated
+
+    def test_a_weeks_summary_does_not_call_itself_a_one_day_plan(self, payload):
+        payload["days"] = 7
+        reply = gemini_reply(days=1)
+        reply["summary"] = "This 1-day North Indian plan suits a pitta constitution."
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", return_value=ok_response(reply)):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["summary"].startswith("This 7-day North Indian plan")
 
     def test_a_one_day_chart_is_one_request_without_a_week_note(self, payload):
         payload["days"] = 1
@@ -511,6 +548,31 @@ class TestGroqBackup:
         assert [d["dayNumber"] for d in plan["days"]] == [1, 2, 3, 4, 5, 6, 7]
         assert "repeat earlier days" not in plan["summary"]
         assert "groq/" in plan["model"] and "gemini" in plan["model"]
+
+    def test_gpt_oss_is_asked_to_reason_briefly(self, payload):
+        # At its default effort gpt-oss ran past the time Groq is given.
+        payload["days"] = 1
+        calls, fake_post = self.route(self.QUOTA, self.groq_reply())
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch.object(gemini_service, "_groq_model_override", "openai/gpt-oss-120b"), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            diet_planner.generate_diet_chart(payload)
+
+        groq_body = [body for name, body in calls if name == "groq"][0]
+        assert groq_body["reasoning_effort"] == "low"
+
+    def test_other_groq_models_get_no_reasoning_setting(self, payload):
+        payload["days"] = 1
+        calls, fake_post = self.route(self.QUOTA, self.groq_reply())
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch.object(gemini_service, "_groq_model_override", "llama-3.3-70b-versatile"), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            diet_planner.generate_diet_chart(payload)
+
+        groq_body = [body for name, body in calls if name == "groq"][0]
+        assert "reasoning_effort" not in groq_body
 
     def test_both_failing_reports_both_reasons(self, payload):
         payload["days"] = 1

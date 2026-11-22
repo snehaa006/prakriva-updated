@@ -26,6 +26,7 @@ identifiable record. The frontend re-attaches the patient's name to the plan it
 gets back.
 """
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -324,9 +325,14 @@ def _string_list(value: Any) -> List[str]:
 def _contains_excluded(meal: Dict[str, Any], excluded: List[str]) -> Optional[str]:
     """The first excluded ingredient this meal mentions, if any.
 
-    A substring match over the dish name and its ingredients. It is deliberately
-    blunt: a false positive costs one regenerated meal slot, a false negative
-    puts an allergen on a patient's plate.
+    Matched over the dish name and its ingredients, leaning blunt: a false
+    negative puts an allergen on a patient's plate. But a false positive is
+    not free either - the slot is dropped, not refilled - so a term must end
+    where a word ends (a plural "s"/"es" allowed). "liver" no longer matches
+    "slivered almonds", which live emptied two of five meals from most days
+    of a pregnancy chart, and "egg" is still not in "eggplant". A term may end
+    a longer word, so "milk" matches "buttermilk" and "nut" "coconut", and
+    "egg" now matches "eggs" and "egg," too, which splitting on spaces missed.
     """
     haystack = " ".join(
         [str(meal.get("recipeTitle") or "")]
@@ -337,12 +343,7 @@ def _contains_excluded(meal: Dict[str, Any], excluded: List[str]) -> Optional[st
 
     for term in excluded:
         term = term.strip().lower()
-        # Very short terms match too much ("egg" inside "eggplant" is the
-        # classic), so they are checked as whole words.
-        if len(term) < 4:
-            if term and term in haystack.split():
-                return term
-        elif term and term in haystack:
+        if term and re.search(re.escape(term) + r"(?:s|es)?(?![a-z])", haystack):
             return term
     return None
 
@@ -522,6 +523,9 @@ def _merge_chunks(
             days.append({**day, "dayNumber": number, "dayLabel": DAY_NAMES[(number - 1) % 7]})
 
     summary = next((part["summary"] for part in done if part["summary"]), "")
+    if len(days) > 1:
+        # Each summary was written for its own one-day request.
+        summary = re.sub(r"\b(?:1|one)-day\b", f"{len(days)}-day", summary, flags=re.IGNORECASE)
     if repeated:
         labels = ", ".join(DAY_NAMES[(n - 1) % 7] for n in repeated)
         summary = (summary + " " if summary else "") + (

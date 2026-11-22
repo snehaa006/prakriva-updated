@@ -1477,8 +1477,11 @@ them. Nothing identifying is sent — no name, email or patient ID — and the
 frontend re-attaches the patient's name to the plan that comes back.
 
 The reply is validated server-side before it reaches the board. Every meal is
-checked against the exclusion list, matching whole words for short terms so
-"egg" doesn't reject an aubergine dish, and any meal naming an excluded
+checked against the exclusion list, where a term must end where a word ends
+(plural allowed): "egg" doesn't reject an eggplant dish and "liver" doesn't
+reject "slivered almonds" (which used to empty two of five meals from most
+days of a pregnancy chart), while "egg" still catches "eggs" and "milk"
+catches "buttermilk". Any meal naming an excluded
 ingredient is **dropped rather than corrected** — the doctor sees a gap they can
 fill, which beats a plausible-looking meal nobody checked. The count of dropped
 meals is surfaced as a toast.
@@ -1543,7 +1546,10 @@ JSON mode with the remaining ~22 s (`generate_json(groq_fallback=True)`,
 `_GROQ_JSON_RESERVE_SECONDS`). Groq answers in seconds, but its free tier
 counts tokens per minute, so its `max_tokens` is kept to what one day needs; a
 day Groq also refuses is filled as above. The chart's `model` field names
-whoever wrote the days, e.g. `gemini-3.8-flash + groq/llama-3.3-70b-versatile`.
+whoever wrote the days, e.g. `gemini-3.6-flash + groq/openai/gpt-oss-120b`;
+`gpt-oss` models are asked for `reasoning_effort: "low"`, since at their
+default effort one day ran past Groq's share of the time. Each day's summary
+is written for one day, so a week's summary has "1-day" corrected to "7-day".
 A Gemini key is still needed for the backend to offer AI charts at all. When a
 model refuses `thinkingBudget: 0` (Gemini 3 models think by *level*), the
 retry asks for `thinkingLevel: "low"` before falling back to the model's
