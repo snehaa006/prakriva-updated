@@ -1557,7 +1557,12 @@ needs. Seven days go out at once and the limit can turn a couple away with
 "Please try again in Ns": a chart day waits that out once (up to 15 s,
 `_GROQ_MAX_RETRY_WAIT`) rather than falling to Gemini, which took ~55 s or
 timed out for those days live; chat never waits, since it has its own deadline.
-A day neither can write is filled as above. Rejection notes name the
+A day neither can write is filled as above. **A week does not wait for its
+stragglers:** once at least half the days are written, the rest get until 25 s
+after the start (`STRAGGLER_SECONDS`) and are then filled from the written
+days, so a week comes back in ~25 s at worst instead of 60 s spent waiting on
+a day Gemini times out on anyway. With fewer than half written it keeps
+waiting, up to the full 60 s. Rejection notes name the
 real day ("(day 4)"), not each request's own "day 1". The chart's `model` field names
 whoever wrote the days, e.g. `gemini-3.6-flash + groq/openai/gpt-oss-120b`;
 `gpt-oss` models are asked for `reasoning_effort: "low"`, since at their

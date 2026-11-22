@@ -27,7 +27,7 @@ gets back.
 """
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
@@ -91,6 +91,13 @@ MAX_DAYS = 14
 #: Generate silently became the recipe-database fallback. One day per request,
 #: all composed in parallel, makes a week take about as long as one day.
 CHUNK_DAYS = 1
+
+#: Once at least half a week's days are written, the rest get until this many
+#: seconds after the start, then are filled from the written days. Live, Groq
+#: wrote five days in ~5 s and the chart still took 60 s, waiting on two days
+#: that Groq turned away and Gemini then timed out on - and they ended up as
+#: repeats anyway. Fewer than half done keeps waiting, up to the full 60 s.
+STRAGGLER_SECONDS = 25.0
 
 #: A different emphasis per chunk. The chunks are composed separately, so this
 #: is what keeps a week from serving the same handful of dishes three times.
@@ -687,19 +694,43 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
         # the doctor get the recipe-database fallback.
         errors: List[Exception] = []
         parts = []
-        with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
-            for future in [pool.submit(compose, chunk) for chunk in chunks]:
-                try:
-                    parts.append(future.result())
-                except GeminiUnavailable as exc:
-                    errors.append(exc)
-                    parts.append(None)
+        pool = ThreadPoolExecutor(max_workers=len(chunks))
+        futures = [pool.submit(compose, chunk) for chunk in chunks]
+        try:
+            pending = set(futures)
+            cutoff = t0 + STRAGGLER_SECONDS
+            while pending:
+                written = sum(1 for f in futures if f.done() and f.exception() is None)
+                if written * 2 >= len(futures):
+                    remaining = cutoff - _time.monotonic()
+                    if remaining <= 0:
+                        break
+                    _, pending = wait(pending, timeout=remaining, return_when=FIRST_COMPLETED)
+                else:
+                    _, pending = wait(pending, return_when=FIRST_COMPLETED)
+        finally:
+            # A straggler's request finishes in the background and is dropped.
+            pool.shutdown(wait=False, cancel_futures=True)
+
+        late = 0
+        for future in futures:
+            if not future.done():
+                late += 1
+                parts.append(None)
+                continue
+            try:
+                parts.append(future.result())
+            except GeminiUnavailable as exc:
+                errors.append(exc)
+                parts.append(None)
         if all(part is None for part in parts):
             raise errors[0]
-        if errors:
+        if errors or late:
             logger.warning(
-                f"{len(errors)} of {len(chunks)} diet chart days failed ({errors[0]}); "
-                "filling them from the days that succeeded"
+                f"{len(errors)} of {len(chunks)} diet chart days failed"
+                + (f" ({errors[0]})" if errors else "")
+                + (f", {late} still running at {STRAGGLER_SECONDS:.0f}s" if late else "")
+                + "; filling them from the days that succeeded"
             )
 
     elapsed = _time.monotonic() - t0

@@ -983,3 +983,57 @@ class TestGroqRateLimit:
 
         assert calls == ["groq", "groq", "gemini"]
         assert slept == [2.0]
+
+
+class TestStragglers:
+    """A week does not wait a minute for its last day or two."""
+
+    def test_a_late_day_is_filled_once_most_of_the_week_is_written(self, payload, monkeypatch):
+        import threading
+        import time
+
+        payload["days"] = 7
+        monkeypatch.setattr(diet_planner, "STRAGGLER_SECONDS", 0.3)
+        release = threading.Event()
+
+        def reply(*args, **kwargs):
+            prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+            if "covers day 5 of" in prompt:
+                release.wait(5)
+            return ok_response(gemini_reply(days=1))
+
+        started = time.monotonic()
+        try:
+            with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+                 patch("gemini_service.requests.post", side_effect=reply):
+                plan = diet_planner.generate_diet_chart(payload)
+        finally:
+            release.set()
+
+        assert time.monotonic() - started < 2
+        assert [d["dayNumber"] for d in plan["days"]] == [1, 2, 3, 4, 5, 6, 7]
+        assert all(len(day["meals"]) == 5 for day in plan["days"])
+        assert "Friday repeats earlier days" in plan["summary"]
+
+    def test_with_most_days_unwritten_it_keeps_waiting(self, payload, monkeypatch):
+        # Three of seven days are fast; the other four take a moment. Past the
+        # cutoff, three written days are not enough to stop waiting.
+        import time
+
+        payload["days"] = 7
+        monkeypatch.setattr(diet_planner, "STRAGGLER_SECONDS", 0.0)
+
+        def reply(*args, **kwargs):
+            prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+            if not any(f"covers day {n} of" in prompt for n in (1, 2, 3)):
+                time.sleep(0.3)
+            return ok_response(gemini_reply(days=1))
+
+        started = time.monotonic()
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post", side_effect=reply):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert time.monotonic() - started >= 0.25
+        repeated = plan["summary"].split(" repeat")[0] if " repeat" in plan["summary"] else ""
+        assert len([d for d in diet_planner.DAY_NAMES if d in repeated]) <= 3
