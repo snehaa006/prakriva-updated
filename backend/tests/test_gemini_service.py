@@ -582,6 +582,34 @@ class TestJsonRequests:
         assert gemini_service.last_json_source() == gemini_service.active_model()
 
 
+class TestGroqRetryAfter:
+    @pytest.mark.parametrize("text, seconds", [
+        ("Please try again in 7.66s.", 7.66),
+        ("Please try again in 450ms.", 0.5),  # never less than half a second
+        ("Please try again in 1m2.5s.", None),  # past the 15 s cap
+        ("no hint", None),
+    ])
+    def test_the_message_is_read(self, text, seconds):
+        response = _Reply(429, {})
+        result = gemini_service._groq_retry_after(response, text)
+        assert result == (pytest.approx(seconds) if seconds is not None else None)
+
+    def test_chat_does_not_wait_out_a_rate_limit(self, monkeypatch):
+        """Chat has Gemini to fall back on inside a 40 s deadline; it moves on."""
+        with_keys(monkeypatch, "gemini-key")
+        monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", ["groq-key"])
+        limited = _Reply(429, {"error": {"message": "Please try again in 2s."}})
+        limited.headers = {"retry-after": "2"}
+        slept = []
+        monkeypatch.setattr(gemini_service.time, "sleep", slept.append)
+        monkeypatch.setattr(
+            gemini_service.requests, "post",
+            lambda url, **kw: limited if url == gemini_service.GROQ_CHAT_URL else GEMINI_OK,
+        )
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert slept == []
+
+
 class TestModelDiscovery:
     """Asking Gemini which models exist — the safety net for the day the
     static chain goes stale too."""

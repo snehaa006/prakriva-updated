@@ -927,3 +927,59 @@ class TestGroqFirst:
 
         assert [name for name, _ in calls] == ["gemini"]
         assert plan["source"] == "gemini"
+
+
+class TestGroqRateLimit:
+    """Seven days go out at once; Groq's per-minute token limit turned two
+    away live, and those fell to Gemini, which took ~55 s or timed out."""
+
+    @staticmethod
+    def rate_limited(wait="2", message="Please try again in 2s."):
+        response = FakeResponse(429, {"error": {"message": message}}, text=f'{{"error": {{"message": "{message}"}}}}')
+        response.headers = {"retry-after": wait} if wait is not None else {}
+        return response
+
+    def run(self, payload, groq_replies, gemini_reply_=None):
+        payload["days"] = 1
+        calls, slept = [], []
+        replies = iter(groq_replies)
+
+        def fake_post(url, **kwargs):
+            if url == gemini_service.GROQ_CHAT_URL:
+                calls.append("groq")
+                return next(replies)
+            calls.append("gemini")
+            return gemini_reply_ or ok_response(gemini_reply(days=1))
+
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch.object(gemini_service.time, "sleep", slept.append), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            plan = diet_planner.generate_diet_chart(payload)
+        return plan, calls, slept
+
+    def test_a_short_rate_limit_is_waited_out_once(self, payload):
+        plan, calls, slept = self.run(payload, [self.rate_limited("2"), TestGroqFirst.groq_reply()])
+
+        assert calls == ["groq", "groq"]
+        assert slept == [2.0]
+        assert plan["model"].startswith("groq/")
+
+    def test_the_wait_can_come_from_the_message(self, payload):
+        plan, calls, slept = self.run(
+            payload, [self.rate_limited(None, "Please try again in 7.66s."), TestGroqFirst.groq_reply()]
+        )
+        assert slept == [pytest.approx(7.66)]
+
+    def test_a_long_limit_goes_straight_to_gemini(self, payload):
+        # A daily limit says "try again in 2h"; nobody waits that long.
+        plan, calls, slept = self.run(payload, [self.rate_limited("7200")])
+
+        assert calls == ["groq", "gemini"]
+        assert slept == []
+
+    def test_it_waits_only_once(self, payload):
+        plan, calls, slept = self.run(payload, [self.rate_limited("2"), self.rate_limited("2")])
+
+        assert calls == ["groq", "groq", "gemini"]
+        assert slept == [2.0]

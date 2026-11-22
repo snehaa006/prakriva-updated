@@ -1553,7 +1553,11 @@ limited, refused, too slow); `LLM_JSON_PRIMARY=gemini` reverses the order, and
 then Gemini gets 38 s and Groq the remaining ~22 s
 (`generate_json(groq_fallback=True)`, `_JSON_RESERVE_SECONDS`). Groq's free
 tier counts tokens per minute, so its `max_tokens` is kept to what one day
-needs; a day neither can write is filled as above. Rejection notes name the
+needs. Seven days go out at once and the limit can turn a couple away with
+"Please try again in Ns": a chart day waits that out once (up to 15 s,
+`_GROQ_MAX_RETRY_WAIT`) rather than falling to Gemini, which took ~55 s or
+timed out for those days live; chat never waits, since it has its own deadline.
+A day neither can write is filled as above. Rejection notes name the
 real day ("(day 4)"), not each request's own "day 1". The chart's `model` field names
 whoever wrote the days, e.g. `gemini-3.6-flash + groq/openai/gpt-oss-120b`;
 `gpt-oss` models are asked for `reasoning_effort: "low"`, since at their

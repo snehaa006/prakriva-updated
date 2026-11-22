@@ -883,6 +883,36 @@ def _discover_groq_model(key: str, gone: str) -> Optional[str]:
     return available[0] if available else None
 
 
+#: The longest a diet chart day waits for Groq's rate limit to clear.
+_GROQ_MAX_RETRY_WAIT = 15.0
+
+
+def _groq_retry_after(response: Any, body_text: str) -> Optional[float]:
+    """Groq's suggested wait after a 429, if it is short enough to wait out.
+
+    Read from the ``retry-after`` header, else the message's "Please try
+    again in 7.66s". None when absent or longer than `_GROQ_MAX_RETRY_WAIT`
+    (a daily limit, say), so the caller moves on instead.
+    """
+    headers = getattr(response, "headers", None) or {}
+    wait: Optional[float] = None
+    try:
+        value = headers.get("retry-after") if hasattr(headers, "get") else None
+        if value is not None:
+            wait = float(value)
+    except (TypeError, ValueError):
+        wait = None
+    if wait is None:
+        match = re.search(r"try again in\s+(?:(\d+)m)?\s*([\d.]+)\s*(ms|s)\b", body_text)
+        if match:
+            minutes = float(match.group(1) or 0)
+            amount = float(match.group(2))
+            wait = minutes * 60 + (amount / 1000 if match.group(3) == "ms" else amount)
+    if wait is None or wait > _GROQ_MAX_RETRY_WAIT:
+        return None
+    return max(0.5, wait)
+
+
 def _call_groq(
     system_rules: str,
     prompt: str,
@@ -924,83 +954,101 @@ def _call_groq(
     rediscovered = False
     out_of_time = False
 
-    for key in _groq_key_candidates():
-        # Normally one request per key. The one exception: the model turned
-        # out to be retired, a replacement was found, and the same key is
-        # asked again with it.
-        while True:
-            request_timeout = settings.GROQ_TIMEOUT_SECONDS
-            if deadline is not None:
-                remaining = deadline - time.monotonic()
-                if remaining <= 1:
-                    last_error = "out of time"
-                    out_of_time = True
-                    break
-                request_timeout = max(1, min(request_timeout, int(remaining)))
-            model = _groq_model()
-            body_json: Dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "temperature": settings.GEMINI_TEMPERATURE if temperature is None else temperature,
-                "max_tokens": max_tokens,
-            }
-            if json_mode:
-                body_json["response_format"] = {"type": "json_object"}
-                # gpt-oss reasons before it answers, and at its default effort
-                # one day of a diet chart ran past the ~22 s Groq is given.
-                if "gpt-oss" in model:
-                    body_json["reasoning_effort"] = "low"
-            try:
-                response = requests.post(
-                    GROQ_CHAT_URL,
-                    json=body_json,
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "Content-Type": "application/json",
-                    },
-                    timeout=request_timeout,
-                )
-            except requests.RequestException as exc:
-                _groq_report(key, status=None, ok=False)
-                last_error = f"Groq network error ({exc.__class__.__name__})"
-                break
-
-            if response.status_code == 200:
-                _groq_report(key, status=200, ok=True)
-                body = response.json()
-                text = (
-                    ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-                ).strip()
-                if text:
-                    return text
-                last_error = "Groq returned an empty response"
-                break
-
-            body_text = response.text if isinstance(response.text, str) else ""
-            if not body_text:
+    # A JSON request (a diet chart day) that every key turned away with a
+    # short "try again in Ns" waits that long and goes round once more: seven
+    # days go out at once, Groq's per-minute token limit admits most of them,
+    # and the rest otherwise fell to Gemini, which took a minute or timed out.
+    for round_number in range(2 if json_mode else 1):
+        shortest_wait: Optional[float] = None
+        for key in _groq_key_candidates():
+            # Normally one request per key. The one exception: the model turned
+            # out to be retired, a replacement was found, and the same key is
+            # asked again with it.
+            while True:
+                request_timeout = settings.GROQ_TIMEOUT_SECONDS
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 1:
+                        last_error = "out of time"
+                        out_of_time = True
+                        break
+                    request_timeout = max(1, min(request_timeout, int(remaining)))
+                model = _groq_model()
+                body_json: Dict[str, Any] = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": settings.GEMINI_TEMPERATURE if temperature is None else temperature,
+                    "max_tokens": max_tokens,
+                }
+                if json_mode:
+                    body_json["response_format"] = {"type": "json_object"}
+                    # gpt-oss reasons before it answers, and at its default effort
+                    # one day of a diet chart ran past the ~22 s Groq is given.
+                    if "gpt-oss" in model:
+                        body_json["reasoning_effort"] = "low"
                 try:
-                    body_text = json.dumps(response.json())
-                except Exception:
-                    body_text = ""
-            if not rediscovered and _groq_model_gone(response.status_code, body_text):
-                rediscovered = True
-                replacement = _discover_groq_model(key, model)
-                if replacement:
-                    logger.warning(f"Groq model '{model}' is unavailable; switching to '{replacement}'")
-                    _groq_model_override = replacement
-                    continue
+                    response = requests.post(
+                        GROQ_CHAT_URL,
+                        json=body_json,
+                        headers={
+                            "Authorization": f"Bearer {key}",
+                            "Content-Type": "application/json",
+                        },
+                        timeout=request_timeout,
+                    )
+                except requests.RequestException as exc:
+                    _groq_report(key, status=None, ok=False)
+                    last_error = f"Groq network error ({exc.__class__.__name__})"
+                    break
 
-            if response.status_code in (401, 403, 429):
-                _groq_report(key, status=response.status_code, ok=False)
+                if response.status_code == 200:
+                    _groq_report(key, status=200, ok=True)
+                    body = response.json()
+                    text = (
+                        ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                    ).strip()
+                    if text:
+                        return text
+                    last_error = "Groq returned an empty response"
+                    break
+
+                body_text = response.text if isinstance(response.text, str) else ""
+                if not body_text:
+                    try:
+                        body_text = json.dumps(response.json())
+                    except Exception:
+                        body_text = ""
+                if not rediscovered and _groq_model_gone(response.status_code, body_text):
+                    rediscovered = True
+                    replacement = _discover_groq_model(key, model)
+                    if replacement:
+                        logger.warning(f"Groq model '{model}' is unavailable; switching to '{replacement}'")
+                        _groq_model_override = replacement
+                        continue
+
+                if response.status_code == 429:
+                    wait = _groq_retry_after(response, body_text)
+                    if wait is not None:
+                        shortest_wait = wait if shortest_wait is None else min(shortest_wait, wait)
+
+                if response.status_code in (401, 403, 429):
+                    _groq_report(key, status=response.status_code, ok=False)
+                    last_error = f"Groq HTTP {response.status_code}"
+                    break
+
                 last_error = f"Groq HTTP {response.status_code}"
+                _groq_report(key, status=response.status_code, ok=False)
                 break
 
-            last_error = f"Groq HTTP {response.status_code}"
-            _groq_report(key, status=response.status_code, ok=False)
-            break
+            if out_of_time:
+                break
 
-        if out_of_time:
+        if out_of_time or shortest_wait is None or round_number == 1 or not json_mode:
             break
+        if deadline is not None and deadline - time.monotonic() < shortest_wait + 4:
+            break
+        logger.warning(f"Groq is rate limited; retrying in {shortest_wait:.1f}s")
+        time.sleep(shortest_wait)
 
     raise GeminiUnavailable(f"Groq fallback failed ({last_error})")
 
