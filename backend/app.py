@@ -478,7 +478,7 @@ def generate_diet_chart():
 
         return jsonify(APIResponse(
             success=True,
-            data={**plan, "model": gemini_service.active_model()},
+            data={**plan, "model": plan.get("model") or gemini_service.active_model()},
             message="Diet chart generated successfully",
         ).dict())
     except ValidationError:

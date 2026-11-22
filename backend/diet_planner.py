@@ -582,6 +582,9 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
                 f"are composed separately. {numbering} For variety across the week, lean "
                 f"towards {CHUNK_EMPHASIS[index % len(CHUNK_EMPHASIS)]}."
             )
+        # Groq backs Gemini up: Gemini's free tier allows 20 requests a day per
+        # model and can take over a minute for one day, while Groq answers in
+        # seconds. Both fit inside the 60 s, below the frontend's 70 s wait.
         raw = gemini_service.generate_json(
             prompt,
             DIET_RULES,
@@ -589,14 +592,20 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
             temperature=0.6,
             timeout=60,
             disable_thinking=True,
+            groq_fallback=True,
+            # Groq counts max_tokens against its per-minute token limit, and
+            # seven days go out at once, so it is asked for no more than needed.
+            groq_max_tokens=min(8000, 1000 + count * len(meal_structure) * 300),
         )
-        return normalise_plan(
+        part = normalise_plan(
             raw,
             days=count,
             daily_calories=daily_calories,
             meal_structure=meal_structure,
             excluded=excluded,
         )
+        part["model"] = gemini_service.last_json_source()
+        return part
 
     import time as _time
     t0 = _time.monotonic()
@@ -632,8 +641,12 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     plan = _merge_chunks(chunks, parts)
     plan["dailyCalorieTarget"] = daily_calories
+    # Which models wrote the days, e.g. "gemini-3.8-flash + groq/llama-3.3-70b-versatile".
+    models = _unique([part["model"] for part in parts if part is not None and part.get("model")])
+    if models:
+        plan["model"] = " + ".join(models)
     logger.info(
-        f"Generated a {len(plan['days'])}-day diet chart with Gemini "
+        f"Generated a {len(plan['days'])}-day diet chart with {plan.get('model') or 'Gemini'} "
         f"({len(plan['rejectedMeals'])} meals rejected)"
     )
     return plan

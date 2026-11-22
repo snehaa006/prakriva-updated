@@ -18,6 +18,18 @@ from gemini_service import GeminiUnavailable
 # Fixtures
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def no_groq_unless_asked(monkeypatch):
+    """Groq backs the diet chart up; it stays off unless a test turns it on,
+    whatever a local .env holds, so no test can reach the network."""
+    monkeypatch.setattr(settings, "GROQ_API_KEYS", [])
+    gemini_service._spent_until.clear()
+    gemini_service._resolved_model = None
+    yield
+    gemini_service._spent_until.clear()
+    gemini_service._resolved_model = None
+
+
 @pytest.fixture
 def payload():
     """A realistic request body from the frontend."""
@@ -373,7 +385,27 @@ class TestGenerateDietChart:
         assert plan["source"] == "gemini"
         first, second = (call.kwargs["json"]["generationConfig"] for call in post.call_args_list)
         assert first["thinkingConfig"] == {"thinkingBudget": 0}
-        assert "thinkingConfig" not in second
+        # Gemini 3 models take a level instead; "low" is the fastest they all accept.
+        assert second["thinkingConfig"] == {"thinkingLevel": "low"}
+
+    def test_a_model_that_knows_no_thinking_level_thinks_as_it_likes(self, payload):
+        payload["days"] = 1
+        no_budget = FakeResponse(400, {"error": {
+            "status": "INVALID_ARGUMENT",
+            "message": "Budget 0 is invalid. This model only works in thinking mode.",
+        }})
+        no_level = FakeResponse(400, {"error": {
+            "status": "INVALID_ARGUMENT",
+            "message": 'Invalid JSON payload received. Unknown name "thinkingLevel"',
+        }})
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch("gemini_service.requests.post",
+                   side_effect=[no_budget, no_level, ok_response(gemini_reply(days=1))]) as post:
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["source"] == "gemini"
+        third = post.call_args_list[2].kwargs["json"]["generationConfig"]
+        assert "thinkingConfig" not in third
 
     def test_an_unrelated_bad_request_is_not_retried(self, payload):
         payload["days"] = 1
@@ -390,6 +422,117 @@ class TestGenerateDietChart:
         with patch.object(settings, "GEMINI_API_KEYS", []):
             with pytest.raises(GeminiUnavailable):
                 diet_planner.generate_diet_chart(payload)
+
+
+class TestGroqBackup:
+    """Groq writes a day when Gemini cannot.
+
+    Live, Gemini's free tier ran out of its 20 requests a day per model, and
+    when it had quota it took over 60 s for one day, so every AI chart fell
+    back to the recipe database. Groq answers the same prompt in seconds.
+    """
+
+    QUOTA = FakeResponse(429, {"error": {
+        "status": "RESOURCE_EXHAUSTED",
+        "message": (
+            "Quota exceeded for metric: generativelanguage.googleapis.com/"
+            "generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash. "
+            "Please retry in 22m39s."
+        ),
+    }})
+
+    @staticmethod
+    def groq_reply(days=1):
+        return FakeResponse(200, {"choices": [{"message": {"content": json.dumps(gemini_reply(days=days))}}]})
+
+    def route(self, gemini, groq):
+        calls = []
+
+        def fake_post(url, **kwargs):
+            if url == gemini_service.GROQ_CHAT_URL:
+                calls.append(("groq", kwargs["json"]))
+                return groq(kwargs) if callable(groq) else groq
+            calls.append(("gemini", kwargs["json"]))
+            return gemini(kwargs) if callable(gemini) else gemini
+
+        return calls, fake_post
+
+    def test_groq_writes_the_chart_when_gemini_is_out_of_quota(self, payload):
+        payload["days"] = 1
+        calls, fake_post = self.route(self.QUOTA, self.groq_reply())
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["source"] == "gemini"  # still the AI chart, as far as the page is concerned
+        assert plan["days"] and all(day["meals"] for day in plan["days"])
+        assert plan["model"].startswith("groq/")
+        groq_body = [body for name, body in calls if name == "groq"][0]
+        assert groq_body["response_format"] == {"type": "json_object"}
+        assert groq_body["max_tokens"] <= 2500  # Groq counts it against tokens-per-minute
+
+    def test_a_slow_gemini_leaves_groq_time_to_answer(self, payload):
+        payload["days"] = 1
+        timeouts = []
+
+        def fake_post(url, **kwargs):
+            if url == gemini_service.GROQ_CHAT_URL:
+                timeouts.append(("groq", kwargs["timeout"]))
+                return self.groq_reply()
+            timeouts.append(("gemini", kwargs["timeout"]))
+            raise gemini_service.requests.Timeout("read timed out")
+
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert plan["model"].startswith("groq/")
+        gemini_wait = max(t for name, t in timeouts if name == "gemini")
+        assert gemini_wait <= 60 - gemini_service._GROQ_JSON_RESERVE_SECONDS
+        assert timeouts[-1][0] == "groq"
+
+    def test_days_from_both_models_are_named(self, payload):
+        payload["days"] = 7
+
+        def gemini(kwargs):
+            prompt = kwargs["json"]["contents"][0]["parts"][0]["text"]
+            return self.QUOTA if "covers day 2 of" in prompt else ok_response(gemini_reply(days=1))
+
+        calls, fake_post = self.route(gemini, self.groq_reply())
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch.object(gemini_service, "_spent_until", {}), \
+             patch.object(gemini_service, "_is_spent", lambda name: False), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert [d["dayNumber"] for d in plan["days"]] == [1, 2, 3, 4, 5, 6, 7]
+        assert "repeat earlier days" not in plan["summary"]
+        assert "groq/" in plan["model"] and "gemini" in plan["model"]
+
+    def test_both_failing_reports_both_reasons(self, payload):
+        payload["days"] = 1
+        calls, fake_post = self.route(self.QUOTA, FakeResponse(429, {"error": "rate limited"}))
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            with pytest.raises(GeminiUnavailable) as caught:
+                diet_planner.generate_diet_chart(payload)
+
+        assert "quota" in str(caught.value).lower() and "Groq" in str(caught.value)
+
+    def test_gemini_answering_leaves_groq_alone(self, payload):
+        payload["days"] = 1
+        calls, fake_post = self.route(ok_response(gemini_reply(days=1)), self.groq_reply())
+        with patch.object(settings, "GEMINI_API_KEYS", ["key-a"]), \
+             patch.object(settings, "GROQ_API_KEYS", ["groq-key"]), \
+             patch("gemini_service.requests.post", side_effect=fake_post):
+            plan = diet_planner.generate_diet_chart(payload)
+
+        assert [name for name, _ in calls] == ["gemini"]
+        assert not plan["model"].startswith("groq/")
 
 
 # ---------------------------------------------------------------------------

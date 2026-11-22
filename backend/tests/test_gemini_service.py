@@ -534,6 +534,54 @@ class TestModelQuota:
         post.assert_not_called()
 
 
+class TestJsonRequests:
+    def test_a_timed_out_key_does_not_start_a_second_full_wait(self, monkeypatch):
+        """Live, one ReadTimeout used the whole 60 s; a second key must not
+        then be given another 60 s past the deadline."""
+        with_keys(monkeypatch, "key-one", "key-two")
+        clock = [1000.0]
+        monkeypatch.setattr(gemini_service.time, "monotonic", lambda: clock[0])
+
+        def timed_out(*args, **kwargs):
+            clock[0] += kwargs["timeout"]
+            raise requests.Timeout("read timed out")
+
+        with patch("gemini_service.requests.post", side_effect=timed_out) as post:
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=30, deadline=1030.0)
+        assert post.call_count == 1
+
+    def test_a_fenced_json_reply_is_still_read(self):
+        assert gemini_service._parse_json_reply('```json\n{"a": 1}\n```', "Groq") == {"a": 1}
+
+    def test_an_unreadable_reply_is_unavailable(self):
+        with pytest.raises(GeminiUnavailable, match="Groq returned an unreadable response"):
+            gemini_service._parse_json_reply("not json", "Groq")
+
+    def test_groq_is_not_asked_unless_the_caller_allows_it(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", ["groq-key"])
+        urls = []
+
+        def fake_post(url, **kwargs):
+            urls.append(url)
+            return _Reply(400, {"error": {"status": "INVALID_ARGUMENT", "message": "bad"}})
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        with pytest.raises(GeminiUnavailable):
+            gemini_service.generate_json("p", "rules")
+        assert gemini_service.GROQ_CHAT_URL not in urls
+
+    def test_the_answering_model_is_recorded(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        monkeypatch.setattr(
+            gemini_service.requests, "post",
+            lambda url, **kw: _Reply(200, {"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]}),
+        )
+        assert gemini_service.generate_json("p", "rules") == {"ok": True}
+        assert gemini_service.last_json_source() == gemini_service.active_model()
+
+
 class TestModelDiscovery:
     """Asking Gemini which models exist — the safety net for the day the
     static chain goes stale too."""

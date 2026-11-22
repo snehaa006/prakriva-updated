@@ -1305,8 +1305,9 @@ reverses that. Two reasons:
   per request plus key and model retries, so a struggling Gemini ran past the
   frontend's 50 s wait before Groq was ever tried, and Kuchu Puchu answered
   "Could not reach the backend … (no response within 50s)".
-- **Separate quotas.** Diet charts always use Gemini. With chat on Groq, the
-  two no longer compete for Gemini's quota. (A spare Gemini key only adds
+- **Separate quotas.** Diet charts use Gemini first (Groq only backs up a day
+  Gemini cannot write — see "Groq backs up each day" below). With chat on
+  Groq, the two no longer compete for Gemini's quota. (A spare Gemini key only adds
   quota if it comes from a different Google Cloud project — keys in one
   project share its limit.)
 
@@ -1532,6 +1533,21 @@ day is filled by repeating the days that came back, and the summary says which
 fallback take over. The website waits at most 70 s for the AI chart (the
 backend's 60 s plus margin), and the Generate button says which generator is
 working: "Composing with AI…" or "Building from recipe database…".
+
+**Groq backs up each day.** Gemini's free tier allows 20 requests a day *per
+model* (a week is 7), and when busy it took over 60 s for a single day
+(`network error (ReadTimeout)`), so both turned Generate into the fallback. If
+`GROQ_API_KEY` is set, each day now gives Gemini 38 s and, if it cannot answer
+(out of quota on every model, too slow, refused), asks Groq for the same day in
+JSON mode with the remaining ~22 s (`generate_json(groq_fallback=True)`,
+`_GROQ_JSON_RESERVE_SECONDS`). Groq answers in seconds, but its free tier
+counts tokens per minute, so its `max_tokens` is kept to what one day needs; a
+day Groq also refuses is filled as above. The chart's `model` field names
+whoever wrote the days, e.g. `gemini-3.8-flash + groq/llama-3.3-70b-versatile`.
+A Gemini key is still needed for the backend to offer AI charts at all. When a
+model refuses `thinkingBudget: 0` (Gemini 3 models think by *level*), the
+retry asks for `thinkingLevel: "low"` before falling back to the model's
+default, since default-level thinking is what made one day take a minute.
 
 **The fallback is fast.** Its meal pools used to load one after another with a
 2 s cooldown, 3.5 s between slots and 5 s between a slot's fallbacks — about a

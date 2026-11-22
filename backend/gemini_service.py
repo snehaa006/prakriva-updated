@@ -23,6 +23,7 @@ an identifiable medical record.
 """
 import json
 import re
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -419,7 +420,13 @@ def _retire_model(name: str) -> None:
         _resolved_model = None
 
 
-def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict[str, Any]:
+def _post_to_model(
+    model: str,
+    payload: Dict[str, Any],
+    *,
+    timeout: int,
+    deadline: Optional[float] = None,
+) -> Dict[str, Any]:
     """POST `payload` to one model, rotating across configured keys on failure.
 
     A request moves on to the next key for a network error/timeout, a 5xx, or
@@ -429,22 +436,33 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
     a 400 for a request Gemini could not parse — would fail identically on
     every key, so it is raised immediately with its reason rather than burning
     through the rotation.
+
+    ``deadline`` (monotonic timestamp) also bounds the key rotation: a key that
+    timed out must not start a second full-length wait on the next key.
     """
     url = GEMINI_URL.format(model=model)
     last_error = "no keys configured"
     keys_tried = 0
     keys_out_of_quota = 0
     retry_after = 0.0
+    ran_out_of_time = False  # untried keys may still have quota for this model
 
     for key in _key_candidates():
+        if deadline is not None and deadline - time.monotonic() < 2:
+            last_error = f"out of time ({last_error})" if keys_tried else "out of time"
+            ran_out_of_time = True
+            break
         keys_tried += 1
         # Inner loop: overload retries against this same key. Every other
         # outcome breaks out of it to move on to the next key.
         attempt = 0
         while True:
+            request_timeout = timeout
+            if deadline is not None:
+                request_timeout = max(1, min(timeout, int(deadline - time.monotonic())))
             try:
                 response = requests.post(
-                    url, json=payload, params={"key": key}, timeout=timeout
+                    url, json=payload, params={"key": key}, timeout=request_timeout
                 )
             except requests.RequestException as exc:
                 _report_key_result(key, status=None, ok=False)
@@ -506,7 +524,7 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
             logger.error(f"Gemini returned {last_error}")
             raise GeminiUnavailable(f"Gemini returned {last_error}")
 
-    if keys_tried and keys_out_of_quota == keys_tried:
+    if keys_tried and keys_out_of_quota == keys_tried and not ran_out_of_time:
         raise _ModelQuotaSpent(f"model '{model}' is out of quota ({last_error})", retry_after)
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
 
@@ -554,7 +572,7 @@ def _post_gemini(
             effective_timeout = min(timeout, remaining)
 
         try:
-            return _post_to_model(model, payload, timeout=effective_timeout)
+            return _post_to_model(model, payload, timeout=effective_timeout, deadline=deadline)
         except _ModelGone as exc:
             last_error = str(exc)
             logger.warning(f"Gemini {last_error}; retiring it and trying the next model")
@@ -872,11 +890,14 @@ def _call_groq(
     max_tokens: int,
     history: Optional[List[Dict[str, str]]] = None,
     deadline: Optional[float] = None,
+    json_mode: bool = False,
+    temperature: Optional[float] = None,
 ) -> str:
     """Call Groq's chat completions API, rotating keys on failure.
 
     ``deadline`` (monotonic timestamp) caps the whole rotation, so a slow key
-    cannot use up the time the next provider needs.
+    cannot use up the time the next provider needs. ``json_mode`` asks for a
+    bare JSON object (the prompt must mention JSON, which Groq checks).
     """
     if not _groq_configured():
         raise GeminiUnavailable("No GROQ_API_KEY is set")
@@ -917,15 +938,18 @@ def _call_groq(
                     break
                 request_timeout = max(1, min(request_timeout, int(remaining)))
             model = _groq_model()
+            body_json: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": settings.GEMINI_TEMPERATURE if temperature is None else temperature,
+                "max_tokens": max_tokens,
+            }
+            if json_mode:
+                body_json["response_format"] = {"type": "json_object"}
             try:
                 response = requests.post(
                     GROQ_CHAT_URL,
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "temperature": settings.GEMINI_TEMPERATURE,
-                        "max_tokens": max_tokens,
-                    },
+                    json=body_json,
                     headers={
                         "Authorization": f"Bearer {key}",
                         "Content-Type": "application/json",
@@ -1072,6 +1096,76 @@ def _rejects_thinking_budget(error: str) -> bool:
     return "http 400" in lowered and ("thinking" in lowered or "budget" in lowered)
 
 
+#: Seconds held back for Groq when it backs up a Gemini JSON request: enough
+#: for one day of a diet chart (~2.5k tokens) at Groq's speed.
+_GROQ_JSON_RESERVE_SECONDS = 22
+
+#: Which model answered the last generate_json call on this thread.
+_json_source = threading.local()
+
+
+def last_json_source() -> Optional[str]:
+    """The model that answered this thread's last generate_json call."""
+    return getattr(_json_source, "model", None)
+
+
+def _parse_json_reply(text: str, provider: str) -> Any:
+    """Parse a model's JSON reply, tolerating a ```json fence around it."""
+    cleaned = text.strip()
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", cleaned, re.DOTALL)
+    if fenced:
+        cleaned = fenced.group(1)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        logger.error(f"{provider} returned unparseable JSON: {exc}")
+        raise GeminiUnavailable(f"{provider} returned an unreadable response") from exc
+
+
+def _gemini_json_text(
+    payload: Dict[str, Any],
+    gen_config: Dict[str, Any],
+    *,
+    timeout: int,
+    disable_thinking: bool,
+) -> str:
+    """Gemini's reply text for a JSON request, within ``timeout`` seconds."""
+    if not disable_thinking:
+        return _text_from(payload, timeout=timeout)
+
+    # Skip _text_from's budget-retry loop — with thinking off the budget
+    # won't be eaten by reasoning tokens, and the retry doubles wall time.
+    # A wall-clock deadline prevents the model cascade from stacking up.
+    deadline = time.monotonic() + timeout
+    try:
+        return _first_text(_post_gemini(payload, timeout=timeout, deadline=deadline))
+    except GeminiUnavailable as exc:
+        if not _rejects_thinking_budget(str(exc)):
+            raise
+        # Some models cannot switch thinking off and answer a zero budget
+        # with 400. Gemini 3 models take a thinking *level* instead, and
+        # "low" is the fastest every one of them accepts; thinking at the
+        # default level is what made one day of a chart take a minute.
+        logger.warning(f"Gemini refused a zero thinking budget ({exc}); retrying with thinking low")
+
+    def without_thinking(extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        config = {k: v for k, v in gen_config.items() if k != "thinkingConfig"}
+        if extra:
+            config["thinkingConfig"] = extra
+        return {**payload, "generationConfig": config}
+
+    try:
+        return _first_text(
+            _post_gemini(without_thinking({"thinkingLevel": "low"}), timeout=timeout, deadline=deadline)
+        )
+    except GeminiUnavailable as exc:
+        if not _rejects_thinking_budget(str(exc)):
+            raise
+        # An older model that knows neither: let it think as it likes.
+        logger.warning(f"Gemini refused a thinking level ({exc}); retrying with thinking on")
+    return _first_text(_post_gemini(without_thinking(None), timeout=timeout, deadline=deadline))
+
+
 def generate_json(
     prompt: str,
     system_rules: str,
@@ -1080,6 +1174,8 @@ def generate_json(
     temperature: float = 0.4,
     timeout: Optional[int] = None,
     disable_thinking: bool = False,
+    groq_fallback: bool = False,
+    groq_max_tokens: Optional[int] = None,
 ) -> Any:
     """Send one prompt and parse the reply as JSON.
 
@@ -1092,7 +1188,17 @@ def generate_json(
     the full output budget is available for the actual answer. This avoids the
     budget-retry path in ``_text_from`` and dramatically cuts latency for
     large structured outputs like diet charts.
+
+    ``groq_fallback`` lets Groq answer when Gemini cannot: out of quota, or
+    too slow (the free tier can take over a minute for one day of a chart).
+    Gemini then gets ``timeout`` minus `_GROQ_JSON_RESERVE_SECONDS`, and Groq
+    whatever is left, so the whole call still fits in ``timeout``.
     """
+    effective_timeout = timeout or settings.GEMINI_TIMEOUT_SECONDS
+    started = time.monotonic()
+    use_groq = groq_fallback and _groq_configured()
+    _json_source.model = None
+
     gen_config: Dict[str, Any] = {
         "temperature": temperature,
         "maxOutputTokens": max_tokens or settings.GEMINI_MAX_TOKENS,
@@ -1112,41 +1218,39 @@ def generate_json(
         "generationConfig": gen_config,
     }
 
-    effective_timeout = timeout or settings.GEMINI_TIMEOUT_SECONDS
-
-    if disable_thinking:
-        # Skip _text_from's budget-retry loop — with thinking off the budget
-        # won't be eaten by reasoning tokens, and the retry doubles wall time.
-        # A wall-clock deadline prevents the model cascade from stacking up.
-        deadline = time.monotonic() + effective_timeout
-        try:
-            text = _first_text(
-                _post_gemini(payload, timeout=effective_timeout, deadline=deadline)
-            )
-        except GeminiUnavailable as exc:
-            if not _rejects_thinking_budget(str(exc)):
-                raise
-            # Some models cannot switch thinking off and answer a zero budget
-            # with 400. Rather than lose the AI chart, ask once more with the
-            # model's own thinking, inside the same deadline.
-            logger.warning(f"Gemini refused a zero thinking budget ({exc}); retrying with thinking on")
-            with_thinking = {
-                **payload,
-                "generationConfig": {
-                    k: v for k, v in gen_config.items() if k != "thinkingConfig"
-                },
-            }
-            text = _first_text(
-                _post_gemini(with_thinking, timeout=effective_timeout, deadline=deadline)
-            )
-    else:
-        text = _text_from(payload, timeout=effective_timeout)
+    gemini_timeout = effective_timeout
+    if use_groq:
+        gemini_timeout = max(10, effective_timeout - _GROQ_JSON_RESERVE_SECONDS)
 
     try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        logger.error(f"Gemini returned unparseable JSON: {exc}")
-        raise GeminiUnavailable("Gemini returned an unreadable response") from exc
+        if not is_configured():
+            raise GeminiUnavailable("No GEMINI_API_KEY is set")
+        text = _gemini_json_text(
+            payload, gen_config, timeout=gemini_timeout, disable_thinking=disable_thinking
+        )
+        result = _parse_json_reply(text, "Gemini")
+        _json_source.model = active_model()
+        return result
+    except GeminiUnavailable as exc:
+        if not use_groq:
+            raise
+        gemini_error = exc
+        logger.warning(f"Gemini could not answer a JSON request ({exc}); asking Groq")
+
+    try:
+        text = _call_groq(
+            system_rules,
+            prompt,
+            max_tokens=groq_max_tokens or max_tokens or settings.GEMINI_MAX_TOKENS,
+            deadline=started + effective_timeout,
+            json_mode=True,
+            temperature=temperature,
+        )
+        result = _parse_json_reply(text, "Groq")
+    except GeminiUnavailable as exc:
+        raise GeminiUnavailable(f"{gemini_error}; {exc}") from exc
+    _json_source.model = f"groq/{_groq_model()}"
+    return result
 
 
 # ---------------------------------------------------------------------------
