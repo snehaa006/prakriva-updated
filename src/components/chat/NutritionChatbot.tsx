@@ -31,7 +31,7 @@ import {
 import { CompanionCharacter, CompanionMark, type CompanionMood } from "./CompanionCharacter";
 import { CueCard } from "./CueCard";
 import { RichText } from "./RichText";
-import { answerFromRecords } from "@/lib/doctorChatAnswers";
+import { answerFromRecords, hasRoster } from "@/lib/doctorChatAnswers";
 
 // ──────────────────────────────────────────────
 // Types
@@ -268,6 +268,9 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
    *  Proactive cues are patient-only — doctors don't need unsolicited nudges. */
   const cues = useMemo(() => (mode === "patient" ? buildProactiveCues(context) : []), [context, mode]);
 
+  /** The context load in flight, so a question asked before it lands can wait for it. */
+  const contextLoadRef = useRef<Promise<PatientChatContext | DoctorChatContext | null> | null>(null);
+
   // Whether Gemini is configured, and — only then — data to chat over.
   useEffect(() => {
     let cancelled = false;
@@ -287,11 +290,19 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
         }
       })();
 
-      const [enabled, ctx] = await Promise.all([statusPromise, contextPromise]);
+      // The context is stored the moment it loads. It used to wait for the
+      // status check too, and that waits out a sleeping backend's cold start
+      // (a minute or more), so the records-based answers — the part that
+      // should work without the backend — had nothing to answer from.
+      contextLoadRef.current = contextPromise;
+      void contextPromise.then((ctx) => {
+        if (!cancelled && ctx) setContext(ctx);
+      });
+
+      const enabled = await statusPromise;
       if (cancelled) return;
       setAssistantEnabled(enabled);
       setStatusChecked(true);
-      if (ctx) setContext(ctx);
     })();
 
     return () => {
@@ -424,7 +435,17 @@ const NutritionChatbot: React.FC<NutritionChatbotProps> = ({ open, onOpenChange,
           // Data questions ("summarise my patients", "who is high risk?") are
           // answered from the loaded records — instant, exact, and unaffected
           // by AI quota. Everything else goes to the doctor-chat endpoint.
-          const recordsAnswer = answerFromRecords(text, contextRef.current);
+          // Asked before the roster arrived (the summary chip right after
+          // opening): wait briefly for it rather than send a data question to
+          // a backend that may be asleep.
+          let doctorContext: unknown = contextRef.current;
+          if (!hasRoster(doctorContext) && contextLoadRef.current) {
+            doctorContext = await Promise.race([
+              contextLoadRef.current,
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+            ]);
+          }
+          const recordsAnswer = answerFromRecords(text, doctorContext);
           if (recordsAnswer) {
             answer = recordsAnswer;
             fromRecords = true;

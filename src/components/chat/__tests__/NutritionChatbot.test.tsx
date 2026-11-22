@@ -247,6 +247,34 @@ describe("NutritionChatbot (doctor)", () => {
     expect(askDoctorChat).not.toHaveBeenCalled();
   });
 
+  it("answers from the records while the backend is still waking up", async () => {
+    // A sleeping Render instance: the status check does not return for a
+    // minute or more. The roster must not wait for it.
+    vi.mocked(isAnalysisEnabled).mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    await openDoctorChat(user);
+    await send(user, "Give me a summary of all my patients, their conditions and adherence");
+
+    expect(await screen.findByText(/From your patient records/)).toBeInTheDocument();
+    expect(askDoctorChat).not.toHaveBeenCalled();
+  });
+
+  it("waits for the roster when asked before it has loaded", async () => {
+    let deliver: (ctx: typeof roster) => void = () => {};
+    vi.mocked(fetchDoctorChatContext).mockReturnValue(new Promise((resolve) => (deliver = resolve)));
+    const user = userEvent.setup();
+    await openDoctorChat(user);
+    await send(user, "Summarise my patients");
+    deliver(roster);
+
+    // Re-queried each time: the roster arriving re-renders the transcript.
+    await waitFor(() => expect(screen.getByText(/From your patient records/)).toBeInTheDocument());
+    // The conversation survives the roster arriving: question and answer both stay.
+    expect(screen.getByText("Summarise my patients")).toBeInTheDocument();
+    expect(screen.getByText(/Your patients \(2\)/)).toBeInTheDocument();
+    expect(askDoctorChat).not.toHaveBeenCalled();
+  });
+
   it("still sends questions that need judgement to the AI", async () => {
     vi.mocked(askDoctorChat).mockResolvedValue("Consider iron-rich foods.");
     const user = userEvent.setup();

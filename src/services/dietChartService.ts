@@ -1053,6 +1053,114 @@ export function servingRecipe(recipe: RecipeBasic): RecipeBasic {
   };
 }
 
+// --- Repairing a saved board ---
+
+/** A board item's nutrients, as the Recipe Builder stores them (strings or numbers). */
+export interface NutrientFix {
+  Protein: string;
+  Carbs: string;
+  Fat: string;
+}
+
+type BoardItem = Record<string, unknown>;
+interface BoardPlans {
+  Daily: Record<string, unknown[]>;
+  Weekly: Record<string, Record<string, unknown[]>>;
+}
+
+const boardItems = (plans: BoardPlans): BoardItem[] => [
+  ...Object.values(plans.Daily ?? {}).flat(),
+  ...Object.values(plans.Weekly ?? {}).flatMap((day) => Object.values(day ?? {}).flat()),
+] as BoardItem[];
+
+/** The FoodOScope recipe id of a board item, or null for local foods. */
+const recipeIdOf = (item: BoardItem): string | null => {
+  const id = String(item.Recipe_id ?? item.id ?? "");
+  return /^\d+$/.test(id) ? id : null;
+};
+
+/** Recipe ids whose full record could not be fetched this session. */
+const boardRepairFailed = new Set<string>();
+
+/**
+ * Per-serving nutrients for board items saved with FoodOScope's whole-dish
+ * figures or with fat and carbs missing — boards generated before the
+ * per-serving fix, kept in the browser, still read "0g fat · 0g carbs".
+ * Complete items are scaled locally; incomplete ones are filled from the
+ * recipe's full record, one request per distinct recipe (cached). Returns
+ * fixes by recipe id; empty when nothing needs repair.
+ */
+export async function findBoardNutrientFixes(plans: BoardPlans): Promise<Map<string, NutrientFix>> {
+  const fixes = new Map<string, NutrientFix>();
+  const toFetch = new Map<string, RecipeBasic>();
+
+  for (const item of boardItems(plans)) {
+    const id = recipeIdOf(item);
+    if (!id || fixes.has(id) || toFetch.has(id)) continue;
+    const macros = {
+      calories: Number(item.Calories) || undefined,
+      protein: Number(item.Protein) || 0,
+      carbs: Number(item.Carbs) || 0,
+      fat: Number(item.Fat) || 0,
+    };
+    const missing = [macros.protein, macros.carbs, macros.fat].filter((v) => !v).length;
+    if (missing >= 2) {
+      if (!boardRepairFailed.has(id)) {
+        toFetch.set(id, { Recipe_id: id, Calories: String(item.Calories ?? "") } as RecipeBasic);
+      }
+      continue;
+    }
+    const serving = perServingMacros(macros);
+    if (serving.protein !== macros.protein || serving.carbs !== macros.carbs || serving.fat !== macros.fat) {
+      fixes.set(id, {
+        Protein: oneDecimal(serving.protein ?? 0),
+        Carbs: oneDecimal(serving.carbs ?? 0),
+        Fat: oneDecimal(serving.fat ?? 0),
+      });
+    }
+  }
+
+  if (toFetch.size > 0) {
+    const full = await fillNutrients([...toFetch.values()]);
+    for (const [id, stub] of toFetch) {
+      const record = full.get(id);
+      if (!record || !hasFullMacros(record)) {
+        boardRepairFailed.add(id);
+        continue;
+      }
+      // The item's own calories are the serving the board shows.
+      const meal = servingRecipe({ ...record, Calories: stub.Calories || record.Calories });
+      fixes.set(id, {
+        Protein: meal["Protein (g)"],
+        Carbs: meal["Carbohydrate, by difference (g)"],
+        Fat: meal["Total lipid (fat) (g)"],
+      });
+    }
+  }
+  return fixes;
+}
+
+/** `plans` with each fixed item's nutrients replaced; other items untouched. */
+export function applyBoardNutrientFixes<T extends BoardPlans>(plans: T, fixes: Map<string, NutrientFix>): T {
+  if (fixes.size === 0) return plans;
+  const fix = (items: unknown[]) =>
+    items.map((item) => {
+      const id = recipeIdOf(item as BoardItem);
+      const f = id ? fixes.get(id) : undefined;
+      return f ? { ...(item as BoardItem), ...f } : item;
+    });
+  return {
+    ...plans,
+    Daily: Object.fromEntries(Object.entries(plans.Daily ?? {}).map(([slot, items]) => [slot, fix(items)])),
+    Weekly: Object.fromEntries(
+      Object.entries(plans.Weekly ?? {}).map(([day, slots]) => [
+        day,
+        Object.fromEntries(Object.entries(slots ?? {}).map(([slot, items]) => [slot, fix(items)])),
+      ])
+    ),
+  };
+}
+
 async function generateDietChartFromRecipes(
   profile: PatientProfile,
   numDays: number = 7,

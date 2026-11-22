@@ -332,7 +332,8 @@ Coverage is focused on authentication, since that is the gate on both roles:
   field names, missing values left undefined rather than counted as 0, and
   whole-dish macros scaled to the serving its calories describe.
 - `src/services/__tests__/dietChartServing.test.ts` — the fallback chart's
-  meals: per-serving macros, and no 0 g fat or carbs where calories are known.
+  meals: per-serving macros, no 0 g fat or carbs where calories are known, and
+  a saved board repaired (filled, scaled, local foods untouched).
 - `src/context/__tests__/FoodContext.test.tsx` — the saved selection corrected
   once: scaled in place, filled from the full record, local foods untouched.
 - `src/lib/__tests__/doctorChatAnswers.test.ts` and the doctor cases in
@@ -1080,7 +1081,11 @@ Flask (`backend/gemini_service.py`):
   Those replies carry the note *"From your patient records — answered
   instantly, without the AI"*, so they are never passed off as AI output.
   Anything needing judgement ("suggest a diet modification for Asha") returns
-  `null` there and goes to `/assistant/doctor-chat` as before.
+  `null` there and goes to `/assistant/doctor-chat` as before. The roster is
+  stored as soon as it loads, independently of the backend status check — that
+  check waits out a sleeping backend's cold start, and the records-based answers
+  must not — and a question asked before the roster arrives waits up to 10 s
+  for it rather than going to the backend.
 - **Doctor → Patient Analysis** (`/analysis/screening`) — a "Write analysis"
   panel that turns the selected patient's screening history into prose: how
   the risk picture has moved, which measurements drive it, what to check
@@ -1485,6 +1490,15 @@ usable values at all is estimated from calories (20/50/30). The search asks
 for a random page for variety; FoodOScope's `400 Page N does not exist` is
 treated as an empty page and retried at page 1 — that error used to leave
 breakfast empty every day.
+
+**Saved boards repair themselves.** The Recipe Builder keeps the board in the
+browser across refreshes, so a plan generated before this fix kept its
+whole-dish figures and "0 g fat · 0 g carbs". On load, `findBoardNutrientFixes`
+(`dietChartService.ts`) scales complete FoodOScope items to a serving locally
+and fills incomplete ones from the recipe's full record (one request per
+distinct recipe, cached); the fixes are applied to the latest board, so a drag
+made meanwhile is kept. Slots that were left empty are not refilled — generate
+again for those. The palette also picks up the selection's corrections.
 
 **Thinking is switched off for speed.** The chart request sets
 `generationConfig.thinkingConfig.thinkingBudget = 0` (`gemini_service.generate_json`)

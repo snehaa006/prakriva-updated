@@ -147,15 +147,17 @@ function namedPatient(question: string, ctx: DoctorChatContext): Patient | undef
   );
 }
 
+/** Whether `ctx` is the doctor's loaded context (a roster, possibly empty). */
+export const hasRoster = (ctx: unknown): ctx is DoctorChatContext =>
+  !!ctx && typeof ctx === "object" && Array.isArray((ctx as DoctorChatContext).patients);
+
 /**
  * The answer to a data question, or null when the question needs the AI.
  * `ctx` must be the loaded doctor context; anything else returns null.
  */
 export function answerFromRecords(question: string, ctx: unknown): string | null {
-  if (!ctx || typeof ctx !== "object" || !Array.isArray((ctx as DoctorChatContext).patients)) {
-    return null;
-  }
-  const context = ctx as DoctorChatContext;
+  if (!hasRoster(ctx)) return null;
+  const context = ctx;
   const q = question.trim();
   if (!q) return null;
 

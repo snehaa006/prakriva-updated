@@ -42,6 +42,8 @@ import { usePersistentState } from "@/hooks/usePersistentState";
 import { CACHE_KEYS } from "@/lib/localCache";
 import {
   generateDietChart,
+  findBoardNutrientFixes,
+  applyBoardNutrientFixes,
   determinePrimaryDosha,
   getNutritionalTargets,
   buildExcludeIngredients,
@@ -467,8 +469,43 @@ const RecipeBuilder = () => {
     emptyMealPlans()
   );
 
+  // A board saved before nutrients were put on a per-serving basis still holds
+  // FoodOScope's whole-dish figures or "0g fat · 0g carbs" — the plan stays in
+  // the browser across refreshes. Repair it in place; the fixes are applied to
+  // the latest board, so a drag made meanwhile is kept.
+  useEffect(() => {
+    let cancelled = false;
+    void findBoardNutrientFixes(mealPlans).then((fixes) => {
+      if (!cancelled && fixes.size > 0) {
+        setMealPlans((prev) => applyBoardNutrientFixes(prev, fixes));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mealPlans, setMealPlans]);
+
   // Palette
   const [paletteFoods, setPaletteFoods] = useState([...selectedFoods]);
+
+  // The palette is a working copy of the selection taken on open; carry over
+  // nutrient corrections made to the selection since (see FoodContext), without
+  // adding or removing items, so dragging is unaffected.
+  useEffect(() => {
+    const byId = new Map(selectedFoods.map((food) => [food.id, food]));
+    setPaletteFoods((prev) => {
+      let changed = false;
+      const next = prev.map((food) => {
+        const latest = byId.get(food.id);
+        if (latest && (latest.Protein !== food.Protein || latest.Carbs !== food.Carbs || latest.Fat !== food.Fat)) {
+          changed = true;
+          return { ...food, Protein: latest.Protein, Carbs: latest.Carbs, Fat: latest.Fat };
+        }
+        return food;
+      });
+      return changed ? next : prev;
+    });
+  }, [selectedFoods]);
 
   // --- Patient selection (restricted to this doctor's own patients) ---
   const handlePatientSelect = useCallback(
