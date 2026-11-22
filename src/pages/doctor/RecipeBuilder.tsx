@@ -452,6 +452,8 @@ const RecipeBuilder = () => {
 
   const [numDays, setNumDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
+  /** Which generator is working right now, for the button's label. */
+  const [generateStage, setGenerateStage] = useState<"ai" | "recipes" | null>(null);
 
   // Draft/generation provenance. `editingDraftId` is set only when re-opening
   // an already-saved plan (e.g. from the Diet Chart viewer's Edit button);
@@ -614,7 +616,7 @@ const RecipeBuilder = () => {
     }
     setIsGenerating(true);
     try {
-      const chart = await generateDietChart(patientProfile, numDays, generationContext);
+      const chart = await generateDietChart(patientProfile, numDays, generationContext, setGenerateStage);
       const { Daily, Weekly } = chartToMealPlans(chart);
       setMealPlans({ Daily, Weekly });
       setActiveFilter("Weekly");
@@ -654,6 +656,7 @@ const RecipeBuilder = () => {
       toast.error("Generation failed. Please try again.");
     } finally {
       setIsGenerating(false);
+      setGenerateStage(null);
     }
   }, [patientProfile, numDays, generationContext, setMealPlans, setActiveFilter, setPlanDuration]);
 
@@ -1234,7 +1237,7 @@ const RecipeBuilder = () => {
                   className="bg-foreground text-background hover:bg-foreground/90 h-10 px-6"
                 >
                   {isGenerating ? (
-                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</>
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />{generateStage === "recipes" ? "Building from recipe database…" : "Composing with AI…"}</>
                   ) : (
                     <><Sparkles className="w-4 h-4 mr-2" />Generate Diet Chart</>
                   )}
@@ -1242,7 +1245,9 @@ const RecipeBuilder = () => {
 
                 {isGenerating && (
                   <span className="text-xs text-gray-400">
-                    Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below.
+                    {generateStage === "recipes"
+                      ? "The AI planner is unavailable, so this plan is built from the recipe database — it drops straight into the board below."
+                      : "Composing meals around her dosha, clinical targets, kitchen and screening results — this drops straight into the board below."}
                   </span>
                 )}
               </div>

@@ -1303,6 +1303,15 @@ reverses that. Two reasons:
 
 Groq's free tier allows 30 req/min and 14.4K req/day.
 
+Two more things keep chat fast. Gemini chat replies run with thinking switched
+off (`thinkingBudget: 0`, retried with it on for a model that refuses), since a
+chat reply does not need long reasoning and with it Gemini often ran past the
+time budget. And Groq retires models on a schedule: when the configured
+`GROQ_MODEL` answers that it is decommissioned or unknown, the backend lists
+the models the key can call (`/openai/v1/models`), switches to the best
+available one (`_GROQ_PREFERRED_MODELS`), retries, and remembers the choice —
+otherwise every chat would silently fall through to the slower Gemini.
+
 Set `GROQ_API_KEY` in Render (or `backend/.env` locally). Multiple keys
 follow the same pattern as Gemini: `GROQ_API_KEY2` … `GROQ_API_KEY10`, or a
 comma-separated list. Vision tasks (report extraction, acne photo assessment)
@@ -1499,6 +1508,25 @@ and fills incomplete ones from the recipe's full record (one request per
 distinct recipe, cached); the fixes are applied to the latest board, so a drag
 made meanwhile is kept. Slots that were left empty are not refilled — generate
 again for those. The palette also picks up the selection's corrections.
+
+**A week is composed in parallel.** One Gemini request for a whole week asked
+for ~9k tokens of JSON — 45–60 s of generation, right at the 60 s deadline — so
+the AI chart often failed (503) and the doctor then also waited for the
+fallback. `diet_planner.generate_diet_chart` now splits the plan into chunks of
+at most three days (`CHUNK_DAYS`; a week is 3 + 2 + 2), composes them
+concurrently, and stitches them back into one numbered week. Each chunk gets a
+different cooking emphasis (`CHUNK_EMPHASIS`) so a week composed in parallel
+does not repeat itself; if any chunk fails, the whole AI chart fails and the
+fallback takes over. The website waits at most 70 s for the AI chart (the
+backend's 60 s plus margin), and the Generate button says which generator is
+working: "Composing with AI…" or "Building from recipe database…".
+
+**The fallback is fast.** Its meal pools used to load one after another with a
+2 s cooldown, 3.5 s between slots and 5 s between a slot's fallbacks — about a
+minute of deliberate waiting. They now load in parallel with no fixed pauses (a
+`429` is still retried with backoff), and full records are fetched five at a
+time: a complete 7-day plan, 35 meals with real per-serving nutrients, took
+13.7 s against the live API.
 
 **Thinking is switched off for speed.** The chart request sets
 `generationConfig.thinkingConfig.thinkingBudget = 0` (`gemini_service.generate_json`)

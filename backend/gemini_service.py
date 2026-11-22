@@ -741,6 +741,58 @@ def _groq_report(key: str, *, status: Optional[int], ok: bool) -> None:
         _groq_active_key_index = (keys.index(key) + 1) % len(keys)
 
 
+GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
+
+#: Chat models to fall back to, best first, when the configured GROQ_MODEL has
+#: been retired. Groq retires models on a schedule; a retired one answers every
+#: request with an error, which silently moved all chat onto slower Gemini.
+_GROQ_PREFERRED_MODELS = [
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "qwen/qwen3-32b",
+    "openai/gpt-oss-20b",
+    "llama-3.1-8b-instant",
+]
+_GROQ_NOT_CHAT = ("whisper", "guard", "tts", "playai", "distil", "prompt-guard", "compound")
+
+#: The model discovery picked, once the configured one was found to be gone.
+_groq_model_override: Optional[str] = None
+
+
+def _groq_model() -> str:
+    return _groq_model_override or settings.GROQ_MODEL
+
+
+def _groq_model_gone(status: int, body: str) -> bool:
+    """Whether a Groq error says the model itself is unavailable."""
+    text = body.lower()
+    return status in (400, 404) and "model" in text and any(
+        word in text
+        for word in ("decommission", "not found", "does not exist", "not supported", "deprecated", "model_not_found")
+    )
+
+
+def _discover_groq_model(key: str, gone: str) -> Optional[str]:
+    """A chat model this key can call now, preferring `_GROQ_PREFERRED_MODELS`."""
+    try:
+        response = requests.get(
+            GROQ_MODELS_URL, headers={"Authorization": f"Bearer {key}"}, timeout=10
+        )
+        ids = [m.get("id") for m in (response.json().get("data") or []) if isinstance(m, dict)]
+    except Exception as exc:  # network, JSON — discovery is best effort
+        logger.warning(f"Groq model discovery failed ({exc.__class__.__name__})")
+        return None
+    available = [
+        i for i in ids
+        if isinstance(i, str) and i != gone and not any(tag in i.lower() for tag in _GROQ_NOT_CHAT)
+    ]
+    for preferred in _GROQ_PREFERRED_MODELS:
+        if preferred in available:
+            return preferred
+    return available[0] if available else None
+
+
 def _call_groq(
     system_rules: str,
     prompt: str,
@@ -775,53 +827,80 @@ def _call_groq(
 
     last_error = "no Groq keys configured"
 
+    global _groq_model_override
+    rediscovered = False
+    out_of_time = False
+
     for key in _groq_key_candidates():
-        request_timeout = settings.GROQ_TIMEOUT_SECONDS
-        if deadline is not None:
-            remaining = deadline - time.monotonic()
-            if remaining <= 1:
-                last_error = "out of time"
+        # Normally one request per key. The one exception: the model turned
+        # out to be retired, a replacement was found, and the same key is
+        # asked again with it.
+        while True:
+            request_timeout = settings.GROQ_TIMEOUT_SECONDS
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 1:
+                    last_error = "out of time"
+                    out_of_time = True
+                    break
+                request_timeout = max(1, min(request_timeout, int(remaining)))
+            model = _groq_model()
+            try:
+                response = requests.post(
+                    GROQ_CHAT_URL,
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "temperature": settings.GEMINI_TEMPERATURE,
+                        "max_tokens": max_tokens,
+                    },
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=request_timeout,
+                )
+            except requests.RequestException as exc:
+                _groq_report(key, status=None, ok=False)
+                last_error = f"Groq network error ({exc.__class__.__name__})"
                 break
-            request_timeout = max(1, min(request_timeout, int(remaining)))
-        try:
-            response = requests.post(
-                GROQ_CHAT_URL,
-                json={
-                    "model": settings.GROQ_MODEL,
-                    "messages": messages,
-                    "temperature": settings.GEMINI_TEMPERATURE,
-                    "max_tokens": max_tokens,
-                },
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=request_timeout,
-            )
-        except requests.RequestException as exc:
-            _groq_report(key, status=None, ok=False)
-            last_error = f"Groq network error ({exc.__class__.__name__})"
-            continue
 
-        if response.status_code == 200:
-            _groq_report(key, status=200, ok=True)
-            body = response.json()
-            text = (
-                ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-            ).strip()
-            if text:
-                return text
-            last_error = "Groq returned an empty response"
-            continue
+            if response.status_code == 200:
+                _groq_report(key, status=200, ok=True)
+                body = response.json()
+                text = (
+                    ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                ).strip()
+                if text:
+                    return text
+                last_error = "Groq returned an empty response"
+                break
 
-        if response.status_code in (401, 403, 429):
-            _groq_report(key, status=response.status_code, ok=False)
+            body_text = response.text if isinstance(response.text, str) else ""
+            if not body_text:
+                try:
+                    body_text = json.dumps(response.json())
+                except Exception:
+                    body_text = ""
+            if not rediscovered and _groq_model_gone(response.status_code, body_text):
+                rediscovered = True
+                replacement = _discover_groq_model(key, model)
+                if replacement:
+                    logger.warning(f"Groq model '{model}' is unavailable; switching to '{replacement}'")
+                    _groq_model_override = replacement
+                    continue
+
+            if response.status_code in (401, 403, 429):
+                _groq_report(key, status=response.status_code, ok=False)
+                last_error = f"Groq HTTP {response.status_code}"
+                break
+
             last_error = f"Groq HTTP {response.status_code}"
-            continue
+            _groq_report(key, status=response.status_code, ok=False)
+            break
 
-        last_error = f"Groq HTTP {response.status_code}"
-        _groq_report(key, status=response.status_code, ok=False)
-        continue
+        if out_of_time:
+            break
 
     raise GeminiUnavailable(f"Groq fallback failed ({last_error})")
 
@@ -882,21 +961,32 @@ def generate(
             contents[-1]["parts"][0]["text"] += f"\n\n{prompt}"
         else:
             contents.append({"role": "user", "parts": [{"text": prompt}]})
+        generation_config = {
+            "temperature": settings.GEMINI_TEMPERATURE,
+            "maxOutputTokens": tokens,
+        }
         payload = {
             "systemInstruction": {"parts": [{"text": system_rules}]},
             "contents": contents,
-            "generationConfig": {
-                "temperature": settings.GEMINI_TEMPERATURE,
-                "maxOutputTokens": tokens,
-            },
+            # Thinking off: a chat reply does not need minutes of reasoning, and
+            # with it on Gemini often ran past the chat's time budget.
+            "generationConfig": {**generation_config, "thinkingConfig": {"thinkingBudget": 0}},
         }
         try:
             remaining = max(5, int(deadline - time.monotonic()))
-            return _text_from(
-                payload,
-                timeout=min(settings.GEMINI_TIMEOUT_SECONDS, remaining),
-                deadline=deadline,
-            )
+            timeout = min(settings.GEMINI_TIMEOUT_SECONDS, remaining)
+            try:
+                return _text_from(payload, timeout=timeout, deadline=deadline)
+            except GeminiUnavailable as exc:
+                if not _rejects_thinking_budget(str(exc)):
+                    raise
+                # A model that cannot switch thinking off: ask again with it on.
+                logger.warning(f"Gemini refused a zero thinking budget ({exc}); retrying with thinking on")
+                return _text_from(
+                    {**payload, "generationConfig": generation_config},
+                    timeout=min(timeout, max(5, int(deadline - time.monotonic()))),
+                    deadline=deadline,
+                )
         except GeminiUnavailable as exc:
             logger.warning(f"Gemini unavailable ({exc}); trying the next provider")
             errors.append(f"Gemini: {exc}")

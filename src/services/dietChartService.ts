@@ -725,7 +725,6 @@ export const MEAL_STRUCTURE: MealTargets[] = [
 
 // --- Rate limit helper ---
 
-const RATE_LIMIT_DELAY = 3500; // ms between API calls to avoid 429
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -734,7 +733,7 @@ function delay(ms: number): Promise<void> {
 async function fetchWithRetry<T>(
   fn: () => Promise<T>,
   retries: number = 3,
-  delayMs: number = 5000
+  delayMs: number = 2000
 ): Promise<T> {
   try {
     return await fn();
@@ -823,7 +822,6 @@ export async function fetchRecipesForMeal(
     }
 
     // Fallback: use diet filter + calorie range
-    await delay(RATE_LIMIT_DELAY + 1500);
     if (dietPref) {
       const res = await fetchWithRetry(() =>
         getRecipesByDiet(dietPref, 20, Math.floor(Math.random() * 10) + 1)
@@ -839,7 +837,6 @@ export async function fetchRecipesForMeal(
     }
 
     // Last fallback: just calorie range
-    await delay(RATE_LIMIT_DELAY + 1500);
     const res = await fetchWithRetry(() =>
       getRecipesByCalories(minCal, maxCal, 10)
     );
@@ -1027,7 +1024,7 @@ async function fillNutrients(recipes: RecipeBasic[]): Promise<Map<string, Recipe
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(5, queue.length) }, worker));
   return result;
 }
 
@@ -1200,30 +1197,28 @@ async function generateDietChartFromRecipes(
   // This drastically reduces API calls: 5 calls total instead of 5 x numDays.
   const mealRecipePools: Map<string, RecipeBasic[]> = new Map();
 
-  // Initial cooldown to avoid rate limit from any prior API usage
-  await delay(2000);
-
-  for (let i = 0; i < MEAL_STRUCTURE.length; i++) {
-    const mealSlot = MEAL_STRUCTURE[i];
-    // Wait between meal type fetches (skip before the first one)
-    if (i > 0) {
-      await delay(RATE_LIMIT_DELAY);
-    }
-    try {
-      const candidates = await fetchRecipesForMeal(
-        mealSlot,
-        dailyCalories,
-        dietPref,
-        excludeIngredients,
-        includeIngredients,
-        targets.focusCategories
-      );
-      mealRecipePools.set(mealSlot.mealType, candidates);
-    } catch (err) {
-      console.error(`Error fetching recipe pool for ${mealSlot.label}:`, err);
-      mealRecipePools.set(mealSlot.mealType, []);
-    }
-  }
+  // Every slot's pool at once. These used to load one after another with a
+  // 2 s cooldown, 3.5 s between slots and 5 s between a slot's fallbacks —
+  // ~50 s of waiting by design. FoodOScope has not needed it; a 429 is still
+  // retried with backoff by fetchWithRetry.
+  await Promise.all(
+    MEAL_STRUCTURE.map(async (mealSlot) => {
+      try {
+        const candidates = await fetchRecipesForMeal(
+          mealSlot,
+          dailyCalories,
+          dietPref,
+          excludeIngredients,
+          includeIngredients,
+          targets.focusCategories
+        );
+        mealRecipePools.set(mealSlot.mealType, candidates);
+      } catch (err) {
+        console.error(`Error fetching recipe pool for ${mealSlot.label}:`, err);
+        mealRecipePools.set(mealSlot.mealType, []);
+      }
+    })
+  );
 
   // Pick every day's recipes first, so each distinct recipe's full record is
   // fetched once below rather than once per day it appears.
@@ -1382,6 +1377,9 @@ function ageFromDob(dob: string): number | null {
   return age >= 0 && age < 130 ? age : null;
 }
 
+/** How long the website waits for the AI chart: the backend's 60 s, plus margin. */
+const AI_CHART_TIMEOUT_MS = 70_000;
+
 /**
  * Ask the backend to compose the chart with Gemini.
  *
@@ -1420,8 +1418,14 @@ export async function generateDietChartWithAI(
   };
   const lifeStageLabel = lifeStageLabels[profile.lifeStage] || "General";
 
+  // The backend gives Gemini 60 s; a little longer here, so a working reply
+  // is never cut off but a stuck request no longer holds the doctor
+  // indefinitely before the recipe-database fallback starts.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_CHART_TIMEOUT_MS);
   const response = await fetch(`${API_BASE}/diet-chart/generate`, {
     method: "POST",
+    signal: controller.signal,
     headers: { "Content-Type": "application/json", ...(await backendAuthHeaders()) },
     body: JSON.stringify({
       days: numDays,
@@ -1451,7 +1455,14 @@ export async function generateDietChartWithAI(
       screenings: context.screenings ?? [],
       mealStructure: MEAL_STRUCTURE,
     }),
-  });
+  })
+    .catch((err: unknown) => {
+      if ((err as { name?: string } | null)?.name === "AbortError") {
+        throw new Error(`the AI planner took longer than ${AI_CHART_TIMEOUT_MS / 1000} s`);
+      }
+      throw err;
+    })
+    .finally(() => clearTimeout(timer));
 
   const payload = (await response.json().catch(() => null)) as {
     success?: boolean;
@@ -1499,12 +1510,16 @@ export async function generateDietChartWithAI(
 export async function generateDietChart(
   profile: PatientProfile,
   numDays: number = 7,
-  context: DietChartContext = {}
+  context: DietChartContext = {},
+  /** Told which generator is working, so the button can say so. */
+  onStage?: (stage: "ai" | "recipes") => void
 ): Promise<GeneratedDietChart> {
   try {
+    onStage?.("ai");
     return await generateDietChartWithAI(profile, numDays, context);
   } catch (err) {
     console.warn("Gemini diet chart unavailable, falling back to FoodOScope:", err);
+    onStage?.("recipes");
     const chart = await generateDietChartFromRecipes(profile, numDays, context.adjustment);
     return { ...chart, fallbackReason: err instanceof Error ? err.message : String(err) };
   }

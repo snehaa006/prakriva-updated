@@ -27,6 +27,7 @@ def reset_key_pool_state(monkeypatch):
     with_keys(monkeypatch)
     # Groq stays off unless a test turns it on, whatever a local .env holds.
     monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", [])
+    monkeypatch.setattr(gemini_service, "_groq_model_override", None)
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
     gemini_service._retired_models.clear()
@@ -866,3 +867,85 @@ class TestTextProviderOrder:
         with pytest.raises(GeminiUnavailable, match="no time left"):
             gemini_service.generate("hi", "rules")
         assert calls == []
+
+
+class TestChatSpeed:
+    """Chat replies: Gemini without thinking, Groq off a retired model."""
+
+    def test_gemini_chat_replies_switch_thinking_off(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        sent = []
+
+        def fake_post(url, **kwargs):
+            sent.append(kwargs["json"])
+            return GEMINI_OK
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert sent[0]["generationConfig"]["thinkingConfig"] == {"thinkingBudget": 0}
+        assert "thinkingConfig" not in sent[0]
+
+    def test_a_model_that_must_think_is_asked_again_with_thinking_on(self, monkeypatch):
+        with_keys(monkeypatch, "gemini-key")
+        refused = _Reply(400, {"error": {"status": "INVALID_ARGUMENT",
+                                         "message": "Budget 0 is invalid. This model only works in thinking mode."}})
+        replies = iter([refused, GEMINI_OK])
+        sent = []
+
+        def fake_post(url, **kwargs):
+            sent.append(kwargs["json"]["generationConfig"])
+            return next(replies)
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        assert gemini_service.generate("hi", "rules") == "from gemini"
+        assert "thinkingConfig" in sent[0] and "thinkingConfig" not in sent[1]
+
+    def groq_only(self, monkeypatch, *keys):
+        monkeypatch.setattr(gemini_service.settings, "GROQ_API_KEYS", list(keys) or ["groq-key"])
+
+    def test_a_retired_groq_model_is_replaced_and_the_reply_still_arrives(self, monkeypatch):
+        self.groq_only(monkeypatch)
+        monkeypatch.setattr(gemini_service.settings, "GROQ_MODEL", "llama-old")
+        retired = _Reply(400, {"error": {"message": "The model `llama-old` has been decommissioned",
+                                         "code": "model_decommissioned"}})
+        models_used = []
+
+        def fake_post(url, **kwargs):
+            models_used.append(kwargs["json"]["model"])
+            return retired if kwargs["json"]["model"] == "llama-old" else GROQ_OK
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        monkeypatch.setattr(gemini_service.requests, "get", lambda url, **k: _Reply(200, {"data": [
+            {"id": "whisper-large-v3"}, {"id": "openai/gpt-oss-120b"}, {"id": "llama-old"},
+        ]}))
+
+        assert gemini_service.generate("hi", "rules") == "from groq"
+        assert models_used == ["llama-old", "openai/gpt-oss-120b"]
+        # Remembered: the next reply goes straight to the replacement.
+        models_used.clear()
+        gemini_service.generate("again", "rules")
+        assert models_used == ["openai/gpt-oss-120b"]
+
+    def test_an_ordinary_bad_request_does_not_trigger_model_discovery(self, monkeypatch):
+        self.groq_only(monkeypatch)
+        monkeypatch.setattr(gemini_service.requests, "post",
+                            lambda url, **k: _Reply(400, {"error": {"message": "messages: too long"}}))
+        def no_discovery(*a, **k):
+            raise AssertionError("discovery should not run")
+        monkeypatch.setattr(gemini_service.requests, "get", no_discovery)
+        with pytest.raises(GeminiUnavailable):
+            gemini_service.generate("hi", "rules")
+
+    def test_a_network_error_moves_on_to_the_next_key(self, monkeypatch):
+        self.groq_only(monkeypatch, "key-a", "key-b")
+        keys_used = []
+
+        def fake_post(url, **kwargs):
+            keys_used.append(kwargs["headers"]["Authorization"])
+            if kwargs["headers"]["Authorization"] == "Bearer key-a":
+                raise gemini_service.requests.ConnectionError("down")
+            return GROQ_OK
+
+        monkeypatch.setattr(gemini_service.requests, "post", fake_post)
+        assert gemini_service.generate("hi", "rules") == "from groq"
+        assert keys_used == ["Bearer key-a", "Bearer key-b"]

@@ -26,7 +26,8 @@ identifiable record. The frontend re-attaches the patient's name to the plan it
 gets back.
 """
 import json
-from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -49,6 +50,23 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 #: A fortnight is the longest plan the UI offers, and the cap that keeps one
 #: request inside Gemini's output budget.
 MAX_DAYS = 14
+
+#: Days per Gemini request. A whole week in one request asked for ~9k tokens of
+#: JSON — 45–60 s of generation, right at the 60 s deadline — so the chart often
+#: failed (503) and the doctor then waited for the recipe-database fallback on
+#: top. Chunks of up to three days are composed in parallel, so a week takes
+#: about as long as three days.
+CHUNK_DAYS = 3
+
+#: A different emphasis per chunk. The chunks are composed separately, so this
+#: is what keeps a week from serving the same handful of dishes three times.
+CHUNK_EMPHASIS = [
+    "traditional North Indian home cooking",
+    "South Indian and coastal home cooking",
+    "light one-pot Ayurvedic meals such as khichdi, dals, soups and porridges",
+    "simple seasonal, vegetable-forward meals",
+    "regional home cooking from East and West India",
+]
 
 DIET_RULES = """
 You are an Ayurvedic clinical dietitian composing a diet chart that a doctor
@@ -457,6 +475,47 @@ def normalise_plan(
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _day_chunks(days: int) -> List[Tuple[int, int]]:
+    """`(first_day, count)` pairs covering 1..days in near-even chunks of ≤ CHUNK_DAYS."""
+    parts = -(-days // CHUNK_DAYS)
+    base, extra = divmod(days, parts)
+    chunks, first = [], 1
+    for i in range(parts):
+        count = base + (1 if i < extra else 0)
+        chunks.append((first, count))
+        first += count
+    return chunks
+
+
+def _unique(items: List[str]) -> List[str]:
+    seen, out = set(), []
+    for item in items:
+        key = item.strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def _merge_chunks(
+    chunks: List[Tuple[int, int]], parts: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """One plan from per-chunk plans, days renumbered into one sequence."""
+    days: List[Dict[str, Any]] = []
+    for (first_day, _count), part in zip(chunks, parts):
+        for offset, day in enumerate(part["days"]):
+            number = first_day + offset
+            days.append({**day, "dayNumber": number, "dayLabel": DAY_NAMES[(number - 1) % 7]})
+    return {
+        "days": days,
+        "clinicalFocus": _unique([f for part in parts for f in part["clinicalFocus"]]),
+        "pantryGaps": _unique([g for part in parts for g in part["pantryGaps"]]),
+        "summary": next((part["summary"] for part in parts if part["summary"]), ""),
+        "rejectedMeals": [r for part in parts for r in part["rejectedMeals"]],
+        "source": "gemini",
+    }
+
+
 def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
     """A full diet chart from the profile, pantry and screening context supplied.
 
@@ -483,32 +542,52 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
         term for term in _string_list(payload.get("excludeIngredients"))
     ]
 
-    prompt = build_diet_prompt(payload, days, daily_calories)
+    chunks = _day_chunks(days)
 
-    max_tokens = min(16384, 2000 + days * len(meal_structure) * 240)
+    def compose(chunk: Tuple[int, int]) -> Dict[str, Any]:
+        first_day, count = chunk
+        prompt = build_diet_prompt(payload, count, daily_calories)
+        if len(chunks) > 1:
+            index = chunks.index(chunk)
+            prompt += (
+                f"\n\nThis request covers days {first_day}–{first_day + count - 1} of a "
+                f"{days}-day plan; the other days are composed separately. Number these "
+                f"days 1 to {count}. For variety across the week, lean towards "
+                f"{CHUNK_EMPHASIS[index % len(CHUNK_EMPHASIS)]}."
+            )
+        raw = gemini_service.generate_json(
+            prompt,
+            DIET_RULES,
+            max_tokens=min(16384, 2000 + count * len(meal_structure) * 240),
+            temperature=0.6,
+            timeout=60,
+            disable_thinking=True,
+        )
+        return normalise_plan(
+            raw,
+            days=count,
+            daily_calories=daily_calories,
+            meal_structure=meal_structure,
+            excluded=excluded,
+        )
 
     import time as _time
     t0 = _time.monotonic()
 
-    raw = gemini_service.generate_json(
-        prompt,
-        DIET_RULES,
-        max_tokens=max_tokens,
-        temperature=0.6,
-        timeout=60,
-        disable_thinking=True,
-    )
+    if len(chunks) == 1:
+        parts = [compose(chunks[0])]
+    else:
+        # Any chunk failing fails the chart: the frontend's fallback is a whole
+        # plan, which beats a week with a hole in the middle.
+        with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+            parts = list(pool.map(compose, chunks))
 
     elapsed = _time.monotonic() - t0
-    logger.info(f"Gemini diet chart API call took {elapsed:.1f}s")
-
-    plan = normalise_plan(
-        raw,
-        days=days,
-        daily_calories=daily_calories,
-        meal_structure=meal_structure,
-        excluded=excluded,
+    logger.info(
+        f"Gemini diet chart: {days} days in {len(chunks)} parallel request(s), {elapsed:.1f}s"
     )
+
+    plan = _merge_chunks(chunks, parts)
     plan["dailyCalorieTarget"] = daily_calories
     logger.info(
         f"Generated a {len(plan['days'])}-day diet chart with Gemini "
