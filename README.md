@@ -1145,7 +1145,13 @@ between them and left cooling down afterwards, turning a few seconds of load
 shedding into minutes of failures. It now retries briefly, then moves to the
 next model in the chain (a separate serving pool), leaves the keys alone, and
 if every model is saturated says *"Gemini is busy right now"* rather than
-reporting itself as unavailable. The chatbot is the exception to the
+reporting itself as unavailable. A used-up **per-model quota** is handled the
+same way: the free tier counts each model separately (`429 RESOURCE_EXHAUSTED
+— Quota exceeded for metric: …free_tier_requests, limit: 20, model: X`), so
+once every key has hit that model's quota the request moves to the next model
+instead of failing, the keys are not cooled down (they still work for other
+models), and the spent model is skipped until Google's *"Please retry in
+22m39s"* has passed (an hour if it gives no hint). The chatbot is the exception to the
 "ask `/analysis/status` first" rule for *sending*: it always attempts the
 call, because that check is still in flight for the first second or so after
 the widget opens and refusing to send during it answered the opening question
@@ -1211,6 +1217,7 @@ beneath them, so the cause is visible without opening devtools:
 | `Could not reach the backend at <url>` | Flask is down, `VITE_API_URL` points somewhere wrong, or the origin is not in the backend's `ALLOWED_ORIGINS`. |
 | `Gemini returned HTTP 400 (INVALID_ARGUMENT — …)` | The request itself was rejected — a malformed conversation, not a key problem. |
 | `Gemini returned HTTP 429 (RESOURCE_EXHAUSTED …)` | Every configured Gemini key is out of quota. If `GROQ_API_KEY` is set, the chatbot falls back to Groq automatically. Otherwise add a spare (`GEMINI_API_KEY2`) or wait. |
+| `Gemini's free daily quota is used up for every model tried (…)` | Every model in the chain has used its free-tier daily allowance (e.g. 20 requests a day per model; a 7-day AI diet chart is 7 requests). Charts fall back to the FoodOScope builder until it resets. Keys from *other* Google Cloud projects, or billing on the key, raise the limit. |
 | `All LLM providers unavailable (Gemini: …; Groq: …)` | Both Gemini and Groq are exhausted or misconfigured. Wait for rate limits to reset or add more keys. |
 | `Gemini returned no usable model (…)` | Every model in the chain answered 404 *and* the live model list could not be fetched — see "Gemini model retirement" below. |
 | `Gemini used its whole output budget …` | The model spent `maxOutputTokens` reasoning without writing an answer, twice. Raise `GEMINI_MAX_TOKENS`. |

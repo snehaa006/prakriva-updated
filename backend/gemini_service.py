@@ -195,12 +195,51 @@ _UNUSABLE_MODEL_WORDS = (
 _MAX_MODEL_ATTEMPTS = 6
 
 _retired_models: set = set()
+#: Models whose quota is used up, with the monotonic time it comes back.
+_spent_until: Dict[str, float] = {}
+
+
+def _is_spent(name: str) -> bool:
+    return time.monotonic() < _spent_until.get(name, 0.0)
+
+
+def _is_model_quota(http_status: int, gemini_status: Optional[str], message: str) -> bool:
+    """A 429 for one model's quota ("Quota exceeded for metric: ..., model: X")."""
+    text = message.lower()
+    return (
+        http_status == 429
+        and gemini_status == "RESOURCE_EXHAUSTED"
+        and "quota" in text
+        and "model:" in text
+    )
+
+
+def _retry_after_seconds(message: str) -> float:
+    """Gemini's "Please retry in 22m39.5s", in seconds; an hour if it does not say."""
+    match = re.search(r"retry in\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:([\d.]+)s)?", message)
+    if not match or not any(match.groups()):
+        return 3600.0
+    hours, minutes, seconds = (float(g) if g else 0.0 for g in match.groups())
+    return min(hours * 3600 + minutes * 60 + seconds, 24 * 3600.0)
 _resolved_model: Optional[str] = None
 _discovered_models: Optional[List[str]] = None
 
 
 class _ModelGone(RuntimeError):
     """Internal: this model ID no longer exists, try another."""
+
+
+class _ModelQuotaSpent(RuntimeError):
+    """Internal: every key has used up its quota for this model; try another.
+
+    Free-tier limits are per model (e.g. 20 requests a day for
+    gemini-3.8-flash), so another model still has its own allowance. The key
+    is not at fault and is not cooled down - it works for other models.
+    """
+
+    def __init__(self, message: str, retry_after: float):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class _ModelOverloaded(RuntimeError):
@@ -348,10 +387,10 @@ def active_model() -> Optional[str]:
     global _resolved_model
     if not is_configured():
         return None
-    if _resolved_model and _resolved_model not in _retired_models:
+    if _resolved_model and _resolved_model not in _retired_models and not _is_spent(_resolved_model):
         return _resolved_model
     for name in _model_candidates():
-        if name not in _retired_models:
+        if name not in _retired_models and not _is_spent(name):
             _resolved_model = name
             return name
     return None
@@ -368,7 +407,7 @@ def _next_model(exclude: List[str]) -> Optional[str]:
     if not is_configured():
         return None
     for name in _model_candidates():
-        if name not in _retired_models and name not in exclude:
+        if name not in _retired_models and name not in exclude and not _is_spent(name):
             return name
     return None
 
@@ -393,8 +432,12 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
     """
     url = GEMINI_URL.format(model=model)
     last_error = "no keys configured"
+    keys_tried = 0
+    keys_out_of_quota = 0
+    retry_after = 0.0
 
     for key in _key_candidates():
+        keys_tried += 1
         # Inner loop: overload retries against this same key. Every other
         # outcome breaks out of it to move on to the next key.
         attempt = 0
@@ -439,6 +482,15 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
                 # request for a fault that was never the key's.
                 raise _ModelOverloaded(f"model '{model}' is busy ({last_error})")
 
+            # This model's quota on this key, not the key itself: another key
+            # (another project) may still have quota for it, and this key
+            # still works for other models, so it is not cooled down.
+            if _is_model_quota(response.status_code, gemini_status, message):
+                keys_out_of_quota += 1
+                retry_after = max(retry_after, _retry_after_seconds(message))
+                logger.warning(f"Gemini model '{model}' is out of quota on one key ({last_error})")
+                break
+
             if _is_key_at_fault(response.status_code, gemini_status, message):
                 logger.warning(
                     f"Gemini rejected one key ({last_error}); trying the next"
@@ -454,6 +506,8 @@ def _post_to_model(model: str, payload: Dict[str, Any], *, timeout: int) -> Dict
             logger.error(f"Gemini returned {last_error}")
             raise GeminiUnavailable(f"Gemini returned {last_error}")
 
+    if keys_tried and keys_out_of_quota == keys_tried:
+        raise _ModelQuotaSpent(f"model '{model}' is out of quota ({last_error})", retry_after)
     raise GeminiUnavailable(f"Gemini is unavailable (last error: {last_error})")
 
 
@@ -478,6 +532,7 @@ def _post_gemini(
 
     last_error = "no Gemini model is available"
     overloaded = False
+    quota_spent = False
     tried: List[str] = []
 
     while len(tried) < _MAX_MODEL_ATTEMPTS:
@@ -508,11 +563,28 @@ def _post_gemini(
             last_error = str(exc)
             overloaded = True
             logger.warning(f"Gemini {last_error}; trying the next model")
+        except _ModelQuotaSpent as exc:
+            last_error = str(exc)
+            quota_spent = True
+            _spent_until[model] = time.monotonic() + exc.retry_after
+            logger.warning(
+                f"Gemini {model} is out of quota for {exc.retry_after / 60:.0f} min; trying the next model"
+            )
 
     if overloaded:
         raise GeminiUnavailable(
             "Gemini is busy right now — every model tried was at capacity "
             f"({last_error}). Please try again in a moment."
+        )
+    # Also reached with nothing tried at all, when every model is still
+    # parked from earlier requests: that is the same "quota used up" answer.
+    if quota_spent or any(_is_spent(name) for name in list(_spent_until)):
+        if not quota_spent:
+            last_error = "every model is still out of quota from earlier requests"
+        raise GeminiUnavailable(
+            "Gemini's free daily quota is used up for every model tried "
+            f"({last_error}). It resets daily; more keys from other Google "
+            "Cloud projects, or billing on the key, raise the limit."
         )
     raise GeminiUnavailable(f"Gemini returned no usable model ({last_error})")
 

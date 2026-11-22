@@ -31,12 +31,14 @@ def reset_key_pool_state(monkeypatch):
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
     gemini_service._retired_models.clear()
+    gemini_service._spent_until.clear()
     gemini_service._resolved_model = None
     gemini_service._discovered_models = []
     yield
     gemini_service._cooldown_until.clear()
     gemini_service._active_key_index = 0
     gemini_service._retired_models.clear()
+    gemini_service._spent_until.clear()
     gemini_service._resolved_model = None
     gemini_service._discovered_models = None
 
@@ -65,6 +67,27 @@ def overloaded_response() -> Mock:
             "message": (
                 "This model is currently experiencing high demand. Spikes in "
                 "demand are usually temporary. Please try again later."
+            ),
+        }
+    }
+    return response
+
+
+def quota_spent_response(model: str = "gemini-3.8-flash", retry: str = "22m39.59s") -> Mock:
+    """What Gemini answers once a model's free daily allowance is used up.
+
+    Copied from the live failure: limits are per model, so another model
+    still has its own allowance on the same key.
+    """
+    response = Mock(status_code=429)
+    response.json.return_value = {
+        "error": {
+            "status": "RESOURCE_EXHAUSTED",
+            "message": (
+                "You exceeded your current quota, please check your plan and "
+                "billing details.\n* Quota exceeded for metric: "
+                "generativelanguage.googleapis.com/generate_content_free_tier_requests, "
+                f"limit: 20, model: {model}\nPlease retry in {retry}."
             ),
         }
     }
@@ -390,6 +413,125 @@ class TestModelOverload:
         assert post.call_count <= (
             gemini_service._MAX_MODEL_ATTEMPTS * gemini_service._OVERLOAD_ATTEMPTS
         )
+
+
+class TestModelQuota:
+    """A 429 RESOURCE_EXHAUSTED naming one model's quota.
+
+    The live failure: a 7-day AI chart answered "HTTP 429 ... Quota exceeded
+    for metric: generate_content_free_tier_requests, limit: 20, model:
+    gemini-3.8-flash ... Please retry in 22m39s". The free tier counts each
+    model separately, but the old code blamed the key, cooled every key down
+    and gave up, so no model got a turn and the next requests failed too.
+    """
+
+    def test_a_spent_model_falls_through_to_the_next_one(self, monkeypatch):
+        with_keys(monkeypatch, "only-key")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[quota_spent_response(), candidates_response("ok")],
+        ) as post:
+            body = gemini_service._post_gemini({}, timeout=5)
+
+        assert body["candidates"][0]["content"]["parts"][0]["text"] == "ok"
+        assert post.call_args_list[0].args[0] != post.call_args_list[1].args[0]
+
+    def test_every_key_gets_a_turn_on_the_model_first(self, monkeypatch):
+        """Keys from different Google Cloud projects have separate quotas."""
+        with_keys(monkeypatch, "key-one", "key-two")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[quota_spent_response(), candidates_response("ok")],
+        ) as post:
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert post.call_args_list[0].args[0] == post.call_args_list[1].args[0]
+        assert post.call_args_list[1].kwargs["params"] == {"key": "key-two"}
+
+    def test_a_spent_model_does_not_burn_the_key_pool(self, monkeypatch):
+        """The key still works for every other model."""
+        with_keys(monkeypatch, "key-one", "key-two")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[quota_spent_response(), quota_spent_response(), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert gemini_service._cooldown_until == {}
+
+    def test_a_spent_model_is_skipped_until_its_quota_returns(self, monkeypatch):
+        with_keys(monkeypatch, "only-key")
+        spent = gemini_service.active_model()
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[quota_spent_response(), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        with patch("gemini_service.requests.post", return_value=candidates_response("ok")) as post:
+            gemini_service._post_gemini({}, timeout=5)
+        assert post.call_count == 1
+        assert spent not in post.call_args.args[0]
+        assert spent not in gemini_service._retired_models
+
+        # Once Google's "retry in" has passed, the model is back in the chain.
+        now = gemini_service.time.monotonic()
+        monkeypatch.setattr(gemini_service.time, "monotonic", lambda: now + 23 * 60)
+        gemini_service._resolved_model = None
+        assert gemini_service.active_model() == spent
+
+    def test_the_wait_comes_from_googles_retry_hint(self, monkeypatch):
+        with_keys(monkeypatch, "only-key")
+        spent = gemini_service.active_model()
+        before = gemini_service.time.monotonic()
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[quota_spent_response(retry="41s"), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        wait = gemini_service._spent_until[spent] - before
+        assert 40 <= wait <= 45
+
+    @pytest.mark.parametrize(
+        "message, seconds",
+        [
+            ("Please retry in 22m39.5s.", 22 * 60 + 39.5),
+            ("Please retry in 41s.", 41),
+            ("Please retry in 2h5m.", 2 * 3600 + 5 * 60),
+            ("no hint at all", 3600),
+        ],
+    )
+    def test_retry_hint_parsing(self, message, seconds):
+        assert gemini_service._retry_after_seconds(message) == pytest.approx(seconds)
+
+    def test_a_plain_rate_limited_key_still_rotates_and_cools_down(self, monkeypatch):
+        """A 429 that does not name a model's quota is still the key's fault."""
+        with_keys(monkeypatch, "bad-key", "good-key")
+        with patch(
+            "gemini_service.requests.post",
+            side_effect=[Mock(status_code=429), candidates_response("ok")],
+        ):
+            gemini_service._post_gemini({}, timeout=5)
+
+        assert "bad-key" in gemini_service._cooldown_until
+
+    def test_giving_up_says_the_quota_is_used_up(self, monkeypatch):
+        with_keys(monkeypatch, "only-key")
+        with patch("gemini_service.requests.post", return_value=quota_spent_response()):
+            with pytest.raises(GeminiUnavailable, match="quota is used up"):
+                gemini_service._post_gemini({}, timeout=5)
+
+    def test_with_every_model_parked_no_request_is_made(self, monkeypatch):
+        with_keys(monkeypatch, "only-key")
+        with patch("gemini_service.requests.post", return_value=quota_spent_response()):
+            with pytest.raises(GeminiUnavailable):
+                gemini_service._post_gemini({}, timeout=5)
+
+        with patch("gemini_service.requests.post") as post:
+            with pytest.raises(GeminiUnavailable, match="quota is used up"):
+                gemini_service._post_gemini({}, timeout=5)
+        post.assert_not_called()
 
 
 class TestModelDiscovery:
