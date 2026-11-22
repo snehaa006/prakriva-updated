@@ -87,9 +87,13 @@ class Settings:
 
         # Which provider answers chat-style text first: "groq" (default) or
         # "gemini". Groq is fast and has its own quota, so the chatbot and the
-        # written analyses no longer compete with diet charts (which always
-        # use Gemini) for Gemini's quota. The other provider is the fallback.
+        # written analyses do not compete with diet charts for Gemini's quota.
+        # The other provider is the fallback.
         self.LLM_TEXT_PRIMARY = os.getenv("LLM_TEXT_PRIMARY", "groq").strip().lower()
+        # Which provider writes each day of an AI diet chart first: "groq"
+        # (default; ~5 s a day) or "gemini" (~35-60 s a day on the free tier,
+        # 20 requests a day per model). The other backs it up in the same 60 s.
+        self.LLM_JSON_PRIMARY = os.getenv("LLM_JSON_PRIMARY", "groq").strip().lower()
         # Total seconds one chat reply may take across every provider tried.
         # Kept under the frontend's 50 s wait, so the doctor or patient always
         # gets a reply or a clear error instead of a silent timeout.

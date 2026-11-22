@@ -355,6 +355,12 @@ def _string_list(value: Any) -> List[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
+#: Words that contain an excluded term but are not that food: "almond
+#: slivers" read as "livers" and dropped four meals of a live pregnancy chart;
+#: butternut squash is not a nut.
+_NOT_THE_FOOD = re.compile(r"(?<![a-z])(?:slivers?|slivered|butternuts?)(?![a-z])")
+
+
 def _contains_excluded(meal: Dict[str, Any], excluded: List[str]) -> Optional[str]:
     """The first excluded ingredient this meal mentions, if any.
 
@@ -373,6 +379,8 @@ def _contains_excluded(meal: Dict[str, Any], excluded: List[str]) -> Optional[st
         + _string_list(meal.get("fromPantry"))
         + _string_list(meal.get("toBuy"))
     ).lower()
+    # Words that end in an excluded term without being that food.
+    haystack = _NOT_THE_FOOD.sub(" ", haystack)
 
     for term in excluded:
         term = term.strip().lower()
@@ -583,7 +591,17 @@ def _merge_chunks(
         "clinicalFocus": _unique([f for part in done for f in part["clinicalFocus"]]),
         "pantryGaps": _unique([g for part in done for g in part["pantryGaps"]]),
         "summary": summary,
-        "rejectedMeals": [r for part in done for r in part["rejectedMeals"]],
+        "rejectedMeals": [
+            # Each request numbers its own days from 1; name the real day.
+            re.sub(
+                r"\(day (\d+)\)",
+                lambda m, first=first_day: f"(day {first + int(m.group(1)) - 1})",
+                rejection,
+            )
+            for (first_day, _), part in zip(chunks, parts)
+            if part is not None
+            for rejection in part["rejectedMeals"]
+        ],
         "source": "gemini",
     }
 
@@ -631,9 +649,10 @@ def generate_diet_chart(payload: Dict[str, Any]) -> Dict[str, Any]:
                 f"are composed separately. {numbering} For variety across the week, lean "
                 f"towards {CHUNK_EMPHASIS[index % len(CHUNK_EMPHASIS)]}."
             )
-        # Groq backs Gemini up: Gemini's free tier allows 20 requests a day per
-        # model and can take over a minute for one day, while Groq answers in
-        # seconds. Both fit inside the 60 s, below the frontend's 70 s wait.
+        # Groq and Gemini back each other up (LLM_JSON_PRIMARY picks who goes
+        # first): Gemini's free tier allows 20 requests a day per model and
+        # can take over a minute for one day, while Groq answers in seconds.
+        # Both fit inside the 60 s, below the frontend's 70 s wait.
         raw = gemini_service.generate_json(
             prompt,
             DIET_RULES,

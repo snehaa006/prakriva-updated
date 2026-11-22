@@ -1305,9 +1305,9 @@ reverses that. Two reasons:
   per request plus key and model retries, so a struggling Gemini ran past the
   frontend's 50 s wait before Groq was ever tried, and Kuchu Puchu answered
   "Could not reach the backend … (no response within 50s)".
-- **Separate quotas.** Diet charts use Gemini first (Groq only backs up a day
-  Gemini cannot write — see "Groq backs up each day" below). With chat on
-  Groq, the two no longer compete for Gemini's quota. (A spare Gemini key only adds
+- **Separate quotas.** Diet chart days also go to Groq first, with Gemini as
+  the backup (see "Groq writes each day" below), so Gemini's small free quota
+  is kept for when Groq cannot answer. (A spare Gemini key only adds
   quota if it comes from a different Google Cloud project — keys in one
   project share its limit.)
 
@@ -1479,9 +1479,10 @@ frontend re-attaches the patient's name to the plan that comes back.
 The reply is validated server-side before it reaches the board. Every meal is
 checked against the exclusion list, where a term must end where a word ends
 (plural allowed): "egg" doesn't reject an eggplant dish and "liver" doesn't
-reject "slivered almonds" (which used to empty two of five meals from most
-days of a pregnancy chart), while "egg" still catches "eggs" and "milk"
-catches "buttermilk". Any meal naming an excluded
+reject "slivered almonds" or "almond slivers" (which used to empty two of
+five meals from most days of a pregnancy chart; "sliver(s)", "slivered" and
+"butternut" are set aside before matching), while "egg" still catches "eggs"
+and "milk" catches "buttermilk". Any meal naming an excluded
 ingredient is **dropped rather than corrected** — the doctor sees a gap they can
 fill, which beats a plausible-looking meal nobody checked. The count of dropped
 meals is surfaced as a toast. Meal slots are matched loosely ("Mid-Morning
@@ -1542,15 +1543,18 @@ fallback take over. The website waits at most 70 s for the AI chart (the
 backend's 60 s plus margin), and the Generate button says which generator is
 working: "Composing with AI…" or "Building from recipe database…".
 
-**Groq backs up each day.** Gemini's free tier allows 20 requests a day *per
-model* (a week is 7), and when busy it took over 60 s for a single day
-(`network error (ReadTimeout)`), so both turned Generate into the fallback. If
-`GROQ_API_KEY` is set, each day now gives Gemini 38 s and, if it cannot answer
-(out of quota on every model, too slow, refused), asks Groq for the same day in
-JSON mode with the remaining ~22 s (`generate_json(groq_fallback=True)`,
-`_GROQ_JSON_RESERVE_SECONDS`). Groq answers in seconds, but its free tier
-counts tokens per minute, so its `max_tokens` is kept to what one day needs; a
-day Groq also refuses is filled as above. The chart's `model` field names
+**Groq writes each day; Gemini backs it up.** Gemini's free tier allows 20
+requests a day *per model* (a week is 7), and when busy it took 35–60 s or more
+for a single day (`network error (ReadTimeout)`), so charts either fell back or
+took most of a minute. Measured live, Groq wrote the same day in about 5 s. If
+`GROQ_API_KEY` is set, each day now goes to Groq first in JSON mode with up to
+22 s, and to Gemini with the rest of the 60 s if Groq cannot answer (rate
+limited, refused, too slow); `LLM_JSON_PRIMARY=gemini` reverses the order, and
+then Gemini gets 38 s and Groq the remaining ~22 s
+(`generate_json(groq_fallback=True)`, `_JSON_RESERVE_SECONDS`). Groq's free
+tier counts tokens per minute, so its `max_tokens` is kept to what one day
+needs; a day neither can write is filled as above. Rejection notes name the
+real day ("(day 4)"), not each request's own "day 1". The chart's `model` field names
 whoever wrote the days, e.g. `gemini-3.6-flash + groq/openai/gpt-oss-120b`;
 `gpt-oss` models are asked for `reasoning_effort: "low"`, since at their
 default effort one day ran past Groq's share of the time. Each day's summary
@@ -2361,7 +2365,8 @@ committed.
 | `GROQ_API_KEY1` … `GROQ_API_KEY10` | Backend | No | Extra Groq keys, same rotation pattern as Gemini spares. |
 | `GROQ_MODEL` | Backend | No | Defaults to `llama-3.3-70b-versatile`. |
 | `GROQ_TIMEOUT_SECONDS` | Backend | No | Defaults to `45`. |
-| `LLM_TEXT_PRIMARY` | Backend | No | Which provider answers chat-style text first: `groq` (default) or `gemini`; the other is the fallback. Diet charts always use Gemini. See "Groq first for chat". |
+| `LLM_TEXT_PRIMARY` | Backend | No | Which provider answers chat-style text first: `groq` (default) or `gemini`; the other is the fallback. See "Groq first for chat". |
+| `LLM_JSON_PRIMARY` | Backend | No | Which provider writes each day of an AI diet chart first: `groq` (default, ~5 s a day) or `gemini` (~35–60 s a day on the free tier); the other backs it up within the same 60 s. See "Groq writes each day". |
 | `CHAT_DEADLINE_SECONDS` | Backend | No | Defaults to `40`. Total time one chat reply may take across both providers, kept under the frontend's 50 s wait so a reply or a clear error always arrives. |
 | `OPENAI_API_KEY` | Backend | No | Only needed for OpenAI-backed features; the app boots fine without it. |
 | `FLASK_ENV` | Backend | Recommended | Set to `production` on deployed environments to disable Flask debug/test routes. Defaults to `development`. |

@@ -1100,9 +1100,11 @@ def _rejects_thinking_budget(error: str) -> bool:
     return "http 400" in lowered and ("thinking" in lowered or "budget" in lowered)
 
 
-#: Seconds held back for Groq when it backs up a Gemini JSON request: enough
-#: for one day of a diet chart (~2.5k tokens) at Groq's speed.
-_GROQ_JSON_RESERVE_SECONDS = 22
+#: Seconds held back for the provider that backs up a JSON request: enough
+#: for one day of a diet chart from each (Groq ~5 s, Gemini ~35 s).
+_JSON_RESERVE_SECONDS = {"groq": 22, "gemini": 38}
+#: Kept for callers and tests that name the Groq share directly.
+_GROQ_JSON_RESERVE_SECONDS = _JSON_RESERVE_SECONDS["groq"]
 
 #: Which model answered the last generate_json call on this thread.
 _json_source = threading.local()
@@ -1193,14 +1195,15 @@ def generate_json(
     budget-retry path in ``_text_from`` and dramatically cuts latency for
     large structured outputs like diet charts.
 
-    ``groq_fallback`` lets Groq answer when Gemini cannot: out of quota, or
-    too slow (the free tier can take over a minute for one day of a chart).
-    Gemini then gets ``timeout`` minus `_GROQ_JSON_RESERVE_SECONDS`, and Groq
-    whatever is left, so the whole call still fits in ``timeout``.
+    ``groq_fallback`` brings Groq in: `LLM_JSON_PRIMARY` (default "groq")
+    says which provider answers first, and the other answers when it cannot
+    (out of quota, too slow, refused). The first gets ``timeout`` minus the
+    second's share (`_JSON_RESERVE_SECONDS`), so the whole call still fits in
+    ``timeout``. Gemini's free tier allows 20 requests a day per model and
+    took 35-60 s for one day of a chart; Groq answered the same day in ~5 s.
     """
     effective_timeout = timeout or settings.GEMINI_TIMEOUT_SECONDS
-    started = time.monotonic()
-    use_groq = groq_fallback and _groq_configured()
+    deadline = time.monotonic() + effective_timeout
     _json_source.model = None
 
     gen_config: Dict[str, Any] = {
@@ -1222,39 +1225,50 @@ def generate_json(
         "generationConfig": gen_config,
     }
 
-    gemini_timeout = effective_timeout
-    if use_groq:
-        gemini_timeout = max(10, effective_timeout - _GROQ_JSON_RESERVE_SECONDS)
-
-    try:
+    def ask_gemini(seconds: float) -> Any:
         if not is_configured():
             raise GeminiUnavailable("No GEMINI_API_KEY is set")
         text = _gemini_json_text(
-            payload, gen_config, timeout=gemini_timeout, disable_thinking=disable_thinking
+            payload, gen_config, timeout=max(5, int(seconds)), disable_thinking=disable_thinking
         )
         result = _parse_json_reply(text, "Gemini")
         _json_source.model = active_model()
         return result
-    except GeminiUnavailable as exc:
-        if not use_groq:
-            raise
-        gemini_error = exc
-        logger.warning(f"Gemini could not answer a JSON request ({exc}); asking Groq")
 
-    try:
+    def ask_groq(seconds: float) -> Any:
         text = _call_groq(
             system_rules,
             prompt,
             max_tokens=groq_max_tokens or max_tokens or settings.GEMINI_MAX_TOKENS,
-            deadline=started + effective_timeout,
+            deadline=time.monotonic() + seconds,
             json_mode=True,
             temperature=temperature,
         )
         result = _parse_json_reply(text, "Groq")
-    except GeminiUnavailable as exc:
-        raise GeminiUnavailable(f"{gemini_error}; {exc}") from exc
-    _json_source.model = f"groq/{_groq_model()}"
-    return result
+        _json_source.model = f"groq/{_groq_model()}"
+        return result
+
+    if groq_fallback and _groq_configured():
+        order = ["gemini", "groq"] if settings.LLM_JSON_PRIMARY == "gemini" else ["groq", "gemini"]
+    else:
+        order = ["gemini"]
+    askers = {"gemini": ask_gemini, "groq": ask_groq}
+
+    errors: List[GeminiUnavailable] = []
+    for position, name in enumerate(order):
+        remaining = deadline - time.monotonic()
+        if position + 1 < len(order):
+            remaining = max(5.0, remaining - _JSON_RESERVE_SECONDS[order[position + 1]])
+        try:
+            return askers[name](remaining)
+        except GeminiUnavailable as exc:
+            errors.append(exc)
+            if position + 1 < len(order):
+                logger.warning(f"{name} could not answer a JSON request ({exc}); asking {order[position + 1]}")
+
+    if len(errors) == 1:
+        raise errors[0]
+    raise GeminiUnavailable("; ".join(str(exc) for exc in errors))
 
 
 # ---------------------------------------------------------------------------
